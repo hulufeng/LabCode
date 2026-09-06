@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LabCode — 通用 AI 软件开发智能体</title>
+  <meta name="description" content="LabCode 内置真正动手的 AI 智能体：读写代码、执行命令、运行测试、联网检索。一个桌面应用，覆盖软件开发全流程。">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+</head>
+<body>
+  <!-- 导航栏 -->
+  <nav class="navbar">
+    <div class="nav-container">
+      <div class="logo">
+        <span class="logo-icon">⚡</span>
+        <span class="logo-text">LabCode</span>
+      </div>
+      <div class="nav-links">
+        <a href="#features" class="nav-link">功能</a>
+        <a href="#product" class="nav-link">产品</a>
+        <a href="#pricing" class="nav-link">价格</a>
+        <a href="#roadmap" class="nav-link">路线图</a>
+        <a href="#plugins" class="nav-link">插件广场</a>
+        <a href="#docs" class="nav-link">文档</a>
+      </div>
+      <div class="nav-actions">
+        <button class="btn-lang" onclick="toggleLang()">EN</button>
+        <button class="btn-login">登录</button>
+        <a href="#download" class="btn btn-primary btn-download">下载</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Hero 区 -->
+  <section class="hero">
+    <div class="hero-container">
+      <div class="hero-content">
+        <div class="version-badge">
+          <span class="dot"></span>
+          v1.0.0 · Windows 版已发布
+        </div>
+        <h1 class="hero-title">
+          从想法到<br>
+          <span class="highlight">可运行的软件。</span>
+        </h1>
+        <p class="hero-subtitle">
+          LabCode 内置真正动手的 AI 智能体：读写代码、执行命令、运行测试、联网检索。一个桌面应用，覆盖软件开发全流程。
+        </p>
+        <div class="hero-buttons">
+          <a href="#download" class="btn btn-primary btn-large">
+            <span class="btn-icon">⬇</span>
+            免费下载
+          </a>
+          <a href="#features" class="btn btn-secondary btn-large">
+            <span class="btn-icon">▶</span>
+            了解功能
+          </a>
+        </div>
+        <div class="hero-specs">
+          <div class="spec-item">
+            <span class="spec-icon">✨</span>
+            <span>DeepSeek V4 · MiniMax M3 · 1M 上下文</span>
+          </div>
+          <div class="spec-item">
+            <span class="spec-icon">💾</span>
+            <span>约 146 MB</span>
+          </div>
+          <div class="spec-item version">
+            v1.0.0 · Windows 10/11 x64 · NSIS
+          </div>
+        </div>
+      </div>
+      <div class="hero-screenshot">
+        <div class="app-window">
+          <div class="window-header">
+            <div class="window-dots">
+              <span class="dot red"></span>
+              <span class="dot yellow"></span>
+              <span class="dot green"></span>
+            </div>
+            <div class="window-title">LabCode</div>
+            <div class="window-actions">
+              <button class="window-btn run-btn">▶ 运行</button>
+            </div>
+          </div>
+          <div class="window-body">
+            <div class="sidebar">
+              <div class="sidebar-icon active">📁</div>
+              <div class="sidebar-icon">🔍</div>
+              <div class="sidebar-icon">🌿</div>
+              <div class="sidebar-icon">🐛</div>
+              <div class="sidebar-icon">🧩</div>
+            </div>
+            <div class="file-explorer">
+              <div class="file-tree">
+                <div class="tree-item folder open">
+                  <span class="tree-icon">📂</span> src
+                </div>
+                <div class="tree-item file active">
+                  <span class="tree-icon">🐍</span> main.py
+                </div>
+                <div class="tree-item file">
+                  <span class="tree-icon">🐍</span> utils.py
+                </div>
+                <div class="tree-item folder">
+                  <span class="tree-icon">📂</span> tests
+                </div>
+              </div>
+            </div>
+            <div class="editor-area">
+              <div class="editor-tabs">
+                <div class="tab active">main.py</div>
+              </div>
+              <div class="editor-content">
+                <div class="code-line"><span class="line-num">1</span><span class="comment"># LabCode Demo</span></div>
+                <div class="code-line"><span class="line-num">2</span><span class="keyword">def</span> <span class="function">quick_sort</span>(arr):</div>
+                <div class="code-line"><span class="line-num">3</span>  <span class="keyword">if</span> len(arr) <= <span class="number">1</span>: <span class="keyword">return</span> arr</div>
+                <div class="code-line"><span class="line-num">4</span>  pivot = arr[len(arr)//<span class="number">2</span>]</div>
+                <div class="code-line"><span class="line-num">5</span>  left = [x <span class="keyword">for</span> x <span class="keyword">in</span> arr <span class="keyword">if</span> x < pivot]</div>
+                <div class="code-line"><span class="line-num">6</span>  middle = [x <span class="keyword">for</span> x <span class="keyword">in</span> arr <span class="keyword">if</span> x == pivot]</div>
+                <div class="code-line"><span class="line-num">7</span>  right = [x <span class="keyword">for</span> x <span class="keyword">in</span> arr <span class="keyword">if</span> x > pivot]</div>
+                <div class="code-line"><span class="line-num">8</span>  <span class="keyword">return</span> quick_sort(left) + middle + quick_sort(right)</div>
+              </div>
+            </div>
+            <div class="ai-panel">
+              <div class="ai-header">
+                <span class="ai-icon">✨</span>
+                <span>AI 助手</span>
+              </div>
+              <div class="ai-messages">
+                <div class="ai-message user">
+                  给这个项目加一个登录功能
+                </div>
+                <div class="ai-message assistant">
+                  好的，我来为你创建用户登录模块...
+                  <div class="tool-call">
+                    <span class="tool-icon">🔧</span>
+                    write_file: src/auth.py
+                  </div>
+                </div>
+              </div>
+              <div class="ai-input">
+                <input type="text" placeholder="输入你的需求..." disabled>
+                <button class="ai-send" disabled>➤</button>
+              </div>
+            </div>
+          </div>
+          <div class="window-bottom">
+            <div class="bottom-tabs">
+              <span class="bottom-tab active">终端</span>
+              <span class="bottom-tab">输出</span>
+              <span class="bottom-tab">问题</span>
+              <span class="bottom-tab">终端</span>
+            </div>
+            <div class="terminal-content">
+              <span class="terminal-prompt">$ python src/main.py</span><br>
+              <span class="terminal-output">原始数据: [64, 34, 25, 12, 22, 11, 90]</span><br>
+              <span class="terminal-output">排序后: [11, 12, 22, 25, 34, 64, 90]</span><br>
+              <span class="terminal-success">✓ 程序运行成功，退出码 0</span>
+            </div>
+          </div>
+          <div class="window-statusbar">
+            <span>main</span>
+            <span>✓ 0 ⚠ 0</span>
+            <span class="status-right">Python</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 支持的文件类型 -->
+  <section class="file-types">
+    <div class="section-label">内置项目类型 · 多语言支持</div>
+    <div class="file-types-scroll">
+      <div class="file-type-tag"><span class="ft-icon">C</span><span class="ft-ext">.c</span></div>
+      <div class="file-type-tag"><span class="ft-icon">🦀</span><span class="ft-ext">.rs</span></div>
+      <div class="file-type-tag"><span class="ft-icon">📦</span><span class="ft-ext">.npm</span></div>
+      <div class="file-type-tag"><span class="ft-icon">{}</span><span class="ft-ext">.json</span></div>
+      <div class="file-type-tag"><span class="ft-icon">🌐</span><span class="ft-ext">.html</span></div>
+      <div class="file-type-tag"><span class="ft-icon">🎨</span><span class="ft-ext">.css</span></div>
+      <div class="file-type-tag"><span class="ft-icon">📝</span><span class="ft-ext">.md</span></div>
+      <div class="file-type-tag"><span class="ft-icon">🔌</span><span class="ft-ext">.ino</span></div>
+      <div class="file-type-tag"><span class="ft-icon">🐍</span><span class="ft-ext">.py</span></div>
+      <div class="file-type-tag"><span class="ft-icon">📜</span><span class="ft-ext">.js</span></div>
+      <div class="file-type-tag"><span class="ft-icon">🔷</span><span class="ft-ext">.ts</span></div>
+      <div class="file-type-tag"><span class="ft-icon">⚡</span><span class="ft-ext">.cpp</span></div>
+    </div>
+  </section>
+
+  <!-- AI 智能体 -->
+  <section class="ai-agent" id="features">
+    <div class="section-container">
+      <div class="section-header">
+        <div class="section-label">—— AI 智能体</div>
+        <h2 class="section-title">真正动手的 <span class="highlight">AI 软件工程师。</span></h2>
+        <p class="section-subtitle">不只是对话。LabCode 的智能体读懂你的项目，独立完成「描述 → 编码 → 验证」的完整闭环。</p>
+      </div>
+      <div class="feature-cards">
+        <div class="feature-card">
+          <div class="card-number">01</div>
+          <div class="card-icon">📄</div>
+          <h3 class="card-title">读写代码</h3>
+          <p class="card-desc">读取项目结构、精准修改文件、自动生成模板——AI 直接在你的工程里写代码，编辑器实时刷新。</p>
+        </div>
+        <div class="feature-card">
+          <div class="card-number">02</div>
+          <div class="card-icon">⌨️</div>
+          <h3 class="card-title">执行命令·跑测试</h3>
+          <p class="card-desc">内置终端执行命令；结构化测试运行器自动识别 pytest / unittest / go test / cargo test 并解析结果。</p>
+        </div>
+        <div class="feature-card">
+          <div class="card-number">03</div>
+          <div class="card-icon">🌐</div>
+          <h3 class="card-title">联网检索</h3>
+          <p class="card-desc">内建 web_search / web_fetch，查文档、找解决方案，把最新信息带回你的项目。</p>
+        </div>
+        <div class="feature-card">
+          <div class="card-number">04</div>
+          <div class="card-icon">🧠</div>
+          <h3 class="card-title">记忆·技能·子智能体</h3>
+          <p class="card-desc">跨会话记忆、可复用技能（兼容 Claude Code 生态）、只读研究子智能体，越用越懂你。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 能力 -->
+  <section class="capabilities" id="product">
+    <div class="section-container">
+      <div class="section-header">
+        <div class="section-label">—— 能力</div>
+        <h2 class="section-title">一个工作台，覆盖开发全流程。</h2>
+        <p class="section-subtitle">现代编辑器 + AI 智能体 + 终端 + 测试运行器——从第一行代码到可运行的软件。</p>
+      </div>
+      <div class="capability-grid">
+        <div class="capability-card">
+          <div class="cap-icon">📝</div>
+          <h3>现代编辑器</h3>
+          <p>Monaco 内核，多语言高亮，文件树 + 多标签 + 脏文件管理，图片实时预览。</p>
+        </div>
+        <div class="capability-card">
+          <div class="cap-icon">💻</div>
+          <h3>内置终端</h3>
+          <p>xterm + 交互式 shell，跑 Python REPL、vim、ssh——AI 也能直接在其中执行命令。</p>
+        </div>
+        <div class="capability-card">
+          <div class="cap-icon">🧪</div>
+          <h3>测试运行器</h3>
+          <p>一键探测项目测试框架并运行，按断言 / 编译 / 超时 / 崩溃分类失败，AI 逐类修复。</p>
+        </div>
+        <div class="capability-card">
+          <div class="cap-icon">🔬</div>
+          <h3>子智能体研究</h3>
+          <p>把深层调研委派给只读子智能体，主对话上下文保持干净，结论结构化返回。</p>
+        </div>
+        <div class="capability-card">
+          <div class="cap-icon">🔌</div>
+          <h3>通用插件系统</h3>
+          <p>任何工具链都能封装为插件：CLI / gRPC / HTTP / MCP / MQTT / stdio 七类通用通道，零宿主特例。</p>
+        </div>
+        <div class="capability-card">
+          <div class="cap-icon">🛡️</div>
+          <h3>本地安全</h3>
+          <p>自带 API Key 保存在本机；plan / default / auto 三种操作模式，精确控制 AI 能做什么。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 内置 AI 模型 -->
+  <section class="ai-models">
+    <div class="section-container">
+      <div class="section-header">
+        <div class="section-label">—— 内置 AI 模型</div>
+        <h2 class="section-title">精选顶尖大语言模型，驱动智能编码体验</h2>
+      </div>
+      <div class="model-cards">
+        <div class="model-card">
+          <div class="model-icon">🐋</div>
+          <div class="model-name">DeepSeek <span class="model-tag">V4</span></div>
+          <div class="model-desc">代码生成精准 · 毫秒级响应</div>
+        </div>
+        <div class="model-card">
+          <div class="model-icon">☁️</div>
+          <div class="model-name">通义千问 <span class="model-tag">Qwen</span></div>
+          <div class="model-desc">阿里云出品 · 多编程语言</div>
+        </div>
+        <div class="model-card">
+          <div class="model-icon">🎵</div>
+          <div class="model-name">MiniMax <span class="model-tag">M3</span></div>
+          <div class="model-desc">1M 上下文 · Agent 原生</div>
+        </div>
+        <div class="model-card">
+          <div class="model-icon">🧠</div>
+          <div class="model-name">智谱 <span class="model-tag">GLM-5.2</span></div>
+          <div class="model-desc">1M 上下文 · Coding SOTA</div>
+        </div>
+      </div>
+      <div class="model-extra">另有 Kimi · Doubao · OpenAI · Claude · Ollama 本地模型，及任意 OpenAI 兼容端点。</div>
+    </div>
+  </section>
+
+  <!-- 三步工作流 -->
+  <section class="workflow">
+    <div class="section-container">
+      <div class="section-header">
+        <div class="section-label">—— 从想法到软件</div>
+        <h2 class="section-title">三步，软件就绪。</h2>
+        <p class="section-subtitle">AI 全流程代劳，你只需描述需求。</p>
+      </div>
+      <div class="workflow-steps">
+        <div class="workflow-step">
+          <div class="step-number">01</div>
+          <div class="step-icon">💬</div>
+          <h3>描述需求</h3>
+          <p>"给 Python 项目加一个登录功能"——用自然语言说清你要什么。</p>
+        </div>
+        <div class="step-arrow">→</div>
+        <div class="workflow-step">
+          <div class="step-number">02</div>
+          <div class="step-icon">🤖</div>
+          <h3>AI 读懂项目，写代码</h3>
+          <p>智能体读取项目结构，写代码、改文件、装依赖，全程可见可撤销。</p>
+        </div>
+        <div class="step-arrow">→</div>
+        <div class="workflow-step">
+          <div class="step-number">03</div>
+          <div class="step-icon">✅</div>
+          <h3>AI 跑测试验证</h3>
+          <p>自动运行测试、修复失败项，交付可运行的软件。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 价格区 -->
+  <section class="pricing" id="pricing">
+    <div class="section-container">
+      <div class="section-header">
+        <div class="section-label">定价方案 · 免费起步</div>
+        <h2 class="section-title">选择适合你的版本</h2>
+        <p class="section-subtitle">个人用户永久免费，专业版解锁更多 AI 模型和高级功能。</p>
+      </div>
+      <div class="pricing-cards">
+        <div class="pricing-card">
+          <div class="pricing-badge">免费</div>
+          <h3 class="pricing-name">社区版</h3>
+          <div class="pricing-price"><span class="price-amount">¥0</span><span class="price-period">/永久</span></div>
+          <ul class="pricing-features">
+            <li>✅ 内置 AI 智能体引擎</li>
+            <li>✅ 17 种开发工具</li>
+            <li>✅ 3 种权限模式</li>
+            <li>✅ 本地文件系统</li>
+            <li>✅ 社区支持</li>
+            <li class="disabled">❌ 高级 AI 模型</li>
+            <li class="disabled">❌ 插件市场</li>
+          </ul>
+          <a href="#download" class="btn btn-secondary btn-full">免费下载</a>
+        </div>
+        <div class="pricing-card featured">
+          <div class="pricing-badge">推荐</div>
+          <h3 class="pricing-name">专业版</h3>
+          <div class="pricing-price"><span class="price-amount">¥29</span><span class="price-period">/月</span></div>
+          <ul class="pricing-features">
+            <li>✅ 社区版全部功能</li>
+            <li>✅ 全部 AI 模型（DeepSeek/Qwen/MiniMax）</li>
+            <li>✅ 插件市场（50+ 插件）</li>
+            <li>✅ 子智能体深度研究</li>
+            <li>✅ 云端同步</li>
+            <li>✅ 优先技术支持</li>
+            <li>✅ 自动更新</li>
+          </ul>
+          <a href="#download" class="btn btn-primary btn-full">立即升级</a>
+        </div>
+        <div class="pricing-card">
+          <div class="pricing-badge">企业</div>
+          <h3 class="pricing-name">企业版</h3>
+          <div class="pricing-price"><span class="price-amount">定制</span></div>
+          <ul class="pricing-features">
+            <li>✅ 专业版全部功能</li>
+            <li>✅ 私有化部署</li>
+            <li>✅ 企业级安全审计</li>
+            <li>✅ 自定义 AI 模型接入</li>
+            <li>✅ 团队协作功能</li>
+            <li>✅ 专属客户经理</li>
+            <li>✅ SLA 保障</li>
+          </ul>
+          <a href="#" class="btn btn-secondary btn-full">联系销售</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 路线图 -->
+  <section class="roadmap" id="roadmap">
+    <div class="section-container">
+      <div class="section-header">
+        <div class="section-label">发展路线图 · 持续迭代</div>
+        <h2 class="section-title">LabCode 发展计划</h2>
+        <p class="section-subtitle">我们正在快速迭代，以下是已完成和计划中的功能。</p>
+      </div>
+      <div class="roadmap-timeline">
+        <div class="roadmap-item done">
+          <div class="roadmap-dot"></div>
+          <div class="roadmap-content">
+            <div class="roadmap-version">v1.0.0 · 已发布</div>
+            <h3>核心智能体引擎</h3>
+            <p>统一 turn 循环、三级权限、预算护栏、验证硬闸门、17 种开发工具、Skill 系统、记忆系统。</p>
+          </div>
+        </div>
+        <div class="roadmap-item done">
+          <div class="roadmap-dot"></div>
+          <div class="roadmap-content">
+            <div class="roadmap-version">v1.1.0 · 已发布</div>
+            <h3>安全与增强</h3>
+            <p>7 层终端命令拦截、Rule 权限引擎、工具失败分类、反幻觉检测、文件回滚、大输出受管目录、只读子智能体。</p>
+          </div>
+        </div>
+        <div class="roadmap-item in-progress">
+          <div class="roadmap-dot"></div>
+          <div class="roadmap-content">
+            <div class="roadmap-version">v1.2.0 · 开发中</div>
+            <h3>插件生态</h3>
+            <p>插件市场、MCP 服务器支持、外部工具钩子、自定义 Skill 上传、插件沙箱安全。</p>
+          </div>
+        </div>
+        <div class="roadmap-item planned">
+          <div class="roadmap-dot"></div>
+          <div class="roadmap-content">
+            <div class="roadmap-version">v1.3.0 · 计划中</div>
+            <h3>多平台与协作</h3>
+            <p>macOS/Linux 版本、云端项目同步、团队协作、实时共享编辑、Git 集成。</p>
+          </div>
+        </div>
+        <div class="roadmap-item planned">
+          <div class="roadmap-dot"></div>
+          <div class="roadmap-content">
+            <div class="roadmap-version">v2.0.0 · 计划中</div>
+            <h3>企业级功能</h3>
+            <p>私有化部署、企业级安全审计、SSO 登录、自定义 AI 模型接入、用量分析仪表盘。</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 插件广场 -->
+  <section class="plugins" id="plugins">
+    <div class="section-container">
+      <div class="section-header">
+        <div class="section-label">插件广场 · 无限扩展</div>
+        <h2 class="section-title">用插件扩展 LabCode</h2>
+        <p class="section-subtitle">通过插件系统接入更多工具、语言和工作流，打造专属开发环境。</p>
+      </div>
+      <div class="plugin-grid">
+        <div class="plugin-card">
+          <div class="plugin-icon">🔌</div>
+          <h3>MCP 服务器</h3>
+          <p>接入 Model Context Protocol 服务器，扩展 AI 可调用的工具范围。</p>
+          <div class="plugin-meta"><span class="plugin-tag">官方</span><span class="plugin-status">开发中</span></div>
+        </div>
+        <div class="plugin-card">
+          <div class="plugin-icon">🐙</div>
+          <h3>Git 集成</h3>
+          <p>内置 Git 操作，AI 自动提交、分支管理、代码审查和冲突解决。</p>
+          <div class="plugin-meta"><span class="plugin-tag">官方</span><span class="plugin-status">计划中</span></div>
+        </div>
+        <div class="plugin-card">
+          <div class="plugin-icon">🐳</div>
+          <h3>Docker 支持</h3>
+          <p>在容器中运行代码，隔离环境，一键启动开发环境和数据库。</p>
+          <div class="plugin-meta"><span class="plugin-tag">社区</span><span class="plugin-status">计划中</span></div>
+        </div>
+        <div class="plugin-card">
+          <div class="plugin-icon">📊</div>
+          <h3>数据可视化</h3>
+          <p>AI 自动生成图表和仪表盘，支持 ECharts/Matplotlib/Plotly。</p>
+          <div class="plugin-meta"><span class="plugin-tag">官方</span><span class="plugin-status">计划中</span></div>
+        </div>
+        <div class="plugin-card">
+          <div class="plugin-icon">🧪</div>
+          <h3>测试生成器</h3>
+          <p>AI 自动生成单元测试、集成测试，覆盖率分析和测试报告。</p>
+          <div class="plugin-meta"><span class="plugin-tag">官方</span><span class="plugin-status">开发中</span></div>
+        </div>
+        <div class="plugin-card">
+          <div class="plugin-icon">📝</div>
+          <h3>文档生成</h3>
+          <p>自动生成 API 文档、README、代码注释，支持多语言输出。</p>
+          <div class="plugin-meta"><span class="plugin-tag">社区</span><span class="plugin-status">计划中</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 文档区 -->
+  <section class="docs" id="docs">
+    <div class="section-container">
+      <div class="section-header">
+        <div class="section-label">文档中心 · 快速上手</div>
+        <h2 class="section-title">从这里开始</h2>
+        <p class="section-subtitle">详细的使用文档和开发指南，帮助你快速掌握 LabCode。</p>
+      </div>
+      <div class="docs-grid">
+        <a href="#" class="doc-card">
+          <div class="doc-icon">🚀</div>
+          <h3>快速入门</h3>
+          <p>安装 LabCode，创建第一个项目，体验 AI 智能体编码。</p>
+          <span class="doc-link">开始阅读 →</span>
+        </a>
+        <a href="#" class="doc-card">
+          <div class="doc-icon">🤖</div>
+          <h3>AI 智能体</h3>
+          <p>了解三级权限模式、工具调用机制、计划系统和验证流程。</p>
+          <span class="doc-link">开始阅读 →</span>
+        </a>
+        <a href="#" class="doc-card">
+          <div class="doc-icon">🔧</div>
+          <h3>工具参考</h3>
+          <p>17 种内置开发工具的详细说明、参数和使用示例。</p>
+          <span class="doc-link">开始阅读 →</span>
+        </a>
+        <a href="#" class="doc-card">
+          <div class="doc-icon">⚡</div>
+          <h3>Skill 系统</h3>
+          <p>学习如何使用和创建自定义 Skill，扩展 AI 能力边界。</p>
+          <span class="doc-link">开始阅读 →</span>
+        </a>
+        <a href="#" class="doc-card">
+          <div class="doc-icon">🔌</div>
+          <h3>插件开发</h3>
+          <p>插件 API 参考、开发指南和示例，打造自己的扩展。</p>
+          <span class="doc-link">开始阅读 →</span>
+        </a>
+        <a href="#" class="doc-card">
+          <div class="doc-icon">❓</div>
+          <h3>常见问题</h3>
+          <p>安装问题、使用技巧、故障排查和最佳实践。</p>
+          <span class="doc-link">开始阅读 →</span>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- 下载区 -->
+  <section class="download" id="download">
+    <div class="section-container">
+      <div class="download-content">
+        <h2 class="download-title">开始使用 LabCode</h2>
+        <p class="download-subtitle">免费下载，立即体验真正动手的 AI 软件工程师。</p>
+        <div class="download-buttons">
+          <a href="#" class="btn btn-primary btn-xlarge" onclick="showDownloadInfo()">
+            <span class="btn-icon">⬇</span>
+            Windows 下载
+            <span class="btn-sub">v1.0.0 · 约 146 MB</span>
+          </a>
+          <a href="#" class="btn btn-secondary btn-xlarge">
+            <span class="btn-icon">🍎</span>
+            macOS
+            <span class="btn-sub">即将推出</span>
+          </a>
+          <a href="#" class="btn btn-secondary btn-xlarge">
+            <span class="btn-icon">🐧</span>
+            Linux
+            <span class="btn-sub">即将推出</span>
+          </a>
+        </div>
+        <div class="download-info" id="downloadInfo" style="display:none;">
+          <div class="info-card">
+            <h4>📦 下载信息</h4>
+            <p>文件名：LabCode-Setup-1.0.0.exe</p>
+            <p>系统要求：Windows 10/11 x64</p>
+            <p>安装方式：NSIS 安装程序，双击运行即可</p>
+            <p class="note">注：这是演示版本，实际下载链接待发布。</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 页脚 -->
+  <footer class="footer">
+    <div class="footer-container">
+      <div class="footer-grid">
+        <div class="footer-col">
+          <div class="footer-logo">
+            <span class="logo-icon">⚡</span>
+            <span class="logo-text">LabCode</span>
+          </div>
+          <p class="footer-desc">从想法到可运行的软件。内置真正动手的 AI 智能体。</p>
+        </div>
+        <div class="footer-col">
+          <h4>产品</h4>
+          <a href="#features">功能</a>
+          <a href="#product">产品</a>
+          <a href="#pricing">价格</a>
+          <a href="#roadmap">路线图</a>
+        </div>
+        <div class="footer-col">
+          <h4>资源</h4>
+          <a href="#docs">文档</a>
+          <a href="#plugins">插件广场</a>
+          <a href="#">博客</a>
+          <a href="#">更新日志</a>
+        </div>
+        <div class="footer-col">
+          <h4>公司</h4>
+          <a href="#">关于我们</a>
+          <a href="#">联系我们</a>
+          <a href="#">隐私政策</a>
+          <a href="#">服务条款</a>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>© 2026 LabCode. All rights reserved.</p>
+        <p>Built with ❤️ for developers.</p>
+      </div>
+    </div>
+  </footer>
+
+  <script src="js/main.js"></script>
+</body>
+</html>
