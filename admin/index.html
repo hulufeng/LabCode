@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LabCode 管理后台</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <!-- 登录页面 -->
+  <div id="loginPage" class="login-page">
+    <div class="login-box">
+      <div class="login-logo">
+        <span class="logo-icon">⚡</span>
+        <h1>LabCode</h1>
+        <p>管理后台</p>
+      </div>
+      <form id="loginForm" class="login-form">
+        <div class="form-group">
+          <label>用户名</label>
+          <input type="text" id="loginUsername" placeholder="请输入用户名" value="admin" required>
+        </div>
+        <div class="form-group">
+          <label>密码</label>
+          <input type="password" id="loginPassword" placeholder="请输入密码" value="admin123" required>
+        </div>
+        <button type="submit" class="btn-primary btn-block">登 录</button>
+        <p class="login-hint">默认账号：admin / admin123</p>
+      </form>
+    </div>
+  </div>
+
+  <!-- 主界面 -->
+  <div id="mainApp" class="main-app hidden">
+    <!-- 侧边栏 -->
+    <aside class="sidebar">
+      <div class="sidebar-logo">
+        <span class="logo-icon">⚡</span>
+        <span class="logo-text">LabCode</span>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="#" class="nav-item active" data-page="dashboard">
+          <span class="nav-icon">📊</span>
+          <span class="nav-text">仪表盘</span>
+        </a>
+        <a href="#" class="nav-item" data-page="users">
+          <span class="nav-icon">👥</span>
+          <span class="nav-text">用户管理</span>
+        </a>
+        <a href="#" class="nav-item" data-page="api">
+          <span class="nav-icon">🔑</span>
+          <span class="nav-text">API 配置</span>
+        </a>
+        <a href="#" class="nav-item" data-page="plugins">
+          <span class="nav-icon">🧩</span>
+          <span class="nav-text">插件管理</span>
+        </a>
+        <a href="#" class="nav-item" data-page="sessions">
+          <span class="nav-icon">💬</span>
+          <span class="nav-text">会话管理</span>
+        </a>
+        <a href="#" class="nav-item" data-page="logs">
+          <span class="nav-icon">📋</span>
+          <span class="nav-text">系统日志</span>
+        </a>
+        <a href="#" class="nav-item" data-page="settings">
+          <span class="nav-icon">⚙️</span>
+          <span class="nav-text">系统设置</span>
+        </a>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="user-info">
+          <div class="user-avatar">A</div>
+          <div class="user-detail">
+            <span class="user-name" id="currentUser">admin</span>
+            <span class="user-role">超级管理员</span>
+          </div>
+        </div>
+        <button id="logoutBtn" class="btn-logout">退出登录</button>
+      </div>
+    </aside>
+
+    <!-- 主内容区 -->
+    <main class="main-content">
+      <!-- 顶部栏 -->
+      <header class="topbar">
+        <h1 id="pageTitle">仪表盘</h1>
+        <div class="topbar-actions">
+          <span class="status-badge status-online">
+            <span class="status-dot"></span>
+            系统运行中
+          </span>
+          <button class="btn-icon" title="刷新数据" onclick="refreshData()">🔄</button>
+        </div>
+      </header>
+
+      <!-- 仪表盘页面 -->
+      <div id="page-dashboard" class="page active">
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-icon stat-blue">👥</div>
+            <div class="stat-info">
+              <h3 id="statUsers">0</h3>
+              <p>注册用户</p>
+            </div>
+            <span class="stat-trend trend-up">+12%</span>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon stat-green">💬</div>
+            <div class="stat-info">
+              <h3 id="statSessions">0</h3>
+              <p>今日会话</p>
+            </div>
+            <span class="stat-trend trend-up">+8%</span>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon stat-purple">🔑</div>
+            <div class="stat-info">
+              <h3 id="statApis">0</h3>
+              <p>API 配置</p>
+            </div>
+            <span class="stat-trend">活跃</span>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon stat-orange">🧩</div>
+            <div class="stat-info">
+              <h3 id="statPlugins">0</h3>
+              <p>已装插件</p>
+            </div>
+            <span class="stat-trend trend-up">+2</span>
+          </div>
+        </div>
+
+        <div class="dashboard-row">
+          <div class="panel">
+            <div class="panel-header">
+              <h3>最近用户活动</h3>
+              <button class="btn-link" onclick="switchPage('users')">查看全部 →</button>
+            </div>
+            <div class="panel-body">
+              <div id="recentActivity" class="activity-list"></div>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-header">
+              <h3>API 使用统计</h3>
+            </div>
+            <div class="panel-body">
+              <div id="apiUsage" class="usage-chart"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="dashboard-row">
+          <div class="panel">
+            <div class="panel-header">
+              <h3>系统资源</h3>
+            </div>
+            <div class="panel-body">
+              <div class="resource-list">
+                <div class="resource-item">
+                  <div class="resource-header">
+                    <span>CPU 使用率</span>
+                    <span id="cpuValue">23%</span>
+                  </div>
+                  <div class="progress-bar"><div class="progress-fill" style="width: 23%"></div></div>
+                </div>
+                <div class="resource-item">
+                  <div class="resource-header">
+                    <span>内存使用率</span>
+                    <span id="memValue">45%</span>
+                  </div>
+                  <div class="progress-bar"><div class="progress-fill" style="width: 45%"></div></div>
+                </div>
+                <div class="resource-item">
+                  <div class="resource-header">
+                    <span>磁盘使用率</span>
+                    <span id="diskValue">62%</span>
+                  </div>
+                  <div class="progress-bar"><div class="progress-fill" style="width: 62%"></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-header">
+              <h3>快速操作</h3>
+            </div>
+            <div class="panel-body">
+              <div class="quick-actions">
+                <button class="quick-action" onclick="switchPage('users'); showModal('userModal')">
+                  <span class="qa-icon">➕</span>
+                  <span>添加用户</span>
+                </button>
+                <button class="quick-action" onclick="switchPage('api'); showModal('apiModal')">
+                  <span class="qa-icon">🔑</span>
+                  <span>添加 API</span>
+                </button>
+                <button class="quick-action" onclick="switchPage('plugins')">
+                  <span class="qa-icon">🧩</span>
+                  <span>管理插件</span>
+                </button>
+                <button class="quick-action" onclick="switchPage('logs')">
+                  <span class="qa-icon">📋</span>
+                  <span>查看日志</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 用户管理页面 -->
+      <div id="page-users" class="page">
+        <div class="page-toolbar">
+          <div class="toolbar-left">
+            <input type="text" id="userSearch" class="search-input" placeholder="搜索用户名/邮箱..." oninput="filterUsers()">
+            <select id="userRoleFilter" class="select-input" onchange="filterUsers()">
+              <option value="">全部角色</option>
+              <option value="admin">管理员</option>
+              <option value="user">普通用户</option>
+              <option value="guest">访客</option>
+            </select>
+          </div>
+          <div class="toolbar-right">
+            <button class="btn-primary" onclick="showModal('userModal')">➕ 添加用户</button>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-body no-padding">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>用户</th>
+                  <th>邮箱</th>
+                  <th>角色</th>
+                  <th>状态</th>
+                  <th>最后登录</th>
+                  <th>API 调用</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody id="userTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- API 配置页面 -->
+      <div id="page-api" class="page">
+        <div class="page-toolbar">
+          <div class="toolbar-left">
+            <input type="text" id="apiSearch" class="search-input" placeholder="搜索提供商/模型..." oninput="filterApis()">
+          </div>
+          <div class="toolbar-right">
+            <button class="btn-primary" onclick="showModal('apiModal')">➕ 添加 API</button>
+          </div>
+        </div>
+        <div class="api-grid" id="apiGrid"></div>
+      </div>
+
+      <!-- 插件管理页面 -->
+      <div id="page-plugins" class="page">
+        <div class="page-toolbar">
+          <div class="toolbar-left">
+            <input type="text" id="pluginSearch" class="search-input" placeholder="搜索插件..." oninput="filterPlugins()">
+            <select id="pluginStatusFilter" class="select-input" onchange="filterPlugins()">
+              <option value="">全部状态</option>
+              <option value="active">已启用</option>
+              <option value="inactive">已禁用</option>
+            </select>
+          </div>
+          <div class="toolbar-right">
+            <button class="btn-primary" onclick="showModal('pluginModal')">➕ 安装插件</button>
+          </div>
+        </div>
+        <div class="plugin-grid" id="pluginGrid"></div>
+      </div>
+
+      <!-- 会话管理页面 -->
+      <div id="page-sessions" class="page">
+        <div class="page-toolbar">
+          <div class="toolbar-left">
+            <input type="text" id="sessionSearch" class="search-input" placeholder="搜索会话..." oninput="filterSessions()">
+          </div>
+          <div class="toolbar-right">
+            <button class="btn-danger" onclick="clearAllSessions()">🗑️ 清空所有会话</button>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-body no-padding">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>会话 ID</th>
+                  <th>用户</th>
+                  <th>标题</th>
+                  <th>消息数</th>
+                  <th>Token 用量</th>
+                  <th>创建时间</th>
+                  <th>最后活跃</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody id="sessionTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- 系统日志页面 -->
+      <div id="page-logs" class="page">
+        <div class="page-toolbar">
+          <div class="toolbar-left">
+            <select id="logLevelFilter" class="select-input" onchange="filterLogs()">
+              <option value="">全部级别</option>
+              <option value="info">INFO</option>
+              <option value="warn">WARN</option>
+              <option value="error">ERROR</option>
+              <option value="debug">DEBUG</option>
+            </select>
+          </div>
+          <div class="toolbar-right">
+            <button class="btn-secondary" onclick="exportLogs()">📥 导出日志</button>
+            <button class="btn-danger" onclick="clearLogs()">🗑️ 清空日志</button>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-body no-padding">
+            <div id="logList" class="log-list"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 系统设置页面 -->
+      <div id="page-settings" class="page">
+        <div class="settings-grid">
+          <div class="panel">
+            <div class="panel-header"><h3>基本设置</h3></div>
+            <div class="panel-body">
+              <div class="form-group">
+                <label>系统名称</label>
+                <input type="text" id="settingAppName" value="LabCode">
+              </div>
+              <div class="form-group">
+                <label>系统版本</label>
+                <input type="text" id="settingVersion" value="v1.0.0" disabled>
+              </div>
+              <div class="form-group">
+                <label>默认语言</label>
+                <select id="settingLanguage">
+                  <option value="zh-CN">简体中文</option>
+                  <option value="en">English</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>默认主题</label>
+                <select id="settingTheme">
+                  <option value="dark">深色</option>
+                  <option value="light">浅色</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-header"><h3>安全设置</h3></div>
+            <div class="panel-body">
+              <div class="form-group">
+                <label class="checkbox-label">
+                  <input type="checkbox" id="settingEnableAuth" checked>
+                  启用用户认证
+                </label>
+              </div>
+              <div class="form-group">
+                <label class="checkbox-label">
+                  <input type="checkbox" id="settingEnableAudit" checked>
+                  启用操作审计
+                </label>
+              </div>
+              <div class="form-group">
+                <label>会话超时（分钟）</label>
+                <input type="number" id="settingSessionTimeout" value="30">
+              </div>
+              <div class="form-group">
+                <label>密码最小长度</label>
+                <input type="number" id="settingMinPassword" value="8">
+              </div>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-header"><h3>AI 设置</h3></div>
+            <div class="panel-body">
+              <div class="form-group">
+                <label>默认 AI 提供商</label>
+                <select id="settingDefaultProvider">
+                  <option value="deepseek">DeepSeek</option>
+                  <option value="qwen">通义千问</option>
+                  <option value="minimax">MiniMax</option>
+                  <option value="openai">OpenAI</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>默认思考级别</label>
+                <select id="settingThinkingLevel">
+                  <option value="fast">快速</option>
+                  <option value="light">轻度</option>
+                  <option value="standard" selected>标准</option>
+                  <option value="deep">深度</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>最大 Token 数</label>
+                <input type="number" id="settingMaxTokens" value="8192">
+              </div>
+              <div class="form-group">
+                <label class="checkbox-label">
+                  <input type="checkbox" id="settingEnableCache" checked>
+                  启用响应缓存
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="settings-actions">
+          <button class="btn-primary" onclick="saveSettings()">💾 保存设置</button>
+          <button class="btn-secondary" onclick="resetSettings()">🔄 恢复默认</button>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- 用户模态框 -->
+  <div id="userModal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="userModalTitle">添加用户</h3>
+        <button class="modal-close" onclick="hideModal('userModal')">×</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="userId">
+        <div class="form-group">
+          <label>用户名 *</label>
+          <input type="text" id="userName" placeholder="请输入用户名">
+        </div>
+        <div class="form-group">
+          <label>邮箱 *</label>
+          <input type="email" id="userEmail" placeholder="请输入邮箱">
+        </div>
+        <div class="form-group">
+          <label>密码 *</label>
+          <input type="password" id="userPassword" placeholder="请输入密码">
+        </div>
+        <div class="form-group">
+          <label>角色</label>
+          <select id="userRole">
+            <option value="user">普通用户</option>
+            <option value="admin">管理员</option>
+            <option value="guest">访客</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="checkbox-label">
+            <input type="checkbox" id="userActive" checked>
+            启用用户
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="hideModal('userModal')">取消</button>
+        <button class="btn-primary" onclick="saveUser()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- API 模态框 -->
+  <div id="apiModal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="apiModalTitle">添加 API 配置</h3>
+        <button class="modal-close" onclick="hideModal('apiModal')">×</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="apiId">
+        <div class="form-group">
+          <label>提供商名称 *</label>
+          <select id="apiProvider" onchange="updateApiEndpoint()">
+            <option value="deepseek">DeepSeek</option>
+            <option value="qwen">通义千问</option>
+            <option value="minimax">MiniMax</option>
+            <option value="openai">OpenAI</option>
+            <option value="claude">Claude</option>
+            <option value="ollama">Ollama（本地）</option>
+            <option value="custom">自定义</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>API 端点 *</label>
+          <input type="text" id="apiEndpoint" value="https://api.deepseek.com/v1">
+        </div>
+        <div class="form-group">
+          <label>API Key *</label>
+          <input type="password" id="apiKey" placeholder="请输入 API Key">
+        </div>
+        <div class="form-group">
+          <label>默认模型</label>
+          <input type="text" id="apiModel" value="deepseek-chat" placeholder="如 deepseek-chat">
+        </div>
+        <div class="form-group">
+          <label>备注</label>
+          <input type="text" id="apiRemark" placeholder="可选备注">
+        </div>
+        <div class="form-group">
+          <label class="checkbox-label">
+            <input type="checkbox" id="apiActive" checked>
+            启用此配置
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="hideModal('apiModal')">取消</button>
+        <button class="btn-secondary" onclick="testApiConnection()">🔌 测试连接</button>
+        <button class="btn-primary" onclick="saveApi()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 插件模态框 -->
+  <div id="pluginModal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>安装插件</h3>
+        <button class="modal-close" onclick="hideModal('pluginModal')">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>插件来源</label>
+          <div class="radio-group">
+            <label class="radio-label"><input type="radio" name="pluginSource" value="market" checked> 插件市场</label>
+            <label class="radio-label"><input type="radio" name="pluginSource" value="url"> URL 安装</label>
+            <label class="radio-label"><input type="radio" name="pluginSource" value="local"> 本地文件</label>
+          </div>
+        </div>
+        <div class="form-group" id="pluginMarketField">
+          <label>选择插件</label>
+          <select id="pluginMarketSelect">
+            <option value="git-integration">Git 集成</option>
+            <option value="docker-support">Docker 支持</option>
+            <option value="database-explorer">数据库浏览器</option>
+            <option value="markdown-preview">Markdown 预览</option>
+            <option value="rest-client">REST Client</option>
+          </select>
+        </div>
+        <div class="form-group hidden" id="pluginUrlField">
+          <label>插件 URL</label>
+          <input type="text" id="pluginUrl" placeholder="https://...">
+        </div>
+        <div class="form-group hidden" id="pluginLocalField">
+          <label>选择本地文件</label>
+          <input type="file" id="pluginFile" accept=".zip">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="hideModal('pluginModal')">取消</button>
+        <button class="btn-primary" onclick="installPlugin()">安装</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast 通知 -->
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>
