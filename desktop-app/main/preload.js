@@ -87,6 +87,40 @@ contextBridge.exposeInMainWorld('LabCode', {
     }
   },
 
+  // AI 对话
+  ai: {
+    chat: (options) => ipcRenderer.invoke('ai:chat', options),
+    checkConnection: (testConfig) => ipcRenderer.invoke('ai:checkConnection', testConfig)
+  },
+
+  // Arduino 编译/烧录
+  compile: {
+    arduino: (options) => ipcRenderer.invoke('compile:arduino', options),
+    upload: (options) => ipcRenderer.invoke('compile:upload', options),
+    listCores: () => ipcRenderer.invoke('compile:list-cores'),
+    listBoards: () => ipcRenderer.invoke('compile:list-boards'),
+    listPorts: () => ipcRenderer.invoke('compile:list-ports'),
+    cliExists: () => ipcRenderer.invoke('compile:cli-exists')
+  },
+
+  // 串口监视器
+  serial: {
+    list: () => ipcRenderer.invoke('serial:list'),
+    open: (options) => ipcRenderer.invoke('serial:open', options),
+    close: () => ipcRenderer.invoke('serial:close'),
+    write: (data) => ipcRenderer.invoke('serial:write', data),
+    onData: (callback) => {
+      const listener = (_e, data) => callback(data);
+      ipcRenderer.on('serial:data', listener);
+      return () => ipcRenderer.removeListener('serial:data', listener);
+    },
+    onClosed: (callback) => {
+      const listener = (_e, info) => callback(info);
+      ipcRenderer.on('serial:closed', listener);
+      return () => ipcRenderer.removeListener('serial:closed', listener);
+    }
+  },
+
   // 事件监听
   on: (channel, callback) => {
     const allowedChannels = [

@@ -2097,6 +2097,148 @@ class MockAIClient {
   }
 }
 
+// ============ 真实 AI 客户端（RealAIClient）============
+// 支持 DeepSeek / Ollama / 自定义 OpenAI 兼容 API
+// 通过系统提示词引导 AI 输出 <|tool_calls|> 格式的工具调用
+class RealAIClient {
+  constructor() {
+    this.mock = new MockAIClient();
+    this.config = null;
+    this._loadConfig();
+  }
+
+  async _loadConfig() {
+    try {
+      if (window.LabCode && window.LabCode.config) {
+        this.config = await window.LabCode.config.get();
+      }
+    } catch (e) {
+      console.warn('[RealAIClient] 加载配置失败:', e);
+    }
+  }
+
+  _buildSystemPrompt() {
+    const toolList = TOOL_DEFS.map(t => {
+      const params = t.parameters?.properties ? Object.entries(t.parameters.properties).map(([k, v]) =>
+        `  - ${k}: ${v.type}${v.description ? ' - ' + v.description : ''}`
+      ).join('\n') : '  (无参数)';
+      return `### ${t.name}\n${t.description}\n参数:\n${params}`;
+    }).join('\n\n');
+
+    return `你是 LabCode（代码实验室）的 AI 编程助手。你可以使用工具来读写文件、执行命令、联网搜索等。
+
+## 可用工具
+
+${toolList}
+
+## 工具调用格式
+
+当你需要调用工具时，在回复的**末尾**使用以下精确格式（不要用代码块包裹）：
+
+<|tool_calls|>[{"name":"工具名","arguments":{"参数名":"参数值"}}]<|/tool_calls|>
+
+一次可以调用多个工具，用逗号分隔。例如：
+<|tool_calls|>[{"name":"write_file","arguments":{"file_path":"src/main.py","content":"print('hello')"}},{"name":"terminal","arguments":{"command":"python src/main.py"}}]<|/tool_calls|>
+
+## 规则
+1. 先思考再行动，需要看文件就用 read_file，需要写文件就用 write_file
+2. 调用工具后等待结果，根据结果决定下一步
+3. 如果不需要工具，直接用自然语言回复
+4. 代码要完整可运行，不要省略关键部分
+5. 用中文回复用户`;
+  }
+
+  _parseToolCalls(content) {
+    if (!content) return { text: '', toolCalls: [] };
+    const match = content.match(/<\|tool_calls\|>([\s\S]*?)<\|\/tool_calls\|>/);
+    if (!match) return { text: content.trim(), toolCalls: [] };
+    const text = content.replace(/<\|tool_calls\|>[\s\S]*?<\|\/tool_calls\|>/, '').trim();
+    let toolCalls = [];
+    try {
+      const parsed = JSON.parse(match[1].trim());
+      if (Array.isArray(parsed)) {
+        toolCalls = parsed.map((tc, i) => ({
+          id: 'call_' + (i + 1),
+          name: tc.name,
+          arguments: tc.arguments || {}
+        }));
+      }
+    } catch (e) {
+      console.warn('[RealAIClient] 解析工具调用失败:', e.message);
+    }
+    return { text, toolCalls };
+  }
+
+  async generateResponse(userInput, messages) {
+    // 没有 Electron 环境或没有 AI API → 回退模拟
+    if (!window.LabCode || !window.LabCode.ai || !window.LabCode.ai.chat) {
+      return this.mock.generateResponse(userInput, messages);
+    }
+
+    // 刷新配置
+    await this._loadConfig();
+    const aiCfg = this.config?.ai || {};
+    const hasApiKey = !!(aiCfg.apiKey || aiCfg.provider === 'ollama');
+
+    if (!hasApiKey) {
+      // 未配置 API Key → 回退模拟，但提示用户
+      const mockResult = this.mock.generateResponse(userInput, messages);
+      mockResult.content = '[系统提示：当前未配置 AI API Key，使用模拟模式。请在设置中配置 DeepSeek API Key 或启动本地 Ollama 模型。]\n\n' + mockResult.content;
+      return mockResult;
+    }
+
+    try {
+      // 构建消息列表：系统提示 + 历史消息
+      const systemPrompt = this._buildSystemPrompt();
+      const chatMessages = [{ role: 'system', content: systemPrompt }];
+
+      // 加入历史消息（转换 tool 结果为 user 消息）
+      if (Array.isArray(messages)) {
+        for (const m of messages) {
+          if (m.role === 'user' || m.role === 'assistant') {
+            chatMessages.push({ role: m.role, content: m.content || '' });
+          } else if (m.role === 'tool') {
+            // 工具结果作为 user 消息
+            chatMessages.push({ role: 'user', content: '[工具结果]\n' + (m.content || '') });
+          }
+        }
+      }
+
+      // 确保最后一条是用户输入
+      const lastMsg = chatMessages[chatMessages.length - 1];
+      if (!lastMsg || lastMsg.role !== 'user' || !lastMsg.content.includes(userInput)) {
+        chatMessages.push({ role: 'user', content: userInput });
+      }
+
+      // 调用 AI
+      const result = await window.LabCode.ai.chat({
+        messages: chatMessages,
+        temperature: 0.7,
+        maxTokens: 8192
+      });
+
+      if (!result || !result.success) {
+        console.warn('[RealAIClient] AI 请求失败:', result?.error);
+        const mockResult = this.mock.generateResponse(userInput, messages);
+        mockResult.content = `[AI 请求失败: ${result?.error || '未知错误'}，回退模拟模式]\n\n` + mockResult.content;
+        return mockResult;
+      }
+
+      // 解析工具调用
+      const { text, toolCalls } = this._parseToolCalls(result.content);
+      return {
+        content: text || (toolCalls.length > 0 ? '好的，我来执行以下操作。' : result.content),
+        toolCalls
+      };
+    } catch (e) {
+      console.error('[RealAIClient] 异常:', e);
+      const mockResult = this.mock.generateResponse(userInput, messages);
+      mockResult.content = `[AI 异常: ${e.message}，回退模拟模式]\n\n` + mockResult.content;
+      return mockResult;
+    }
+  }
+}
+
 // ============ 增强：四阶段工具瀑布 ============
 // 参考 TrieCode tool-pipeline.js: pre策略判定 / guard安全闸门 / around包裹执行 / post观测变换
 class ToolPipeline {
@@ -2457,7 +2599,7 @@ class AgentRunner {
     this.onToolStep = onToolStep;
     this.onPlanRequest = onPlanRequest;
     this.mode = mode;
-    this.ai = new MockAIClient();
+    this.ai = new RealAIClient();
     this.budget = new BudgetTracker(20, 4);
     this.messages = [];
     this.denialHits = new Map();
@@ -2553,10 +2695,10 @@ class AgentRunner {
         addOutputLog(`上下文压缩: ${estTokens} → 约 ${this.estimateTokens()} tokens`, 'warn');
       }
 
-      // 调用 AI（模拟）
+      // 调用 AI（真实 API，异步）
       const lastUserMsg = this.messages.filter(m => m.role === 'user').pop();
       const startTime = Date.now();
-      const result = this.ai.generateResponse(lastUserMsg?.content || userInput, this.messages);
+      const result = await this.ai.generateResponse(lastUserMsg?.content || userInput, this.messages);
       const duration = ((Date.now() - startTime) / 1000).toFixed(1);
 
       // 生成思考过程并展示
@@ -3643,8 +3785,30 @@ function bindEvents() {
     item.addEventListener('click', () => {
       document.querySelectorAll('.activity-btn').forEach(i => i.classList.remove('active'));
       item.classList.add('active');
-      if (item.dataset.panel === 'explorer') document.getElementById('sidebar').style.display = 'flex';
-      else { document.getElementById('sidebar').style.display = 'none'; showToast(`${item.title} 视图（演示版）`,'info'); }
+      const panel = item.dataset.panel;
+      const sidebar = document.getElementById('sidebar');
+      const fileTree = document.getElementById('file-tree');
+      const welcomePanel = document.getElementById('welcome-panel');
+      const pluginsPanel = document.getElementById('plugins-panel');
+      const sidebarHeader = sidebar ? sidebar.querySelector('.sidebar-header') : null;
+
+      if (panel === 'explorer') {
+        sidebar.style.display = 'flex';
+        if (fileTree) fileTree.style.display = 'block';
+        if (welcomePanel) welcomePanel.style.display = 'flex';
+        if (pluginsPanel) pluginsPanel.style.display = 'none';
+        if (sidebarHeader) sidebarHeader.style.display = 'flex';
+      } else if (panel === 'plugins') {
+        sidebar.style.display = 'flex';
+        if (fileTree) fileTree.style.display = 'none';
+        if (welcomePanel) welcomePanel.style.display = 'none';
+        if (pluginsPanel) pluginsPanel.style.display = 'flex';
+        if (sidebarHeader) sidebarHeader.style.display = 'none';
+        renderPluginsList();
+      } else {
+        // settings 等其他按钮
+        sidebar.style.display = 'none';
+      }
     });
   });
 
@@ -3657,6 +3821,125 @@ function bindEvents() {
       if (panelEl) panelEl.classList.add('active');
     });
   });
+
+  // ============ 插件市场 ============
+  const OFFICIAL_PLUGINS = [
+    { id: 'arduino', name: 'Arduino 编译上传', description: '支持 Arduino/ESP32/STM32 等开发板的编译和烧录，内置 arduino-cli', version: '1.0.0', author: 'LabCode', icon: '🔌', category: 'compiler', channels: ['cli'], capabilities: ['compile', 'upload', 'board-manager'] },
+    { id: 'esp-idf', name: 'ESP-IDF 开发工具', description: '乐鑫 ESP-IDF 框架支持，IDF 编译、菜单配置、烧录监控', version: '1.0.0', author: 'LabCode', icon: '📡', category: 'compiler', channels: ['cli'], capabilities: ['compile', 'upload', 'monitor'] },
+    { id: 'stm32', name: 'STM32 开发工具', description: 'STM32CubeMX 集成，支持 HAL 库工程创建、编译、ST-Link 烧录', version: '1.0.0', author: 'LabCode', icon: '🔧', category: 'compiler', channels: ['cli'], capabilities: ['compile', 'upload'] },
+    { id: 'micropython', name: 'MicroPython 支持', description: 'MicroPython 固件烧录、REPL 交互、文件传输', version: '1.0.0', author: 'LabCode', icon: '🐍', category: 'runtime', channels: ['cli'], capabilities: ['upload', 'repl'] },
+    { id: 'serial-monitor', name: '串口监视器', description: '多串口同时监控，支持波特率配置、HEX/文本模式、时间戳', version: '1.0.0', author: 'LabCode', icon: '📟', category: 'tool', channels: ['internal'], capabilities: ['serial'] },
+    { id: 'plotter', name: '串口绘图仪', description: '实时绘制串口数据波形，支持多通道、暂停、导出 CSV', version: '1.0.0', author: 'LabCode', icon: '📈', category: 'tool', channels: ['internal'], capabilities: ['plot'] },
+    { id: 'formatter', name: '代码格式化', description: '支持 C/C++/Python/JS 等多语言代码格式化，Clang-Format/Black', version: '1.0.0', author: 'LabCode', icon: '✨', category: 'tool', channels: ['cli'], capabilities: ['format'] },
+    { id: 'git-integration', name: 'Git 集成', description: 'Git 版本控制集成，提交、差异对比、分支管理', version: '1.0.0', author: 'LabCode', icon: '🌿', category: 'tool', channels: ['cli'], capabilities: ['git'] },
+    { id: 'themes', name: '主题扩展', description: '多款编辑器主题，浅色/深色/高对比度，一键切换', version: '1.0.0', author: 'LabCode', icon: '🎨', category: 'theme', channels: ['internal'], capabilities: ['theme'] }
+  ];
+
+  let currentPluginsTab = 'market';
+  let installedPlugins = JSON.parse(localStorage.getItem('labcode_installed_plugins') || '[]');
+
+  function saveInstalledPlugins() {
+    localStorage.setItem('labcode_installed_plugins', JSON.stringify(installedPlugins));
+  }
+
+  function isPluginInstalled(id) {
+    return installedPlugins.some(p => p.id === id);
+  }
+
+  function renderPluginsList() {
+    const listEl = document.getElementById('plugins-list');
+    if (!listEl) return;
+    const plugins = currentPluginsTab === 'market' ? OFFICIAL_PLUGINS : OFFICIAL_PLUGINS.filter(p => isPluginInstalled(p.id));
+    if (plugins.length === 0) {
+      listEl.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-secondary);font-size:13px;">' + (currentPluginsTab === 'installed' ? '暂无已安装插件' : '暂无插件') + '</div>';
+      return;
+    }
+    listEl.innerHTML = plugins.map(p => {
+      const installed = isPluginInstalled(p.id);
+      const btnLabel = installed ? '已安装' : '安装';
+      const btnClass = installed ? 'btn-secondary' : 'btn-primary';
+      const btnDisabled = installed ? 'disabled style="opacity:0.6;cursor:default;"' : '';
+      return '<div class="plugin-card" style="padding:12px;margin-bottom:8px;background:var(--card-color);border:1px solid var(--border-color);border-radius:8px;">' +
+        '<div style="display:flex;align-items:flex-start;gap:10px;">' +
+          '<div style="font-size:24px;flex-shrink:0;">' + p.icon + '</div>' +
+          '<div style="flex:1;min-width:0;">' +
+            '<div style="display:flex;align-items:center;gap:6px;">' +
+              '<span style="font-size:13px;font-weight:600;color:var(--text-color);">' + p.name + '</span>' +
+              '<span style="font-size:11px;color:var(--text-secondary);">v' + p.version + '</span>' +
+            '</div>' +
+            '<div style="font-size:12px;color:var(--text-secondary);margin-top:4px;line-height:1.4;">' + p.description + '</div>' +
+            '<div style="display:flex;gap:4px;margin-top:6px;flex-wrap:wrap;">' +
+              p.capabilities.map(c => '<span style="font-size:10px;padding:1px 6px;background:rgba(0,0,0,0.05);border-radius:4px;color:var(--text-secondary);">' + c + '</span>').join('') +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+        '<div style="display:flex;justify-content:flex-end;margin-top:8px;gap:6px;">' +
+          (installed ? '<button class="btn btn-danger btn-sm" data-action="uninstall" data-id="' + p.id + '" style="padding:4px 10px;font-size:11px;">卸载</button>' : '') +
+          '<button class="btn ' + btnClass + ' btn-sm" data-action="install" data-id="' + p.id + '" ' + btnDisabled + ' style="padding:4px 10px;font-size:11px;">' + btnLabel + '</button>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+
+    // 绑定按钮事件
+    listEl.querySelectorAll('[data-action="install"]').forEach(btn => {
+      btn.addEventListener('click', () => installPlugin(btn.dataset.id));
+    });
+    listEl.querySelectorAll('[data-action="uninstall"]').forEach(btn => {
+      btn.addEventListener('click', () => uninstallPlugin(btn.dataset.id));
+    });
+  }
+
+  async function installPlugin(id) {
+    const plugin = OFFICIAL_PLUGINS.find(p => p.id === id);
+    if (!plugin) return;
+    if (isPluginInstalled(id)) return;
+    showToast('正在安装 ' + plugin.name + '...', 'info');
+    // 模拟安装过程（实际应下载插件包并解压到用户数据目录）
+    await new Promise(r => setTimeout(r, 800));
+    installedPlugins.push({ ...plugin, installedAt: Date.now() });
+    saveInstalledPlugins();
+    showToast(plugin.name + ' 安装成功', 'success');
+    renderPluginsList();
+    // 如果安装的是编译器插件，更新工具栏状态
+    updateCompilerPluginStatus();
+  }
+
+  function uninstallPlugin(id) {
+    const plugin = OFFICIAL_PLUGINS.find(p => p.id === id);
+    installedPlugins = installedPlugins.filter(p => p.id !== id);
+    saveInstalledPlugins();
+    showToast((plugin ? plugin.name : id) + ' 已卸载', 'info');
+    renderPluginsList();
+    updateCompilerPluginStatus();
+  }
+
+  function updateCompilerPluginStatus() {
+    // 更新编辑器工具栏的编译/烧录按钮状态
+    const hasCompiler = installedPlugins.some(p => p.capabilities.includes('compile'));
+    const compileBtn = document.getElementById('compile-btn');
+    const uploadBtn = document.getElementById('upload-btn');
+    if (compileBtn) compileBtn.style.opacity = hasCompiler ? '1' : '0.4';
+    if (uploadBtn) uploadBtn.style.opacity = hasCompiler ? '1' : '0.4';
+  }
+
+  // 插件 tab 切换
+  document.querySelectorAll('.plugins-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.plugins-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      currentPluginsTab = tab.dataset.tab;
+      renderPluginsList();
+    });
+  });
+
+  // 插件刷新按钮
+  const pluginsRefresh = document.getElementById('plugins-refresh');
+  if (pluginsRefresh) {
+    pluginsRefresh.addEventListener('click', () => {
+      renderPluginsList();
+      showToast('插件列表已刷新', 'info');
+    });
+  }
 
   document.querySelectorAll('.mode-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -3851,72 +4134,450 @@ function bindEvents() {
     });
   }
 
-  // ============ 编译按钮 ============
+  // ============ 编译按钮（真实 arduino-cli）============
   const compileBtn = document.getElementById('compile-btn');
   if (compileBtn) {
-    compileBtn.addEventListener('click', () => {
+    compileBtn.addEventListener('click', async () => {
       if (!state.activeTab) { showToast('请先打开一个文件', 'error'); return; }
-      addOutputLog(`编译文件: ${state.activeTab}`, 'info');
+      if (!window.LabCode || !window.LabCode.compile) {
+        showToast('非 Electron 环境，无法编译', 'error'); return;
+      }
+      // 检查 Arduino 插件是否安装
+      const hasCompiler = installedPlugins.some(p => p.capabilities.includes('compile'));
+      if (!hasCompiler) {
+        showToast('请先在插件市场安装 Arduino 编译插件', 'warning'); return;
+      }
+      // 检查 arduino-cli 是否存在
+      const cliInfo = await window.LabCode.compile.cliExists();
+      if (!cliInfo.exists) {
+        showToast('arduino-cli 未安装，请先安装工具链', 'error'); return;
+      }
+      // 切换到底部终端面板
       document.querySelector('.bottom-tab[data-panel="terminal"]').click();
-      setTimeout(() => {
+      const startTime = Date.now();
+      if (state.terminal) {
+        state.terminal.writeln('');
+        state.terminal.writeln('🔨 开始编译: ' + state.activeTab);
+        state.terminal.writeln('');
+      }
+      addOutputLog('开始编译: ' + state.activeTab, 'info');
+      try {
+        // 构建 sketch 绝对路径
+        let sketchPath = state.activeTab;
+        const isAbs = /^[A-Za-z]:[\\/]/.test(sketchPath) || sketchPath.startsWith('/') || sketchPath.startsWith('\\\\');
+        if (state.projectPath && !isAbs) {
+          sketchPath = state.projectPath + '/' + sketchPath;
+        }
+        // 默认 fqbn（后续可从设置/插件配置读取）
+        const fqbn = state.compileFqbn || 'esp32:esp32:esp32c3';
+        const outputDir = state.projectPath ? state.projectPath + '/build' : undefined;
+        const result = await window.LabCode.compile.arduino({ sketchPath, fqbn, outputDir });
+        const duration = ((Date.now() - startTime) / 1000).toFixed(1);
         if (state.terminal) {
+          if (result.output) {
+            result.output.split('\n').forEach(line => state.terminal.writeln(line));
+          }
           state.terminal.writeln('');
-          state.terminal.writeln('🔨 开始编译...');
-          state.terminal.writeln('');
-          state.terminal.writeln('项目: LabCode Project');
-          state.terminal.writeln('目标: ESP32 Dev Module');
-          state.terminal.writeln('');
-          state.terminal.writeln('编译中...');
-          state.terminal.writeln('✓ 编译成功');
-          state.terminal.writeln('');
-          state.terminal.writeln('使用: 152340 字节 (47%)');
-          state.terminal.writeln('最大: 3145728 字节');
-          state.terminal.writeln('全局变量: 12456 字节 (3%)');
-          state.terminal.writeln('');
-          state.terminal.writeln('✓ 编译完成，耗时 3.2 秒');
+          if (result.success) {
+            state.terminal.writeln('✓ 编译成功，耗时 ' + duration + ' 秒');
+          } else {
+            state.terminal.writeln('✗ 编译失败: ' + (result.error || '未知错误'));
+          }
           state.terminal.write('user@labcode:~/project$ ');
         }
-        addOutputLog('编译成功', 'success');
-        showToast('编译成功', 'success');
-      }, 500);
+        if (result.success) {
+          addOutputLog('编译成功，耗时 ' + duration + ' 秒', 'success');
+          showToast('编译成功', 'success');
+        } else {
+          addOutputLog('编译失败: ' + (result.error || ''), 'error');
+          showToast('编译失败', 'error');
+        }
+      } catch (e) {
+        if (state.terminal) {
+          state.terminal.writeln('✗ 编译异常: ' + e.message);
+          state.terminal.write('user@labcode:~/project$ ');
+        }
+        addOutputLog('编译异常: ' + e.message, 'error');
+        showToast('编译异常', 'error');
+      }
     });
   }
 
-  // ============ 烧录按钮 ============
+  // ============ 烧录按钮（真实 arduino-cli）============
   const uploadBtn = document.getElementById('upload-btn');
   if (uploadBtn) {
-    uploadBtn.addEventListener('click', () => {
+    uploadBtn.addEventListener('click', async () => {
       if (!state.activeTab) { showToast('请先打开一个文件', 'error'); return; }
-      addOutputLog(`烧录文件: ${state.activeTab}`, 'info');
+      if (!window.LabCode || !window.LabCode.compile) {
+        showToast('非 Electron 环境，无法烧录', 'error'); return;
+      }
+      const hasCompiler = installedPlugins.some(p => p.capabilities.includes('compile'));
+      if (!hasCompiler) {
+        showToast('请先在插件市场安装 Arduino 编译插件', 'warning'); return;
+      }
+      // 获取可用串口
+      let port = state.compilePort;
+      if (!port) {
+        try {
+          const portsResult = await window.LabCode.compile.listPorts();
+          if (portsResult.output) {
+            // 解析 arduino-cli board list 输出，提取 COM 端口
+            const portMatch = portsResult.output.match(/(COM\d+)/);
+            if (portMatch) {
+              port = portMatch[1];
+              state.compilePort = port;
+            }
+          }
+        } catch (e) { /* 忽略 */ }
+      }
+      if (!port) {
+        showToast('未检测到串口设备，请连接开发板', 'warning'); return;
+      }
       document.querySelector('.bottom-tab[data-panel="terminal"]').click();
-      setTimeout(() => {
+      const startTime = Date.now();
+      if (state.terminal) {
+        state.terminal.writeln('');
+        state.terminal.writeln('⬇️ 开始烧录: ' + state.activeTab);
+        state.terminal.writeln('端口: ' + port);
+        state.terminal.writeln('');
+      }
+      addOutputLog('开始烧录到 ' + port, 'info');
+      try {
+        let sketchPath = state.activeTab;
+        const isAbs = /^[A-Za-z]:[\\/]/.test(sketchPath) || sketchPath.startsWith('/') || sketchPath.startsWith('\\\\');
+        if (state.projectPath && !isAbs) {
+          sketchPath = state.projectPath + '/' + sketchPath;
+        }
+        const fqbn = state.compileFqbn || 'esp32:esp32:esp32c3';
+        const result = await window.LabCode.compile.upload({ sketchPath, fqbn, port });
+        const duration = ((Date.now() - startTime) / 1000).toFixed(1);
         if (state.terminal) {
+          if (result.output) {
+            result.output.split('\n').forEach(line => state.terminal.writeln(line));
+          }
           state.terminal.writeln('');
-          state.terminal.writeln('⬇️ 开始烧录...');
-          state.terminal.writeln('');
-          state.terminal.writeln('端口: COM3');
-          state.terminal.writeln('波特率: 115200');
-          state.terminal.writeln('目标: ESP32 Dev Module');
-          state.terminal.writeln('');
-          state.terminal.writeln('连接中...');
-          state.terminal.writeln('✓ 已连接');
-          state.terminal.writeln('');
-          state.terminal.writeln('写入中...');
-          state.terminal.writeln('[####      ] 40%');
-          state.terminal.writeln('[########  ] 80%');
-          state.terminal.writeln('[##########] 100%');
-          state.terminal.writeln('');
-          state.terminal.writeln('✓ 烧录成功');
-          state.terminal.writeln('');
-          state.terminal.writeln('硬复位中...');
-          state.terminal.writeln('✓ 设备已复位');
+          if (result.success) {
+            state.terminal.writeln('✓ 烧录成功，耗时 ' + duration + ' 秒');
+          } else {
+            state.terminal.writeln('✗ 烧录失败: ' + (result.error || '未知错误'));
+          }
           state.terminal.write('user@labcode:~/project$ ');
         }
-        addOutputLog('烧录成功', 'success');
-        showToast('烧录成功', 'success');
-      }, 500);
+        if (result.success) {
+          addOutputLog('烧录成功，耗时 ' + duration + ' 秒', 'success');
+          showToast('烧录成功', 'success');
+        } else {
+          addOutputLog('烧录失败: ' + (result.error || ''), 'error');
+          showToast('烧录失败', 'error');
+        }
+      } catch (e) {
+        if (state.terminal) {
+          state.terminal.writeln('✗ 烧录异常: ' + e.message);
+          state.terminal.write('user@labcode:~/project$ ');
+        }
+        addOutputLog('烧录异常: ' + e.message, 'error');
+        showToast('烧录异常', 'error');
+      }
     });
   }
+
+  // ============ 串口监视器 ============
+  const serialPortSelect = document.getElementById('serial-port');
+  const serialBaudSelect = document.getElementById('serial-baud');
+  const serialOpenBtn = document.getElementById('serial-open-btn');
+  const serialClearBtn = document.getElementById('serial-clear-btn');
+  const serialSendBtn = document.getElementById('serial-send-btn');
+  const serialSendInput = document.getElementById('serial-send-input');
+  const serialOutput = document.getElementById('serial-output');
+  const serialTimestamp = document.getElementById('serial-timestamp');
+  const serialAutoscroll = document.getElementById('serial-autoscroll');
+  let serialOpened = false;
+  let serialUnsubscribe = null;
+  let serialClosedUnsubscribe = null;
+
+  async function refreshSerialPorts() {
+    if (!window.LabCode || !window.LabCode.serial) return;
+    try {
+      const result = await window.LabCode.serial.list();
+      if (result && result.ports && result.ports.length > 0) {
+        serialPortSelect.innerHTML = result.ports.map(p =>
+          '<option value="' + p.port + '">' + p.port + ' - ' + p.board + '</option>'
+        ).join('');
+      } else {
+        serialPortSelect.innerHTML = '<option value="">未检测到串口</option>';
+      }
+    } catch (e) { /* 忽略 */ }
+  }
+
+  function appendSerialData(text) {
+    if (!serialOutput) return;
+    const lines = text.split('\n');
+    for (const line of lines) {
+      if (!line) continue;
+      const ts = serialTimestamp && serialTimestamp.checked ? '[' + new Date().toLocaleTimeString() + '] ' : '';
+      const div = document.createElement('div');
+      div.textContent = ts + line;
+      serialOutput.appendChild(div);
+    }
+    // 限制行数
+    while (serialOutput.children.length > 2000) {
+      serialOutput.removeChild(serialOutput.firstChild);
+    }
+    if (serialAutoscroll && serialAutoscroll.checked) {
+      serialOutput.scrollTop = serialOutput.scrollHeight;
+    }
+  }
+
+  // 统一串口数据监听：同时输出到串口面板 + 喂给绘图仪
+  function serialDataListener(text) {
+    appendSerialData(text);
+    if (typeof plotterFeed === 'function') {
+      text.split('\n').forEach(l => {
+        if (l.trim() && /[-+]?\d/.test(l)) plotterFeed(l.trim());
+      });
+    }
+  }
+
+  async function toggleSerial() {
+    if (!window.LabCode || !window.LabCode.serial) {
+      showToast('非 Electron 环境', 'error'); return;
+    }
+    if (!serialOpened) {
+      const port = serialPortSelect.value;
+      if (!port) { showToast('请先选择串口', 'warning'); return; }
+      const baud = parseInt(serialBaudSelect.value, 10) || 115200;
+      const result = await window.LabCode.serial.open({ port, baud });
+      if (result.success) {
+        serialOpened = true;
+        serialOpenBtn.textContent = '关闭串口';
+        serialOpenBtn.classList.remove('btn-primary');
+        serialOpenBtn.classList.add('btn-danger');
+        serialPortSelect.disabled = true;
+        serialBaudSelect.disabled = true;
+        // 订阅数据
+        serialUnsubscribe = window.LabCode.serial.onData(serialDataListener);
+        serialClosedUnsubscribe = window.LabCode.serial.onClosed((info) => {
+          serialOpened = false;
+          serialOpenBtn.textContent = '打开串口';
+          serialOpenBtn.classList.add('btn-primary');
+          serialOpenBtn.classList.remove('btn-danger');
+          serialPortSelect.disabled = false;
+          serialBaudSelect.disabled = false;
+          appendSerialData('\n[串口已关闭, code=' + info.code + ']');
+        });
+        appendSerialData('[已连接 ' + port + ' @ ' + baud + ' baud]');
+        showToast('串口已打开: ' + port, 'success');
+      } else {
+        showToast('打开串口失败: ' + (result.error || '未知错误'), 'error');
+        appendSerialData('\n[打开失败: ' + (result.error || '未知错误') + ']');
+      }
+    } else {
+      await window.LabCode.serial.close();
+      if (serialUnsubscribe) { serialUnsubscribe(); serialUnsubscribe = null; }
+      if (serialClosedUnsubscribe) { serialClosedUnsubscribe(); serialClosedUnsubscribe = null; }
+      serialOpened = false;
+      serialOpenBtn.textContent = '打开串口';
+      serialOpenBtn.classList.add('btn-primary');
+      serialOpenBtn.classList.remove('btn-danger');
+      serialPortSelect.disabled = false;
+      serialBaudSelect.disabled = false;
+      appendSerialData('\n[串口已手动关闭]');
+      showToast('串口已关闭', 'info');
+    }
+  }
+
+  if (serialOpenBtn) {
+    serialOpenBtn.addEventListener('click', toggleSerial);
+    // 初次加载时刷新串口列表
+    setTimeout(refreshSerialPorts, 1000);
+  }
+  if (serialClearBtn) {
+    serialClearBtn.addEventListener('click', () => { if (serialOutput) serialOutput.innerHTML = ''; });
+  }
+  if (serialSendBtn && serialSendInput) {
+    const sendSerial = async () => {
+      const data = serialSendInput.value;
+      if (!data || !serialOpened) return;
+      await window.LabCode.serial.write(data);
+      appendSerialData('→ ' + data);
+      serialSendInput.value = '';
+    };
+    serialSendBtn.addEventListener('click', sendSerial);
+    serialSendInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendSerial(); });
+  }
+
+  // ============ 串口绘图仪 ============
+  const plotterCv = document.getElementById('plotter-cv');
+  const plotterPlaceholder = document.getElementById('plotter-placeholder');
+  const plotterClearBtn = document.getElementById('plotter-clear-btn');
+  const plotterExportBtn = document.getElementById('plotter-export-btn');
+  const plotterWindowSelect = document.getElementById('plotter-window');
+  const plotterModeSelect = document.getElementById('plotter-mode');
+  let plotterSeries = {};  // channel -> array of numbers
+  let plotterChannels = [];
+  const PLOTTER_COLORS = ['#007acc', '#e51400', '#6a0dad', '#008a00', '#c0c000', '#e67e22', '#16a085', '#d81b60'];
+
+  function plotterResize() {
+    if (!plotterCv) return;
+    const rect = plotterCv.parentElement.getBoundingClientRect();
+    plotterCv.width = Math.max(300, rect.width * devicePixelRatio);
+    plotterCv.height = Math.max(150, rect.height * devicePixelRatio);
+  }
+
+  function drawPlotter() {
+    if (!plotterCv) return;
+    const rect = plotterCv.parentElement.getBoundingClientRect();
+    const W = plotterCv.width;
+    const H = plotterCv.height;
+    const ctx = plotterCv.getContext('2d');
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, W, H);
+    // 网格
+    ctx.strokeStyle = 'rgba(0,0,0,0.06)';
+    ctx.lineWidth = 1;
+    for (let x = 0; x <= W; x += 40 * devicePixelRatio) {
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+    }
+    for (let y = 0; y <= H; y += 40 * devicePixelRatio) {
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+    }
+    if (plotterChannels.length === 0) {
+      if (plotterPlaceholder) plotterPlaceholder.style.display = 'flex';
+      return;
+    }
+    if (plotterPlaceholder) plotterPlaceholder.style.display = 'none';
+    const maxLen = parseInt(plotterWindowSelect.value, 10) || 100;
+    const pad = 30 * devicePixelRatio;
+    const plotW = W - pad * 2;
+    const plotH = H - pad * 2;
+    // 计算 Y 范围
+    let min = Infinity, max = -Infinity;
+    for (const ch of plotterChannels) {
+      const arr = plotterSeries[ch] || [];
+      for (const v of arr) {
+        if (v < min) min = v;
+        if (v > max) max = v;
+      }
+    }
+    if (!isFinite(min) || !isFinite(max)) { min = 0; max = 1; }
+    if (min === max) { min -= 1; max += 1; }
+    const range = max - min;
+    // 画 Y 轴标签
+    ctx.fillStyle = '#666';
+    ctx.font = (10 * devicePixelRatio) + 'px sans-serif';
+    ctx.textAlign = 'right';
+    for (let i = 0; i <= 4; i++) {
+      const val = min + range * i / 4;
+      const y = pad + plotH - plotH * i / 4;
+      ctx.fillText(val.toFixed(1), pad - 6 * devicePixelRatio, y + 4 * devicePixelRatio);
+    }
+    // 画通道
+    plotterChannels.forEach((ch, idx) => {
+      const arr = plotterSeries[ch] || [];
+      if (arr.length < 2) return;
+      const color = PLOTTER_COLORS[idx % PLOTTER_COLORS.length];
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2 * devicePixelRatio;
+      ctx.beginPath();
+      const shown = arr.slice(-maxLen);
+      for (let i = 0; i < shown.length; i++) {
+        const x = pad + plotW * i / (maxLen - 1 || 1);
+        const y = pad + plotH - (shown[i] - min) / range * plotH;
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+      // 图例
+      ctx.fillStyle = color;
+      ctx.textAlign = 'left';
+      ctx.fillText(ch, pad + 8 * devicePixelRatio, pad + (idx + 1) * 14 * devicePixelRatio);
+    });
+  }
+
+  function plotterFeed(line) {
+    // 解析串口行：支持 "ch1:12.3,ch2:45.6" 或 "12.3,45.6" CSV
+    let values = null;
+    const named = line.match(/([A-Za-z_][A-Za-z0-9_]*)\s*[:=]\s*(-?\d+\.?\d*)/g);
+    if (named && named.length > 0) {
+      values = {};
+      for (const n of named) {
+        const m = n.match(/([A-Za-z_][A-Za-z0-9_]*)\s*[:=]\s*(-?\d+\.?\d*)/);
+        if (m) values[m[1]] = parseFloat(m[2]);
+      }
+    } else {
+      const nums = line.split(/[,;\t\s]+/).map(s => parseFloat(s)).filter(v => !isNaN(v));
+      if (nums.length > 0) values = {};
+      nums.forEach((v, i) => { values['CH' + (i + 1)] = v; });
+    }
+    if (!values) return;
+    const mode = plotterModeSelect ? plotterModeSelect.value : 'auto';
+    if (mode === 'single') {
+      const keys = Object.keys(values);
+      if (keys.length === 0) return;
+      values = { CH1: values[keys[0]] };
+    }
+    for (const ch of Object.keys(values)) {
+      if (!plotterSeries[ch]) {
+        plotterSeries[ch] = [];
+        plotterChannels.push(ch);
+        if (plotterChannels.length > 8) {
+          const removed = plotterChannels.shift();
+          delete plotterSeries[removed];
+        }
+      }
+      plotterSeries[ch].push(values[ch]);
+      const maxLen = parseInt(plotterWindowSelect.value, 10) || 100;
+      if (plotterSeries[ch].length > maxLen * 2) {
+        plotterSeries[ch] = plotterSeries[ch].slice(-maxLen);
+      }
+    }
+    drawPlotter();
+  }
+
+  // 串口数据同时喂给绘图仪
+  const originalAppendSerialData = appendSerialData;
+  window._plotterFeedHook = plotterFeed;
+
+  if (plotterClearBtn) {
+    plotterClearBtn.addEventListener('click', () => {
+      plotterSeries = {};
+      plotterChannels = [];
+      drawPlotter();
+    });
+  }
+  if (plotterExportBtn) {
+    plotterExportBtn.addEventListener('click', () => {
+      if (plotterChannels.length === 0) { showToast('暂无绘图数据', 'warning'); return; }
+      let csv = 'index,' + plotterChannels.join(',') + '\n';
+      const maxLen = parseInt(plotterWindowSelect.value, 10) || 100;
+      for (let i = 0; i < maxLen; i++) {
+        const row = [i];
+        for (const ch of plotterChannels) {
+          const arr = plotterSeries[ch] || [];
+          row.push(i < arr.length ? arr[i] : '');
+        }
+        csv += row.join(',') + '\n';
+      }
+      // 下载 CSV
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'plotter-data.csv';
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast('CSV 已导出', 'success');
+    });
+  }
+  if (plotterWindowSelect) {
+    plotterWindowSelect.addEventListener('change', drawPlotter);
+  }
+  if (plotterModeSelect) {
+    plotterModeSelect.addEventListener('change', drawPlotter);
+  }
+  window.addEventListener('resize', () => { plotterResize(); drawPlotter(); });
+  // 首次布局
+  setTimeout(() => { plotterResize(); drawPlotter(); }, 1000);
 
   // ============ 验证按钮 ============
   const verifyBtn = document.getElementById('verify-btn');
@@ -4200,11 +4861,102 @@ function bindEvents() {
     });
   }
 
-  // 设置按钮
+  // 设置按钮 - 打开 AI 设置模态框
   const settingsBtn = document.getElementById('settings-btn');
   if (settingsBtn) {
-    settingsBtn.addEventListener('click', () => {
-      showToast('设置面板（演示版）', 'info');
+    settingsBtn.addEventListener('click', openSettingsModal);
+  }
+  // 活动栏设置按钮
+  const activitySettingsBtn = document.querySelector('.activity-btn[data-panel="settings"]');
+  if (activitySettingsBtn) {
+    activitySettingsBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      openSettingsModal();
+    });
+  }
+
+  async function openSettingsModal() {
+    const modal = document.getElementById('settings-modal');
+    if (!modal) return;
+    // 加载当前配置
+    let cfg = {};
+    if (window.LabCode && window.LabCode.config) {
+      try { cfg = await window.LabCode.config.get(); } catch (e) {}
+    }
+    const ai = cfg.ai || {};
+    document.getElementById('ai-provider').value = ai.provider || 'deepseek';
+    document.getElementById('ai-apikey').value = ai.apiKey || '';
+    document.getElementById('ai-baseurl').value = ai.baseURL || '';
+    document.getElementById('ai-model').value = ai.model || '';
+    document.getElementById('ai-test-result').textContent = '';
+    updateAiSettingsVisibility();
+    modal.style.display = 'flex';
+  }
+
+  function updateAiSettingsVisibility() {
+    const provider = document.getElementById('ai-provider').value;
+    const apiKeyRow = document.getElementById('ai-apikey-row');
+    const baseUrlRow = document.getElementById('ai-baseurl-row');
+    // Ollama 不需要 API Key
+    apiKeyRow.style.display = (provider === 'ollama') ? 'none' : 'block';
+    // 自定义需要 Base URL
+    baseUrlRow.style.display = (provider === 'custom') ? 'block' : 'none';
+  }
+
+  // 设置模态框事件
+  const settingsModal = document.getElementById('settings-modal');
+  if (settingsModal) {
+    document.getElementById('settings-close').addEventListener('click', () => { settingsModal.style.display = 'none'; });
+    document.getElementById('settings-cancel').addEventListener('click', () => { settingsModal.style.display = 'none'; });
+    document.getElementById('ai-provider').addEventListener('change', updateAiSettingsVisibility);
+    document.getElementById('settings-save').addEventListener('click', async () => {
+      const provider = document.getElementById('ai-provider').value;
+      const apiKey = document.getElementById('ai-apikey').value.trim();
+      const baseURL = document.getElementById('ai-baseurl').value.trim();
+      const model = document.getElementById('ai-model').value.trim();
+      if (window.LabCode && window.LabCode.config) {
+        await window.LabCode.config.set('ai.provider', provider);
+        if (provider !== 'ollama') await window.LabCode.config.set('ai.apiKey', apiKey);
+        if (provider === 'custom') await window.LabCode.config.set('ai.baseURL', baseURL);
+        if (model) await window.LabCode.config.set('ai.model', model);
+        showToast('AI 配置已保存', 'success');
+      } else {
+        showToast('非 Electron 环境，配置仅本次有效', 'info');
+      }
+      settingsModal.style.display = 'none';
+    });
+    document.getElementById('ai-test-btn').addEventListener('click', async () => {
+      const resultEl = document.getElementById('ai-test-result');
+      resultEl.textContent = '测试中...';
+      resultEl.style.color = 'var(--text-secondary)';
+      if (window.LabCode && window.LabCode.ai && window.LabCode.ai.checkConnection) {
+        const testCfg = {
+          provider: document.getElementById('ai-provider').value,
+          apiKey: document.getElementById('ai-apikey').value.trim(),
+          baseURL: document.getElementById('ai-baseurl').value.trim(),
+          model: document.getElementById('ai-model').value.trim()
+        };
+        try {
+          const r = await window.LabCode.ai.checkConnection(testCfg);
+          if (r.success) {
+            resultEl.textContent = `✓ 连接成功 (${r.status})`;
+            resultEl.style.color = '#52C41A';
+          } else {
+            resultEl.textContent = `✗ 连接失败: ${r.error || r.status}`;
+            resultEl.style.color = '#EA6668';
+          }
+        } catch (e) {
+          resultEl.textContent = `✗ 异常: ${e.message}`;
+          resultEl.style.color = '#EA6668';
+        }
+      } else {
+        resultEl.textContent = '✗ 非 Electron 环境';
+        resultEl.style.color = '#EA6668';
+      }
+    });
+    // 点击遮罩关闭
+    settingsModal.addEventListener('click', (e) => {
+      if (e.target === settingsModal) settingsModal.style.display = 'none';
     });
   }
 
