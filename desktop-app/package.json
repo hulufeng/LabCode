@@ -29,6 +29,7 @@
   "build": {
     "appId": "com.LabCode.app",
     "productName": "LabCode",
+    "electronDist": "node_modules/electron/dist",
     "directories": {
       "output": "dist"
     },

@@ -1,4 +1,4 @@
-// ============ LabCode Electron 主进程 ============
+﻿// ============ LabCode Electron 主进程 ============
 // 基于 TrieCode 源码逆向分析：窗口管理 / IPC / 自动更新 / 代理 / 会话存储
 
 const { app, BrowserWindow, ipcMain, Menu, shell, dialog, net } = require('electron');
