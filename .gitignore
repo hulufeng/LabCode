@@ -1,6 +1,7 @@
 # ========== Dependencies ==========
 node_modules/
-*/node_modules/
+*/
+node_modules/
 
 # ========== Build Output ==========
 dist/
@@ -78,3 +79,8 @@ coverage/
 *.tar.gz
 *.rar
 *.7z
+
+# ========== Local Temp (added 2026-09-10) ==========
+test-sketch/
+build-log.txt
+window_capture.png
