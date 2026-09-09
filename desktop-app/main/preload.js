@@ -1,4 +1,4 @@
-﻿// ============ LabCode Preload 预加载脚本 ============
+// ============ LabCode Preload 预加载脚本 ============
 // 暴露安全的 IPC 接口给渲染进程
 
 const { contextBridge, ipcRenderer } = require('electron');
@@ -84,6 +84,40 @@ contextBridge.exposeInMainWorld('LabCode', {
       const channel = `terminal:exit:${id}`;
       ipcRenderer.on(channel, (_, data) => callback(data));
       return () => ipcRenderer.removeListener(channel, callback);
+    }
+  },
+
+  // AI 对话
+  ai: {
+    chat: (options) => ipcRenderer.invoke('ai:chat', options),
+    checkConnection: (testConfig) => ipcRenderer.invoke('ai:checkConnection', testConfig)
+  },
+
+  // Arduino 编译/烧录
+  compile: {
+    arduino: (options) => ipcRenderer.invoke('compile:arduino', options),
+    upload: (options) => ipcRenderer.invoke('compile:upload', options),
+    listCores: () => ipcRenderer.invoke('compile:list-cores'),
+    listBoards: () => ipcRenderer.invoke('compile:list-boards'),
+    listPorts: () => ipcRenderer.invoke('compile:list-ports'),
+    cliExists: () => ipcRenderer.invoke('compile:cli-exists')
+  },
+
+  // 串口监视器
+  serial: {
+    list: () => ipcRenderer.invoke('serial:list'),
+    open: (options) => ipcRenderer.invoke('serial:open', options),
+    close: () => ipcRenderer.invoke('serial:close'),
+    write: (data) => ipcRenderer.invoke('serial:write', data),
+    onData: (callback) => {
+      const listener = (_e, data) => callback(data);
+      ipcRenderer.on('serial:data', listener);
+      return () => ipcRenderer.removeListener('serial:data', listener);
+    },
+    onClosed: (callback) => {
+      const listener = (_e, info) => callback(info);
+      ipcRenderer.on('serial:closed', listener);
+      return () => ipcRenderer.removeListener('serial:closed', listener);
     }
   },
 
