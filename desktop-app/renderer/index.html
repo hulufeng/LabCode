@@ -63,6 +63,8 @@
         <symbol id="icon-globe" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></symbol>
         <!-- @ -->
         <symbol id="icon-at" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-3.92 7.94"/></symbol>
+        <!-- 插件 -->
+        <symbol id="icon-puzzle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19.439 7.85c-.049.322.059.648.289.878l1.568 1.568c.47.47.706 1.087.706 1.704s-.235 1.233-.706 1.704l-1.611 1.611a.98.98 0 0 1-.837.276c-.47-.07-.802-.48-.968-.925a2.501 2.501 0 1 0-3.214 3.214c.446.166.855.497.925.968a.979.979 0 0 1-.276.837l-1.61 1.61a2.404 2.404 0 0 1-1.705.707 2.402 2.402 0 0 1-1.704-.706l-1.568-1.568a1.026 1.026 0 0 0-.877-.29c-.493.074-.84.504-1.02.968a2.5 2.5 0 1 1-3.237-3.237c.464-.18.894-.527.967-1.02a1.026 1.026 0 0 0-.289-.877l-1.568-1.568A2.402 2.402 0 0 1 1.998 12c0-.617.236-1.234.706-1.704L4.23 8.77c.24-.24.581-.353.917-.303.515.077.877.528 1.073 1.01a2.5 2.5 0 1 0 3.259-3.259c-.482-.196-.933-.558-1.01-1.073-.05-.336.062-.676.303-.917l1.525-1.525A2.402 2.402 0 0 1 12 1.998c.617 0 1.234.236 1.704.706l1.568 1.568c.23.23.556.338.877.29.493-.074.84-.504 1.02-.968a2.5 2.5 0 1 1 3.237 3.237c-.464.18-.894.527-.967 1.02Z"/></symbol>
       </defs>
     </svg>
   </div>
@@ -284,9 +286,10 @@
 
   <!-- 主内容区 -->
   <div class="main-container">
-    <!-- 活动栏（简化版：只有文件和设置） -->
+    <!-- 活动栏 -->
     <div class="activity-bar">
       <button class="activity-btn active" data-panel="explorer" title="资源管理器"><svg class="icon"><use href="#icon-folder"></use></svg></button>
+      <button class="activity-btn" data-panel="plugins" title="插件市场"><svg class="icon"><use href="#icon-puzzle"></use></svg></button>
       <div class="activity-bottom">
         <button class="activity-btn" data-panel="settings" title="设置"><svg class="icon"><use href="#icon-settings"></use></svg></button>
       </div>
@@ -312,6 +315,23 @@
         <div class="welcome-panel-actions">
           <button class="btn btn-primary btn-full" id="welcome-new-project"><svg class="icon icon-xs"><use href="#icon-plus"></use></svg> 新建项目</button>
           <button class="btn btn-secondary btn-full" id="welcome-open-project"><svg class="icon icon-xs"><use href="#icon-folder-open"></use></svg> 打开项目</button>
+        </div>
+      </div>
+
+      <!-- 插件市场面板 -->
+      <div class="plugins-panel" id="plugins-panel" style="display:none;flex:1;flex-direction:column;overflow:hidden;">
+        <div class="sidebar-header">
+          <span>插件市场</span>
+          <div class="sidebar-actions">
+            <button class="icon-btn" id="plugins-refresh" title="刷新"><svg class="icon"><use href="#icon-refresh"></use></svg></button>
+          </div>
+        </div>
+        <div class="plugins-tabs" style="display:flex;border-bottom:1px solid var(--border-color);flex-shrink:0;">
+          <button class="plugins-tab active" data-tab="market">官方市场</button>
+          <button class="plugins-tab" data-tab="installed">已安装</button>
+        </div>
+        <div class="plugins-list" id="plugins-list" style="flex:1;overflow-y:auto;padding:8px;">
+          <!-- 插件卡片动态生成 -->
         </div>
       </div>
     </div>
@@ -453,6 +473,8 @@
       <button class="bottom-tab" data-panel="output">输出</button>
       <button class="bottom-tab" data-panel="problems">问题 <span class="badge" id="problem-count">0</span></button>
       <button class="bottom-tab" data-panel="debug">调试控制台</button>
+      <button class="bottom-tab" data-panel="serial">串口监视器</button>
+      <button class="bottom-tab" data-panel="plotter">绘图仪</button>
     </div>
     <div class="bottom-content">
       <div class="bottom-panel-content active" id="terminal-panel">
@@ -480,6 +502,56 @@
       </div>
       <div class="bottom-panel-content" id="debug-panel">
         <div class="debug-content">调试控制台</div>
+      </div>
+      <!-- 串口监视器面板 -->
+      <div class="bottom-panel-content" id="serial-panel">
+        <div class="serial-panel" style="display:flex;flex-direction:column;height:100%;">
+          <div class="serial-toolbar" style="display:flex;gap:8px;padding:6px 10px;border-bottom:1px solid var(--border-color);align-items:center;flex-wrap:wrap;">
+            <label style="font-size:12px;color:var(--text-secondary);">端口:</label>
+            <select id="serial-port" style="font-size:12px;padding:3px 6px;background:var(--card-color);border:1px solid var(--border-color);border-radius:4px;color:var(--text-color);min-width:100px;">
+              <option value="">未检测到串口</option>
+            </select>
+            <label style="font-size:12px;color:var(--text-secondary);">波特率:</label>
+            <select id="serial-baud" style="font-size:12px;padding:3px 6px;background:var(--card-color);border:1px solid var(--border-color);border-radius:4px;color:var(--text-color);">
+              <option>9600</option><option>19200</option><option>38400</option><option selected>115200</option><option>230400</option><option>460800</option><option>921600</option>
+            </select>
+            <button class="btn btn-primary btn-sm" id="serial-open-btn" style="padding:4px 12px;font-size:11px;">打开串口</button>
+            <button class="btn btn-secondary btn-sm" id="serial-clear-btn" style="padding:4px 12px;font-size:11px;">清空</button>
+            <label style="font-size:12px;color:var(--text-secondary);margin-left:auto;display:flex;align-items:center;gap:4px;">
+              <input type="checkbox" id="serial-timestamp" style="accent-color:var(--accent, #007acc);"> 时间戳
+            </label>
+            <label style="font-size:12px;color:var(--text-secondary);display:flex;align-items:center;gap:4px;">
+              <input type="checkbox" id="serial-autoscroll" checked style="accent-color:var(--accent, #007acc);"> 自动滚动
+            </label>
+          </div>
+          <div id="serial-output" style="flex:1;overflow-y:auto;padding:8px 12px;font-family:'Cascadia Code','Consolas',monospace;font-size:12px;line-height:1.5;white-space:pre-wrap;word-break:break-all;background:var(--card-color);"></div>
+          <div class="serial-input-row" style="display:flex;gap:6px;padding:6px 10px;border-top:1px solid var(--border-color);">
+            <input type="text" id="serial-send-input" placeholder="发送到串口 (Enter 发送)" style="flex:1;font-size:12px;padding:4px 8px;background:var(--card-color);border:1px solid var(--border-color);border-radius:4px;color:var(--text-color);">
+            <button class="btn btn-secondary btn-sm" id="serial-send-btn" style="padding:4px 12px;font-size:11px;">发送</button>
+          </div>
+        </div>
+      </div>
+      <!-- 绘图仪面板 -->
+      <div class="bottom-panel-content" id="plotter-panel">
+        <div class="plotter-panel" style="display:flex;flex-direction:column;height:100%;">
+          <div class="plotter-toolbar" style="display:flex;gap:8px;padding:6px 10px;border-bottom:1px solid var(--border-color);align-items:center;flex-wrap:wrap;">
+            <label style="font-size:12px;color:var(--text-secondary);">绘图模式:</label>
+            <select id="plotter-mode" style="font-size:12px;padding:3px 6px;background:var(--card-color);border:1px solid var(--border-color);border-radius:4px;color:var(--text-color);">
+              <option value="auto" selected>自动 (CSV/逗号分隔)</option>
+              <option value="single">单通道</option>
+            </select>
+            <label style="font-size:12px;color:var(--text-secondary);">窗口:</label>
+            <select id="plotter-window" style="font-size:12px;padding:3px 6px;background:var(--card-color);border:1px solid var(--border-color);border-radius:4px;color:var(--text-color);">
+              <option value="50">50 点</option><option value="100" selected>100 点</option><option value="200">200 点</option><option value="500">500 点</option>
+            </select>
+            <button class="btn btn-secondary btn-sm" id="plotter-clear-btn" style="padding:4px 12px;font-size:11px;">清空</button>
+            <button class="btn btn-secondary btn-sm" id="plotter-export-btn" style="padding:4px 12px;font-size:11px;">导出 CSV</button>
+          </div>
+          <div id="plotter-canvas" style="flex:1;position:relative;background:var(--card-color);overflow:hidden;">
+            <canvas id="plotter-cv" style="position:absolute;inset:0;width:100%;height:100%;"></canvas>
+            <div id="plotter-placeholder" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--text-secondary);font-size:13px;">等待串口数据…</div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -547,6 +619,58 @@
         <button class="btn btn-secondary" id="permission-modify-btn">按此修改</button>
         <button class="btn btn-warning" id="permission-session-btn">本会话允许</button>
         <button class="btn btn-primary" id="permission-once-btn">允许一次</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- AI 设置模态框 -->
+  <div class="modal-overlay" id="settings-modal" style="display:none;">
+    <div class="modal" style="width:560px;">
+      <div class="modal-header">
+        <h3><svg class="icon icon-xs"><use href="#icon-settings"></use></svg> 设置</h3>
+        <button class="modal-close" id="settings-close"><svg class="icon icon-xs"><use href="#icon-x"></use></svg></button>
+      </div>
+      <div class="modal-body" style="max-height:60vh;overflow-y:auto;">
+        <div style="margin-bottom:20px;">
+          <h4 style="margin:0 0 12px 0;font-size:14px;color:var(--text-color);">AI 模型配置</h4>
+          <div style="display:flex;flex-direction:column;gap:12px;">
+            <div>
+              <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">AI 提供商</label>
+              <select id="ai-provider" style="width:100%;padding:8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size:13px;">
+                <option value="deepseek">DeepSeek（云端 API）</option>
+                <option value="ollama">Ollama（本地模型）</option>
+                <option value="openai">OpenAI（云端 API）</option>
+                <option value="custom">自定义（OpenAI 兼容）</option>
+              </select>
+            </div>
+            <div id="ai-apikey-row">
+              <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">API Key</label>
+              <input type="password" id="ai-apikey" placeholder="sk-..." style="width:100%;padding:8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size:13px;box-sizing:border-box;">
+            </div>
+            <div id="ai-baseurl-row" style="display:none;">
+              <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">API Base URL</label>
+              <input type="text" id="ai-baseurl" placeholder="https://api.example.com/v1" style="width:100%;padding:8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size:13px;box-sizing:border-box;">
+            </div>
+            <div>
+              <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">模型名称</label>
+              <input type="text" id="ai-model" placeholder="deepseek-chat" style="width:100%;padding:8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size:13px;box-sizing:border-box;">
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <button class="btn btn-secondary" id="ai-test-btn" style="flex:0 0 auto;">测试连接</button>
+              <span id="ai-test-result" style="font-size:12px;color:var(--text-secondary);"></span>
+            </div>
+          </div>
+        </div>
+        <div style="padding:12px;background:rgba(0,0,0,0.03);border-radius:8px;font-size:12px;color:var(--text-secondary);line-height:1.6;">
+          <strong>说明：</strong><br>
+          • DeepSeek：在 <a href="https://platform.deepseek.com/" style="color:var(--accent);">platform.deepseek.com</a> 申请 API Key<br>
+          • Ollama：本地安装 <a href="https://ollama.com/" style="color:var(--accent);">Ollama</a> 并拉取模型（如 <code>ollama pull qwen2.5-coder:7b</code>），无需 API Key<br>
+          • 配置保存后，AI 智能体将使用真实模型进行对话和工具调用
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="settings-cancel">取消</button>
+        <button class="btn btn-primary" id="settings-save">保存</button>
       </div>
     </div>
   </div>
