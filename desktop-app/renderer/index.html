@@ -551,6 +551,38 @@
     </div>
   </div>
 
+  <!-- 新建项目模态框 -->
+  <div class="modal-overlay" id="new-project-modal" style="display:none;">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>新建项目</h3>
+        <button class="modal-close" id="new-project-close"><svg class="icon icon-xs"><use href="#icon-x"></use></svg></button>
+      </div>
+      <div class="modal-body">
+        <label>项目类型</label>
+        <div class="project-type-grid" id="project-type-grid">
+          <button class="project-type-card active" data-type="arduino"><span class="project-type-icon">⚙️</span><span>Arduino 项目</span><small>Arduino CLI 工具链</small></button>
+          <button class="project-type-card" data-type="python"><span class="project-type-icon">🐍</span><span>Python 项目</span><small>脚本 / 应用</small></button>
+          <button class="project-type-card" data-type="node"><span class="project-type-icon">🟢</span><span>Node.js 项目</span><small>JavaScript / TypeScript</small></button>
+          <button class="project-type-card" data-type="esp-idf"><span class="project-type-icon">🔧</span><span>ESP-IDF 项目</span><small>ESP-IDF 工具链</small></button>
+          <button class="project-type-card" data-type="c"><span class="project-type-icon">©️</span><span>C/C++ 项目</span><small>CMake 工程</small></button>
+          <button class="project-type-card" data-type="generic"><span class="project-type-icon">📁</span><span>通用项目</span><small>空白文件夹</small></button>
+        </div>
+        <label>项目名称</label>
+        <input type="text" id="new-project-name" placeholder="例如: MyRobot">
+        <label>创建位置</label>
+        <div class="project-location-row">
+          <input type="text" id="new-project-location" value="C:\Users\Lenovo\Documents\LabCodeProjects">
+          <button class="btn btn-secondary" id="new-project-browse">浏览</button>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="new-project-cancel">取消</button>
+        <button class="btn btn-primary" id="new-project-confirm">创建</button>
+      </div>
+    </div>
+  </div>
+
   <!-- 新建文件模态框 -->
   <div class="modal-overlay" id="new-file-modal" style="display:none;">
     <div class="modal">

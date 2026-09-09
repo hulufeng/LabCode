@@ -153,6 +153,205 @@ async function loadProjectFromDisk(projectPath) {
   }
 }
 
+// ============ 新建项目 ============
+// 各项目类型模板
+const PROJECT_TEMPLATES = {
+  arduino: {
+    folder: 'Arduino',
+    files: {
+      'SKETCH.ino': `void setup() {
+  // put your setup code here
+  pinMode(LED_BUILTIN, OUTPUT);
+  Serial.begin(115200);
+}
+
+void loop() {
+  // put your main code here
+  digitalWrite(LED_BUILTIN, HIGH);
+  delay(1000);
+  digitalWrite(LED_BUILTIN, LOW);
+  delay(1000);
+}
+`,
+      'README.md': '# Arduino Project\n\nStandard Arduino (.ino) sketch.\n'
+    }
+  },
+  'esp-idf': {
+    folder: 'ESP-IDF',
+    files: {
+      'main/main.c': `#include <stdio.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "esp_system.h"
+
+void app_main(void) {
+  printf("Hello from LabCode ESP-IDF project!\\n");
+  vTaskDelay(pdMS_TO_TICKS(1000));
+}
+`,
+      'CMakeLists.txt': `cmake_minimum_required(VERSION 3.16)
+include($ENV{IDF_PATH}/tools/cmake/project.cmake)
+project(esp32_project)
+`,
+      'README.md': '# ESP-IDF Project\n'
+    }
+  },
+  python: {
+    folder: 'Python',
+    files: {
+      'main.py': `#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""Project entry point."""
+
+def main():
+    print("Hello from LabCode Python project!")
+
+
+if __name__ == "__main__":
+    main()
+`,
+      'README.md': '# Python Project\n'
+    }
+  },
+  node: {
+    folder: 'Node.js',
+    files: {
+      'index.js': `// Project entry point
+console.log('Hello from LabCode Node.js project!');
+`,
+      'package.json': `{
+  "name": "labcode-project",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  }
+}
+`,
+      'README.md': '# Node.js Project\n'
+    }
+  },
+  c: {
+    folder: 'C',
+    files: {
+      'main.c': `#include <stdio.h>
+
+int main(void) {
+    printf("Hello from LabCode C project!\\n");
+    return 0;
+}
+`,
+      'CMakeLists.txt': `cmake_minimum_required(VERSION 3.10)
+project(labcode_c_project)
+add_executable(main main.c)
+`,
+      'README.md': '# C/C++ Project\n'
+    }
+  },
+  generic: {
+    folder: 'Generic',
+    files: {
+      'README.md': '# Generic Project\n'
+    }
+  }
+};
+
+let projectModalCallback = null;
+
+function showNewProjectModal() {
+  const modal = document.getElementById('new-project-modal');
+  if (!modal) return;
+  modal.style.display = 'flex';
+  document.getElementById('new-project-name').value = '';
+  const locationInput = document.getElementById('new-project-location');
+  if (state.projectPath && isElectron) {
+    locationInput.value = state.projectPath;
+  } else {
+    locationInput.value = 'C:\\Users\\Lenovo\\Documents\\LabCodeProjects';
+  }
+  // 默认选中 Arduino
+  document.querySelectorAll('#project-type-grid .project-type-card').forEach(card => {
+    card.classList.toggle('active', card.dataset.type === 'arduino');
+  });
+  setTimeout(() => document.getElementById('new-project-name').focus(), 50);
+}
+
+function hideNewProjectModal() {
+  const modal = document.getElementById('new-project-modal');
+  if (modal) modal.style.display = 'none';
+  projectModalCallback = null;
+}
+
+function getSelectedProjectType() {
+  const active = document.querySelector('#project-type-grid .project-type-card.active');
+  return active ? active.dataset.type : 'arduino';
+}
+
+// 创建项目（磁盘或内存）
+async function createProject(type, name, location) {
+  const safeName = (name || '').trim().replace(/[\\/:*?"<>|]/g, '_');
+  if (!safeName) { showToast('请输入项目名称', 'error'); return null; }
+
+  const template = PROJECT_TEMPLATES[type] || PROJECT_TEMPLATES.generic;
+  const projectRoot = isElectron && state.projectPath === null
+    ? (location || 'C:\\Users\\Lenovo\\Documents\\LabCodeProjects') + '\\' + safeName
+    : safeName;
+
+  if (isElectron) {
+    // 磁盘创建
+    const base = (state.projectPath || location || 'C:\\Users\\Lenovo\\Documents\\LabCodeProjects').replace(/[\\/]+$/, '');
+    const root = base + '\\' + safeName;
+    try {
+      // 先创建 .labcode.json 项目标记
+      const meta = {
+        name: safeName, type, version: 1,
+        toolchain: type === 'arduino' ? 'arduino-cli-toolchain'
+          : type === 'esp-idf' ? 'esp-idf-toolchain' : null,
+        createdAt: new Date().toISOString()
+      };
+      const entries = [
+        [root + '\\.labcode.json', JSON.stringify(meta, null, 2)]
+      ];
+      for (const [rel, content] of Object.entries(template.files)) {
+        const fileName = rel === 'SKETCH.ino' ? safeName + '.ino' : rel;
+        entries.push([root + '\\' + fileName.replace(/\//g, '\\'), content]);
+      }
+      for (const [filePath, content] of entries) {
+        await FileSystem.writeFile(filePath, content);
+      }
+      addOutputLog(`项目已创建: ${root}`, 'success');
+      showToast(`项目 ${safeName} 创建成功`, 'success');
+      return root;
+    } catch (e) {
+      console.error('创建项目失败:', e);
+      showToast('创建项目失败: ' + e.message, 'error');
+      return null;
+    }
+  } else {
+    // 浏览器内存模式
+    state.files = {};
+    state.projectPath = projectRoot;
+    state.files[projectRoot + '/.labcode.json'] = {
+      content: JSON.stringify({ name: safeName, type, version: 1 }, null, 2),
+      language: 'json', dirty: false
+    };
+    for (const [rel, content] of Object.entries(template.files)) {
+      const fileName = rel === 'SKETCH.ino' ? safeName + '.ino' : rel;
+      state.files[projectRoot + '/' + fileName] = {
+        content, language: getLanguage(fileName), dirty: false
+      };
+    }
+    buildFileTree();
+    renderFileTree();
+    // 打开第一个文件
+    const firstFile = Object.keys(state.files).find(f => f.endsWith('.ino') || f.endsWith('.py') || f.endsWith('.c') || f.endsWith('.js'));
+    if (firstFile) openFile(firstFile);
+    showToast(`项目 ${safeName} 创建成功`, 'success');
+    return projectRoot;
+  }
+}
+
+
 // 递归读取目录
 async function readDirRecursive(dirPath, relativePath) {
   const items = await FileSystem.listDir(dirPath);
@@ -3125,9 +3324,7 @@ function handleMenuAction(action) {
     // ===== 文件菜单 =====
     case 'new-project':
       showToast('新建项目', 'info');
-      // 触发新建项目按钮
-      const newProjectBtn = document.getElementById('new-project-btn');
-      if (newProjectBtn) newProjectBtn.click();
+      showNewProjectModal();
       break;
     case 'open-project':
       showToast('打开项目', 'info');
@@ -3517,7 +3714,7 @@ function bindEvents() {
   // 欢迎面板按钮
   const welcomeNewProject = document.getElementById('welcome-new-project');
   if (welcomeNewProject) {
-    welcomeNewProject.addEventListener('click', () => document.getElementById('new-file-btn').click());
+    welcomeNewProject.addEventListener('click', () => showNewProjectModal());
   }
   const welcomeOpenProject = document.getElementById('welcome-open-project');
   if (welcomeOpenProject) {
@@ -3538,6 +3735,71 @@ function bindEvents() {
       } else {
         showToast('打开项目（演示版）', 'info');
       }
+    });
+  }
+
+  // ============ 新建项目弹窗绑定 ============
+  // 类型卡片选择
+  document.querySelectorAll('#project-type-grid .project-type-card').forEach(card => {
+    card.addEventListener('click', () => {
+      document.querySelectorAll('#project-type-grid .project-type-card').forEach(c => c.classList.remove('active'));
+      card.classList.add('active');
+    });
+  });
+  // 取消
+  const newProjectCancel = document.getElementById('new-project-cancel');
+  if (newProjectCancel) newProjectCancel.addEventListener('click', hideNewProjectModal);
+  const newProjectClose = document.getElementById('new-project-close');
+  if (newProjectClose) newProjectClose.addEventListener('click', hideNewProjectModal);
+  // 遮罩关闭
+  const newProjectModal = document.getElementById('new-project-modal');
+  if (newProjectModal) {
+    newProjectModal.addEventListener('click', (e) => {
+      if (e.target.id === 'new-project-modal') hideNewProjectModal();
+    });
+  }
+  // 浏览位置
+  const newProjectBrowse = document.getElementById('new-project-browse');
+  if (newProjectBrowse) {
+    newProjectBrowse.addEventListener('click', async () => {
+      if (isElectron && window.LabCode.dialog) {
+        try {
+          const dirPath = await window.LabCode.dialog.openDirectory();
+          if (dirPath) document.getElementById('new-project-location').value = dirPath;
+        } catch (e) { console.error(e); }
+      }
+    });
+  }
+  // 创建
+  const newProjectConfirm = document.getElementById('new-project-confirm');
+  if (newProjectConfirm) {
+    newProjectConfirm.addEventListener('click', async () => {
+      const type = getSelectedProjectType();
+      const name = document.getElementById('new-project-name').value.trim();
+      const location = document.getElementById('new-project-location').value.trim();
+      const root = await createProject(type, name, location);
+      if (root) {
+        hideNewProjectModal();
+        if (isElectron) {
+          await loadProjectFromDisk(root);
+          // 关闭欢迎页面，显示编辑器
+          const welcomeScreen = document.getElementById('welcome-screen');
+          const monacoEditor = document.getElementById('monaco-editor');
+          if (welcomeScreen) welcomeScreen.style.display = 'none';
+          if (monacoEditor) monacoEditor.style.display = 'flex';
+          // 打开首个文件
+          const firstFile = Object.keys(state.files).find(f => f.endsWith('.ino') || f.endsWith('.py') || f.endsWith('.c') || f.endsWith('.js'));
+          if (firstFile) openFile(firstFile);
+        }
+      }
+    });
+  }
+  // Enter 键创建
+  const newProjectNameInput = document.getElementById('new-project-name');
+  if (newProjectNameInput) {
+    newProjectNameInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') document.getElementById('new-project-confirm').click();
+      if (e.key === 'Escape') hideNewProjectModal();
     });
   }
   

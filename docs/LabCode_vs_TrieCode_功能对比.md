@@ -1,4 +1,4 @@
-# LabCode vs TrieCode 功能对比与修改计划
+﻿# LabCode vs TrieCode 功能对比与修改计划
 
 > 对比时间：2026-09-05
 > 对比范围：LabCode 仿写版本（v2.2，1334行）vs TrieCode v1.2.9 原始源码（36个核心文件，约450KB）
