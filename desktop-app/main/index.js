@@ -1,10 +1,11 @@
-﻿// ============ LabCode Electron 主进程 ============
+// ============ LabCode Electron 主进程 ============
 // 基于 TrieCode 源码逆向分析：窗口管理 / IPC / 自动更新 / 代理 / 会话存储
 
 const { app, BrowserWindow, ipcMain, Menu, shell, dialog, net } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+const { spawn, execFile } = require('child_process');
 
 // 终端服务
 const { getTerminalService } = require('./terminal');
@@ -278,6 +279,84 @@ function setupIPC() {
     return saveConfig(config);
   });
 
+  // ============ AI 对话（OpenAI 兼容 API：DeepSeek / Ollama / 自定义）============
+  const AI_PROVIDERS = {
+    deepseek: { baseURL: 'https://api.deepseek.com/v1', defaultModel: 'deepseek-chat' },
+    ollama:   { baseURL: 'http://localhost:11434/v1', defaultModel: 'qwen2.5-coder:7b' },
+    openai:   { baseURL: 'https://api.openai.com/v1', defaultModel: 'gpt-4o-mini' },
+    custom:   { baseURL: '', defaultModel: '' }
+  };
+
+  ipcMain.handle('ai:chat', async (_, options) => {
+    const { messages, model, temperature = 0.7, maxTokens = 4096 } = options || {};
+    const aiCfg = config.ai || {};
+    const provider = AI_PROVIDERS[aiCfg.provider] || AI_PROVIDERS.deepseek;
+    const baseURL = aiCfg.baseURL || provider.baseURL;
+    const useModel = model || aiCfg.model || provider.defaultModel;
+    const apiKey = aiCfg.apiKey || '';
+
+    if (!baseURL) {
+      return { success: false, error: '未配置 API baseURL，请在设置中配置' };
+    }
+    if (!messages || !Array.isArray(messages) || messages.length === 0) {
+      return { success: false, error: '消息为空' };
+    }
+
+    try {
+      const url = baseURL.replace(/\/$/, '') + '/chat/completions';
+      const body = JSON.stringify({
+        model: useModel,
+        messages,
+        temperature,
+        max_tokens: maxTokens,
+        stream: false
+      });
+
+      const headers = { 'Content-Type': 'application/json' };
+      if (apiKey) headers['Authorization'] = 'Bearer ' + apiKey;
+
+      const response = await net.fetch(url, {
+        method: 'POST',
+        headers,
+        body
+      });
+
+      if (!response.ok) {
+        const errText = await response.text().catch(() => '');
+        return { success: false, error: `API 返回 ${response.status}: ${errText.slice(0, 500)}` };
+      }
+
+      const data = await response.json();
+      const content = data?.choices?.[0]?.message?.content || '';
+      const usage = data?.usage || {};
+      return { success: true, content, usage, model: useModel };
+    } catch (e) {
+      return { success: false, error: 'AI 请求失败: ' + (e.message || String(e)) };
+    }
+  });
+
+  ipcMain.handle('ai:checkConnection', async (_, testConfig) => {
+    // 测试 AI 连接（发一条最短消息）
+    const aiCfg = { ...(config.ai || {}), ...(testConfig || {}) };
+    const provider = AI_PROVIDERS[aiCfg.provider] || AI_PROVIDERS.deepseek;
+    const baseURL = aiCfg.baseURL || provider.baseURL;
+    const useModel = aiCfg.model || provider.defaultModel;
+    if (!baseURL) return { success: false, error: '未配置 baseURL' };
+    try {
+      const url = baseURL.replace(/\/$/, '') + '/chat/completions';
+      const headers = { 'Content-Type': 'application/json' };
+      if (aiCfg.apiKey) headers['Authorization'] = 'Bearer ' + aiCfg.apiKey;
+      const response = await net.fetch(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ model: useModel, messages: [{ role: 'user', content: 'hi' }], max_tokens: 5, stream: false })
+      });
+      return { success: response.ok, status: response.status, model: useModel };
+    } catch (e) {
+      return { success: false, error: e.message || String(e) };
+    }
+  });
+
   // 会话
   ipcMain.handle('sessions:list', () => loadSessions());
   ipcMain.handle('sessions:save', (_, session) => saveSession(session));
@@ -460,6 +539,145 @@ function setupIPC() {
     try {
       const result = await terminalService.executeCommand(command, cwd, timeout);
       return result;
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
+  });
+
+  // ============ Arduino 编译/烧录 ============
+  const ARDUINO_CLI = path.join(app.getPath('appData'), 'codelab-desktop', 'tools', 'arduino-cli', 'arduino-cli.exe');
+
+  function runArduinoCli(args, cwd) {
+    return new Promise((resolve) => {
+      if (!fs.existsSync(ARDUINO_CLI)) {
+        resolve({ success: false, error: 'arduino-cli 未找到，请先安装 Arduino 编译插件', code: -1 });
+        return;
+      }
+      const child = execFile(ARDUINO_CLI, args, { cwd: cwd || process.cwd(), maxBuffer: 10 * 1024 * 1024 }, (err, stdout, stderr) => {
+        const output = (stdout || '') + (stderr || '');
+        resolve({ success: !err, error: err ? err.message : '', output, code: err ? (err.code || 1) : 0 });
+      });
+    });
+  }
+
+  ipcMain.handle('compile:arduino', async (_, options) => {
+    const { sketchPath, fqbn, outputDir } = options || {};
+    if (!sketchPath) return { success: false, error: '缺少 sketchPath' };
+    if (!fqbn) return { success: false, error: '缺少 fqbn（开发板型号）' };
+    const args = ['compile', '--fqbn', fqbn];
+    if (outputDir) args.push('--output-dir', outputDir);
+    args.push(sketchPath);
+    return await runArduinoCli(args, path.dirname(sketchPath));
+  });
+
+  ipcMain.handle('compile:upload', async (_, options) => {
+    const { sketchPath, fqbn, port } = options || {};
+    if (!sketchPath) return { success: false, error: '缺少 sketchPath' };
+    if (!fqbn) return { success: false, error: '缺少 fqbn' };
+    if (!port) return { success: false, error: '缺少串口（port）' };
+    const args = ['upload', '--fqbn', fqbn, '--port', port, sketchPath];
+    return await runArduinoCli(args, path.dirname(sketchPath));
+  });
+
+  ipcMain.handle('compile:list-cores', async () => {
+    return await runArduinoCli(['core', 'list']);
+  });
+
+  ipcMain.handle('compile:list-boards', async () => {
+    return await runArduinoCli(['board', 'listall']);
+  });
+
+  ipcMain.handle('compile:list-ports', async () => {
+    return await runArduinoCli(['board', 'list']);
+  });
+
+  ipcMain.handle('compile:cli-exists', async () => {
+    return { exists: fs.existsSync(ARDUINO_CLI), path: ARDUINO_CLI };
+  });
+
+  // ============ 串口监视器 ============
+  let serialMonitorProc = null;   // 当前打开的串口监视进程
+  let serialMonitorPort = null;
+  let serialMonitorBaud = 115200;
+
+  ipcMain.handle('serial:list', async () => {
+    // 用 arduino-cli board list 获取串口
+    if (!fs.existsSync(ARDUINO_CLI)) return { success: true, ports: [] };
+    return await new Promise((resolve) => {
+      execFile(ARDUINO_CLI, ['board', 'list'], { maxBuffer: 5 * 1024 * 1024 }, (err, stdout) => {
+        const ports = [];
+        if (!err && stdout) {
+          // 解析输出行：Port  Protocol Type  Board Name  FQBN  Core
+          const lines = stdout.split('\n').slice(1);
+          for (const line of lines) {
+            const m = line.match(/(COM\d+)/);
+            if (m) {
+              const boardMatch = line.match(/^\S+\s+\S+\s+\S+\s+(.+?)\s{2,}/);
+              ports.push({ port: m[1], board: boardMatch ? boardMatch[1].trim() : '未知设备' });
+            }
+          }
+        }
+        resolve({ success: true, ports });
+      });
+    });
+  });
+
+  ipcMain.handle('serial:open', async (_, options) => {
+    const { port, baud } = options || {};
+    if (!port) return { success: false, error: '缺少串口' };
+    if (!fs.existsSync(ARDUINO_CLI)) return { success: false, error: 'arduino-cli 未安装' };
+    // 关闭旧串口
+    if (serialMonitorProc) {
+      try { serialMonitorProc.kill(); } catch (e) {}
+      serialMonitorProc = null;
+    }
+    serialMonitorPort = port;
+    serialMonitorBaud = baud || 115200;
+    try {
+      serialMonitorProc = spawn(ARDUINO_CLI, ['monitor', '-p', port, '-c', 'baudrate=' + serialMonitorBaud], {
+        windowsHide: true
+      });
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
+    // 输出转发
+    serialMonitorProc.stdout.on('data', (data) => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('serial:data', data.toString('utf8'));
+      }
+    });
+    serialMonitorProc.stderr.on('data', (data) => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('serial:data', data.toString('utf8'));
+      }
+    });
+    serialMonitorProc.on('close', (code) => {
+      serialMonitorProc = null;
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('serial:closed', { code });
+      }
+    });
+    // 等待 800ms 看是否启动失败
+    await new Promise(r => setTimeout(r, 800));
+    if (serialMonitorProc && serialMonitorProc.killed) {
+      return { success: false, error: '串口打开失败' };
+    }
+    return { success: true, port, baud: serialMonitorBaud };
+  });
+
+  ipcMain.handle('serial:close', async () => {
+    if (serialMonitorProc) {
+      try { serialMonitorProc.kill(); } catch (e) {}
+      serialMonitorProc = null;
+    }
+    return { success: true };
+  });
+
+  ipcMain.handle('serial:write', async (_, data) => {
+    if (!serialMonitorProc) return { success: false, error: '串口未打开' };
+    try {
+      serialMonitorProc.stdin.write(data + '\n');
+      return { success: true };
     } catch (e) {
       return { success: false, error: e.message };
     }
