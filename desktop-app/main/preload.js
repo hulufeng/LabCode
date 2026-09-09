@@ -1,4 +1,4 @@
-// ============ LabCode Preload 预加载脚本 ============
+﻿// ============ LabCode Preload 预加载脚本 ============
 // 暴露安全的 IPC 接口给渲染进程
 
 const { contextBridge, ipcRenderer } = require('electron');
