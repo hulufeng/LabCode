@@ -64,6 +64,15 @@ coverage/
 *.lcov
 .nyc_output/
 
+# ========== Screenshots (可选，如需保留可注释掉) ==========
+# docs/screenshots/
+# *.png
+# *.jpg
+# *.jpeg
+
+# ========== Package Lock (可选，建议保留) ==========
+# package-lock.json 建议保留，确保依赖一致性
+
 # ========== Large Files ==========
 *.zip
 *.tar.gz

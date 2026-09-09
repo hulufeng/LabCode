@@ -1,4 +1,4 @@
-// ============ LabCode Electron 主进程 ============
+﻿// ============ LabCode Electron 主进程 ============
 // 基于 TrieCode 源码逆向分析：窗口管理 / IPC / 自动更新 / 代理 / 会话存储
 
 const { app, BrowserWindow, ipcMain, Menu, shell, dialog, net } = require('electron');
@@ -309,10 +309,31 @@ function setupIPC() {
     return result.canceled ? null : result.filePath;
   });
 
-  // 文件读写
-  ipcMain.handle('fs:readFile', (_, filePath, encoding = 'utf-8') => {
+  // 文件读写（带编码自动检测：UTF-8 BOM / 纯UTF-8 / GBK 回退）
+  ipcMain.handle('fs:readFile', (_, filePath) => {
     try {
-      return { success: true, content: fs.readFileSync(filePath, encoding) };
+      const buf = fs.readFileSync(filePath);
+      // 1) UTF-8 BOM 直接按 UTF-8
+      if (buf.length >= 3 && buf[0] === 0xEF && buf[1] === 0xBB && buf[2] === 0xBF) {
+        return { success: true, content: buf.toString('utf-8').replace(/^\uFEFF/, ''), encoding: 'utf-8' };
+      }
+      // 2) 尝试严格 UTF-8 解码（TextDecoder fatal 模式）
+      try {
+        const td = new TextDecoder('utf-8', { fatal: true });
+        const content = td.decode(buf);
+        // 无 BOM 但纯 ASCII/UTF-8 时直接返回
+        return { success: true, content, encoding: 'utf-8' };
+      } catch (utfErr) {
+        // 3) UTF-8 解码失败 → GBK（覆盖中文 Windows 常见 GB2312/GBK 编码文件）
+        const iconv = (() => {
+          try { return require('iconv-lite'); } catch (e) { return null; }
+        })();
+        if (iconv) {
+          return { success: true, content: iconv.decode(buf, 'gbk'), encoding: 'gbk' };
+        }
+        // 无 iconv-lite 时的回退：手动 GBK→UTF-8 表不现实，用 latin1 兜底
+        return { success: true, content: buf.toString('utf-8'), encoding: 'utf-8(疑似GBK)' };
+      }
     } catch (e) {
       return { success: false, error: e.message };
     }
