@@ -2880,3 +2880,28 @@ input, textarea {
   0%, 50% { opacity: 1; }
   51%, 100% { opacity: 0; }
 }
+
+/* ============ 插件市场 ============ */
+.plugins-tab {
+  flex: 1;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s;
+}
+.plugins-tab:hover { color: var(--text-color); }
+.plugins-tab.active {
+  color: var(--text-color);
+  border-bottom-color: var(--accent, #007acc);
+  font-weight: 600;
+}
+.plugin-card {
+  transition: border-color 0.2s;
+}
+.plugin-card:hover {
+  border-color: var(--accent, #007acc) !important;
+}
