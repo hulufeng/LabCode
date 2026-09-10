@@ -382,64 +382,14 @@
                 <span class="quick-action-text">帮我创建一个 Python 项目，画个太阳系</span>
               </button>
             </div>
-
-            <!-- AI 输入框 -->
-            <div class="ai-input-container">
-              <div class="ai-input-box">
-                <textarea 
-                  id="ai-input" 
-                  class="ai-input-textarea"
-                  placeholder="输入消息... (Enter 发送 · Shift+Enter 换行 · 输入 / 使用技能)"
-                  rows="1"
-                ></textarea>
-                <div class="ai-input-toolbar">
-                  <div class="ai-input-left">
-                    <button class="ai-input-tool-btn" id="attach-btn" title="添加附件"><svg class="icon"><use href="#icon-plus"></use></svg></button>
-                    <button class="ai-input-tool-btn" id="ai-attach-btn" title="附件"><svg class="icon"><use href="#icon-paperclip"></use></svg></button>
-                    <span class="ai-input-project-status" id="project-status">
-                      <span class="project-status-icon"><svg class="icon icon-xs"><use href="#icon-file"></use></svg></span>
-                      <span id="project-status-text">无打开项目</span>
-                    </span>
-                  </div>
-                  <div class="ai-input-right">
-                    <button class="ai-input-tool-btn" id="permission-btn" title="权限模式"><svg class="icon"><use href="#icon-shield"></use></svg></button>
-                    <button class="ai-input-tool-btn" id="mention-btn" title="@提及"><svg class="icon"><use href="#icon-at"></use></svg></button>
-                    <div class="model-selector">
-                      <button class="model-select-btn" id="model-select-btn">
-                        <span class="model-name" id="current-model-name">DeepSeek FLASH</span>
-                        <svg class="icon icon-xs"><use href="#icon-chevron-down"></use></svg>
-                      </button>
-                      <div class="model-dropdown" id="model-dropdown" style="display:none;">
-                        <div class="model-option active" data-model="deepseek-flash">DeepSeek FLASH</div>
-                        <div class="model-option" data-model="deepseek-v4">DeepSeek V4</div>
-                        <div class="model-option" data-model="qwen">通义千问 Qwen</div>
-                        <div class="model-option" data-model="minimax">MiniMax M3</div>
-                        <div class="model-option" data-model="glm">智谱 GLM-5.2</div>
-                        <div class="model-option" data-model="doubao">豆包</div>
-                        <div class="model-option" data-model="ollama">Ollama 本地模型</div>
-                      </div>
-                    </div>
-                    <button class="ai-send-btn" id="ai-send-btn" title="发送">
-                      <svg class="icon"><use href="#icon-send"></use></svg>
-                    </button>
-                  </div>
-                </div>
-              </div>
-              <!-- 工作空间路径 -->
-              <div class="workspace-path">
-                <span class="workspace-path-icon"><svg class="icon icon-xs"><use href="#icon-folder"></use></svg></span>
-                <span class="workspace-path-text" id="workspace-path-text">C:\Users\Lenovo\Documents\LabCodeProjects</span>
-                <button class="workspace-path-btn" id="select-workspace-btn">选择工作空间</button>
-              </div>
-            </div>
           </div>
         </div>
         <div id="monaco-editor" style="display:none;"></div>
       </div>
     </div>
 
-    <!-- AI 助手面板（聊天记录） -->
-    <div class="ai-panel" id="ai-panel" style="display:none;">
+    <!-- AI 助手面板（对话+输入，对标 TrieCode 右侧布局） -->
+    <div class="ai-panel" id="ai-panel">
       <div class="ai-header">
         <span class="ai-title"><span class="ai-icon"><svg class="icon icon-xs"><use href="#icon-sparkles"></use></svg></span> AI 助手</span>
         <div class="ai-actions">
@@ -461,6 +411,47 @@
         </div>
         <div class="plan-progress-steps" id="plan-progress-steps">
           <!-- 步骤动态生成 -->
+        </div>
+      </div>
+      <!-- AI 输入框（右侧面板底部） -->
+      <div class="ai-input-container ai-input-side">
+        <div class="ai-input-box">
+          <textarea
+            id="ai-input"
+            class="ai-input-textarea"
+            placeholder="输入消息... (Enter 发送 · Shift+Enter 换行)"
+            rows="1"
+          ></textarea>
+          <div class="ai-input-toolbar">
+            <div class="ai-input-left">
+              <button class="ai-input-tool-btn" id="attach-btn" title="添加附件"><svg class="icon"><use href="#icon-plus"></use></svg></button>
+              <button class="ai-input-tool-btn" id="permission-btn" title="权限模式"><svg class="icon"><use href="#icon-shield"></use></svg></button>
+              <span class="ai-input-project-status" id="project-status">
+                <span class="project-status-icon"><svg class="icon icon-xs"><use href="#icon-file"></use></svg></span>
+                <span id="project-status-text">无项目</span>
+              </span>
+            </div>
+            <div class="ai-input-right">
+              <div class="model-selector">
+                <button class="model-select-btn" id="model-select-btn">
+                  <span class="model-name" id="current-model-name">DeepSeek FLASH</span>
+                  <svg class="icon icon-xs"><use href="#icon-chevron-down"></use></svg>
+                </button>
+                <div class="model-dropdown" id="model-dropdown" style="display:none;">
+                  <div class="model-option active" data-model="deepseek-flash">DeepSeek FLASH</div>
+                  <div class="model-option" data-model="deepseek-v4">DeepSeek V4</div>
+                  <div class="model-option" data-model="qwen">通义千问 Qwen</div>
+                  <div class="model-option" data-model="minimax">MiniMax M3</div>
+                  <div class="model-option" data-model="glm">智谱 GLM-5.2</div>
+                  <div class="model-option" data-model="doubao">豆包</div>
+                  <div class="model-option" data-model="ollama">Ollama 本地模型</div>
+                </div>
+              </div>
+              <button class="ai-send-btn" id="ai-send-btn" title="发送">
+                <svg class="icon"><use href="#icon-send"></use></svg>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
