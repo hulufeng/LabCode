@@ -691,6 +691,96 @@ function setupIPC() {
   ipcMain.handle('app:getPath', (_, name) => app.getPath(name));
   ipcMain.handle('app:getPlatform', () => process.platform);
 
+  // ============ 系统配置检测（大模型推荐用） ============
+  ipcMain.handle('system:getInfo', async () => {
+    const cpus = os.cpus();
+    const cpuModel = cpus[0] ? cpus[0].model : 'Unknown';
+    const totalMemGB = Math.round(os.totalmem() / 1024 / 1024 / 1024);
+    const freeMemGB = Math.round(os.freemem() / 1024 / 1024 / 1024);
+
+    // 磁盘可用空间（用 PowerShell Get-PSDrive，比 wmic 可靠）
+    let diskFreeGB = 0;
+    try {
+      const { execSync } = require('child_process');
+      if (process.platform === 'win32') {
+        const out = execSync('powershell -NoProfile -Command "(Get-PSDrive C).Free"', { encoding: 'utf8', timeout: 5000 });
+        const free = parseInt(out.trim());
+        if (!isNaN(free)) diskFreeGB = Math.round(free / 1024 / 1024 / 1024);
+      }
+    } catch (e) { console.error('磁盘检测失败:', e.message); }
+
+    // GPU 检测（快速方式：读注册表或环境变量，避免慢的 CIM 查询）
+    let gpus = [];
+    let hasNvidia = false;
+    let maxVramGB = 0;
+    try {
+      if (process.platform === 'win32') {
+        const { execSync } = require('child_process');
+        // 用 nvidia-smi 检测 NVIDIA GPU（更快更准确）
+        try {
+          const out = execSync('nvidia-smi --query-gpu=name,memory.total --format=csv,noheader,nounits', { encoding: 'utf8', timeout: 5000 });
+          const lines = out.trim().split('\n').filter(l => l.trim());
+          lines.forEach(line => {
+            const parts = line.split(',').map(s => s.trim());
+            const name = parts[0] || 'NVIDIA GPU';
+            const vram = parseInt(parts[1]) || 0;
+            gpus.push({ name, vramGB: Math.round(vram / 1024), driver: 'nvidia' });
+            hasNvidia = true;
+            maxVramGB = Math.max(maxVramGB, Math.round(vram / 1024));
+          });
+        } catch (e) { /* 无 NVIDIA GPU */ }
+        // 如果没有 NVIDIA，用 PowerShell 快速检测其他 GPU
+        if (gpus.length === 0) {
+          try {
+            const out = execSync('powershell -NoProfile -Command "Get-CimInstance Win32_VideoController | Select-Object -ExpandProperty Name"', { encoding: 'utf8', timeout: 5000 });
+            const names = out.trim().split('\n').filter(n => n.trim());
+            names.forEach(name => {
+              gpus.push({ name: name.trim(), vramGB: 0, driver: 'unknown' });
+            });
+          } catch (e) { /* GPU 检测失败 */ }
+        }
+      }
+    } catch (e) { console.error('GPU 检测失败:', e.message); }
+
+    return {
+      cpu: { model: cpuModel, cores: cpus.length },
+      memory: { totalGB: totalMemGB, freeGB: freeMemGB },
+      disk: { freeGB: diskFreeGB },
+      gpus,
+      hasNvidia,
+      maxVramGB,
+      platform: process.platform,
+      arch: process.arch
+    };
+  });
+
+  // 检测本地大模型运行时（Ollama 等）
+  ipcMain.handle('system:checkLLMRuntime', async () => {
+    const result = { ollama: false, ollamaVersion: null, ollamaRunning: false, models: [] };
+    try {
+      const { execSync } = require('child_process');
+      // 检测 ollama 是否安装
+      try {
+        const ver = execSync('ollama --version', { encoding: 'utf8', timeout: 5000 });
+        result.ollama = true;
+        result.ollamaVersion = ver.trim();
+      } catch (e) { /* ollama 未安装 */ }
+      // 检测 ollama 服务是否运行并列出模型
+      if (result.ollama) {
+        try {
+          const list = execSync('ollama list', { encoding: 'utf8', timeout: 5000 });
+          result.ollamaRunning = true;
+          const lines = list.trim().split('\n').slice(1);
+          result.models = lines.map(l => {
+            const parts = l.split(/\s+/);
+            return { name: parts[0], id: parts[1] ? parts[1].substring(0, 12) : '', size: parts[2] || '' };
+          }).filter(m => m.name);
+        } catch (e) { /* ollama 未运行 */ }
+      }
+    } catch (e) { console.error('LLM 运行时检测失败:', e.message); }
+    return result;
+  });
+
   // 代理设置
   ipcMain.handle('proxy:set', async (_, proxyConfig) => {
     try {

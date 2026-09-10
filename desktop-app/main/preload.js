@@ -53,6 +53,12 @@ contextBridge.exposeInMainWorld('LabCode', {
     getPlatform: () => ipcRenderer.invoke('app:getPlatform')
   },
 
+  // 系统配置检测（大模型推荐用）
+  system: {
+    getInfo: () => ipcRenderer.invoke('system:getInfo'),
+    checkLLMRuntime: () => ipcRenderer.invoke('system:checkLLMRuntime')
+  },
+
   // 代理
   proxy: {
     set: (config) => ipcRenderer.invoke('proxy:set', config)
