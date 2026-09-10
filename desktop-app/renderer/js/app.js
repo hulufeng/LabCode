@@ -3846,6 +3846,21 @@ function bindEvents() {
   let currentPluginsTab = 'market';
   let currentPluginCategory = 'all';
   let installedPlugins = JSON.parse(localStorage.getItem('labcode_installed_plugins') || '[]');
+
+  // 首次启动自动安装核心插件（编译/串口/绘图仪），对标内置工具链开箱即用
+  // 大模型运行时与模型插件仍由用户在插件市场自行安装
+  const CORE_PLUGIN_IDS = ['arduino', 'serial-monitor', 'plotter'];
+  if (!localStorage.getItem('labcode_core_plugins_initialized')) {
+    const existingIds = new Set(installedPlugins.map(p => p.id));
+    for (const pid of CORE_PLUGIN_IDS) {
+      if (!existingIds.has(pid)) {
+        const def = OFFICIAL_PLUGINS.find(p => p.id === pid);
+        if (def) installedPlugins.push({ ...def, installedAt: Date.now() });
+      }
+    }
+    saveInstalledPlugins();
+    localStorage.setItem('labcode_core_plugins_initialized', '1');
+  }
   let systemInfo = null;
   let llmRuntimeInfo = null;
 
