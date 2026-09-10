@@ -560,14 +560,47 @@ function setupIPC() {
     });
   }
 
+  /**
+   * Arduino sketch 目录规范化：
+   * arduino-cli 要求主 .ino 文件名必须与所在目录同名（如 esp32_robot/esp32_robot.ino）。
+   * 若用户的 .ino 位于不同名目录（如 PlatformIO 风格 src/esp32_robot.ino），
+   * 自动创建临时同名目录并复制 sketch 源文件，编译完成后清理。
+   * @returns {{ target: string, cleanup: string|null, created: boolean }}
+   */
+  function normalizeSketchDir(sketchPath) {
+    if (!sketchPath || !/\.ino$/i.test(sketchPath)) {
+      return { target: sketchPath, cleanup: null, created: false };
+    }
+    const dir = path.dirname(sketchPath);
+    const base = path.basename(sketchPath, path.extname(sketchPath));
+    if (path.basename(dir) === base) {
+      return { target: dir, cleanup: null, created: false };
+    }
+    const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'labcode-sketch-'));
+    const target = path.join(tmpRoot, base);
+    fs.mkdirSync(target, { recursive: true });
+    let copied = 0;
+    for (const f of fs.readdirSync(dir)) {
+      const src = path.join(dir, f);
+      const dst = path.join(target, f);
+      try {
+        if (fs.statSync(src).isFile()) { fs.copyFileSync(src, dst); copied++; }
+      } catch (e) { /* 跳过不可复制项 */ }
+    }
+    return { target, cleanup: tmpRoot, created: copied > 0 };
+  }
+
   ipcMain.handle('compile:arduino', async (_, options) => {
     const { sketchPath, fqbn, outputDir } = options || {};
     if (!sketchPath) return { success: false, error: '缺少 sketchPath' };
     if (!fqbn) return { success: false, error: '缺少 fqbn（开发板型号）' };
+    const norm = normalizeSketchDir(sketchPath);
     const args = ['compile', '--fqbn', fqbn];
     if (outputDir) args.push('--output-dir', outputDir);
-    args.push(sketchPath);
-    return await runArduinoCli(args, path.dirname(sketchPath));
+    args.push(norm.target);
+    const result = await runArduinoCli(args, path.dirname(norm.target));
+    if (norm.cleanup) { try { fs.rmSync(norm.cleanup, { recursive: true, force: true }); } catch (e) {} }
+    return result;
   });
 
   ipcMain.handle('compile:upload', async (_, options) => {
@@ -575,8 +608,11 @@ function setupIPC() {
     if (!sketchPath) return { success: false, error: '缺少 sketchPath' };
     if (!fqbn) return { success: false, error: '缺少 fqbn' };
     if (!port) return { success: false, error: '缺少串口（port）' };
-    const args = ['upload', '--fqbn', fqbn, '--port', port, sketchPath];
-    return await runArduinoCli(args, path.dirname(sketchPath));
+    const norm = normalizeSketchDir(sketchPath);
+    const args = ['upload', '--fqbn', fqbn, '--port', port, norm.target];
+    const result = await runArduinoCli(args, path.dirname(norm.target));
+    if (norm.cleanup) { try { fs.rmSync(norm.cleanup, { recursive: true, force: true }); } catch (e) {} }
+    return result;
   });
 
   ipcMain.handle('compile:list-cores', async () => {
