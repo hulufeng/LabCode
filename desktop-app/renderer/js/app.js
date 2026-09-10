@@ -444,6 +444,7 @@ function openFile(path) {
   if (!state.openTabs.includes(path)) state.openTabs.push(path);
   state.activeTab = path;
   document.getElementById('welcome-screen').style.display = 'none';
+  document.getElementById('monaco-editor').style.display = 'flex';
   renderTabs(); renderFileTree(); updateBreadcrumb(path);
   if (state.editor && state.monaco) {
     state.editor.setValue(state.files[path].content);
@@ -3832,11 +3833,21 @@ function bindEvents() {
     { id: 'plotter', name: '串口绘图仪', description: '实时绘制串口数据波形，支持多通道、暂停、导出 CSV', version: '1.0.0', author: 'LabCode', icon: '📈', category: 'tool', channels: ['internal'], capabilities: ['plot'] },
     { id: 'formatter', name: '代码格式化', description: '支持 C/C++/Python/JS 等多语言代码格式化，Clang-Format/Black', version: '1.0.0', author: 'LabCode', icon: '✨', category: 'tool', channels: ['cli'], capabilities: ['format'] },
     { id: 'git-integration', name: 'Git 集成', description: 'Git 版本控制集成，提交、差异对比、分支管理', version: '1.0.0', author: 'LabCode', icon: '🌿', category: 'tool', channels: ['cli'], capabilities: ['git'] },
-    { id: 'themes', name: '主题扩展', description: '多款编辑器主题，浅色/深色/高对比度，一键切换', version: '1.0.0', author: 'LabCode', icon: '🎨', category: 'theme', channels: ['internal'], capabilities: ['theme'] }
+    { id: 'themes', name: '主题扩展', description: '多款编辑器主题，浅色/深色/高对比度，一键切换', version: '1.0.0', author: 'LabCode', icon: '🎨', category: 'theme', channels: ['internal'], capabilities: ['theme'] },
+    // ============ 大模型插件（本地运行） ============
+    { id: 'ollama-runtime', name: 'Ollama 本地大模型运行时', description: '在本地运行开源大模型，支持 Qwen/DeepSeek/Llama 等，自动检测硬件配置推荐模型', version: '1.0.0', author: 'LabCode', icon: '🧠', category: 'ai-model', channels: ['cli'], capabilities: ['llm-runtime', 'local-ai'], minRamGB: 8, minDiskGB: 10 },
+    { id: 'qwen25-coder-1.5b', name: 'Qwen2.5-Coder 1.5B（轻量）', description: '通义千问代码模型 1.5B 量化版，8GB 内存即可流畅运行，适合代码补全和简单问答', version: '1.0.0', author: 'LabCode', icon: '⚡', category: 'ai-model', channels: ['cli'], capabilities: ['llm-model', 'code'], requires: 'ollama-runtime', modelName: 'qwen2.5-coder:1.5b', minRamGB: 4, minDiskGB: 2, recommendedFor: 'low' },
+    { id: 'qwen25-coder-7b', name: 'Qwen2.5-Coder 7B（推荐）', description: '通义千问代码模型 7B，代码生成和调试能力强，16GB 内存推荐，AI 编程主力模型', version: '1.0.0', author: 'LabCode', icon: '🌟', category: 'ai-model', channels: ['cli'], capabilities: ['llm-model', 'code'], requires: 'ollama-runtime', modelName: 'qwen2.5-coder:7b', minRamGB: 8, minDiskGB: 5, recommendedFor: 'medium' },
+    { id: 'deepseek-coder-6.7b', name: 'DeepSeek-Coder 6.7B', description: '深度求索代码模型，长上下文支持，适合复杂代码分析和重构', version: '1.0.0', author: 'LabCode', icon: '🔍', category: 'ai-model', channels: ['cli'], capabilities: ['llm-model', 'code'], requires: 'ollama-runtime', modelName: 'deepseek-coder:6.7b', minRamGB: 8, minDiskGB: 4, recommendedFor: 'medium' },
+    { id: 'qwen25-coder-14b', name: 'Qwen2.5-Coder 14B（高性能）', description: '通义千问代码模型 14B，更强的代码理解和生成能力，需 16GB+ 内存或 8GB+ 显存', version: '1.0.0', author: 'LabCode', icon: '🚀', category: 'ai-model', channels: ['cli'], capabilities: ['llm-model', 'code'], requires: 'ollama-runtime', modelName: 'qwen2.5-coder:14b', minRamGB: 16, minDiskGB: 9, recommendedFor: 'high' },
+    { id: 'codellama-7b', name: 'CodeLlama 7B', description: 'Meta 开源代码模型，支持代码补全、生成和调试', version: '1.0.0', author: 'LabCode', icon: '🦙', category: 'ai-model', channels: ['cli'], capabilities: ['llm-model', 'code'], requires: 'ollama-runtime', modelName: 'codellama:7b', minRamGB: 8, minDiskGB: 4, recommendedFor: 'medium' }
   ];
 
   let currentPluginsTab = 'market';
+  let currentPluginCategory = 'all';
   let installedPlugins = JSON.parse(localStorage.getItem('labcode_installed_plugins') || '[]');
+  let systemInfo = null;
+  let llmRuntimeInfo = null;
 
   function saveInstalledPlugins() {
     localStorage.setItem('labcode_installed_plugins', JSON.stringify(installedPlugins));
@@ -3846,30 +3857,127 @@ function bindEvents() {
     return installedPlugins.some(p => p.id === id);
   }
 
+  // ============ 硬件配置检测与大模型推荐 ============
+  async function detectSystemInfo() {
+    try {
+      if (window.LabCode && window.LabCode.system) {
+        systemInfo = await window.LabCode.system.getInfo();
+        llmRuntimeInfo = await window.LabCode.system.checkLLMRuntime();
+      }
+    } catch (e) { console.error('硬件检测失败:', e); }
+    return systemInfo;
+  }
+
+  function getModelRecommendation() {
+    if (!systemInfo) return { level: 'unknown', text: '正在检测硬件配置...', recommended: [] };
+    const { memory, maxVramGB, hasNvidia, cpu } = systemInfo;
+    const ram = memory.totalGB;
+    // 推荐等级：low / medium / high
+    let level, text;
+    if (maxVramGB >= 8) {
+      level = 'high';
+      text = `检测到 ${maxVramGB}GB 显存 GPU（${hasNvidia ? 'NVIDIA CUDA 加速' : 'GPU 加速'}），推荐运行 14B 级模型`;
+    } else if (ram >= 16) {
+      level = 'medium';
+      text = `检测到 ${ram}GB 内存，推荐运行 7B 级模型（CPU 推理，速度中等）`;
+    } else if (ram >= 8) {
+      level = 'low';
+      text = `检测到 ${ram}GB 内存，推荐运行 1.5B 轻量模型（流畅运行）`;
+    } else {
+      level = 'low';
+      text = `内存 ${ram}GB 偏小，建议使用云端 API 或 1.5B 量化模型`;
+    }
+    const recommended = OFFICIAL_PLUGINS.filter(p =>
+      p.category === 'ai-model' && p.capabilities.includes('llm-model') && p.recommendedFor === level
+    );
+    return { level, text, recommended, ram, vram: maxVramGB, hasNvidia };
+  }
+
+  function getPluginCategories() {
+    const cats = [{ id: 'all', name: '全部', icon: '📦' }];
+    const seen = new Set();
+    OFFICIAL_PLUGINS.forEach(p => {
+      if (!seen.has(p.category)) {
+        seen.add(p.category);
+        const names = { compiler: '编译器', runtime: '运行时', tool: '工具', theme: '主题', 'ai-model': '大模型' };
+        const icons = { compiler: '🔌', runtime: '🐍', tool: '🛠️', theme: '🎨', 'ai-model': '🧠' };
+        cats.push({ id: p.category, name: names[p.category] || p.category, icon: icons[p.category] || '📦' });
+      }
+    });
+    return cats;
+  }
+
   function renderPluginsList() {
     const listEl = document.getElementById('plugins-list');
     if (!listEl) return;
-    const plugins = currentPluginsTab === 'market' ? OFFICIAL_PLUGINS : OFFICIAL_PLUGINS.filter(p => isPluginInstalled(p.id));
+    try {
+
+    // 分类标签
+    const cats = getPluginCategories();
+    let html = '<div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;">';
+    cats.forEach(c => {
+      const active = currentPluginCategory === c.id ? 'background:var(--accent-color);color:#fff;' : 'background:var(--card-color);color:var(--text-color);';
+      html += '<button class="plugin-cat-btn" data-cat="' + c.id + '" style="padding:4px 10px;font-size:11px;border:1px solid var(--border-color);border-radius:12px;cursor:pointer;' + active + '">' + c.icon + ' ' + c.name + '</button>';
+    });
+    html += '</div>';
+
+    // 大模型分类：显示硬件检测和推荐
+    if (currentPluginCategory === 'all' || currentPluginCategory === 'ai-model') {
+      const rec = getModelRecommendation();
+      html += '<div style="padding:10px 12px;margin-bottom:10px;background:linear-gradient(135deg,rgba(59,130,246,0.08),rgba(16,185,129,0.08));border:1px solid rgba(59,130,246,0.2);border-radius:8px;">';
+      html += '<div style="font-size:12px;font-weight:600;color:var(--text-color);margin-bottom:4px;">🖥️ 硬件配置检测</div>';
+      if (systemInfo) {
+        html += '<div style="font-size:11px;color:var(--text-secondary);line-height:1.6;">';
+        html += 'CPU: ' + systemInfo.cpu.model.substring(0, 40) + ' (' + systemInfo.cpu.cores + '核) | ';
+        html += '内存: ' + systemInfo.memory.totalGB + 'GB | ';
+        html += '显存: ' + (systemInfo.maxVramGB > 0 ? systemInfo.maxVramGB + 'GB' : '无独立GPU') + ' | ';
+        html += '磁盘: ' + systemInfo.disk.freeGB + 'GB 可用';
+        html += '</div>';
+        html += '<div style="font-size:11px;color:#3b82f6;margin-top:4px;">💡 ' + rec.text + '</div>';
+        if (llmRuntimeInfo && llmRuntimeInfo.ollama) {
+          html += '<div style="font-size:11px;color:#10b981;margin-top:2px;">✅ Ollama ' + llmRuntimeInfo.ollamaVersion + ' 已安装' + (llmRuntimeInfo.ollamaRunning ? '，运行中，已安装 ' + llmRuntimeInfo.models.length + ' 个模型' : '，未启动') + '</div>';
+        } else {
+          html += '<div style="font-size:11px;color:#f59e0b;margin-top:2px;">⚠️ 未检测到 Ollama，请先安装 Ollama 运行时插件</div>';
+        }
+      } else {
+        html += '<div style="font-size:11px;color:var(--text-secondary);">正在检测硬件配置...</div>';
+      }
+      html += '</div>';
+    }
+
+    let plugins = currentPluginsTab === 'market' ? OFFICIAL_PLUGINS : OFFICIAL_PLUGINS.filter(p => isPluginInstalled(p.id));
+    if (currentPluginCategory !== 'all') {
+      plugins = plugins.filter(p => p.category === currentPluginCategory);
+    }
     if (plugins.length === 0) {
-      listEl.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-secondary);font-size:13px;">' + (currentPluginsTab === 'installed' ? '暂无已安装插件' : '暂无插件') + '</div>';
+      html += '<div style="padding:24px;text-align:center;color:var(--text-secondary);font-size:13px;">' + (currentPluginsTab === 'installed' ? '暂无已安装插件' : '该分类暂无插件') + '</div>';
+      listEl.innerHTML = html;
+      // 绑定分类按钮
+      listEl.querySelectorAll('.plugin-cat-btn').forEach(btn => {
+        btn.addEventListener('click', () => { currentPluginCategory = btn.dataset.cat; renderPluginsList(); });
+      });
       return;
     }
-    listEl.innerHTML = plugins.map(p => {
+    html += plugins.map(p => {
       const installed = isPluginInstalled(p.id);
       const btnLabel = installed ? '已安装' : '安装';
       const btnClass = installed ? 'btn-secondary' : 'btn-primary';
       const btnDisabled = installed ? 'disabled style="opacity:0.6;cursor:default;"' : '';
-      return '<div class="plugin-card" style="padding:12px;margin-bottom:8px;background:var(--card-color);border:1px solid var(--border-color);border-radius:8px;">' +
+      const rec = getModelRecommendation();
+      const isRecommended = p.recommendedFor && p.recommendedFor === rec.level;
+      const recBadge = isRecommended ? '<span style="font-size:10px;padding:1px 5px;background:#10b981;color:#fff;border-radius:4px;margin-left:4px;">推荐</span>' : '';
+      return '<div class="plugin-card" style="padding:12px;margin-bottom:8px;background:var(--card-color);border:1px solid var(--border-color);border-radius:8px;' + (isRecommended ? 'border-color:rgba(16,185,129,0.4);' : '') + '">' +
         '<div style="display:flex;align-items:flex-start;gap:10px;">' +
           '<div style="font-size:24px;flex-shrink:0;">' + p.icon + '</div>' +
           '<div style="flex:1;min-width:0;">' +
             '<div style="display:flex;align-items:center;gap:6px;">' +
-              '<span style="font-size:13px;font-weight:600;color:var(--text-color);">' + p.name + '</span>' +
+              '<span style="font-size:13px;font-weight:600;color:var(--text-color);">' + p.name + '</span>' + recBadge +
               '<span style="font-size:11px;color:var(--text-secondary);">v' + p.version + '</span>' +
             '</div>' +
             '<div style="font-size:12px;color:var(--text-secondary);margin-top:4px;line-height:1.4;">' + p.description + '</div>' +
             '<div style="display:flex;gap:4px;margin-top:6px;flex-wrap:wrap;">' +
               p.capabilities.map(c => '<span style="font-size:10px;padding:1px 6px;background:rgba(0,0,0,0.05);border-radius:4px;color:var(--text-secondary);">' + c + '</span>').join('') +
+              (p.minRamGB ? '<span style="font-size:10px;padding:1px 6px;background:rgba(59,130,246,0.1);border-radius:4px;color:#3b82f6;">需' + p.minRamGB + 'GB内存</span>' : '') +
             '</div>' +
           '</div>' +
         '</div>' +
@@ -3879,29 +3987,89 @@ function bindEvents() {
         '</div>' +
       '</div>';
     }).join('');
+    listEl.innerHTML = html;
 
-    // 绑定按钮事件
+    // 绑定分类按钮
+    listEl.querySelectorAll('.plugin-cat-btn').forEach(btn => {
+      btn.addEventListener('click', () => { currentPluginCategory = btn.dataset.cat; renderPluginsList(); });
+    });
+    // 绑定安装/卸载按钮
     listEl.querySelectorAll('[data-action="install"]').forEach(btn => {
       btn.addEventListener('click', () => installPlugin(btn.dataset.id));
     });
     listEl.querySelectorAll('[data-action="uninstall"]').forEach(btn => {
       btn.addEventListener('click', () => uninstallPlugin(btn.dataset.id));
     });
+    } catch (e) {
+      console.error('renderPluginsList error:', e);
+      listEl.innerHTML = '<div style="padding:16px;color:#ef4444;font-size:12px;font-family:monospace;white-space:pre-wrap;">插件列表渲染错误:\n' + e.message + '\n' + e.stack + '</div>';
+    }
   }
 
   async function installPlugin(id) {
     const plugin = OFFICIAL_PLUGINS.find(p => p.id === id);
     if (!plugin) return;
     if (isPluginInstalled(id)) return;
+
+    // 大模型插件：检查依赖
+    if (plugin.category === 'ai-model' && plugin.requires) {
+      if (!isPluginInstalled(plugin.requires)) {
+        showToast('请先安装 Ollama 运行时插件', 'warning');
+        return;
+      }
+    }
+
+    // 硬件配置检查
+    if (plugin.minRamGB && systemInfo && systemInfo.memory.totalGB < plugin.minRamGB) {
+      showToast('内存不足（需 ' + plugin.minRamGB + 'GB，当前 ' + systemInfo.memory.totalGB + 'GB），可能运行缓慢', 'warning');
+    }
+
     showToast('正在安装 ' + plugin.name + '...', 'info');
-    // 模拟安装过程（实际应下载插件包并解压到用户数据目录）
+
+    // 大模型运行时插件：尝试下载安装 Ollama
+    if (plugin.id === 'ollama-runtime') {
+      try {
+        if (window.LabCode && window.LabCode.terminal) {
+          addOutputLog('正在下载 Ollama 安装包...', 'info');
+          // Windows: 下载 Ollama 安装程序
+          const installResult = await window.LabCode.terminal.execute(
+            'powershell -Command "Invoke-WebRequest -Uri https://ollama.com/download/OllamaSetup.exe -OutFile $env:TEMP\\OllamaSetup.exe; Start-Process $env:TEMP\\OllamaSetup.exe -Wait"',
+            null, 120000
+          );
+          addOutputLog('Ollama 安装完成，请重启软件后使用', 'success');
+        }
+      } catch (e) {
+        addOutputLog('Ollama 自动安装失败: ' + e.message + '，请手动从 https://ollama.com 下载安装', 'warning');
+      }
+    }
+
+    // 大模型插件：拉取模型
+    if (plugin.category === 'ai-model' && plugin.modelName) {
+      try {
+        if (window.LabCode && window.LabCode.terminal) {
+          addOutputLog('正在拉取模型 ' + plugin.modelName + '（首次下载需几分钟）...', 'info');
+          const pullResult = await window.LabCode.terminal.execute(
+            'ollama pull ' + plugin.modelName,
+            null, 300000
+          );
+          addOutputLog('模型 ' + plugin.modelName + ' 拉取完成', 'success');
+        }
+      } catch (e) {
+        addOutputLog('模型拉取失败: ' + e.message + '，请确保 Ollama 已启动', 'warning');
+      }
+    }
+
+    // 模拟安装过程
     await new Promise(r => setTimeout(r, 800));
     installedPlugins.push({ ...plugin, installedAt: Date.now() });
     saveInstalledPlugins();
     showToast(plugin.name + ' 安装成功', 'success');
     renderPluginsList();
-    // 如果安装的是编译器插件，更新工具栏状态
     updateCompilerPluginStatus();
+    // 大模型安装后刷新模型选择器
+    if (plugin.category === 'ai-model') {
+      refreshLocalModelsInSelector();
+    }
   }
 
   function uninstallPlugin(id) {
@@ -4182,6 +4350,61 @@ function bindEvents() {
       modelDropdown.style.display = 'none';
     });
   }
+
+  // 刷新本地模型到选择器（安装大模型插件后调用）
+  async function refreshLocalModelsInSelector() {
+    try {
+      if (!window.LabCode || !window.LabCode.system) return;
+      const runtime = await window.LabCode.system.checkLLMRuntime();
+      if (!runtime.ollama || !runtime.ollamaRunning || runtime.models.length === 0) return;
+
+      const dropdown = document.getElementById('model-dropdown');
+      if (!dropdown) return;
+
+      // 移除旧的本地模型分组
+      dropdown.querySelectorAll('.local-model-group').forEach(el => el.remove());
+
+      // 添加本地模型分组
+      const group = document.createElement('div');
+      group.className = 'local-model-group';
+      group.innerHTML = '<div style="padding:6px 12px;font-size:10px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;border-top:1px solid var(--border-color);margin-top:4px;">本地模型（Ollama）</div>';
+
+      runtime.models.forEach(m => {
+        const opt = document.createElement('div');
+        opt.className = 'model-option';
+        opt.dataset.model = 'ollama-' + m.name;
+        opt.dataset.provider = 'ollama';
+        opt.dataset.modelname = m.name;
+        opt.style.cssText = 'padding:8px 12px;font-size:12px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;';
+        opt.innerHTML = '<span>' + m.name + '</span><span style="font-size:10px;color:var(--text-secondary);">' + m.size + '</span>';
+        opt.addEventListener('click', async () => {
+          document.getElementById('current-model-name').textContent = m.name + ' (本地)';
+          document.querySelectorAll('.model-option').forEach(o => o.classList.remove('active'));
+          opt.classList.add('active');
+          dropdown.style.display = 'none';
+          try {
+            if (window.LabCode && window.LabCode.config) {
+              await window.LabCode.config.set('ai.provider', 'ollama');
+              await window.LabCode.config.set('ai.model', m.name);
+              await window.LabCode.config.set('ai.baseURL', 'http://localhost:11434/v1');
+              if (state.agent && state.agent.ai && typeof state.agent.ai._loadConfig === 'function') {
+                await state.agent.ai._loadConfig();
+              }
+              showToast('已切换到本地模型 ' + m.name, 'success');
+            }
+          } catch (e) { showToast('模型切换失败: ' + e.message, 'error'); }
+        });
+        group.appendChild(opt);
+      });
+
+      dropdown.appendChild(group);
+    } catch (e) { console.error('刷新本地模型失败:', e); }
+  }
+
+  // 启动硬件检测和本地模型刷新（在 bindEvents 内部调用，因为函数定义在此作用域）
+  try {
+    detectSystemInfo().then(() => { refreshLocalModelsInSelector(); }).catch(e => console.error('硬件检测失败:', e));
+  } catch(e) { console.error('硬件检测启动失败:', e); }
   
   // 权限模式按钮
   const permissionBtn = document.getElementById('permission-btn');
@@ -5168,21 +5391,23 @@ function init() {
   }
   try { setupMonaco(); } catch(e) { console.error('Monaco setup error:', e); }
   try { setupTerminal(); } catch(e) { console.error('Terminal setup error:', e); }
+  // 硬件配置检测 + 本地模型刷新（大模型插件化）
+  // 硬件检测已移至 bindEvents 内部调用（detectSystemInfo 定义在该作用域）
   try {
     addOutputLog('LabCode 已启动 — 完整智能体引擎', 'success');
     addOutputLog('引擎模块: ToolRegistry(10工具) / PermissionPolicy(三级) / BudgetTracker / PlanStore / MockAI', 'info');
   } catch(e) { console.error('Log error:', e); }
 
-  // ============ 自动切换到 AI 欢迎页面 ============
-  setTimeout(() => {
-    try {
-      const aiModeBtn = document.getElementById('ai-mode-btn');
-      if (aiModeBtn) {
-        aiModeBtn.click();
-        console.log('✅ 已自动切换到 AI 欢迎页面');
-      }
-    } catch(e) { console.error('Auto switch error:', e); }
-  }, 500);
+  // ============ 自动切换到 AI 欢迎页面（已禁用：布局已改为右侧AI面板，启动后默认显示编辑器） ============
+  // setTimeout(() => {
+  //   try {
+  //     const aiModeBtn = document.getElementById('ai-mode-btn');
+  //     if (aiModeBtn) {
+  //       aiModeBtn.click();
+  //       console.log('✅ 已自动切换到 AI 欢迎页面');
+  //     }
+  //   } catch(e) { console.error('Auto switch error:', e); }
+  // }, 500);
 
   // ============ 自动演示（已注释，用于测试） ============
   // setTimeout(() => {
