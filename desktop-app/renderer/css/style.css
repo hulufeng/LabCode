@@ -981,6 +981,53 @@ input, textarea {
   margin: 0 auto;
 }
 
+/* 右侧面板内的输入框（窄面板适配） */
+.ai-input-container.ai-input-side {
+  max-width: 100%;
+  padding: 8px 10px 10px;
+  border-top: 1px solid var(--border-light);
+  background: var(--bg-primary);
+}
+
+.ai-input-side .ai-input-box {
+  border-radius: var(--radius-lg);
+  box-shadow: none;
+}
+
+.ai-input-side .ai-input-textarea {
+  min-height: 48px;
+  max-height: 160px;
+  padding: 10px 12px;
+  font-size: 13px;
+}
+
+.ai-input-side .ai-input-toolbar {
+  padding: 6px 8px;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.ai-input-side .ai-input-left,
+.ai-input-side .ai-input-right {
+  gap: 4px;
+}
+
+.ai-input-side .ai-input-project-status {
+  font-size: 11px;
+  padding: 3px 6px;
+}
+
+.ai-input-side .model-select-btn {
+  padding: 4px 8px;
+  font-size: 11px;
+}
+
+.ai-input-side .model-dropdown {
+  right: 0;
+  left: auto;
+  min-width: 160px;
+}
+
 .ai-input-box {
   background: var(--bg-primary);
   border: 1px solid var(--border-light);
