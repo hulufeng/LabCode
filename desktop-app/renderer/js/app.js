@@ -4291,16 +4291,21 @@ function bindEvents() {
         if (window.LabCode && window.LabCode.config) {
           const cfg = await window.LabCode.config.get();
           const ai = cfg?.ai || {};
-          let matchedKey = null;
-          for (const [key, m] of Object.entries(MODEL_MAP)) {
-            if (m.provider === ai.provider && (!ai.model || m.model === ai.model)) {
-              matchedKey = key; break;
+          // Ollama 本地模型：直接显示模型名（下拉选项由 refreshLocalModelsInSelector 异步添加）
+          if (ai.provider === 'ollama' && ai.model) {
+            document.getElementById('current-model-name').textContent = ai.model + ' (本地)';
+          } else {
+            let matchedKey = null;
+            for (const [key, m] of Object.entries(MODEL_MAP)) {
+              if (m.provider === ai.provider && (!ai.model || m.model === ai.model)) {
+                matchedKey = key; break;
+              }
             }
-          }
-          if (matchedKey) {
-            document.getElementById('current-model-name').textContent = MODEL_MAP[matchedKey].label;
-            document.querySelectorAll('.model-option').forEach(o =>
-              o.classList.toggle('active', o.dataset.model === matchedKey));
+            if (matchedKey) {
+              document.getElementById('current-model-name').textContent = MODEL_MAP[matchedKey].label;
+              document.querySelectorAll('.model-option').forEach(o =>
+                o.classList.toggle('active', o.dataset.model === matchedKey));
+            }
           }
         }
       } catch (e) { console.warn('[模型选择器] 初始化读取配置失败:', e); }
@@ -4398,6 +4403,22 @@ function bindEvents() {
       });
 
       dropdown.appendChild(group);
+
+      // 回显配置中的本地模型：如果当前配置是 ollama，选中对应选项
+      try {
+        if (window.LabCode && window.LabCode.config) {
+          const cfg = await window.LabCode.config.get();
+          const ai = cfg?.ai || {};
+          if (ai.provider === 'ollama' && ai.model) {
+            const matchedOpt = group.querySelector('.model-option[data-modelname="' + ai.model + '"]');
+            if (matchedOpt) {
+              document.querySelectorAll('.model-option').forEach(o => o.classList.remove('active'));
+              matchedOpt.classList.add('active');
+            }
+            document.getElementById('current-model-name').textContent = ai.model + ' (本地)';
+          }
+        }
+      } catch (e) { console.warn('[本地模型回显] 失败:', e); }
     } catch (e) { console.error('刷新本地模型失败:', e); }
   }
 
