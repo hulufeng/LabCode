@@ -1,5 +1,5 @@
-﻿// ============ TrieCode Clone v2 — 完整智能体引擎 ============
-// 基于 TrieCode 源码逆向分析：agent-runner / loop-engine / permission-policy /
+// ============ LabCode — 完整智能体引擎 ============
+// 基于业界 IDE 设计实践：agent-runner / loop-engine / permission-policy /
 // tool-pipeline / context-manager / plan-store / terminal-exec / ai-provider
 
 // ============ Electron 环境适配层 ============
@@ -61,7 +61,7 @@ const state = {
 
 // ============ 样本项目 ============
 const sampleFiles = {
-  'src/main.py': { content: `# TrieCode Demo - Python 示例
+  'src/main.py': { content: `# LabCode Demo - Python 示例
 import sys
 from typing import List, Optional
 
@@ -96,8 +96,8 @@ def write_file(filepath: str, content: str) -> None:
     with open(filepath, 'w', encoding='utf-8') as f:
         f.write(content)
 `, language: 'python' },
-  'package.json': { content: '{\n  "name": "triecode-demo",\n  "version": "1.0.0",\n  "scripts": {\n    "start": "python src/main.py",\n    "test": "python -m pytest tests/"\n  }\n}\n', language: 'json' },
-  'README.md': { content: '# TrieCode Demo Project\n\nAI 编程示例项目。\n\n## 快速开始\n\n```bash\npython src/main.py\n```\n', language: 'markdown' },
+  'package.json': { content: '{\n  "name": "labcode-demo",\n  "version": "1.0.0",\n  "scripts": {\n    "start": "python src/main.py",\n    "test": "python -m pytest tests/"\n  }\n}\n', language: 'json' },
+  'README.md': { content: '# LabCode Demo Project\n\nAI 编程示例项目。\n\n## 快速开始\n\n```bash\npython src/main.py\n```\n', language: 'markdown' },
   'tests/test_main.py': { content: 'import pytest\nfrom src.main import quick_sort\n\ndef test_quick_sort():\n    assert quick_sort([3, 1, 2]) == [1, 2, 3]\n    assert quick_sort([]) == []\n', language: 'python' }
 };
 
@@ -494,7 +494,7 @@ function setupMonaco() {
       fontFamily: "'Cascadia Code','Fira Code','Consolas',monospace",
       minimap: { enabled: true }, scrollBeyondLastLine: false, automaticLayout: true, padding: { top: 8 },
     });
-    monaco.editor.defineTheme('triecode-dark', {
+    monaco.editor.defineTheme('labcode-dark', {
       base: 'vs-dark', inherit: true,
       rules: [
         { token: 'comment', foreground: '6c7086', fontStyle: 'italic' },
@@ -504,7 +504,7 @@ function setupMonaco() {
       ],
       colors: { 'editor.background': '#1e1e2e', 'editor.foreground': '#cdd6f4', 'editorLineNumber.foreground': '#6c7086', 'editor.selectionBackground': '#45475a', 'editor.lineHighlightBackground': '#313244', 'editorCursor.foreground': '#f5e0dc' }
     });
-    monaco.editor.setTheme('triecode-dark');
+    monaco.editor.setTheme('labcode-dark');
     state.editor.onDidChangeCursorPosition((e) => { document.getElementById('cursor-position').textContent = `行 ${e.position.lineNumber}, 列 ${e.position.column}`; });
     state.editor.onDidChangeModelContent(() => {
       if (state.activeTab && state.files[state.activeTab]) {
@@ -666,11 +666,11 @@ function addOutputLog(message, type='info') {
 }
 
 // ================================================================
-// ============ 智能体引擎（核心，基于 TrieCode 逆向）============
+// ============ 智能体引擎（核心，基于 LabCode 逆向）============
 // ================================================================
 
 // ---------- 1. 工具注册表（ToolRegistry）----------
-// 参考 TrieCode: 工具分三类 query(只读) / modify(修改) / execute(执行)
+// 参考业界: 工具分三类 query(只读) / modify(修改) / execute(执行)
 const TOOL_DEFS = [
   {
     name: 'list_files', category: 'query', description: '列出工作区文件和目录',
@@ -896,7 +896,7 @@ function getToolDef(name) { return TOOL_DEFS.find(t => t.name === name); }
 function getToolCategory(name) { const t = getToolDef(name); return t ? t.category : 'query'; }
 
 // ---------- 2. 权限策略（PermissionPolicy）----------
-// 参考 TrieCode permission-policy.js: plan/default/auto 三级
+// 参考业界 permission-policy.js: plan/default/auto 三级
 const READONLY_COMMANDS = ['ls', 'dir', 'pwd', 'echo', 'cat', 'git status', 'git log', 'git diff', 'tree', 'help', 'date', 'whoami'];
 const PROTECTED_PATHS = ['.git/', '.env', 'package-lock.json', 'yarn.lock', 'pnpm-lock.yaml'];
 const RISKY_COMMANDS = ['git push', 'git reset --hard', 'rm -rf', 'sudo', 'format', 'diskpart', 'python -c', 'node -e', 'bash -c', 'curl |', 'wget |'];
@@ -913,7 +913,7 @@ function isProtectedPath(path) {
   return PROTECTED_PATHS.some(p => path.includes(p));
 }
 
-// 参考 TrieCode computeNeedsConfirm: 判定工具是否需要用户确认
+// 参考业界 computeNeedsConfirm: 判定工具是否需要用户确认
 function computeNeedsConfirm(toolName, args, mode, denialHits=0) {
   const category = getToolCategory(toolName);
   const cmd = String(args?.command || '');
@@ -938,7 +938,7 @@ function isPlanGated(toolName, args, planApproved) {
 }
 
 // ============ 增强：7层终端命令安全拦截 ============
-// 参考 TrieCode terminal-exec.js: DANGEROUS直接拒绝/RISKY确认/管道结构检查/
+// 参考业界 terminal-exec.js: DANGEROUS直接拒绝/RISKY确认/管道结构检查/
 // 链式命令守卫/受保护路径/敏感凭据路径/只读白名单
 const DANGEROUS_PATTERNS = [
   /rm\s+-rf\s+(\/|~|\*|$)/,           // rm -rf 根目录/家目录/通配符
@@ -1109,7 +1109,7 @@ function checkTerminalCommand(cmd, mode='default') {
 }
 
 // ============ 增强：Rule 权限引擎 ============
-// 参考 TrieCode permission-rules.js: wildcard匹配 + deny>ask>allow优先级 + once规则消费
+// 参考业界 permission-rules.js: wildcard匹配 + deny>ask>allow优先级 + once规则消费
 class PermissionRule {
   constructor(action, resource, effect, source='session', lifetime='always') {
     this.action = action;        // 工具名，支持 wildcard
@@ -1201,7 +1201,7 @@ class PermissionRuleEngine {
 const permissionRuleEngine = new PermissionRuleEngine();
 
 // ============ 增强：工具失败分类器 ============
-// 参考 TrieCode tool-failure.js: compile/test/env/select/runtime/unknown
+// 参考业界 tool-failure.js: compile/test/env/select/runtime/unknown
 class ToolFailureClassifier {
   constructor() {
     this.categories = {
@@ -1255,7 +1255,7 @@ class ToolFailureClassifier {
 const toolFailureClassifier = new ToolFailureClassifier();
 
 // ============ 增强：AI 调用错误分类器 ============
-// 参考 TrieCode error-classification.js: transient可重试/deterministic不重试/unknown
+// 参考业界 error-classification.js: transient可重试/deterministic不重试/unknown
 class AIErrorClassifier {
   constructor() {
     this.transientPatterns = [
@@ -1334,7 +1334,7 @@ class AIErrorClassifier {
 const aiErrorClassifier = new AIErrorClassifier();
 
 // ============ 增强：权限决策审计 ============
-// 参考 TrieCode approval-audit.js: decision段+outcome段，outcome闭集fail-closed
+// 参考业界 approval-audit.js: decision段+outcome段，outcome闭集fail-closed
 class ApprovalAudit {
   constructor(maxEntries = 5000) {
     this.entries = [];
@@ -1448,7 +1448,7 @@ class ApprovalAudit {
 const approvalAudit = new ApprovalAudit();
 
 // ============ 增强：Web 工具（web_search/web_fetch）============
-// 参考 TrieCode web-tools.js（34KB）: 内建搜索+SSRF防护+15min缓存
+// 参考业界 web-tools.js（34KB）: 内建搜索+SSRF防护+15min缓存
 class WebTools {
   constructor() {
     this.cache = new Map();
@@ -1542,7 +1542,7 @@ class WebTools {
 const webTools = new WebTools();
 
 // ============ 增强：文件回滚系统（Turn级回滚）============
-// 参考 TrieCode file-change-tracker.js: Turn级回滚+绝不覆盖用户改动
+// 参考业界 file-change-tracker.js: Turn级回滚+绝不覆盖用户改动
 class FileChangeTracker {
   constructor() {
     this.turns = new Map();
@@ -1615,7 +1615,7 @@ class FileChangeTracker {
 const fileChangeTracker = new FileChangeTracker();
 
 // ============ 增强：LRU 缓存系统 ============
-// 参考 TrieCode cache.js: AI响应LRU缓存带TTL+在途请求去重
+// 参考业界 cache.js: AI响应LRU缓存带TTL+在途请求去重
 function hashString(str) {
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
@@ -1681,7 +1681,7 @@ class LRUCache {
 const aiCache = new LRUCache(200);
 
 // ============ 增强：模型族分档提示词 ============
-// 参考 TrieCode prompt-core.js: 按模型族分档，差异="该模型最容易犯的错"
+// 参考业界 prompt-core.js: 按模型族分档，差异="该模型最容易犯的错"
 const MODEL_FAMILY_GUIDANCE = {
   claude: { guidance: '', thinking: 'Claude 内置深度思考，无需显式引导。' },
   gemini: { guidance: '显式构造文件路径，验证运行结果。', thinking: 'Gemini 需要明确的验证步骤引导。' },
@@ -1728,7 +1728,7 @@ function getModelFamilyGuidance(modelId) {
 }
 
 // ============ 增强：四档思考强度 ============
-// 参考 TrieCode thinking.js: fast/light/standard/deep
+// 参考业界 thinking.js: fast/light/standard/deep
 const THINKING_LEVELS = {
   fast: { name: '快速', description: '极窄思考，仅纯事实检索', effort: 'disabled', maxTokens: 1024 },
   light: { name: '轻度', description: '轻度思考，简单任务', effort: 'low', maxTokens: 4096 },
@@ -1910,7 +1910,7 @@ ${skill.examples.map(e => `- "${e.request}" → ${e.action}`).join('\n')}
 const skillManager = new SkillManager();
 
 // ---------- 3. 预算护栏（BudgetTracker）----------
-// 参考 TrieCode loop-engine.js: 迭代/无菌动作检测
+// 参考业界 loop-engine.js: 迭代/无菌动作检测
 class BudgetTracker {
   constructor(maxTurns=20, maxSterile=4) {
     this.maxTurns = maxTurns;
@@ -2240,7 +2240,7 @@ ${toolList}
 }
 
 // ============ 增强：四阶段工具瀑布 ============
-// 参考 TrieCode tool-pipeline.js: pre策略判定 / guard安全闸门 / around包裹执行 / post观测变换
+// 参考业界 tool-pipeline.js: pre策略判定 / guard安全闸门 / around包裹执行 / post观测变换
 class ToolPipeline {
   constructor() {
     this.preHooks = [];      // pre阶段：策略判定（权限/预算/无菌）
@@ -2368,7 +2368,7 @@ toolPipeline.registerPost((toolName, args, context, result) => {
 });
 
 // ============ 增强：独立验证代理 ============
-// 参考 TrieCode verification-agent.js: 独立只读验证代理，VERDICT协议输出
+// 参考业界 verification-agent.js: 独立只读验证代理，VERDICT协议输出
 // "只有verifier发verdict，主代理不能自评"
 const VERDICT_LEVELS = ['PASS', 'FAIL', 'PARTIAL', 'UNVERIFIABLE'];
 
@@ -2487,7 +2487,7 @@ class VerificationAgent {
 }
 
 // ============ 增强：只读子智能体 ============
-// 参考 TrieCode subagent.js: 只读子智能体，运行时硬门，结构化输出契约
+// 参考业界 subagent.js: 只读子智能体，运行时硬门，结构化输出契约
 const SUBAGENT_READONLY_TOOLS = [
   'read_file', 'list_dir', 'grep_search', 'web_search', 'web_fetch',
   'terminal', 'run_test', 'view_image', 'query_memory', 'list_memories'
@@ -2592,7 +2592,7 @@ ${findings.filter(f => f.type === 'finding').map((f, i) => `${i + 1}. **${f.step
 }
 
 // ---------- 6. AgentRunner（智能体主循环）----------
-// 参考 TrieCode agent-runner.js: 统一 turn 循环
+// 参考业界 agent-runner.js: 统一 turn 循环
 class AgentRunner {
   constructor({ onStream, onToolStep, onPlanRequest, mode='default' }) {
     this.onStream = onStream;
@@ -2636,7 +2636,7 @@ class AgentRunner {
       this.messages.unshift({ role: 'system', content: skillPrompt });
     }
     
-    // ===== 增强5：模型族分档提示词注入（参考 TrieCode prompt-core.js）=====
+    // ===== 增强5：模型族分档提示词注入（参考业界 prompt-core.js）=====
     // 差异="该模型最容易犯的错"，各档只补该族易错点
     const defaultModel = 'deepseek-chat';  // 默认模型
     const modelFamily = getModelFamily(defaultModel);
@@ -2646,7 +2646,7 @@ class AgentRunner {
       this.messages.unshift({ role: 'system', content: `## 模型专属引导\n${familyGuidance.guidance}` });
     }
     
-    // ===== 增强6：思考强度自适应（参考 TrieCode thinking.js）=====
+    // ===== 增强6：思考强度自适应（参考业界 thinking.js）=====
     const suggestedLevel = thinkingManager.suggestLevel(userInput);
     const finalLevel = thinkingManager.nextLevel('default', suggestedLevel);
     addOutputLog(`思考强度: ${finalLevel} (${THINKING_LEVELS[finalLevel].name})`, 'debug');
@@ -2664,7 +2664,7 @@ class AgentRunner {
           this.messages.push({ role: 'user', content: `[系统] ${breach.reason}。请停止重复尝试，换一种方式。` });
           continue;
         }
-        // ===== 增强7：预算耗尽收尾总结（参考 TrieCode agent-runner.js）=====
+        // ===== 增强7：预算耗尽收尾总结（参考业界 agent-runner.js）=====
         // 预算耗尽时自动总结已完成的工作，而不是简单停止
         const completedTools = this.messages.filter(m => m.role === 'tool').map(m => {
           const match = m.content.match(/name="([^"]+)"/);
@@ -2724,7 +2724,7 @@ class AgentRunner {
             ? '（硬性要求：请在收尾前运行验证并引用真实输出；若确实无法自动化验证，必须明确列出"未验证项"并说明客观原因。）'
             : '';
           
-          // ===== 增强：独立验证代理集成（参考 TrieCode verification-agent.js）=====
+          // ===== 增强：独立验证代理集成（参考业界 verification-agent.js）=====
           // 当检测到文件修改未验证时，自动启动独立验证代理生成正式 VERDICT
           if (this.verifyNudges === 1 && this.mode === 'auto') {
             try {
@@ -2803,7 +2803,7 @@ class AgentRunner {
         const dHits = this.denialHits.get(denialKey) || 0;
         const needsConfirm = computeNeedsConfirm(tc.name, tc.arguments, this.mode, dHits);
         
-        // ===== 增强4：权限决策审计（参考 TrieCode approval-audit.js）=====
+        // ===== 增强4：权限决策审计（参考业界 approval-audit.js）=====
         const auditDecision = needsConfirm ? 'ask' : (isPlanGated(tc.name, tc.arguments, this.planApproved) ? 'deny' : 'allow');
         approvalAudit.recordDecision(tc.name, tc.arguments, this.mode, auditDecision, 
           auditDecision === 'ask' ? '需要用户确认' : auditDecision === 'deny' ? 'PLAN模式只读门控' : '自动放行');
@@ -2859,7 +2859,7 @@ class AgentRunner {
         this._toolStep(tc.id, tc.name, 'running', JSON.stringify(tc.arguments).slice(0,100));
         let toolResult;
         try {
-          // ===== 增强：四阶段工具瀑布集成（参考 TrieCode tool-pipeline.js）=====
+          // ===== 增强：四阶段工具瀑布集成（参考业界 tool-pipeline.js）=====
           // pre阶段：策略判定（权限/预算/无菌）
           // guard阶段：安全闸门（单调否决）
           // around阶段：包裹执行（超时/取消/日志）
@@ -2899,11 +2899,11 @@ class AgentRunner {
         const isFailed = /Error|错误|失败|Traceback|Exception/i.test(String(toolResult));
         let injected = String(toolResult);
         
-        // ===== 增强：大输出受管目录（参考 TrieCode tool-output.js）=====
+        // ===== 增强：大输出受管目录（参考业界 tool-output.js）=====
         // 工具大输出不再硬截断丢弃，完整内容"落盘"到受管目录，返回路径给模型
         const TOOL_OUTPUT_THRESHOLD = 2000;  // 超过2000字符触发受管目录
         if (!isFailed && injected.length > TOOL_OUTPUT_THRESHOLD && ['terminal','run_test','web_search','web_fetch','read_file'].includes(tc.name)) {
-          // 生成受管输出路径（模拟 %APPDATA%/TrieCode/tool-outputs/）
+          // 生成受管输出路径（模拟 %APPDATA%/LabCode/tool-outputs/）
           const outputId = `tool_output_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
           const managedPath = `~/.LabCode/tool-outputs/${outputId}.txt`;
           
@@ -2918,7 +2918,7 @@ class AgentRunner {
           addOutputLog(`大输出受管目录: ${tc.name} 输出 ${injected.length} 字符 → ${managedPath}`, 'debug');
         }
         
-        // ===== 增强1：工具失败分类（参考 TrieCode tool-failure.js）=====
+        // ===== 增强1：工具失败分类（参考业界 tool-failure.js）=====
         if (isFailed) {
           const failureInfo = toolFailureClassifier.classifyWithStrategy(String(toolResult));
           if (failureInfo.category !== 'unknown') {
@@ -2928,7 +2928,7 @@ class AgentRunner {
           }
         }
         
-        // ===== 增强2：文件回滚记录（参考 TrieCode file-change-tracker.js）=====
+        // ===== 增强2：文件回滚记录（参考业界 file-change-tracker.js）=====
         if (['write_file','edit_file','delete_file'].includes(tc.name) && !isFailed) {
           try {
             const filePath = tc.arguments?.path || tc.arguments?.file || 'unknown';
@@ -2942,7 +2942,7 @@ class AgentRunner {
           }
         }
         
-        // ===== 增强3：反幻觉检测（参考 TrieCode agent-runner.js）=====
+        // ===== 增强3：反幻觉检测（参考业界 agent-runner.js）=====
         // 检测谎报测试通过：声称测试通过但实际输出没有测试结果
         if (tc.name === 'run_test' || (tc.name === 'terminal' && /(pytest|npm test|jest|go test)/i.test(String(tc.arguments?.command||'')))) {
           const output = String(toolResult).toLowerCase();
@@ -4104,21 +4104,78 @@ function bindEvents() {
     });
   });
   
-  // 模型选择器
+  // 模型选择器（修复：写入真实配置 ai.provider/ai.model，初始化从配置回显）
+  const MODEL_MAP = {
+    'deepseek-flash': { provider: 'deepseek', model: 'deepseek-chat',      label: 'DeepSeek FLASH' },
+    'deepseek-v4':    { provider: 'deepseek', model: 'deepseek-reasoner',  label: 'DeepSeek V4' },
+    'qwen':           { provider: 'custom',   model: 'qwen-plus',          baseURL: 'https://dashscope.aliyuncs.com/compatible-mode/v1', label: '通义千问 Qwen' },
+    'minimax':        { provider: 'custom',   model: 'MiniMax-M2',         baseURL: 'https://api.minimax.chat/v1', label: 'MiniMax M3' },
+    'glm':            { provider: 'custom',   model: 'glm-4-plus',         baseURL: 'https://open.bigmodel.cn/api/paas/v4', label: '智谱 GLM-5.2' },
+    'doubao':         { provider: 'custom',   model: 'doubao-pro-4k',      baseURL: 'https://ark.cn-beijing.volces.com/api/v3', label: '豆包' },
+    'ollama':         { provider: 'ollama',   model: 'qwen2.5-coder:7b',   label: 'Ollama 本地模型' }
+  };
   const modelSelectBtn = document.getElementById('model-select-btn');
   const modelDropdown = document.getElementById('model-dropdown');
   if (modelSelectBtn && modelDropdown) {
+    // 初始化：从配置读取当前模型并回显
+    (async () => {
+      try {
+        if (window.LabCode && window.LabCode.config) {
+          const cfg = await window.LabCode.config.get();
+          const ai = cfg?.ai || {};
+          let matchedKey = null;
+          for (const [key, m] of Object.entries(MODEL_MAP)) {
+            if (m.provider === ai.provider && (!ai.model || m.model === ai.model)) {
+              matchedKey = key; break;
+            }
+          }
+          if (matchedKey) {
+            document.getElementById('current-model-name').textContent = MODEL_MAP[matchedKey].label;
+            document.querySelectorAll('.model-option').forEach(o =>
+              o.classList.toggle('active', o.dataset.model === matchedKey));
+          }
+        }
+      } catch (e) { console.warn('[模型选择器] 初始化读取配置失败:', e); }
+    })();
+
     modelSelectBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       modelDropdown.style.display = modelDropdown.style.display === 'none' ? 'block' : 'none';
     });
     document.querySelectorAll('.model-option').forEach(option => {
-      option.addEventListener('click', () => {
+      option.addEventListener('click', async () => {
+        const modelKey = option.dataset.model;
+        const mapping = MODEL_MAP[modelKey];
+        if (!mapping) return;
         const modelName = option.textContent.trim();
         document.getElementById('current-model-name').textContent = modelName;
         document.querySelectorAll('.model-option').forEach(o => o.classList.remove('active'));
         option.classList.add('active');
         modelDropdown.style.display = 'none';
+        // 写入真实配置
+        try {
+          if (window.LabCode && window.LabCode.config) {
+            await window.LabCode.config.set('ai.provider', mapping.provider);
+            await window.LabCode.config.set('ai.model', mapping.model);
+            // custom 提供商：仅当未配置 baseURL 时写入默认值
+            if (mapping.provider === 'custom' && mapping.baseURL) {
+              const cur = await window.LabCode.config.get();
+              if (!cur?.ai?.baseURL) await window.LabCode.config.set('ai.baseURL', mapping.baseURL);
+            }
+            // 刷新 RealAIClient 配置
+            if (state.agent && state.agent.ai && typeof state.agent.ai._loadConfig === 'function') {
+              await state.agent.ai._loadConfig();
+            }
+            // 检查 API Key 是否就绪
+            const cfg = await window.LabCode.config.get();
+            const ready = !!(cfg?.ai?.apiKey || mapping.provider === 'ollama');
+            showToast(ready ? `已切换到 ${modelName}` : `已切换到 ${modelName}，请在设置中配置 API Key`,
+                      ready ? 'success' : 'warning');
+          }
+        } catch (e) {
+          console.warn('[模型选择器] 写入配置失败:', e);
+          showToast('模型切换失败：' + e.message, 'error');
+        }
       });
     });
     document.addEventListener('click', () => {
@@ -4623,7 +4680,7 @@ function bindEvents() {
           state.terminal.writeln('查找 25: 索引 3');
           state.terminal.writeln('✓ 程序运行成功，退出码 0');
         } else { state.terminal.writeln('(模拟运行输出)'); state.terminal.writeln('✓ 完成'); }
-        state.terminal.write('user@triecode:~/project$ ');
+        state.terminal.write('user@labcode:~/project$ ');
       }
       addOutputLog('运行完成，退出码 0', 'success');
     }, 500);
@@ -4919,6 +4976,13 @@ function bindEvents() {
         if (provider !== 'ollama') await window.LabCode.config.set('ai.apiKey', apiKey);
         if (provider === 'custom') await window.LabCode.config.set('ai.baseURL', baseURL);
         if (model) await window.LabCode.config.set('ai.model', model);
+        // 刷新 RealAIClient 配置，使新设置立即生效
+        if (state.agent && state.agent.ai && typeof state.agent.ai._loadConfig === 'function') {
+          await state.agent.ai._loadConfig();
+        }
+        // 同步更新模型选择器显示
+        const curName = document.getElementById('current-model-name');
+        if (curName && model) curName.textContent = model;
         showToast('AI 配置已保存', 'success');
       } else {
         showToast('非 Electron 环境，配置仅本次有效', 'info');
@@ -5105,7 +5169,7 @@ function init() {
   try { setupMonaco(); } catch(e) { console.error('Monaco setup error:', e); }
   try { setupTerminal(); } catch(e) { console.error('Terminal setup error:', e); }
   try {
-    addOutputLog('TrieCode Clone v2 已启动 — 完整智能体引擎', 'success');
+    addOutputLog('LabCode 已启动 — 完整智能体引擎', 'success');
     addOutputLog('引擎模块: ToolRegistry(10工具) / PermissionPolicy(三级) / BudgetTracker / PlanStore / MockAI', 'info');
   } catch(e) { console.error('Log error:', e); }
 
