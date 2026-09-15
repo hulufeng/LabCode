@@ -387,6 +387,54 @@ function setupIPC() {
     return { success: true };
   });
 
+  // ============ Git 操作 ============
+  const { execFile: gitExec } = require('child_process');
+  function runGit(cwd, args) {
+    return new Promise((resolve) => {
+      gitExec('git', args, { cwd, encoding: 'utf8', timeout: 30000, maxBuffer: 4 * 1024 * 1024 }, (err, stdout, stderr) => {
+        resolve({ ok: !err, stdout: stdout || '', stderr: stderr || '', code: err ? (err.code || 1) : 0 });
+      });
+    });
+  }
+  ipcMain.handle('git:status', async (_, cwd) => {
+    const r = await runGit(cwd, ['status', '--porcelain', '-b']);
+    if (!r.ok) return { success: false, error: r.stderr };
+    const lines = r.stdout.split('\n').filter(Boolean);
+    const branch = lines[0] && lines[0].startsWith('##') ? lines[0].slice(3).split('...')[0] : '(unknown)';
+    const files = lines.slice(1).map(l => {
+      const status = l.slice(0, 2);
+      const path = l.slice(3);
+      return { status: status.trim(), path };
+    });
+    return { success: true, branch, files };
+  });
+  ipcMain.handle('git:add', async (_, cwd, paths) => {
+    const args = ['add', ...(Array.isArray(paths) ? paths : [paths])];
+    const r = await runGit(cwd, args);
+    return { success: r.ok, error: r.stderr };
+  });
+  ipcMain.handle('git:commit', async (_, cwd, message) => {
+    const r = await runGit(cwd, ['commit', '-m', message]);
+    return { success: r.ok, stdout: r.stdout, error: r.stderr };
+  });
+  ipcMain.handle('git:log', async (_, cwd, n) => {
+    const r = await runGit(cwd, ['log', `-${n || 10}`, '--pretty=format:%h|%an|%ar|%s']);
+    if (!r.ok) return { success: false, error: r.stderr };
+    const entries = r.stdout.split('\n').filter(Boolean).map(l => {
+      const [hash, author, time, ...msg] = l.split('|');
+      return { hash, author, time, message: msg.join('|') };
+    });
+    return { success: true, entries };
+  });
+  ipcMain.handle('git:push', async (_, cwd) => {
+    const r = await runGit(cwd, ['push']);
+    return { success: r.ok, stdout: r.stdout, error: r.stderr };
+  });
+  ipcMain.handle('git:pull', async (_, cwd) => {
+    const r = await runGit(cwd, ['pull']);
+    return { success: r.ok, stdout: r.stdout, error: r.stderr };
+  });
+
   // ============ AI 对话（OpenAI 兼容 API：DeepSeek / 本地 llama 引擎 / Ollama / 自定义）============
   const AI_PROVIDERS = {
     deepseek: { baseURL: 'https://api.deepseek.com/v1', defaultModel: 'deepseek-chat' },

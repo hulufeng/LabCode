@@ -125,6 +125,16 @@ contextBridge.exposeInMainWorld('LabCode', {
     stop: (cfg) => ipcRenderer.invoke('lsp:stop', cfg)
   },
 
+  // Git
+  git: {
+    status: (cwd) => ipcRenderer.invoke('git:status', cwd),
+    add: (cwd, paths) => ipcRenderer.invoke('git:add', cwd, paths),
+    commit: (cwd, msg) => ipcRenderer.invoke('git:commit', cwd, msg),
+    log: (cwd, n) => ipcRenderer.invoke('git:log', cwd, n),
+    push: (cwd) => ipcRenderer.invoke('git:push', cwd),
+    pull: (cwd) => ipcRenderer.invoke('git:pull', cwd)
+  },
+
   // AI 对话
   ai: {
     chat: (options) => ipcRenderer.invoke('ai:chat', options),
