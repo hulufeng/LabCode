@@ -1575,6 +1575,86 @@ const TOOL_DEFS = [
       if (!vs.length) return '无插件声明视图';
       return vs.map(v => `- ${v.pluginId}:${v.id} (${v.title}) → ${v.webviewUrl}`).join('\n');
     }
+  },
+  // ===== 2026-09-15 对齐 TrieCode plugin-dev-toolchain：create/validate/install =====
+  {
+    name: 'plugin_dev_create', category: 'create',
+    description: '创建 LabCode 插件骨架：生成 plugin.json（最小 manifest + 示例 cli 工具）+ README.md。参数 dir（工作区内目录）、id（kebab-case 唯一）、name、description、developer、icon。生成后用 write_file 完善 manifest，再调 plugin_dev_validate 校验、plugin_dev_install 安装。',
+    parameters: { type: 'object', properties: {
+      dir: { type: 'string', description: '插件目录（工作区内路径，建议用插件 id，如 my-toolchain）' },
+      id: { type: 'string', description: '插件 id，kebab-case（如 my-toolchain）' },
+      name: { type: 'string', description: '插件显示名（如 我的工具链）' },
+      description: { type: 'string', description: '插件功能描述' },
+      developer: { type: 'string', description: '开发者名（可选）' },
+      icon: { type: 'string', description: '图标 emoji，如 🔧（可选）' }
+    }, required: ['dir', 'id', 'name'] },
+    execute: async (args) => {
+      const dir = (args.dir || '').trim();
+      const id = (args.id || '').trim();
+      if (!dir || !id) return 'Error: 缺 dir 或 id';
+      if (!/^[a-z][a-z0-9-]*$/.test(id)) return 'Error: id 须 kebab-case（小写字母开头，可含数字和短横）';
+      const manifest = {
+        id, name: args.name || id, version: '0.1.0',
+        description: args.description || '',
+        developer: args.developer || '', icon: args.icon || '🧩',
+        tools: []
+      };
+      state.files[dir + '/plugin.json'] = { content: JSON.stringify(manifest, null, 2), language: 'json', dirty: true };
+      state.files[dir + '/README.md'] = { content: `# ${args.name || id}\n\nLabCode 插件。编辑 plugin.json 声明工具/命令/视图。\n`, language: 'markdown', dirty: true };
+      buildFileTree(); renderFileTree();
+      try {
+        if (isElectron && state.projectPath) {
+          const base = state.projectPath + '\\' + dir.replace(/\//g, '\\');
+          await window.LabCode.fs.mkdir(base).catch(() => {});
+          await FileSystem.writeFile(base + '\\plugin.json', JSON.stringify(manifest, null, 2));
+          await FileSystem.writeFile(base + '\\README.md', `# ${args.name || id}\n\nLabCode 插件。\n`);
+        }
+      } catch (e) { return '骨架已生成（内存），落盘失败: ' + e.message; }
+      return `插件骨架已生成: ${dir}/plugin.json + README.md。用 write_file 完善 tools，然后调 plugin_dev_validate。`;
+    }
+  },
+  {
+    name: 'plugin_dev_validate', category: 'query',
+    description: '校验插件目录的 plugin.json 是否合规（id kebab-case/name/version/tools transport 等）。参数 dir。返回 ✅ 合规或错误列表。',
+    parameters: { type: 'object', properties: { dir: { type: 'string', description: '插件目录' } }, required: ['dir'] },
+    execute: (args) => {
+      const dir = (args.dir || '').trim();
+      const f = state.files[dir + '/plugin.json'];
+      if (!f) return 'Error: 未找到 ' + dir + '/plugin.json';
+      let m;
+      try { m = JSON.parse(f.content); } catch (e) { return '❌ plugin.json 不是合法 JSON: ' + e.message; }
+      const errors = [];
+      if (!m.id || !/^[a-z][a-z0-9-]*$/.test(m.id)) errors.push('id 须 kebab-case');
+      if (!m.name) errors.push('缺 name');
+      if (!m.version) errors.push('缺 version');
+      if (!Array.isArray(m.tools)) errors.push('tools 须为数组');
+      else m.tools.forEach((t, i) => {
+        if (!t.name) errors.push(`tools[${i}] 缺 name`);
+        if (!t.description) errors.push(`tools[${i}] 缺 description`);
+        if (!t.transport && !t.execute) errors.push(`tools[${i}] 缺 transport`);
+      });
+      return errors.length ? '❌ 校验失败:\n' + errors.join('\n') : `✅ 校验通过（${m.tools.length} 工具）`;
+    }
+  },
+  {
+    name: 'plugin_dev_install', category: 'modify',
+    description: '安装本地插件目录到软件（先校验 manifest 合规，通过才安装）。参数 dir。安装后到「插件管理 → 已安装」启用即可使用。',
+    parameters: { type: 'object', properties: { dir: { type: 'string', description: '插件目录' } }, required: ['dir'] },
+    execute: async (args) => {
+      const dir = (args.dir || '').trim();
+      const f = state.files[dir + '/plugin.json'];
+      if (!f) return 'Error: 未找到 ' + dir + '/plugin.json';
+      let m;
+      try { m = JSON.parse(f.content); } catch (e) { return 'Error: plugin.json 非法: ' + e.message; }
+      if (!window.PluginSystem) return 'Error: 插件系统未就绪';
+      // 调插件系统的 installLocal 方法
+      if (typeof window.PluginSystem.installFromDir === 'function') {
+        const fullPath = state.projectPath + '\\' + dir.replace(/\//g, '\\');
+        const r = await window.PluginSystem.installFromDir(fullPath);
+        return r.success ? `插件 ${m.id} 已安装（${m.tools.length} 工具）` : '安装失败: ' + (r.error || '');
+      }
+      return '插件系统不支持本地安装，请手动放到插件目录';
+    }
   }
 ];
 
@@ -3003,6 +3083,43 @@ const BUILTIN_SKILLS = [
       { request: '启动开发服务器', action: '检测 package.json scripts → npm run dev' }
     ],
     fileExtensions: ['.html', '.css', '.js', '.ts', '.jsx', '.tsx']
+  },
+  // ===== 2026-09-15 对齐 TrieCode arduino-cli-toolchain skills =====
+  {
+    id: 'burn-precheck',
+    name: '烧录前检查',
+    description: '编译 + 检查板卡/端口选择，确认无误再烧录。对齐 TrieCode skill。',
+    whenToUse: [
+      '用户要求烧录/上传固件时',
+      '编译通过后准备 upload 前'
+    ],
+    safetyRules: [
+      '先 read_file 检查源码明显错误',
+      '确认已选择开发板（select_board）和端口（select_port）',
+      'compile 通过后先向用户确认再 upload',
+      '烧录成功后打开串口确认程序正常运行'
+    ],
+    examples: [
+      { request: '烧录到 ESP32', action: 'read_file → select_board → select_port → compile → 确认 → upload → serial_log_open' }
+    ]
+  },
+  {
+    id: 'serial-log-analysis',
+    name: '串口日志分析',
+    description: '打开串口后台日志，读取并分析运行输出。对齐 TrieCode skill。',
+    whenToUse: [
+      '程序运行异常需要看串口输出',
+      '调试传感器/通信问题',
+      '用户说"看看串口/输出/打印"时'
+    ],
+    safetyRules: [
+      '用 serial_log_open 打开后台日志（不阻塞终端）',
+      '分析完成后 serial_log_close 释放串口',
+      '用 serial_grep 检索特定关键字'
+    ],
+    examples: [
+      { request: '为什么传感器读不到数据', action: 'serial_log_open → serial_log → 分析异常 → 定位根因' }
+    ]
   }
 ];
 
