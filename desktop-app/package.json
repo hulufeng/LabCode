@@ -5,6 +5,8 @@
   "main": "main/index.js",
   "author": "LabCode Team",
   "license": "MIT",
+  "packageManager": "pnpm@11.18.0",
+  "workspaces": ["packages/*"],
   "scripts": {
     "start": "electron .",
     "dev": "electron . --dev",
