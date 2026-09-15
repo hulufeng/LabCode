@@ -1,0 +1,7 @@
+{
+  "name": "@labcode/core",
+  "version": "1.0.0",
+  "private": true,
+  "main": "src/index.js",
+  "description": "业务核心：board/compile/library/mcp/mqtt"
+}

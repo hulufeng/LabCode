@@ -1,0 +1,7 @@
+{
+  "name": "@labcode/preload",
+  "version": "1.0.0",
+  "private": true,
+  "main": "index.js",
+  "description": "Electron 预加载脚本"
+}

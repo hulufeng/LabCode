@@ -1,0 +1,7 @@
+{
+  "name": "@labcode/ai",
+  "version": "1.0.0",
+  "private": true,
+  "main": "src/index.js",
+  "description": "AI 模型抽象层：provider 工厂、缓存、提示词模板"
+}

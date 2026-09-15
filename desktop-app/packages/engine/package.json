@@ -1,0 +1,7 @@
+{
+  "name": "@labcode/engine",
+  "version": "1.0.0",
+  "private": true,
+  "main": "src/index.js",
+  "description": "Agent 执行引擎：主循环、权限、子代理、验证、记忆"
+}
