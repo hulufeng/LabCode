@@ -1711,6 +1711,16 @@ async function getArduinoCliCmd() {
   } catch (e) {}
   return { ok: false, out: '错误：arduino-cli 未找到，请先安装 Arduino 编译插件（设置 → 插件市场 → Arduino 编译上传）' };
 }
+// ===== 2026-09-15 arduino-cli 结果缓存（对齐 TrieCode daemon 常驻效果，减少重复 spawn）=====
+const _arduinoCache = new Map(); // key -> { data, exp }
+function cacheGet(key, ttlMs) {
+  const c = _arduinoCache.get(key);
+  if (c && Date.now() - c.exp < (ttlMs || 60000)) return c.data;
+  return null;
+}
+function cacheSet(key, data) { _arduinoCache.set(key, { data, exp: Date.now() }); }
+function cacheInvalidate() { _arduinoCache.clear(); }
+
 async function runArduinoCli(args, timeoutMs) {
   const cli = await getArduinoCliCmd();
   if (!cli.ok) return { ok: false, code: -1, out: cli.out };
@@ -1721,6 +1731,8 @@ async function runArduinoCli(args, timeoutMs) {
     const out = (result.stdout || '') + (result.stderr ? '\n' + result.stderr : '');
     const code = result.exitCode !== undefined ? result.exitCode : (result.success ? 0 : 1);
     if (state.terminal) out.split('\n').forEach(l => state.terminal.writeln(l));
+    // 写操作后清缓存（install/uninstall/compile 后列表会变）
+    if (['install', 'uninstall', 'upgrade', 'upload'].some(x => args.includes(x))) cacheInvalidate();
     return { ok: true, code, out };
   } catch (e) {
     return { ok: false, code: -1, out: '执行失败: ' + e.message };
@@ -1730,19 +1742,28 @@ async function runArduinoCli(args, timeoutMs) {
 // ===== Arduino 工具实现（迁移自 TOOL_DEFS，供 manifest internal service 调用）=====
 const ARDUINO_TOOL_IMPLS = {
   async list_platforms() {
+    const cached = cacheGet('list_platforms');
+    if (cached) return cached;
     const r = await runArduinoCli(['core', 'list']);
     if (!r.ok) return r.out;
-    return '已安装平台:\n' + (r.out.trim() || '(空)');
+    const out = '已安装平台:\n' + (r.out.trim() || '(空)');
+    cacheSet('list_platforms', out);
+    return out;
   },
   async search_boards(args) {
     if (!args.query) return 'Error: 缺少 query 参数';
+    const ck = 'board_search_' + args.query;
+    const cached = cacheGet(ck);
+    if (cached) return cached;
     const r = await runArduinoCli(['board', 'search', String(args.query)]);
     if (!r.ok) return r.out;
     const out = (r.out.trim() || '(无结果，可能平台未安装)');
     const lines = out.split('\n');
     const head = lines.slice(0, 25).join('\n');
     const note = lines.length > 25 ? '\n...（共 ' + lines.length + ' 行，已截断）' : '';
-    return '搜索结果（board search ' + args.query + '）:\n' + head + note;
+    const result = '搜索结果（board search ' + args.query + '）:\n' + head + note;
+    cacheSet(ck, result);
+    return result;
   },
   async select_board(args) {
     if (!args.query) return 'Error: 缺少 query 参数';
@@ -3194,6 +3215,26 @@ class SkillManager {
     return `## SKILL: ${skill.name}\n${body}`;
   }
 
+  // ===== 2026-09-15 对齐 TrieCode devicePanel API =====
+  listDeviceItems() {
+    return [
+      { id: 'board', label: '开发板', value: state.arduinoFqbn || '未选择', kind: 'select' },
+      { id: 'port', label: '端口', value: state.arduinoPort || '未选择', kind: 'select' },
+      { id: 'sketch', label: '当前 Sketch', value: state.activeTab || '无', kind: 'readonly' }
+    ];
+  },
+  async loadDeviceOptions(itemId) {
+    if (itemId === 'port') {
+      const r = await getToolDef('plugin_arduino-cli-toolchain_list_ports')?.execute({});
+      return r || '无端口';
+    }
+    return '';
+  },
+  async setDeviceOption(itemId, value) {
+    if (itemId === 'board') state.arduinoFqbn = value;
+    if (itemId === 'port') state.arduinoPort = value;
+  }
+
   async toggle(id) {
     this.toggled[id] = this.toggled[id] === false ? true : false;
     await this._persist();
@@ -4598,7 +4639,9 @@ class AgentRunner {
     try {
     state._agentRunning = true;
     this.cancelled = false;
-    this.messages.push({ role: 'user', content: userInput });
+    const runStartedAt = Date.now();
+    this.messages.push({ role: 'user', content: userInput, startedAt: runStartedAt, attachments: this._pendingAttachments || [] });
+    this._pendingAttachments = [];
     if (!this.sessionTitle) this.sessionTitle = String(userInput).replace(/\s+/g, ' ').trim().slice(0, 24);
     this.budget = new BudgetTracker(20, 4);
     this.sterileRecovered = false;
@@ -5655,6 +5698,14 @@ class AgentRunner {
     } finally {
       state._agentRunning = false;
       this._cleanupOrphanTools();
+      // ===== 2026-09-15 对齐 TrieCode：给最后一条 assistant message 补元数据 =====
+      const lastAsst = [...this.messages].reverse().find(m => m.role === 'assistant');
+      if (lastAsst) {
+        lastAsst.startedAt = runStartedAt;
+        lastAsst.durationMs = Date.now() - runStartedAt;
+        lastAsst.usage = this.usageAcc || null;
+        lastAsst.thinking = this.thinkingAcc || null;
+      }
       // ===== 2026-09-14 对齐 TrieCode：会话持久化（messages+thinking+workLog 落盘 %APPDATA%/LabCode/chat-sessions/）=====
       this._persistSession();
     }

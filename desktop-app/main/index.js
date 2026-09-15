@@ -62,7 +62,10 @@ function getDefaultConfig() {
     recentProjects: [],
     extra: {
       skills: [],
-      mcpServers: [],
+      mcpServers: [
+        // 2026-09-15 对齐 TrieCode browser-toolchain：默认注释掉，用户装 playwright 后取消注释
+        // { name: 'browser', command: 'npx', args: ['-y', '@playwright/mcp@latest'], env: {} }
+      ],
       hooks: {}
     }
   };
