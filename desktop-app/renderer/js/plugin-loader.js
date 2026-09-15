@@ -79,10 +79,10 @@ function loadPluginManifest(manifest) {
   const tools = Array.isArray(manifest.tools) ? manifest.tools : [];
   for (const t of tools) {
     try {
-      // 工具名自动加 {id}_ 前缀，除非已经带了（避免宿主工具冲突）
-      const autoName = t.name && !t.name.startsWith(id + '_')
-        ? `${id}_${t.name}`
-        : (t.name || `${id}_tool`);
+      // 工具名自动加 plugin_<id>_ 前缀，对齐 TrieCode
+      const autoName = t.name && !t.name.startsWith('plugin_' + id + '_')
+        ? `plugin_${id}_${t.name}`
+        : (t.name || `plugin_${id}_tool`);
 
       const toolDef = {
         name: autoName,
