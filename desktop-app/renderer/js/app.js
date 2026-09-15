@@ -9801,6 +9801,38 @@ function bindEvents() {
     showToast(r.success ? '已拉取' : '拉取失败: ' + (r.error || ''), r.success ? 'success' : 'error');
   });
 
+  // ===== 设备面板编译/烧录/监视按钮 =====
+  const devCompileBtn = document.getElementById('dev-compile-btn');
+  if (devCompileBtn) devCompileBtn.addEventListener('click', async () => {
+    const t = getToolDef('arduino-cli-toolchain_compile');
+    if (!t) { showToast('编译工具未加载', 'error'); return; }
+    showToast('编译中…', 'info');
+    const r = await t.execute({});
+    showToast(r.includes('error') ? '编译失败' : '编译成功', r.includes('error') ? 'error' : 'success');
+    addOutputLog('[编译]\n' + r, r.includes('error') ? 'error' : 'success');
+  });
+  const devUploadBtn = document.getElementById('dev-upload-btn');
+  if (devUploadBtn) devUploadBtn.addEventListener('click', async () => {
+    const portSel = document.getElementById('port-select');
+    const port = portSel ? portSel.value : '';
+    if (!port) { showToast('请先选串口', 'warn'); return; }
+    showToast('烧录到 ' + port + '…', 'info');
+    // 用 terminal execute 跑 arduino-cli upload
+    if (window.LabCode.terminal && window.LabCode.terminal.execute) {
+      const r = await window.LabCode.terminal.execute('arduino-cli upload -p ' + port, state.projectPath, 120000);
+      showToast(r.success ? '烧录成功' : '烧录失败', r.success ? 'success' : 'error');
+      addOutputLog('[烧录]\n' + (r.stdout || '') + (r.stderr || ''), r.success ? 'success' : 'error');
+    }
+  });
+  const devMonitorBtn = document.getElementById('dev-monitor-btn');
+  if (devMonitorBtn) devMonitorBtn.addEventListener('click', async () => {
+    const portSel = document.getElementById('port-select');
+    const port = portSel ? portSel.value : '';
+    if (!port) { showToast('请先选串口', 'warn'); return; }
+    const t = getToolDef('arduino-cli-toolchain_serial_log_open');
+    if (t) { await t.execute({ port, baud: 115200 }); showToast('串口监视已打开 ' + port, 'success'); }
+  });
+
   // 工具活动面板（Flow）按钮
   const toolFlowClear = document.getElementById('ai-tool-flow-clear');
   if (toolFlowClear) {
