@@ -24,9 +24,17 @@ class TerminalManager {
     if (!this.xtermLoaded) {
       try {
         // 动态加载 xterm.js
-        await this.loadXterm();
+        this.initPromise = this.loadXterm();
+        await this.initPromise;
         this.xtermLoaded = true;
         console.log('[TerminalManager] xterm.js 加载成功');
+        // xterm 加载完成后，重新 attach 所有已存在但没有 xterm 实例的终端
+        this.terminals.forEach((term, id) => {
+          if (!term.xterm && term.element) {
+            console.log(`[TerminalManager] xterm 就绪，重新 attach 终端 ${id}`);
+            this.attachTerminal(id, term.element);
+          }
+        });
       } catch (e) {
         console.error('[TerminalManager] xterm.js 加载失败:', e);
         // 使用降级模式
@@ -48,78 +56,72 @@ class TerminalManager {
         return;
       }
 
-      // 尝试从 node_modules 加载
+      // 尝试从 node_modules 加载（相对 renderer/index.html 解析，app.asar 根为上一级）
       const scripts = [
-        '../../node_modules/xterm/lib/xterm.js',
         '../node_modules/xterm/lib/xterm.js',
         'node_modules/xterm/lib/xterm.js'
       ];
 
       const cssLinks = [
-        '../../node_modules/xterm/css/xterm.css',
         '../node_modules/xterm/css/xterm.css',
         'node_modules/xterm/css/xterm.css'
       ];
 
       // 加载 CSS
-      let cssLoaded = false;
       for (const cssPath of cssLinks) {
         try {
           const link = document.createElement('link');
           link.rel = 'stylesheet';
           link.href = cssPath;
           document.head.appendChild(link);
-          cssLoaded = true;
           break;
         } catch (e) {
           // 继续尝试下一个路径
         }
       }
 
-      // 加载 JS
-      let scriptLoaded = false;
-      for (const scriptPath of scripts) {
-        try {
-          const script = document.createElement('script');
-          script.src = scriptPath;
-          script.onload = () => {
-            if (window.Terminal) {
-              this.xterm = window.Terminal;
-              scriptLoaded = true;
+      // 用 fetch + 隔离作用域执行 xterm 源码（不经过 script 标签与 AMD define，
+      // 避免 monaco loader 的全局 define 拦截 UMD 全局导出，也不影响 monaco 加载）
+      const loadScriptByFetch = async (url) => {
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const code = await resp.text();
+        const fn = new Function('define', code + '\n;return (typeof Terminal !== "undefined") ? Terminal : undefined;');
+        return fn(undefined);
+      };
+
+      const tryLoad = async () => {
+        for (const p of scripts) {
+          try {
+            const T = await loadScriptByFetch(p);
+            if (T) {
+              this.xterm = T;
               resolve();
+              return;
             }
-          };
-          script.onerror = () => {
+          } catch (e) {
             // 继续尝试下一个路径
-          };
-          document.head.appendChild(script);
-          break;
-        } catch (e) {
-          // 继续尝试下一个路径
+          }
         }
-      }
-
-      // 如果都失败了，使用 CDN
-      if (!scriptLoaded) {
-        const cdnScript = document.createElement('script');
-        cdnScript.src = 'https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js';
-        cdnScript.onload = () => {
-          if (window.Terminal) {
-            this.xterm = window.Terminal;
+        // 全部本地路径失败，回退 CDN
+        try {
+          const cdnCss = document.createElement('link');
+          cdnCss.rel = 'stylesheet';
+          cdnCss.href = 'https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css';
+          document.head.appendChild(cdnCss);
+          const T = await loadScriptByFetch('https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js');
+          if (T) {
+            this.xterm = T;
             resolve();
           } else {
             reject(new Error('xterm.js 加载失败'));
           }
-        };
-        cdnScript.onerror = () => reject(new Error('xterm.js CDN 加载失败'));
-        document.head.appendChild(cdnScript);
+        } catch (e) {
+          reject(new Error('xterm.js CDN 加载失败'));
+        }
+      };
 
-        // 加载 CSS
-        const cdnCss = document.createElement('link');
-        cdnCss.rel = 'stylesheet';
-        cdnCss.href = 'https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css';
-        document.head.appendChild(cdnCss);
-      }
+      tryLoad();
     });
   }
 
@@ -138,6 +140,15 @@ class TerminalManager {
    */
   async createTerminal(options = {}) {
     const terminalId = 'term_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+    
+    // 等待 xterm 加载完成（最多等 5 秒）
+    if (!this.xtermLoaded && !this.fallbackMode) {
+      try {
+        if (this.initPromise) {
+          await Promise.race([this.initPromise, new Promise(r => setTimeout(r, 5000))]);
+        }
+      } catch(e) { console.warn('[TerminalManager] 等待 xterm 加载超时:', e); }
+    }
     
     if (this.isElectron) {
       // 使用 Electron 主进程终端服务
@@ -159,25 +170,25 @@ class TerminalManager {
             fontSize: 13,
             fontFamily: 'Consolas, "Courier New", monospace',
             theme: {
-              background: '#1e1e1e',
-              foreground: '#d4d4d4',
-              cursor: '#ffffff',
-              selectionBackground: '#264f78',
+              background: '#ffffff',
+              foreground: '#333333',
+              cursor: '#000000',
+              selectionBackground: '#cce5ff',
               black: '#000000',
               red: '#cd3131',
-              green: '#0dbc79',
-              yellow: '#e5e510',
-              blue: '#2472c8',
-              magenta: '#bc3fbc',
-              cyan: '#11a8cd',
-              white: '#e5e5e5',
+              green: '#00aa00',
+              yellow: '#999900',
+              blue: '#0066cc',
+              magenta: '#aa00aa',
+              cyan: '#009999',
+              white: '#dddddd',
               brightBlack: '#666666',
-              brightRed: '#f14c4c',
-              brightGreen: '#23d18b',
-              brightYellow: '#f5f543',
-              brightBlue: '#3b8eea',
-              brightMagenta: '#d670d6',
-              brightCyan: '#29b8db',
+              brightRed: '#ff0000',
+              brightGreen: '#00ff00',
+              brightYellow: '#ffff00',
+              brightBlue: '#0000ff',
+              brightMagenta: '#ff00ff',
+              brightCyan: '#00ffff',
               brightWhite: '#ffffff'
             }
           });
@@ -239,19 +250,77 @@ class TerminalManager {
     container.innerHTML = '';
     terminal.element = container;
 
+    // 兜底：如果终端没有 xterm 实例但 xterm 已加载，尝试创建
+    if (!terminal.xterm && !terminal.isMock && !this.fallbackMode && this.xterm) {
+      try {
+        terminal.xterm = new this.xterm({
+          cursorBlink: true,
+          fontSize: 13,
+          fontFamily: 'Consolas, "Courier New", monospace',
+          theme: { background: '#ffffff', foreground: '#333333', cursor: '#000000' }
+        });
+        if (this.isElectron && window.LabCode && window.LabCode.terminal) {
+          terminal.xterm.onData((data) => window.LabCode.terminal.write(id, data));
+          terminal.cleanupData = window.LabCode.terminal.onData(id, (data) => terminal.xterm.write(data));
+        }
+        console.log(`[TerminalManager] 兜底创建 xterm 实例 for ${id}`);
+      } catch(e) {
+        console.error('[TerminalManager] 兜底创建 xterm 失败:', e);
+      }
+    }
+
     if (terminal.xterm) {
       terminal.xterm.open(container);
-      // 调整大小
-      setTimeout(() => {
+      // 设置白色背景，确保与容器一致
+      terminal.xterm.element.style.backgroundColor = '#ffffff';
+      // 调整大小（多次重试，确保容器已渲染）
+      const doResize = () => {
         if (terminal.xterm && container.clientWidth > 0 && container.clientHeight > 0) {
-          const cols = Math.floor(container.clientWidth / 8);
-          const rows = Math.floor(container.clientHeight / 18);
+          // 使用 xterm 的实际字符尺寸计算
+          const core = terminal.xterm._core;
+          let charWidth = 8;
+          let charHeight = 18;
+          if (core && core._renderService && core._renderService.dimensions) {
+            charWidth = core._renderService.dimensions.actualCellWidth || 8;
+            charHeight = core._renderService.dimensions.actualCellHeight || 18;
+          }
+          const cols = Math.max(1, Math.floor(container.clientWidth / charWidth));
+          const rows = Math.max(1, Math.floor(container.clientHeight / charHeight));
           terminal.xterm.resize(cols, rows);
         }
-      }, 100);
+      };
+      setTimeout(doResize, 100);
+      setTimeout(doResize, 500);
+      setTimeout(doResize, 1000);
+      // 监听窗口大小变化
+      if (!this._resizeListener) {
+        this._resizeListener = () => {
+          this.terminals.forEach((t) => {
+            if (t.xterm && t.element) {
+              const c = t.element;
+              if (c.clientWidth > 0 && c.clientHeight > 0) {
+                const core = t.xterm._core;
+                let cw = 8, ch = 18;
+                if (core && core._renderService && core._renderService.dimensions) {
+                  cw = core._renderService.dimensions.actualCellWidth || 8;
+                  ch = core._renderService.dimensions.actualCellHeight || 18;
+                }
+                t.xterm.resize(Math.max(1, Math.floor(c.clientWidth / cw)), Math.max(1, Math.floor(c.clientHeight / ch)));
+              }
+            }
+          });
+        };
+        window.addEventListener('resize', this._resizeListener);
+      }
     } else if (terminal.isMock || this.fallbackMode) {
       // 降级模式：使用简单的文本终端
       this.attachFallbackTerminal(terminal, container);
+    } else {
+      // 终极兜底：显示提示
+      const hint = document.createElement('div');
+      hint.style.cssText = 'padding:8px;color:#888;font-family:monospace;font-size:12px;';
+      hint.textContent = '终端初始化中...';
+      container.appendChild(hint);
     }
   }
 
@@ -267,8 +336,8 @@ class TerminalManager {
       padding: 8px;
       font-family: Consolas, "Courier New", monospace;
       font-size: 13px;
-      background: #1e1e1e;
-      color: #d4d4d4;
+      background: #ffffff;
+      color: #333333;
       white-space: pre-wrap;
       word-break: break-all;
     `;
@@ -277,8 +346,8 @@ class TerminalManager {
     inputLine.style.cssText = `
       display: flex;
       padding: 4px 8px;
-      background: #1e1e1e;
-      border-top: 1px solid #333;
+      background: #ffffff;
+      border-top: 1px solid #e0e0e0;
     `;
 
     const prompt = document.createElement('span');

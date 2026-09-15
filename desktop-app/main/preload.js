@@ -4,6 +4,9 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('LabCode', {
+  // 系统
+  getCwd: () => ipcRenderer.invoke('app:getCwd'),
+
   // 窗口控制
   window: {
     minimize: () => ipcRenderer.invoke('window:minimize'),
@@ -38,7 +41,10 @@ contextBridge.exposeInMainWorld('LabCode', {
     readFile: (filePath, encoding) => ipcRenderer.invoke('fs:readFile', filePath, encoding),
     writeFile: (filePath, content) => ipcRenderer.invoke('fs:writeFile', filePath, content),
     exists: (filePath) => ipcRenderer.invoke('fs:exists', filePath),
-    listDir: (dirPath) => ipcRenderer.invoke('fs:listDir', dirPath)
+    listDir: (dirPath) => ipcRenderer.invoke('fs:listDir', dirPath),
+    copyFile: (srcPath, destPath) => ipcRenderer.invoke('fs:copyFile', srcPath, destPath),
+    deleteFile: (filePath) => ipcRenderer.invoke('fs:deleteFile', filePath),
+    mkdir: (dirPath) => ipcRenderer.invoke('fs:mkdir', dirPath)
   },
 
   // 外部链接
@@ -51,6 +57,14 @@ contextBridge.exposeInMainWorld('LabCode', {
     getVersion: () => ipcRenderer.invoke('app:getVersion'),
     getPath: (name) => ipcRenderer.invoke('app:getPath', name),
     getPlatform: () => ipcRenderer.invoke('app:getPlatform')
+  },
+
+  // 系统配置检测（大模型推荐用）
+  system: {
+    getInfo: () => ipcRenderer.invoke('system:getInfo'),
+    checkLLMRuntime: () => ipcRenderer.invoke('system:checkLLMRuntime'),
+    startLLMEngine: (opts) => ipcRenderer.invoke('system:startLLMEngine', opts),
+    stopLLMEngine: () => ipcRenderer.invoke('system:stopLLMEngine')
   },
 
   // 代理
@@ -74,7 +88,7 @@ contextBridge.exposeInMainWorld('LabCode', {
     clearBuffer: (id) => ipcRenderer.invoke('terminal:clearBuffer', id),
     kill: (id) => ipcRenderer.invoke('terminal:kill', id),
     list: () => ipcRenderer.invoke('terminal:list'),
-    execute: (command, cwd, timeout) => ipcRenderer.invoke('terminal:execute', command, cwd, timeout),
+    execute: (command, cwd, timeout, opts) => ipcRenderer.invoke('terminal:execute', command, cwd, timeout, opts),
     onData: (id, callback) => {
       const channel = `terminal:data:${id}`;
       ipcRenderer.on(channel, (_, data) => callback(data));
@@ -87,10 +101,38 @@ contextBridge.exposeInMainWorld('LabCode', {
     }
   },
 
+  // 工具链（自研本体 P0-1：arduino-cli 路径探测）
+  toolchain: {
+    getArduinoCliPath: () => ipcRenderer.invoke('toolchain:getArduinoCliPath')
+  },
+
+  // MCP 服务器（Model Context Protocol stdio 接入）
+  mcp: {
+    listServers: () => ipcRenderer.invoke('mcp:list-servers'),
+    addServer: (cfg) => ipcRenderer.invoke('mcp:add-server', cfg),
+    removeServer: (name) => ipcRenderer.invoke('mcp:remove-server', name),
+    listTools: (name) => ipcRenderer.invoke('mcp:list-tools', name),
+    callTool: (serverName, toolName, args) => ipcRenderer.invoke('mcp:call-tool', serverName, toolName, args),
+    startAll: () => ipcRenderer.invoke('mcp:start-all'),
+    stopAll: () => ipcRenderer.invoke('mcp:stop-all')
+  },
+
   // AI 对话
   ai: {
     chat: (options) => ipcRenderer.invoke('ai:chat', options),
-    checkConnection: (testConfig) => ipcRenderer.invoke('ai:checkConnection', testConfig)
+    chatStream: (options) => ipcRenderer.invoke('ai:chatStream', options),
+    chatCancel: (runId) => ipcRenderer.invoke('ai:chatCancel', runId),
+    checkConnection: (testConfig) => ipcRenderer.invoke('ai:checkConnection', testConfig),
+    gatewayAuth: (opts) => ipcRenderer.invoke('ai:gatewayAuth', opts),
+    // 订阅流式事件（SSE 过程推送）
+    onStream: (callback) => {
+      const listener = (_event, data) => callback(data);
+      ipcRenderer.on('ai:stream', listener);
+      return listener;
+    },
+    offStream: (listener) => {
+      if (listener) ipcRenderer.removeListener('ai:stream', listener);
+    }
   },
 
   // Arduino 编译/烧录

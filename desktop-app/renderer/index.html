@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="light">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -65,11 +65,27 @@
         <symbol id="icon-at" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-3.92 7.94"/></symbol>
         <!-- 插件 -->
         <symbol id="icon-puzzle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19.439 7.85c-.049.322.059.648.289.878l1.568 1.568c.47.47.706 1.087.706 1.704s-.235 1.233-.706 1.704l-1.611 1.611a.98.98 0 0 1-.837.276c-.47-.07-.802-.48-.968-.925a2.501 2.501 0 1 0-3.214 3.214c.446.166.855.497.925.968a.979.979 0 0 1-.276.837l-1.61 1.61a2.404 2.404 0 0 1-1.705.707 2.402 2.402 0 0 1-1.704-.706l-1.568-1.568a1.026 1.026 0 0 0-.877-.29c-.493.074-.84.504-1.02.968a2.5 2.5 0 1 1-3.237-3.237c.464-.18.894-.527.967-1.02a1.026 1.026 0 0 0-.289-.877l-1.568-1.568A2.402 2.402 0 0 1 1.998 12c0-.617.236-1.234.706-1.704L4.23 8.77c.24-.24.581-.353.917-.303.515.077.877.528 1.073 1.01a2.5 2.5 0 1 0 3.259-3.259c-.482-.196-.933-.558-1.01-1.073-.05-.336.062-.676.303-.917l1.525-1.525A2.402 2.402 0 0 1 12 1.998c.617 0 1.234.236 1.704.706l1.568 1.568c.23.23.556.338.877.29.493-.074.84-.504 1.02-.968a2.5 2.5 0 1 1 3.237 3.237c-.464.18-.894.527-.967 1.02Z"/></symbol>
+        <!-- 无限符号 -->
+        <symbol id="icon-infinity" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18.178 8c5.096 0 5.096 8 0 8-5.095 0-7.133-8-12.739-8-4.585 0-4.585 8 0 8 5.606 0 7.644-8 12.74-8z"/></symbol>
+        <!-- 撤销 -->
+        <symbol id="icon-arrow-counter-clockwise" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></symbol>
+        <!-- 重做 -->
+        <symbol id="icon-arrow-clockwise" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></symbol>
+        <!-- 时钟/历史 -->
+        <symbol id="icon-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></symbol>
+        <!-- 向上箭头（发送） -->
+        <symbol id="icon-arrow-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></symbol>
+        <!-- 新建文件夹 -->
+        <symbol id="icon-folder-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/><path d="M12 10v6"/><path d="M9 13h6"/></symbol>
+        <!-- 太阳 -->
+        <symbol id="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></symbol>
+        <!-- 用户 -->
+        <symbol id="icon-user" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></symbol>
       </defs>
     </svg>
   </div>
   <!-- Monaco Editor -->
-  <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js"></script>
+  <script src="vs/loader.js"></script>
 </head>
 <body>
   <!-- 自定义标题栏 -->
@@ -81,6 +97,7 @@
         <button class="titlebar-icon-btn" id="quick-new-file" title="新建文件"><svg class="icon icon-xs"><use href="#icon-file"></use></svg></button>
         <button class="titlebar-icon-btn" id="quick-open-folder" title="打开文件夹"><svg class="icon icon-xs"><use href="#icon-folder-open"></use></svg></button>
       </div>
+      <div class="titlebar-divider"></div>
       <div class="menubar">
         <button class="menu-item" data-menu="file">文件</button>
         <button class="menu-item" data-menu="edit">编辑</button>
@@ -261,16 +278,16 @@
     </div>
     <div class="titlebar-center">
       <div class="toolbar">
-        <button class="toolbar-btn" id="compile-btn" title="编译"><svg class="icon icon-xs"><use href="#icon-code"></use></svg></button>
-        <button class="toolbar-btn" id="upload-btn" title="烧录"><svg class="icon icon-xs"><use href="#icon-arrow-bar-to-down"></use></svg></button>
-        <button class="toolbar-btn" id="verify-btn" title="验证"><svg class="icon icon-xs"><use href="#icon-check"></use></svg></button>
-        <div class="toolbar-divider"></div>
         <button class="toolbar-btn" id="run-btn" title="运行"><svg class="icon icon-xs"><use href="#icon-player-play"></use></svg></button>
+        <button class="toolbar-btn" id="upload-btn" title="烧录"><svg class="icon icon-xs"><use href="#icon-arrow-bar-to-down"></use></svg></button>
         <button class="toolbar-btn" id="terminal-toggle-btn" title="终端"><svg class="icon icon-xs"><use href="#icon-terminal"></use></svg></button>
         <button class="toolbar-btn" id="search-btn" title="搜索"><svg class="icon icon-xs"><use href="#icon-search"></use></svg></button>
       </div>
     </div>
     <div class="titlebar-right">
+      <button class="titlebar-btn icon-only" id="user-avatar-btn" title="用户账户">
+        <svg class="icon"><use href="#icon-user"></use></svg>
+      </button>
       <button class="titlebar-btn icon-only" id="notification-btn" title="通知">
         <svg class="icon"><use href="#icon-bell"></use></svg>
         <span class="notification-badge" id="notification-badge">1</span>
@@ -290,9 +307,7 @@
     <div class="activity-bar">
       <button class="activity-btn active" data-panel="explorer" title="资源管理器"><svg class="icon"><use href="#icon-folder"></use></svg></button>
       <button class="activity-btn" data-panel="plugins" title="插件市场"><svg class="icon"><use href="#icon-puzzle"></use></svg></button>
-      <div class="activity-bottom">
-        <button class="activity-btn" data-panel="settings" title="设置"><svg class="icon"><use href="#icon-settings"></use></svg></button>
-      </div>
+      <button class="activity-btn" data-panel="device" title="设备"><svg class="icon"><use href="#icon-infinity"></use></svg></button>
     </div>
 
     <!-- 侧边栏 -->
@@ -300,14 +315,14 @@
       <div class="sidebar-header">
         <span>文件</span>
         <div class="sidebar-actions">
-          <button class="icon-btn" id="new-file-btn" title="新建文件"><svg class="icon"><use href="#icon-file-plus"></use></svg></button>
-          <button class="icon-btn" id="refresh-btn" title="刷新"><svg class="icon"><use href="#icon-refresh"></use></svg></button>
+          <button class="icon-btn" id="open-folder-btn" title="打开文件夹"><svg class="icon"><use href="#icon-folder-open"></use></svg></button>
+          <button class="icon-btn" id="new-folder-btn" title="新建文件夹"><svg class="icon"><use href="#icon-folder-plus"></use></svg></button>
         </div>
       </div>
       <div class="file-tree" id="file-tree">
         <!-- 文件树动态生成 -->
       </div>
-      <!-- 欢迎面板 -->
+      <!-- 欢迎面板（无项目时显示，1:1 对齐 TrieCode：整体组件居中，含最近打开） -->
       <div class="welcome-panel" id="welcome-panel">
         <div class="welcome-panel-icon"><svg class="icon icon-lg"><use href="#icon-folder-open"></use></svg></div>
         <h3 class="welcome-panel-title">开始你的开发</h3>
@@ -315,6 +330,15 @@
         <div class="welcome-panel-actions">
           <button class="btn btn-primary btn-full" id="welcome-new-project"><svg class="icon icon-xs"><use href="#icon-plus"></use></svg> 新建项目</button>
           <button class="btn btn-secondary btn-full" id="welcome-open-project"><svg class="icon icon-xs"><use href="#icon-folder-open"></use></svg> 打开项目</button>
+        </div>
+        <!-- 最近打开（1:1 对齐 TrieCode：欢迎组件的一部分） -->
+        <div class="recent-panel" id="recent-panel">
+          <div class="recent-header"><svg class="icon icon-xs"><use href="#icon-clock"></use></svg> 最近打开</div>
+          <div class="recent-list" id="recent-list">
+            <div class="recent-item"><svg class="icon icon-xs"><use href="#icon-folder"></use></svg> LabCodeProjects</div>
+            <div class="recent-item"><svg class="icon icon-xs"><use href="#icon-folder"></use></svg> Downloads</div>
+            <div class="recent-item"><svg class="icon icon-xs"><use href="#icon-folder"></use></svg> WPS云盘</div>
+          </div>
         </div>
       </div>
 
@@ -328,10 +352,201 @@
         </div>
         <div class="plugins-tabs" style="display:flex;border-bottom:1px solid var(--border-color);flex-shrink:0;">
           <button class="plugins-tab active" data-tab="market">官方市场</button>
+          <button class="plugins-tab" data-tab="community">社区插件</button>
           <button class="plugins-tab" data-tab="installed">已安装</button>
+          <button class="plugins-tab" data-tab="mcp">MCP 服务</button>
         </div>
         <div class="plugins-list" id="plugins-list" style="flex:1;overflow-y:auto;padding:8px;">
           <!-- 插件卡片动态生成 -->
+        </div>
+      </div>
+
+      <!-- 设备面板（1:1 对齐 TrieCode） -->
+      <div class="device-panel" id="device-panel" style="display:none;flex:1;flex-direction:column;overflow:hidden;">
+        <!-- 顶部标签栏 -->
+        <div class="device-tabs" style="display:flex;border-bottom:1px solid var(--border-color);flex-shrink:0;padding:0 8px;">
+          <button class="device-tab active" data-tab="device">设备</button>
+          <button class="device-tab" data-tab="platform">平台管理</button>
+          <button class="device-tab" data-tab="library">库管理</button>
+          <button class="device-tab" data-tab="settings">设置</button>
+        </div>
+
+        <!-- 设备标签内容 -->
+        <div class="device-tab-content" id="device-tab-device" style="flex:1;overflow-y:auto;padding:16px;">
+          <div class="device-section">
+            <div class="device-section-title">设备</div>
+            <div class="device-form-group">
+              <label class="device-label">开发板</label>
+              <select class="device-select" id="board-select">
+                <option value="">搜索开发板...</option>
+                <option value="esp32">ESP32 Dev Module</option>
+                <option value="esp32-c3">ESP32-C3 Dev Module</option>
+                <option value="esp32-s3">ESP32-S3 Dev Module</option>
+                <option value="arduino-uno">Arduino Uno</option>
+                <option value="arduino-nano">Arduino Nano</option>
+                <option value="stm32">STM32F103C8</option>
+              </select>
+            </div>
+            <div class="device-form-group">
+              <label class="device-label">端口</label>
+              <select class="device-select" id="port-select">
+                <option value="">选择端口</option>
+                <option value="COM3">COM3</option>
+                <option value="COM4">COM4</option>
+                <option value="COM5">COM5</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- 平台管理标签内容 -->
+        <div class="device-tab-content" id="device-tab-platform" style="flex:1;overflow-y:auto;padding:16px;display:none;">
+          <div class="device-section">
+            <div class="device-section-title">已安装平台</div>
+            <div class="platform-list" id="installed-platforms">
+              <div class="platform-item">
+                <div class="platform-info">
+                  <span class="platform-name">ESP32</span>
+                  <span class="platform-version">v2.0.14</span>
+                </div>
+                <button class="platform-btn uninstall" data-platform="esp32">卸载</button>
+              </div>
+              <div class="platform-item">
+                <div class="platform-info">
+                  <span class="platform-name">Arduino AVR Boards</span>
+                  <span class="platform-version">v1.8.6</span>
+                </div>
+                <button class="platform-btn uninstall" data-platform="arduino-avr">卸载</button>
+              </div>
+            </div>
+          </div>
+          <div class="device-section" style="margin-top:16px;">
+            <div class="device-section-title">可安装平台</div>
+            <div class="platform-list" id="available-platforms">
+              <div class="platform-item">
+                <div class="platform-info">
+                  <span class="platform-name">ESP32-S3</span>
+                  <span class="platform-version">v2.0.14</span>
+                </div>
+                <button class="platform-btn install" data-platform="esp32-s3">安装</button>
+              </div>
+              <div class="platform-item">
+                <div class="platform-info">
+                  <span class="platform-name">STM32F103C8</span>
+                  <span class="platform-version">v2.3.0</span>
+                </div>
+                <button class="platform-btn install" data-platform="stm32">安装</button>
+              </div>
+              <div class="platform-item">
+                <div class="platform-info">
+                  <span class="platform-name">Raspberry Pi Pico</span>
+                  <span class="platform-version">v3.0.0</span>
+                </div>
+                <button class="platform-btn install" data-platform="rp2040">安装</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 库管理标签内容 -->
+        <div class="device-tab-content" id="device-tab-library" style="flex:1;overflow-y:auto;padding:16px;display:none;">
+          <div class="device-section">
+            <div class="device-section-title">库管理</div>
+            <div class="device-form-group">
+              <input type="text" class="device-select" id="library-search" placeholder="搜索库..." style="margin-bottom:12px;">
+            </div>
+            <div class="library-list" id="library-list">
+              <div class="library-item">
+                <div class="library-info">
+                  <span class="library-name">WiFi</span>
+                  <span class="library-version">v2.0.0</span>
+                  <span class="library-desc">ESP32 WiFi 库</span>
+                </div>
+                <button class="platform-btn uninstall" data-library="wifi">卸载</button>
+              </div>
+              <div class="library-item">
+                <div class="library-info">
+                  <span class="library-name">Adafruit SSD1306</span>
+                  <span class="library-version">v2.5.7</span>
+                  <span class="library-desc">OLED 显示屏驱动</span>
+                </div>
+                <button class="platform-btn install" data-library="adafruit-ssd1306">安装</button>
+              </div>
+              <div class="library-item">
+                <div class="library-info">
+                  <span class="library-name">DHT sensor library</span>
+                  <span class="library-version">v1.4.4</span>
+                  <span class="library-desc">温湿度传感器库</span>
+                </div>
+                <button class="platform-btn install" data-library="dht">安装</button>
+              </div>
+              <div class="library-item">
+                <div class="library-info">
+                  <span class="library-name">PubSubClient</span>
+                  <span class="library-version">v2.8.0</span>
+                  <span class="library-desc">MQTT 客户端库</span>
+                </div>
+                <button class="platform-btn install" data-library="pubsubclient">安装</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 设置标签内容 -->
+        <div class="device-tab-content" id="device-tab-settings" style="flex:1;overflow-y:auto;padding:16px;display:none;">
+          <div class="device-section">
+            <div class="device-section-title">上传设置</div>
+            <div class="device-form-group">
+              <label class="device-label">上传速度</label>
+              <select class="device-select" id="upload-speed">
+                <option value="9600">9600</option>
+                <option value="115200" selected>115200</option>
+                <option value="230400">230400</option>
+                <option value="460800">460800</option>
+                <option value="921600">921600</option>
+              </select>
+            </div>
+            <div class="device-form-group">
+              <label class="device-label">编译优化</label>
+              <select class="device-select" id="compile-optimization">
+                <option value="none">无优化</option>
+                <option value="size" selected>最小体积</option>
+                <option value="speed">最快速度</option>
+              </select>
+            </div>
+          </div>
+          <div class="device-section" style="margin-top:16px;">
+            <div class="device-section-title">调试设置</div>
+            <div class="device-form-group">
+              <label class="device-label" style="display:flex;align-items:center;gap:8px;">
+                <input type="checkbox" id="debug-serial" checked>
+                启用串口调试输出
+              </label>
+            </div>
+            <div class="device-form-group">
+              <label class="device-label">调试波特率</label>
+              <select class="device-select" id="debug-baud">
+                <option value="9600">9600</option>
+                <option value="115200" selected>115200</option>
+                <option value="230400">230400</option>
+              </select>
+            </div>
+          </div>
+          <div class="device-section" style="margin-top:16px;">
+            <div class="device-section-title">其他</div>
+            <div class="device-form-group">
+              <label class="device-label" style="display:flex;align-items:center;gap:8px;">
+                <input type="checkbox" id="verify-upload">
+                上传后验证
+              </label>
+            </div>
+            <div class="device-form-group">
+              <label class="device-label" style="display:flex;align-items:center;gap:8px;">
+                <input type="checkbox" id="auto-reset" checked>
+                上传前自动复位
+              </label>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -357,80 +572,27 @@
       </div>
       <!-- 编辑器 -->
       <div class="editor-wrapper" id="editor-wrapper">
-        <!-- AI 对话欢迎页面 -->
+        <!-- 空状态提示（无文件时显示，对齐 TrieCode：提示新建文件或 AI 辅助新建） -->
         <div class="welcome-screen" id="welcome-screen">
           <div class="welcome-content">
-            <h1 class="welcome-title">我们要一起做些什么？</h1>
-            <p class="welcome-subtitle">提问、创建项目、写代码、编译上传——都可以告诉我</p>
-            
-            <!-- 快捷指令 -->
-            <div class="quick-actions">
-              <button class="quick-action-btn" data-action="web-game">
-                <span class="quick-action-icon"><svg class="icon"><use href="#icon-code"></use></svg></span>
-                <span class="quick-action-text">帮我写一个网页小游戏</span>
-              </button>
-              <button class="quick-action-btn" data-action="data-analysis">
-                <span class="quick-action-icon"><svg class="icon"><use href="#icon-chart-bar"></use></svg></span>
-                <span class="quick-action-text">帮我做一个数据分析脚本</span>
-              </button>
-              <button class="quick-action-btn" data-action="debug-help">
-                <span class="quick-action-icon"><svg class="icon"><use href="#icon-bug"></use></svg></span>
-                <span class="quick-action-text">教我怎么调试一个编译错误</span>
-              </button>
-              <button class="quick-action-btn" data-action="python-project">
-                <span class="quick-action-icon"><svg class="icon"><use href="#icon-sparkles"></use></svg></span>
-                <span class="quick-action-text">帮我创建一个 Python 项目，画个太阳系</span>
-              </button>
+            <div class="welcome-empty-icon">
+              <svg class="icon"><use href="#icon-file"></use></svg>
             </div>
-
-            <!-- AI 输入框 -->
-            <div class="ai-input-container">
-              <div class="ai-input-box">
-                <textarea 
-                  id="ai-input" 
-                  class="ai-input-textarea"
-                  placeholder="输入消息... (Enter 发送 · Shift+Enter 换行 · 输入 / 使用技能)"
-                  rows="1"
-                ></textarea>
-                <div class="ai-input-toolbar">
-                  <div class="ai-input-left">
-                    <button class="ai-input-tool-btn" id="attach-btn" title="添加附件"><svg class="icon"><use href="#icon-plus"></use></svg></button>
-                    <button class="ai-input-tool-btn" id="ai-attach-btn" title="附件"><svg class="icon"><use href="#icon-paperclip"></use></svg></button>
-                    <span class="ai-input-project-status" id="project-status">
-                      <span class="project-status-icon"><svg class="icon icon-xs"><use href="#icon-file"></use></svg></span>
-                      <span id="project-status-text">无打开项目</span>
-                    </span>
-                  </div>
-                  <div class="ai-input-right">
-                    <button class="ai-input-tool-btn" id="permission-btn" title="权限模式"><svg class="icon"><use href="#icon-shield"></use></svg></button>
-                    <button class="ai-input-tool-btn" id="mention-btn" title="@提及"><svg class="icon"><use href="#icon-at"></use></svg></button>
-                    <div class="model-selector">
-                      <button class="model-select-btn" id="model-select-btn">
-                        <span class="model-name" id="current-model-name">DeepSeek FLASH</span>
-                        <svg class="icon icon-xs"><use href="#icon-chevron-down"></use></svg>
-                      </button>
-                      <div class="model-dropdown" id="model-dropdown" style="display:none;">
-                        <div class="model-option active" data-model="deepseek-flash">DeepSeek FLASH</div>
-                        <div class="model-option" data-model="deepseek-v4">DeepSeek V4</div>
-                        <div class="model-option" data-model="qwen">通义千问 Qwen</div>
-                        <div class="model-option" data-model="minimax">MiniMax M3</div>
-                        <div class="model-option" data-model="glm">智谱 GLM-5.2</div>
-                        <div class="model-option" data-model="doubao">豆包</div>
-                        <div class="model-option" data-model="ollama">Ollama 本地模型</div>
-                      </div>
-                    </div>
-                    <button class="ai-send-btn" id="ai-send-btn" title="发送">
-                      <svg class="icon"><use href="#icon-send"></use></svg>
-                    </button>
-                  </div>
-                </div>
-              </div>
-              <!-- 工作空间路径 -->
-              <div class="workspace-path">
-                <span class="workspace-path-icon"><svg class="icon icon-xs"><use href="#icon-folder"></use></svg></span>
-                <span class="workspace-path-text" id="workspace-path-text">C:\Users\Lenovo\Documents\LabCodeProjects</span>
-                <button class="workspace-path-btn" id="select-workspace-btn">选择工作空间</button>
-              </div>
+            <h2 class="welcome-empty-title">暂无打开的文件</h2>
+            <p class="welcome-empty-desc">新建文件开始编码，或让 AI 辅助你创建项目</p>
+            <div class="welcome-actions">
+              <button class="welcome-action-btn primary" id="welcome-new-file">
+                <svg class="icon"><use href="#icon-file-plus"></use></svg>
+                <span>新建文件</span>
+              </button>
+              <button class="welcome-action-btn" id="welcome-ai-new-project">
+                <svg class="icon"><use href="#icon-sparkles"></use></svg>
+                <span>AI 辅助新建项目</span>
+              </button>
+              <button class="welcome-action-btn" id="welcome-open-folder">
+                <svg class="icon"><use href="#icon-folder-open"></use></svg>
+                <span>打开文件夹</span>
+              </button>
             </div>
           </div>
         </div>
@@ -438,17 +600,119 @@
       </div>
     </div>
 
-    <!-- AI 助手面板（聊天记录） -->
-    <div class="ai-panel" id="ai-panel" style="display:none;">
-      <div class="ai-header">
-        <span class="ai-title"><span class="ai-icon"><svg class="icon icon-xs"><use href="#icon-sparkles"></use></svg></span> AI 助手</span>
-        <div class="ai-actions">
-          <button class="icon-btn" id="new-chat-btn" title="新对话"><svg class="icon"><use href="#icon-plus"></use></svg></button>
-          <button class="icon-btn" id="ai-settings-btn" title="设置"><svg class="icon"><use href="#icon-menu"></use></svg></button>
+    <!-- AI 助手面板（1:1 对齐 TrieCode 主区域布局） -->
+    <div class="ai-panel" id="ai-panel">
+      <!-- AI 面板顶部操作栏（1:1 对齐 TrieCode） -->
+      <div class="ai-top-bar">
+        <div class="ai-top-left">
+          <span class="ai-top-icon"><svg class="icon"><use href="#icon-sparkles"></use></svg></span>
+        </div>
+        <div class="ai-top-right">
+          <span id="gw-credits-badge" title="LabCode 账号积分（云端模型按积分计费）" style="display:none;align-items:center;gap:4px;font-size:11px;color:var(--text-secondary);background:rgba(155,187,244,0.12);border:1px solid rgba(155,187,244,0.35);border-radius:20px;padding:3px 10px;cursor:pointer;"></span>
+          <div class="safety-mode-group" id="safety-mode-group" title="安全模式：控制 AI 对写操作/命令的自动执行范围">
+            <button class="safety-mode-btn active" data-mode="auto" title="自动模式：低风险操作自动执行">⚡<span class="safety-mode-label">自动</span></button>
+            <button class="safety-mode-btn" data-mode="default" title="默认模式：写操作需确认">🛡️<span class="safety-mode-label">默认</span></button>
+            <button class="safety-mode-btn" data-mode="plan" title="计划模式：只读探索，先计划后执行">📋<span class="safety-mode-label">计划</span></button>
+          </div>
+          <button class="ai-top-btn" title="撤销"><svg class="icon"><use href="#icon-arrow-counter-clockwise"></use></svg></button>
+          <button class="ai-top-btn" title="重做"><svg class="icon"><use href="#icon-arrow-clockwise"></use></svg></button>
+          <button class="ai-top-btn" id="ai-new-chat-btn" title="新对话"><svg class="icon"><use href="#icon-plus"></use></svg></button>
+          <button class="ai-top-btn" title="历史"><svg class="icon"><use href="#icon-clock"></use></svg></button>
         </div>
       </div>
       <div class="ai-messages" id="ai-chat-area">
+        <!-- ↓ 回到底部（对齐 TrieCode：工作流滚动时悬浮一键回底） -->
+        <button class="chat-scroll-bottom" id="chat-scroll-bottom" style="display:none;">↓ 回到底部</button>
+        <!-- 欢迎页（无消息时显示，1:1 对齐 TrieCode） -->
+        <div class="ai-welcome" id="ai-welcome">
+          <h1 class="ai-welcome-title">我们要一起做些什么？</h1>
+          <p class="ai-welcome-subtitle">提问、创建项目、写代码、编译上传——都可以告诉我</p>
+          <div class="ai-welcome-features">
+            <div class="ai-feature-item"><span class="ai-feature-dot"></span>擅长项目迭代、问题修复与架构重构</div>
+            <div class="ai-feature-item"><span class="ai-feature-dot"></span>智能任务规划，确认后精准推进执行</div>
+            <div class="ai-feature-item"><span class="ai-feature-dot"></span>自主编排智能体，AI 专家团队协同开发</div>
+          </div>
+          <div class="ai-quick-actions">
+            <button class="ai-quick-btn" data-action="python-project">
+              <span class="ai-quick-icon"><svg class="icon"><use href="#icon-sparkles"></use></svg></span>
+              <span class="ai-quick-text">帮我创建一个 Python 项目，画个太阳系</span>
+            </button>
+            <button class="ai-quick-btn" data-action="data-analysis">
+              <span class="ai-quick-icon"><svg class="icon"><use href="#icon-code"></use></svg></span>
+              <span class="ai-quick-text">帮我做一个数据分析脚本</span>
+            </button>
+            <button class="ai-quick-btn" data-action="debug-help">
+              <span class="ai-quick-icon"><svg class="icon"><use href="#icon-puzzle"></use></svg></span>
+              <span class="ai-quick-text">教我怎么调试一个编译错误</span>
+            </button>
+            <button class="ai-quick-btn" data-action="web-game">
+              <span class="ai-quick-icon"><svg class="icon"><use href="#icon-rocket"></use></svg></span>
+              <span class="ai-quick-text">帮我写一个网页小游戏</span>
+            </button>
+          </div>
+          <!-- AI 输入框（1:1 对齐 TrieCode：作为欢迎组件的一部分整体居中） -->
+          <div class="ai-input-container" id="ai-input-container">
+            <div class="ai-input-box">
+              <textarea
+                id="ai-input"
+                class="ai-input-textarea"
+                placeholder="输入消息... (Enter 发送 · Shift+Enter 换行 · 输入 / 使用技能)"
+                rows="1"
+              ></textarea>
+              <div class="ai-input-toolbar">
+                <div class="ai-input-left">
+                  <button class="ai-input-tool-btn" id="attach-btn" title="添加附件"><svg class="icon"><use href="#icon-plus"></use></svg></button>
+                  <button class="ai-input-tool-btn" id="image-btn" title="添加图片"><svg class="icon"><use href="#icon-file"></use></svg></button>
+                  <span class="ai-input-project-status" id="project-status">
+                    <span class="project-status-icon"><svg class="icon icon-xs"><use href="#icon-file"></use></svg></span>
+                    <span id="project-status-text">无打开项目</span>
+                  </span>
+                </div>
+                <div class="ai-input-right">
+                  <button class="ai-input-tool-btn" id="ai-skill-btn" title="技能"><svg class="icon"><use href="#icon-bolt"></use></svg></button>
+                  <div class="model-selector">
+                    <button class="model-select-btn" id="model-select-btn">
+                      <span class="model-name" id="current-model-name">加载模型...</span>
+                      <svg class="icon icon-xs"><use href="#icon-chevron-down"></use></svg>
+                    </button>
+                    <div class="model-dropdown" id="model-dropdown" style="display:none;">
+                      <div class="model-option" data-model="local">本地 AI 引擎</div>
+                      <div class="model-option" data-model="ollama">本地模型（兼容）</div>
+                      <div class="model-option" data-model="deepseek-flash">DeepSeek FLASH</div>
+                      <div class="model-option" data-model="deepseek-v4">DeepSeek V4</div>
+                      <div class="model-option" data-model="qwen">通义千问 Qwen</div>
+                      <div class="model-option" data-model="minimax">MiniMax M2.7</div>
+                      <div class="model-option" data-model="glm">智谱 GLM-5.2</div>
+                      <div class="model-option" data-model="doubao">豆包</div>
+                    </div>
+                  </div>
+                  <button class="ai-send-btn" id="ai-send-btn" title="发送">
+                    <svg class="icon"><use href="#icon-arrow-up"></use></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- 项目路径栏（1:1 对齐 TrieCode） -->
+          <div class="ai-project-bar" id="ai-project-bar">
+            <div class="ai-project-path">
+              <svg class="icon icon-xs"><use href="#icon-folder"></use></svg>
+              <span id="ai-project-path-text">未选择工作空间</span>
+            </div>
+            <button class="ai-project-btn" id="ai-select-workspace-btn">选择工作空间</button>
+          </div>
+        </div>
         <!-- 消息动态生成 -->
+      </div>
+      <!-- 自研本体 P0-3：技能面板（/ 触发 + 技能按钮，占位符注入对齐 TrieCode / 菜单） -->
+      <div class="ai-skill-panel" id="ai-skill-panel" style="display:none;">
+        <div class="ai-skill-panel-header">
+          <span class="ai-skill-panel-title"><svg class="icon icon-xs"><use href="#icon-bolt"></use></svg> 技能</span>
+          <span class="ai-skill-panel-hint">选择技能插入模板，占位符将按当前项目自动填充</span>
+        </div>
+        <div class="ai-skill-list" id="ai-skill-list">
+          <!-- 技能项动态生成 -->
+        </div>
       </div>
       <!-- 计划进度面板 -->
       <div class="plan-progress-panel" id="plan-progress-panel" style="display:none;">
@@ -463,21 +727,31 @@
           <!-- 步骤动态生成 -->
         </div>
       </div>
+      <!-- 工具活动面板（Flow：对齐 Trae，写文件/命令时自动切换显示） -->
+      <div class="ai-tool-flow" id="ai-tool-flow-panel" style="display:none;">
+        <div class="ai-tool-flow-header">
+          <span class="ai-tool-flow-title"><svg class="icon icon-xs"><use href="#icon-terminal"></use></svg> 工具活动</span>
+          <span class="ai-tool-flow-actions">
+            <button class="ai-tool-flow-btn" id="ai-tool-flow-clear" title="清空">清除</button>
+            <button class="ai-tool-flow-btn" id="ai-tool-flow-collapse" title="收起/展开">—</button>
+          </span>
+        </div>
+        <div class="ai-tool-flow-body" id="ai-tool-flow-body"></div>
+      </div>
     </div>
   </div>
 
-  <!-- 底部面板（默认隐藏） -->
+  <!-- 底部面板（默认隐藏，编译/终端操作后自动显示） -->
   <div class="bottom-panel" id="bottom-panel" style="display:none;">
     <div class="bottom-tabs">
-      <button class="bottom-tab active" data-panel="terminal">终端</button>
-      <button class="bottom-tab" data-panel="output">输出</button>
+      <button class="bottom-tab active" data-panel="output">输出</button>
       <button class="bottom-tab" data-panel="problems">问题 <span class="badge" id="problem-count">0</span></button>
-      <button class="bottom-tab" data-panel="debug">调试控制台</button>
       <button class="bottom-tab" data-panel="serial">串口监视器</button>
       <button class="bottom-tab" data-panel="plotter">绘图仪</button>
+      <button class="bottom-tab" data-panel="terminal">终端</button>
     </div>
     <div class="bottom-content">
-      <div class="bottom-panel-content active" id="terminal-panel">
+      <div class="bottom-panel-content" id="terminal-panel">
         <div class="terminal-container" id="terminal-container">
           <div class="terminal" id="terminal">
             <div class="terminal-output" id="terminal-output">
@@ -492,7 +766,7 @@
           </div>
         </div>
       </div>
-      <div class="bottom-panel-content" id="output-panel">
+      <div class="bottom-panel-content active" id="output-panel">
         <div class="output-content" id="output-content"></div>
       </div>
       <div class="bottom-panel-content" id="problems-panel">
@@ -556,18 +830,18 @@
     </div>
   </div>
 
-  <!-- 状态栏（简化版） -->
+  <!-- 状态栏（对齐 TrieCode：内容整体靠右排列） -->
   <div class="statusbar">
     <div class="statusbar-left">
-      <span class="status-item"><svg class="icon icon-xs"><use href="#icon-globe"></use></svg></span>
+      <span class="status-item"><span class="status-dot"></span> 1/1 后端就绪</span>
       <span class="status-item">CN</span>
+      <span class="status-item">🌙</span>
       <span class="status-item" id="cursor-position">Ln 1, Col 1</span>
       <span class="status-item">UTF-8</span>
-    </div>
-    <div class="statusbar-right">
       <span class="status-item" id="language-mode" style="display:none;">纯文本</span>
-      <span class="status-item" id="user-account-status">1205415012</span>
+      <span class="status-item" id="user-account-status">🔵 1205415012</span>
     </div>
+    <div class="statusbar-right"></div>
   </div>
 
   <!-- 计划批准弹窗 -->
@@ -582,6 +856,7 @@
         <div class="plan-text" id="plan-text" style="font-size:13px;color:var(--text-secondary);margin-bottom:12px;"></div>
         <div class="plan-steps" id="plan-steps" style="margin-bottom:12px;"></div>
         <div class="plan-content" id="plan-content"></div>
+        <textarea class="plan-feedback-input" id="plan-feedback-input" rows="2" placeholder="如需修改计划，在此填写修改意见后点击「拒绝」…"></textarea>
         <p class="plan-warning"><svg class="icon icon-xs"><use href="#icon-alert-triangle"></use></svg> 批准后 AI 将自动执行计划中的所有操作（包括修改文件、执行命令等）。</p>
       </div>
       <div class="modal-footer">
@@ -631,6 +906,31 @@
         <button class="modal-close" id="settings-close"><svg class="icon icon-xs"><use href="#icon-x"></use></svg></button>
       </div>
       <div class="modal-body" style="max-height:60vh;overflow-y:auto;">
+        <!-- 账号与积分（网关登录后云端模型自动走积分通道） -->
+        <div style="margin-bottom:20px;padding:14px;border:1px solid var(--border-color);border-radius:10px;background:rgba(155,187,244,0.06);">
+          <h4 style="margin:0 0 10px 0;font-size:14px;color:var(--text-color);">账号与积分</h4>
+          <div id="gw-login-form" style="display:flex;flex-direction:column;gap:8px;">
+            <input type="text" id="gw-email" placeholder="邮箱" style="width:100%;padding:8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size:13px;box-sizing:border-box;">
+            <input type="password" id="gw-password" placeholder="密码（至少 6 位）" style="width:100%;padding:8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size:13px;box-sizing:border-box;">
+            <div style="display:flex;gap:8px;align-items:center;">
+              <button class="btn btn-primary" id="gw-login-btn" style="flex:0 0 auto;">登录</button>
+              <button class="btn btn-secondary" id="gw-register-btn" style="flex:0 0 auto;">注册</button>
+              <span id="gw-msg" style="font-size:12px;color:var(--text-secondary);"></span>
+            </div>
+            <div style="font-size:11px;color:var(--text-secondary);line-height:1.5;">登录后使用云端内置模型（DeepSeek / MiniMax），按积分计费：本地引擎免费，云端写码按 token × 模型系数扣积分。积分不足时提示升级。</div>
+          </div>
+          <div id="gw-user-info" style="display:none;font-size:13px;color:var(--text-color);">
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+              <div><span id="gw-email-show" style="font-weight:600;"></span></div>
+              <div style="display:flex;gap:8px;align-items:center;">
+                <span id="gw-credits-show" style="font-size:15px;font-weight:600;color:var(--accent);"></span>
+                <button class="btn btn-secondary" id="gw-refresh-btn" style="flex:0 0 auto;">刷新</button>
+                <button class="btn btn-secondary" id="gw-logout-btn" style="flex:0 0 auto;">登出</button>
+              </div>
+            </div>
+            <div style="font-size:11px;color:var(--text-secondary);margin-top:4px;">套餐积分每月重置 · 充值积分永久有效。切换模型时云端模型将自动走账号积分通道。</div>
+          </div>
+        </div>
         <div style="margin-bottom:20px;">
           <h4 style="margin:0 0 12px 0;font-size:14px;color:var(--text-color);">AI 模型配置</h4>
           <div style="display:flex;flex-direction:column;gap:12px;">
@@ -638,7 +938,8 @@
               <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">AI 提供商</label>
               <select id="ai-provider" style="width:100%;padding:8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size:13px;">
                 <option value="deepseek">DeepSeek（云端 API）</option>
-                <option value="ollama">Ollama（本地模型）</option>
+                <option value="local">本地 AI 引擎（内置，无需安装）</option>
+                <option value="ollama">本地模型（兼容模式）</option>
                 <option value="openai">OpenAI（云端 API）</option>
                 <option value="custom">自定义（OpenAI 兼容）</option>
               </select>
@@ -664,7 +965,7 @@
         <div style="padding:12px;background:rgba(0,0,0,0.03);border-radius:8px;font-size:12px;color:var(--text-secondary);line-height:1.6;">
           <strong>说明：</strong><br>
           • DeepSeek：在 <a href="https://platform.deepseek.com/" style="color:var(--accent);">platform.deepseek.com</a> 申请 API Key<br>
-          • Ollama：本地安装 <a href="https://ollama.com/" style="color:var(--accent);">Ollama</a> 并拉取模型（如 <code>ollama pull qwen2.5-coder:7b</code>），无需 API Key<br>
+          • 本地 AI 引擎：LabCode 内置 llama.cpp 引擎，到插件市场安装大模型（国内直链下载）即可使用，无需安装任何外部软件<br>
           • 配置保存后，AI 智能体将使用真实模型进行对话和工具调用
         </div>
       </div>
@@ -683,20 +984,68 @@
         <button class="modal-close" id="new-project-close"><svg class="icon icon-xs"><use href="#icon-x"></use></svg></button>
       </div>
       <div class="modal-body">
-        <label>项目类型</label>
-        <div class="project-type-grid" id="project-type-grid">
-          <button class="project-type-card active" data-type="arduino"><span class="project-type-icon">⚙️</span><span>Arduino 项目</span><small>Arduino CLI 工具链</small></button>
-          <button class="project-type-card" data-type="python"><span class="project-type-icon">🐍</span><span>Python 项目</span><small>脚本 / 应用</small></button>
-          <button class="project-type-card" data-type="node"><span class="project-type-icon">🟢</span><span>Node.js 项目</span><small>JavaScript / TypeScript</small></button>
-          <button class="project-type-card" data-type="esp-idf"><span class="project-type-icon">🔧</span><span>ESP-IDF 项目</span><small>ESP-IDF 工具链</small></button>
-          <button class="project-type-card" data-type="c"><span class="project-type-icon">©️</span><span>C/C++ 项目</span><small>CMake 工程</small></button>
-          <button class="project-type-card" data-type="generic"><span class="project-type-icon">📁</span><span>通用项目</span><small>空白文件夹</small></button>
+        <div class="new-project-layout">
+          <!-- 左侧：项目类型列表 -->
+          <div class="project-type-list" id="project-type-list">
+            <div class="project-type-item active" data-type="arduino">
+              <span class="project-type-icon">⚙️</span>
+              <div class="project-type-info">
+                <span class="project-type-name">Arduino</span>
+                <small>Arduino CLI 工具链</small>
+              </div>
+            </div>
+            <div class="project-type-item" data-type="python">
+              <span class="project-type-icon">🐍</span>
+              <div class="project-type-info">
+                <span class="project-type-name">Python</span>
+                <small>脚本 / 应用</small>
+              </div>
+            </div>
+            <div class="project-type-item" data-type="node">
+              <span class="project-type-icon">🟢</span>
+              <div class="project-type-info">
+                <span class="project-type-name">Node.js</span>
+                <small>JavaScript / TypeScript</small>
+              </div>
+            </div>
+            <div class="project-type-item" data-type="esp-idf">
+              <span class="project-type-icon">🔧</span>
+              <div class="project-type-info">
+                <span class="project-type-name">ESP-IDF</span>
+                <small>ESP-IDF 工具链</small>
+              </div>
+            </div>
+            <div class="project-type-item" data-type="c">
+              <span class="project-type-icon">©️</span>
+              <div class="project-type-info">
+                <span class="project-type-name">C/C++</span>
+                <small>CMake 工程</small>
+              </div>
+            </div>
+            <div class="project-type-item" data-type="generic">
+              <span class="project-type-icon">📁</span>
+              <div class="project-type-info">
+                <span class="project-type-name">通用</span>
+                <small>空白文件夹</small>
+              </div>
+            </div>
+          </div>
+          <!-- 右侧：预览区 -->
+          <div class="project-preview" id="project-preview">
+            <div class="project-preview-title" id="preview-title">Arduino 项目</div>
+            <div class="project-preview-desc" id="preview-desc">使用 Arduino CLI 工具链，支持 ESP32、Arduino Uno 等开发板的编译与烧录。</div>
+            <div class="project-preview-files-title">将创建以下文件：</div>
+            <div class="project-preview-files" id="preview-files">
+              <div class="preview-file">📄 sketch.ino</div>
+              <div class="preview-file">📄 .labcode.json</div>
+            </div>
+          </div>
         </div>
         <label>项目名称</label>
         <input type="text" id="new-project-name" placeholder="例如: MyRobot">
         <label>创建位置</label>
         <div class="project-location-row">
-          <input type="text" id="new-project-location" value="C:\Users\Lenovo\Documents\LabCodeProjects">
+          <input type="text" id="new-project-location" value="">
           <button class="btn btn-secondary" id="new-project-browse">浏览</button>
         </div>
       </div>
