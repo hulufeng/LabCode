@@ -282,6 +282,7 @@
         <button class="toolbar-btn" id="upload-btn" title="烧录"><svg class="icon icon-xs"><use href="#icon-arrow-bar-to-down"></use></svg></button>
         <button class="toolbar-btn" id="terminal-toggle-btn" title="终端"><svg class="icon icon-xs"><use href="#icon-terminal"></use></svg></button>
         <button class="toolbar-btn" id="search-btn" title="搜索"><svg class="icon icon-xs"><use href="#icon-search"></use></svg></button>
+        <button class="toolbar-btn" id="mcp-open-btn" title="MCP 服务器"><svg class="icon icon-xs"><use href="#icon-plug"></use></svg></button>
       </div>
     </div>
     <div class="titlebar-right">
@@ -1103,6 +1104,28 @@
       <button id="plugin-view-close" style="background:none; border:none; color:#ccc; font-size:18px; cursor:pointer; padding:0 8px;">&times;</button>
     </div>
     <webview id="plugin-view-webview" style="flex:1; border:none; background:#fff;"></webview>
+  </div>
+
+  <!-- MCP 服务器配置弹窗 -->
+  <div class="modal-overlay" id="mcp-modal" style="display:none;">
+    <div class="modal" style="width:640px;">
+      <div class="modal-header">
+        <h3><svg class="icon icon-xs"><use href="#icon-plug"></use></svg> MCP 服务器</h3>
+        <button class="modal-close" id="mcp-close-btn"><svg class="icon icon-xs"><use href="#icon-x"></use></svg></button>
+      </div>
+      <div class="modal-body">
+        <div id="mcp-server-list" style="margin-bottom:12px;"></div>
+        <div style="border-top:1px solid #3c3c3c; padding-top:12px;">
+          <h4 style="margin:0 0 8px; font-size:13px; color:#ccc;">添加服务器</h4>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:8px;">
+            <input id="mcp-name" placeholder="名称，如 playwright" style="background:#2d2d2d; border:1px solid #3c3c3c; color:#ccc; padding:6px 8px; border-radius:4px;">
+            <input id="mcp-command" placeholder="命令，如 npx" style="background:#2d2d2d; border:1px solid #3c3c3c; color:#ccc; padding:6px 8px; border-radius:4px;">
+          </div>
+          <input id="mcp-args" placeholder="参数（空格分隔），如 -y @playwright/mcp@latest" style="width:100%; background:#2d2d2d; border:1px solid #3c3c3c; color:#ccc; padding:6px 8px; border-radius:4px; margin-bottom:8px;">
+          <button class="btn btn-primary" id="mcp-add-btn" style="width:100%;">添加并启动</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script src="js/terminal.js"></script>

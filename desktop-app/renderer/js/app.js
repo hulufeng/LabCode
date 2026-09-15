@@ -9699,6 +9699,52 @@ function bindEvents() {
     document.getElementById('plan-modal').classList.remove('active');
   });
 
+  // ===== MCP 服务器配置面板 =====
+  async function refreshMcpList() {
+    const el = document.getElementById('mcp-server-list');
+    if (!el) return;
+    try {
+      const servers = await window.LabCode.mcp.listServers();
+      if (!servers || !servers.length) { el.innerHTML = '<p style="color:#888;font-size:12px;">暂无 MCP 服务器</p>'; return; }
+      el.innerHTML = servers.map(s => `
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px;border:1px solid #3c3c3c;border-radius:4px;margin-bottom:6px;">
+          <div>
+            <div style="color:#ccc;font-size:13px;font-weight:600;">${s.name} <span style="color:${s.status==='running'?'#4caf50':'#ff9800'};font-size:11px;">● ${s.status||'unknown'}</span></div>
+            <div style="color:#888;font-size:11px;">${s.command||''} ${(s.args||[]).join(' ')} · ${(s.tools||[]).length} 工具</div>
+          </div>
+          <div style="display:flex;gap:4px;">
+            <button onclick="removeMcpServer('${s.name}')" style="background:#c62828;color:#fff;border:none;padding:4px 10px;border-radius:3px;cursor:pointer;font-size:12px;">删除</button>
+          </div>
+        </div>`).join('');
+    } catch (e) { el.innerHTML = '<p style="color:#f44;font-size:12px;">错误: ' + e.message + '</p>'; }
+  }
+  window.removeMcpServer = async (name) => {
+    await window.LabCode.mcp.removeServer(name);
+    refreshMcpList();
+  };
+  document.getElementById('mcp-close-btn').addEventListener('click', () => {
+    document.getElementById('mcp-modal').style.display = 'none';
+  });
+  document.getElementById('mcp-add-btn').addEventListener('click', async () => {
+    const name = document.getElementById('mcp-name').value.trim();
+    const command = document.getElementById('mcp-command').value.trim();
+    const argsStr = document.getElementById('mcp-args').value.trim();
+    if (!name || !command) { showToast('名称和命令必填', 'warn'); return; }
+    const args = argsStr ? argsStr.split(/\s+/) : [];
+    await window.LabCode.mcp.addServer({ name, command, args });
+    document.getElementById('mcp-name').value = '';
+    document.getElementById('mcp-command').value = '';
+    document.getElementById('mcp-args').value = '';
+    showToast('已添加 MCP 服务器: ' + name, 'success');
+    refreshMcpList();
+  });
+  window.openMcpModal = () => {
+    document.getElementById('mcp-modal').style.display = 'flex';
+    refreshMcpList();
+  };
+  const mcpOpenBtn = document.getElementById('mcp-open-btn');
+  if (mcpOpenBtn) mcpOpenBtn.addEventListener('click', window.openMcpModal);
+
   // 工具活动面板（Flow）按钮
   const toolFlowClear = document.getElementById('ai-tool-flow-clear');
   if (toolFlowClear) {
