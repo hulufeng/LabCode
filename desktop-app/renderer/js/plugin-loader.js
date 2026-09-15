@@ -297,5 +297,22 @@ window.PluginSystem = {
   allSkills: () => PLUGIN_SKILLS.slice(),
   listPlugins: () => Array.from(PLUGIN_REGISTRY.values()),
   listViews: () => Array.from(PLUGIN_VIEWS.values()),
-  getView: (key) => PLUGIN_VIEWS.get(key)
+  getView: (key) => PLUGIN_VIEWS.get(key),
+  // 2026-09-15 对齐 TrieCode settings：插件声明 settings 项 → UI 自动渲染
+  getSettings: (pluginId) => {
+    const p = PLUGIN_REGISTRY.get(pluginId);
+    return p?.settings || [];
+  },
+  getSetting: async (pluginId, key) => {
+    try {
+      const cfg = await window.LabCode?.config?.get?.() || {};
+      return cfg?.pluginSettings?.[pluginId]?.[key];
+    } catch (e) { return undefined; }
+  },
+  setSetting: async (pluginId, key, value) => {
+    try {
+      await window.LabCode?.config?.set?.('pluginSettings.' + pluginId + '.' + key, value);
+      return true;
+    } catch (e) { return false; }
+  }
 };
