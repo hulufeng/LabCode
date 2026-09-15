@@ -10632,14 +10632,89 @@ function init() {
       });
       // Arduino CLI 工具链（迁移自硬编码 TOOL_DEFS）
       window.PluginSystem.registerInternalService('arduinoCli', ARDUINO_TOOL_IMPLS);
-      // clangd LSP 客户端骨架（TODO: 真接 LSP over stdio）
-      window.PluginSystem.registerInternalService('clangd', {
-        async status() { return 'clangd 服务：尚未启动。需要安装 clangd 并在设置中指定路径。骨架已就位。'; },
-        async goToDefinition() { return 'Error: clangd 未启动，go_to_definition 不可用。'; },
-        async references() { return 'Error: clangd 未启动，references 不可用。'; },
-        async documentSymbols() { return 'Error: clangd 未启动，document_symbols 不可用。'; },
-        async hover() { return 'Error: clangd 未启动，hover 不可用。'; }
-      });
+      // clangd LSP 客户端（真接 LSP over stdio）
+      const clangdSvc = {
+        async _ensureStarted() {
+          if (!window.LabCode.lsp) return { ok: false, error: 'LSP 桥不可用' };
+          const r = await window.LabCode.lsp.start({
+            language: 'cpp',
+            cmd: 'clangd',
+            args: ['--background-index', '--clang-tidy'],
+            rootPath: state.projectPath || ''
+          });
+          return r;
+        },
+        async status() {
+          const r = await this._ensureStarted();
+          if (!r.success) return 'clangd 未运行: ' + (r.error || '请安装 clangd');
+          return 'clangd 已启动，工作目录: ' + (state.projectPath || '(未打开)');
+        },
+        async _openDoc(filePath) {
+          const abs = (state.projectPath || '') + '\\' + filePath.replace(/\//g, '\\');
+          const uri = 'file:///' + abs.replace(/\\/g, '/');
+          try {
+            const r = await window.LabCode.fs.readFile(abs);
+            const content = (r && r.content) ? r.content : '';
+            await window.LabCode.lsp.notify({
+              language: 'cpp',
+              method: 'textDocument/didOpen',
+              params: { textDocument: { uri, languageId: 'cpp', version: 1, text: content } }
+            });
+            return uri;
+          } catch (e) { return null; }
+        },
+        async goToDefinition(args) {
+          await this._ensureStarted();
+          const uri = await this._openDoc(args.file_path);
+          if (!uri) return '无法打开文件';
+          const r = await window.LabCode.lsp.request({
+            language: 'cpp',
+            method: 'textDocument/definition',
+            params: { textDocument: { uri }, position: { line: args.line - 1, character: args.col - 1 } }
+          });
+          if (r.error) return 'LSP 错误: ' + JSON.stringify(r.error);
+          if (!r.result) return '未找到定义';
+          return JSON.stringify(r.result, null, 2);
+        },
+        async references(args) {
+          await this._ensureStarted();
+          const uri = await this._openDoc(args.file_path);
+          if (!uri) return '无法打开文件';
+          const r = await window.LabCode.lsp.request({
+            language: 'cpp',
+            method: 'textDocument/references',
+            params: { textDocument: { uri }, position: { line: args.line - 1, character: args.col - 1 }, context: { includeDeclaration: true } }
+          });
+          if (r.error) return 'LSP 错误: ' + JSON.stringify(r.error);
+          return (r.result || []).length + ' 处引用:\n' + JSON.stringify(r.result, null, 2);
+        },
+        async documentSymbols(args) {
+          await this._ensureStarted();
+          const uri = await this._openDoc(args.file_path);
+          if (!uri) return '无法打开文件';
+          const r = await window.LabCode.lsp.request({
+            language: 'cpp',
+            method: 'textDocument/documentSymbol',
+            params: { textDocument: { uri } }
+          });
+          if (r.error) return 'LSP 错误: ' + JSON.stringify(r.error);
+          return (r.result || []).map(s => `${s.kind} ${s.name} @ ${s.location.range.start.line + 1}`).join('\n');
+        },
+        async hover(args) {
+          await this._ensureStarted();
+          const uri = await this._openDoc(args.file_path);
+          if (!uri) return '无法打开文件';
+          const r = await window.LabCode.lsp.request({
+            language: 'cpp',
+            method: 'textDocument/hover',
+            params: { textDocument: { uri }, position: { line: args.line - 1, character: args.col - 1 } }
+          });
+          if (r.error) return 'LSP 错误: ' + JSON.stringify(r.error);
+          if (!r.result || !r.result.contents) return '无 hover 信息';
+          return typeof r.result.contents === 'string' ? r.result.contents : JSON.stringify(r.result.contents);
+        }
+      };
+      window.PluginSystem.registerInternalService('clangd', clangdSvc);
       // plugin-dev 工具链：插件开发辅助
       window.PluginSystem.registerInternalService('pluginDev', {
         listInstalled: async () => {
