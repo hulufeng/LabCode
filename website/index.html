@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>LabCode · 会写代码的 AI 桌面端</title>
+<title>LabCode · 跟 AI 说需求，它动手写代码</title>
 <link rel="stylesheet" href="https://miaoda.feishu.cn/fonts/css2?family=Noto+Sans+SC:wght@400;500;600;700;800&display=swap">
 <style>
   :root{
@@ -13,22 +13,9 @@
   }
   *{box-sizing:border-box;margin:0;padding:0}
   html{scroll-behavior:smooth}
-  body{font-family:var(--font);background:var(--bg);color:var(--ink);line-height:1.6;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+  body{font-family:var(--font);background:var(--bg);color:var(--ink);line-height:1.6;-webkit-font-smoothing:antialiased}
   a{color:inherit;text-decoration:none}
-  .nav{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(255,255,255,.72);backdrop-filter:saturate(180%) blur(20px);-webkit-backdrop-filter:saturate(180%) blur(20px);border-bottom:1px solid var(--border)}
-  .nav-in{max-width:1100px;margin:0 auto;padding:0 24px;height:52px;display:flex;align-items:center;gap:28px}
-  .brand{display:flex;align-items:center;gap:8px;font-weight:700;font-size:16px;letter-spacing:.01em}
-  .brand .mark{width:24px;height:24px;border-radius:7px;background:linear-gradient(135deg,#059669,#047857);color:#fff;font-size:14px;font-weight:800;display:flex;align-items:center;justify-content:center;flex:none</style><style>
-  :root{
-    --ink:#1d1d1f; --ink-2:#424245; --gray:#86868b; --gray-2:#f5f5f7;
-    --border:rgba(0,0,0,.08); --accent:#059669; --accent-deep:#047857;
-    --bg:#fff; --card:#f5f5f7; --font:'Noto Sans SC','PingFang SC','Microsoft YaHei',system-ui,sans-serif;
-  }
-  *{box-sizing:border-box;margin:0;padding:0}
-  html{scroll-behavior:smooth}
-  body{font-family:var(--font);background:var(--bg);color:var(--ink);line-height:1.6;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
-  a{color:inherit;text-decoration:none}
-  .nav{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(255,255,255,.72);backdrop-filter:saturate(180%) blur(20px);-webkit-backdrop-filter:saturate(180%) blur(20px);border-bottom:1px solid var(--border)}
+  .nav{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(255,255,255,.72);backdrop-filter:saturate(180%) blur(20px);border-bottom:1px solid var(--border)}
   .nav-in{max-width:1100px;margin:0 auto;padding:0 24px;height:52px;display:flex;align-items:center;gap:28px}
   .brand{display:flex;align-items:center;gap:8px;font-weight:700;font-size:16px}
   .brand .mark{width:24px;height:24px;border-radius:7px;background:linear-gradient(135deg,#059669,#047857);color:#fff;font-size:14px;font-weight:800;display:flex;align-items:center;justify-content:center}
@@ -38,12 +25,12 @@
   .nav .dl:hover{background:var(--accent);color:#fff}
   section{max-width:1100px;margin:0 auto;padding:0 24px}
   .kicker{font-size:13px;font-weight:700;letter-spacing:.14em;color:var(--accent);text-transform:uppercase}
-  h2.sec{font-size:40px;font-weight:800;letter-spacing:-.015em;line-height:1.15;margin-top:10px}
-  p.lead{font-size:19px;color:var(--gray);margin-top:14px;max-width:640px}
+  h2.sec{font-size:36px;font-weight:800;letter-spacing:-.015em;line-height:1.15;margin-top:10px}
+  p.lead{font-size:18px;color:var(--gray);margin-top:14px;max-width:640px}
   .hero{padding-top:140px;padding-bottom:40px;text-align:center}
-  .hero h1{font-size:64px;font-weight:800;letter-spacing:-.02em;line-height:1.08;margin-top:16px}
-  .hero h1 .dot{color:var(--accent)}
-  .hero p.sub{font-size:20px;color:var(--ink-2);margin-top:16px;font-weight:500}
+  .hero h1{font-size:60px;font-weight:800;letter-spacing:-.02em;line-height:1.1;margin-top:16px}
+  .hero h1 .hl{color:var(--accent)}
+  .hero p.sub{font-size:19px;color:var(--ink-2);margin-top:16px;font-weight:500}
   .hero p.desc{font-size:15px;color:var(--gray);margin-top:14px;max-width:560px;margin-left:auto;margin-right:auto}
   .cta{display:flex;gap:14px;justify-content:center;margin-top:32px;flex-wrap:wrap}
   .btn{display:inline-flex;align-items:center;gap:8px;font-size:16px;font-weight:600;padding:12px 30px;border-radius:999px;transition:all .25s}
@@ -51,13 +38,13 @@
   .btn-primary:hover{background:var(--accent-deep);transform:translateY(-1px)}
   .btn-ghost{background:transparent;color:var(--accent);border:1px solid rgba(5,150,105,.4)}
   .btn-ghost:hover{background:rgba(5,150,105,.06)}
-  .features{background:var(--card);border-radius:26px;margin:40px auto;padding:72px 48px}
-  .features .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:32px;margin-top:44px}
+  .features{background:var(--card);border-radius:26px;margin:40px auto;padding:64px 48px}
+  .features .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:32px;margin-top:40px}
   .feat .ic{width:44px;height:44px;border-radius:12px;background:rgba(5,150,105,.1);color:var(--accent);display:flex;align-items:center;justify-content:center;font-size:20px}
   .feat h3{font-size:17px;font-weight:700;margin-top:16px}
   .feat p{font-size:13.5px;color:var(--gray);margin-top:8px;line-height:1.65}
-  .show{padding:90px 0 20px}
-  .show .row{display:flex;align-items:center;gap:64px;margin-bottom:90px}
+  .show{padding:80px 0 20px}
+  .show .row{display:flex;align-items:center;gap:64px;margin-bottom:80px}
   .show .row:nth-child(even){flex-direction:row-reverse}
   .show .txt{flex:1;min-width:0}
   .show .pic{flex:1.15;min-width:0}
@@ -65,14 +52,14 @@
   .show .pic .mock .prompt{color:#a6e3a1}
   .show .pic .mock .tool{color:#89b4fa}
   .show .pic .mock .ok{color:#a6e3a1}
-  .show h3{font-size:30px;font-weight:800;letter-spacing:-.01em;margin-top:12px;line-height:1.2}
+  .show h3{font-size:28px;font-weight:800;letter-spacing:-.01em;margin-top:12px;line-height:1.2}
   .show p{font-size:16px;color:var(--ink-2);margin-top:14px;max-width:440px}
   .show ul{margin-top:18px;list-style:none}
   .show li{font-size:14.5px;color:var(--gray);padding:5px 0 5px 22px;position:relative}
   .show li::before{content:"";position:absolute;left:4px;top:13px;width:6px;height:6px;border-radius:50%;background:var(--accent)}
-  .download{background:var(--card);border-radius:26px;margin:20px auto 90px;padding:80px 48px;text-align:center}
+  .download{background:var(--card);border-radius:26px;margin:20px auto 90px;padding:72px 48px;text-align:center}
   .download .ver{display:inline-block;font-size:13px;font-weight:600;color:var(--accent);background:rgba(5,150,105,.08);padding:5px 14px;border-radius:999px;margin-top:16px}
-  .download .dl-card{max-width:560px;margin:36px auto 0;background:#fff;border:1px solid var(--border);border-radius:20px;padding:36px 40px;box-shadow:0 8px 30px rgba(0,0,0,.05)}
+  .download .dl-card{max-width:560px;margin:32px auto 0;background:#fff;border:1px solid var(--border);border-radius:20px;padding:36px 40px;box-shadow:0 8px 30px rgba(0,0,0,.05)}
   .dl-card .meta{display:flex;justify-content:center;gap:28px;font-size:13px;color:var(--gray);margin-top:18px;flex-wrap:wrap}
   .dl-card .meta b{color:var(--ink);font-weight:600}
   footer{border-top:1px solid var(--border);padding:32px 24px;text-align:center;font-size:13px;color:var(--gray)}
@@ -84,8 +71,8 @@
   <div class="nav-in">
     <div class="brand"><span class="mark">L</span> LabCode</div>
     <div class="nav-links">
-      <a href="#features">功能</a>
-      <a href="#showcase">场景</a>
+      <a href="#features">它能干嘛</a>
+      <a href="#showcase">实际场景</a>
       <a href="#download">下载</a>
     </div>
     <a href="#download" class="dl">下载</a>
@@ -93,98 +80,97 @@
 </nav>
 
 <section class="hero">
-  <div class="kicker">AI CODING AGENT</div>
-  <h1>说人话，<br>它真的会写代码<span class="dot">.</span></h1>
-  <p class="sub">读你的项目、改你的文件、跑编译烧录——一个桌面端搞定。</p>
-  <p class="desc">本地 9B 模型跑在你机器上，数据不外传；也支持接云端大模型 API。</p>
+  <div class="kicker">本地优先的 AI 编码桌面端</div>
+  <h1>不用写代码，<br><span class="hl">说需求它就自己干。</span></h1>
+  <p class="sub">LabCode 不是聊天机器人——它读你的项目目录、改源文件、跑编译烧录、盯串口输出。</p>
+  <p class="desc">代码和模型都在你本机，不经过云端。想接云端大模型也支持。</p>
   <div class="cta">
-    <a class="btn btn-primary" href="https://github.com/hulufeng/LabCode/releases/download/v1.0.0/LabCode-Setup-1.0.0.exe">下载 Windows 版</a>
-    <a class="btn btn-ghost" href="#showcase">看看怎么用</a>
+    <a class="btn btn-primary" href="https://github.com/hulufeng/LabCode/releases/download/v1.0.0/LabCode-Setup-1.0.0.exe">免费下载 Windows 版</a>
+    <a class="btn btn-ghost" href="#showcase">看实际效果</a>
   </div>
 </section>
 
-<section class="features">
-  <div class="kicker">FEATURES</div>
-  <h2 class="sec">不是聊天框，是干活的</h2>
+<section class="features" id="features">
+  <div class="kicker">WHY LABCCODE</div>
+  <h2 class="sec">和聊天框的区别在哪？</h2>
   <div class="grid">
     <div class="feat">
-      <div class="ic">📝</div>
-      <h3>直接改文件</h3>
-      <p>读项目目录树，精准改源文件，编辑器实时刷新——不用复制粘贴。</p>
+      <div class="ic">📂</div>
+      <h3>看得见项目结构</h3>
+      <p>不是给你贴代码让你复制——它直接在你磁盘上改文件，编辑器同步刷新。</p>
     </div>
     <div class="feat">
-      <div class="ic">🔧</div>
-      <h3>跑命令跑测试</h3>
-      <p>内置终端执行命令，识别 pytest / cargo / arduino-cli 报错，自动带回给 AI 修。</p>
+      <div class="ic">⚡</div>
+      <h3>报错自己看</h3>
+      <p>跑编译、跑测试，输出扔回给 AI。报错不用你手动复制粘贴，它自己读自己改。</p>
     </div>
     <div class="feat">
       <div class="ic">🔌</div>
-      <h3>嵌入式/硬件</h3>
-      <p>Arduino 工具链：搜开发板、装平台、编译、烧录、串口监视，AI 一条龙。</p>
+      <h3>能烧固件</h3>
+      <p>Arduino / ESP32 工具链内置：选板、装库、编译、烧录、串口监视全链路。</p>
     </div>
     <div class="feat">
       <div class="ic">🧩</div>
-      <h3>插件可扩展</h3>
-      <p>任何 CLI 工具包成插件即可被 AI 调用，MCP 服务器也能接。</p>
+      <h3>插件随便加</h3>
+      <p>任何 CLI 工具写个 JSON manifest 就能被 AI 调，MCP 服务器也支持。</p>
     </div>
     <div class="feat">
-      <div class="ic">🏠</div>
-      <h3>本地模型</h3>
-      <p>Qwen3.5-9B 本地 Vulkan 加速，代码不出本机；后续可接云端 API。</p>
+      <div class="ic">🔒</div>
+      <h3>数据不出本机</h3>
+      <p>Qwen3.5-9B 本地 Vulkan 推理，API Key 存本地。想接云端 API 随时切。</p>
     </div>
     <div class="feat">
-      <div class="ic">🛡️</div>
-      <h3>安全可控</h3>
-      <p>plan / default / auto 三级权限，AI 改文件前先给你看，确认才执行。</p>
+      <div class="ic">✋</div>
+      <h3>动手前先问你</h3>
+      <p>改文件、跑命令前弹确认，你点头才执行。三种模式，从纯计划到全自动。</p>
     </div>
   </div>
 </section>
 
 <section class="show" id="showcase">
-  <div class="kicker">SCENARIOS</div>
-  <h2 class="sec">几个常见场景</h2>
+  <div class="kicker">REAL WORKFLOWS</div>
+  <h2 class="sec">它实际是这么干活的</h2>
 
   <div class="row">
     <div class="txt">
-      <div class="kicker">ESP32 项目</div>
-      <h3>说需求，AI 帮你搭固件</h3>
-      <p>"给 ESP32-S3 加个温湿度采集"——AI 自动搜板、装库、写代码、编译、烧录、盯串口。</p>
+      <div class="kicker">硬件场景</div>
+      <h3>ESP32 温湿度采集，从选型到烧录</h3>
+      <p>你说一句需求，AI 自己搜板、装库、写代码、编译、烧录、盯串口。有报错它自己回读修复。</p>
       <ul>
-        <li>Arduino / ESP-IDF 工具链内置</li>
-        <li>串口日志实时监视</li>
-        <li>编译报错自动回读修复</li>
+        <li>Arduino / ESP-IDF 工具链即装即用</li>
+        <li>串口日志实时滚动，异常自动分析</li>
+        <li>编译失败自动定位行号并修改</li>
       </ul>
     </div>
     <div class="pic">
       <div class="mock">
-<span class="prompt">›</span> 给 ESP32-S3 加个温湿度采集<br>
-<span class="tool">search_boards</span> "ESP32-S3" → 55 个板<br>
-<span class="tool">select_board</span> esp32:esp32:esp32s3<br>
-<span class="tool">install_library</span> DHT sensor library<br>
-<span class="tool">write_file</span> src/main.ino<br>
-<span class="tool">compile</span> → <span class="ok">✓ 编译成功 12.3s</span><br>
-<span class="tool">serial_log</span> DHT22 temp=24.6°C hum=58%
+<span class="prompt">你</span>：ESP32-S3 接个 DHT22 读温湿度<br>
+<span class="tool">→ search_boards</span> 找到 ESP32-S3<br>
+<span class="tool">→ install_library</span> DHT sensor library<br>
+<span class="tool">→ write_file</span> src/main.ino<br>
+<span class="tool">→ compile</span> <span class="ok">✓ 12.3s 编译过</span><br>
+<span class="tool">→ serial_log</span> T=24.6°C H=58%
       </div>
     </div>
   </div>
 
   <div class="row">
     <div class="txt">
-      <div class="kicker">Python 脚本</div>
-      <h3>描述功能，AI 写好跑通</h3>
-      <p>"给这个 CSV 加个去重和排序"——AI 读现有代码、写新文件、跑测试、看结果。</p>
+      <div class="kicker">软件场景</div>
+      <h3>Python 脚本加功能，跑通为止</h3>
+      <p>你说"给这个 CSV 去重排序"，AI 读现有代码、写新文件、跑 pytest、看结果。失败了它自己改。</p>
       <ul>
         <li>自动识别项目结构和测试框架</li>
-        <li>跑 pytest，失败自动修</li>
-        <li>全程可撤销</li>
+        <li>pytest / cargo / go test 输出结构化解析</li>
+        <li>每一步都可撤销，不喜欢随时退</li>
       </ul>
     </div>
     <div class="pic">
       <div class="mock">
-<span class="prompt">›</span> 给 utils.py 加 CSV 去重功能<br>
-<span class="tool">read_file</span> utils.py<br>
-<span class="tool">write_file</span> utils.py<br>
-<span class="tool">run_command</span> python -m pytest<br>
+<span class="prompt">你</span>：utils.py 加 CSV 去重，输出排序结果<br>
+<span class="tool">→ read_file</span> utils.py<br>
+<span class="tool">→ write_file</span> utils.py<br>
+<span class="tool">→ run_command</span> python -m pytest<br>
 <span class="ok">✓ 3 passed in 0.12s</span>
       </div>
     </div>
@@ -192,24 +178,24 @@
 
   <div class="row">
     <div class="txt">
-      <div class="kicker">插件开发</div>
-      <h3>任何 CLI 工具都能接进来</h3>
-      <p>写个 manifest 声明工具名、参数、执行命令，AI 就能调用。不用改 LabCode 源码。</p>
+      <div class="kicker">扩展场景</div>
+      <h3>新工具？写个 manifest 就行</h3>
+      <p>Git、Docker、数据库——任何 CLI 工具包成插件，AI 就能调用。插件从 GitHub 装，不污染主程序。</p>
       <ul>
-        <li>JSON manifest 声明工具</li>
-        <li>支持 CLI / HTTP / MCP</li>
-        <li>插件从 GitHub 安装</li>
+        <li>JSON manifest 声明工具名、参数、命令</li>
+        <li>支持 CLI / HTTP / MCP / stdio</li>
+        <li>插件市场浏览，一键安装</li>
       </ul>
     </div>
     <div class="pic">
       <div class="mock">
-<span class="prompt">›</span> 装个 git 插件<br>
-<span class="tool">install_plugin</span> github.com/xxx/git-plugin<br>
-<span class="ok">✓ 安装完成，3 个新工具可用</span><br>
-<span class="prompt">›</span> 提交所有改动并打 tag<br>
-<span class="tool">git_add</span> .<br>
-<span class="tool">git_commit</span> "feat: xxx"<br>
-<span class="tool">git_tag</span> v1.1.0
+<span class="prompt">你</span>：装个 git 插件<br>
+<span class="tool">→ install_plugin</span> github.com/xxx/git<br>
+<span class="ok">✓ 3 个新工具已注册</span><br>
+<span class="prompt">你</span>：提交改动打 tag<br>
+<span class="tool">→ git_add</span> .<br>
+<span class="tool">→ git_commit</span> "feat: xxx"<br>
+<span class="tool">→ git_tag</span> v1.1.0
       </div>
     </div>
   </div>
@@ -217,9 +203,9 @@
 
 <section class="download" id="download">
   <div class="kicker">DOWNLOAD</div>
-  <h2 class="sec">下载 LabCode</h2>
-  <p class="lead" style="margin-left:auto;margin-right:auto">Windows 10/11 x64，双击安装，不需要 Python/Node 环境。</p>
-  <div class="ver">当前版本 v1.0.0 · 约 146 MB</div>
+  <h2 class="sec">装上就用，不用配环境</h2>
+  <p class="lead" style="margin-left:auto;margin-right:auto">Windows 10/11 x64，双击安装。Python、Node、编译器都不用你先装。</p>
+  <div class="ver">v1.0.0 · 约 146 MB</div>
   <div class="dl-card">
     <a class="btn btn-primary" href="https://github.com/hulufeng/LabCode/releases/download/v1.0.0/LabCode-Setup-1.0.0.exe">下载 Windows 安装包</a>
     <div class="meta">
