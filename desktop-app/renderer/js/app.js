@@ -5289,11 +5289,16 @@ class AgentRunner {
 
         this._toolStep(tc.id, tc.name, 'done', String(toolResult).slice(0,80));
         // ===== 2026-09-14 对齐 TrieCode workLog：{tool,status,args,summary} 全程记录（落盘前持久化）=====
-        this.workLog.push({
+        // 2026-09-15：加 diff（write_file/edit_file 时 before/after，对齐 TrieCode）
+        const wlEntry = {
           type: 'tool', tool: tc.name, status: 'done',
           args: tc.arguments,
           summary: String(toolResult).slice(0, 80)
-        });
+        };
+        if (this._pendingChange && this.fileChanges[this._pendingChange.file]) {
+          wlEntry.diff = this.fileChanges[this._pendingChange.file];
+        }
+        this.workLog.push(wlEntry);
         // ===== 工具面板 Flow：执行完成后通知 + diff 快照记录 after =====
         if (this.onToolFlow) this.onToolFlow({ tool: tc.name, status: 'done', args: tc.arguments, result: String(toolResult).slice(0, 3000) });
         if (this._pendingChange) {
