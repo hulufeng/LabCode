@@ -3088,69 +3088,84 @@ const BUILTIN_SKILLS = [
   {
     id: 'burn-precheck',
     name: '烧录前检查',
-    description: '编译 + 检查板卡/端口选择，确认无误再烧录。对齐 TrieCode skill。',
-    whenToUse: [
-      '用户要求烧录/上传固件时',
-      '编译通过后准备 upload 前'
-    ],
-    safetyRules: [
-      '先 read_file 检查源码明显错误',
-      '确认已选择开发板（select_board）和端口（select_port）',
-      'compile 通过后先向用户确认再 upload',
-      '烧录成功后打开串口确认程序正常运行'
-    ],
-    examples: [
-      { request: '烧录到 ESP32', action: 'read_file → select_board → select_port → compile → 确认 → upload → serial_log_open' }
-    ]
+    description: '编译 + 检查板卡/端口选择，确认无误再烧录。当用户要求烧录/上传/上传固件时触发。',
+    whenToUse: ['用户要求烧录/上传固件', '编译通过后准备 upload 前'],
+    safetyRules: ['上传前确认板卡和端口', '编译通过后先问用户再 upload', '烧录后打开串口确认'],
+    examples: [{ request: '烧录到 ESP32', action: 'read_file → select_board → select_port → compile → 确认 → upload → serial_log_open' }],
+    prompt: '请按顺序完成烧录前的完整检查：\n1. read_file 当前项目 {sketchName} 的源码，检查明显错误\n2. 确认已选择开发板和端口（当前端口 {port}），未选则先 select_board/select_port\n3. 用 compile 编译一次，确保无 error\n4. 编译通过后先向用户确认「编译通过，是否烧录？」，确认后再 upload\n5. 烧录成功后用 serial_log_open + serial_log 打开串口确认程序正常运行'
   },
   {
     id: 'serial-log-analysis',
     name: '串口日志分析',
-    description: '打开串口后台日志，读取并分析运行输出。对齐 TrieCode skill。',
-    whenToUse: [
-      '程序运行异常需要看串口输出',
-      '调试传感器/通信问题',
-      '用户说"看看串口/输出/打印"时'
-    ],
-    safetyRules: [
-      '用 serial_log_open 打开后台日志（不阻塞终端）',
-      '分析完成后 serial_log_close 释放串口',
-      '用 serial_grep 检索特定关键字'
-    ],
-    examples: [
-      { request: '为什么传感器读不到数据', action: 'serial_log_open → serial_log → 分析异常 → 定位根因' }
-    ]
+    description: '打开串口后台日志，读取并分析运行输出。当用户说看串口/输出/打印/调试时触发。',
+    whenToUse: ['程序运行异常需要看串口输出', '调试传感器/通信问题'],
+    safetyRules: ['用 serial_log_open 打开后台日志', '分析完 serial_log_close 释放串口'],
+    examples: [{ request: '为什么传感器读不到数据', action: 'serial_log_open → serial_log → 分析异常 → 定位根因' }],
+    prompt: '1. 用 serial_log_open 打开当前板子的串口后台日志（端口 {port}，默认 115200）\n2. 让固件运行一段时间，用 serial_log 读取最近日志\n3. 分析输出中的异常/错误信息，定位问题根因\n4. 如需检索特定关键字用 serial_grep\n5. 分析完成后用 serial_log_close 释放串口'
   }
 ];
 
 class SkillManager {
   constructor() {
-    this.skills = BUILTIN_SKILLS;
+    this.builtin = BUILTIN_SKILLS;
+    this.pluginSkills = [];
+    this.userSkills = [];
+    this.toggled = {};
     this.activeSkill = null;
+    this._loadUserSkills();
   }
 
-  // 根据用户消息和当前文件自动选择 skill（参考 Omarchy description 触发条件）
+  async _loadUserSkills() {
+    try {
+      const cfg = await window.LabCode?.config?.get?.() || {};
+      this.userSkills = cfg.skills?.user || [];
+      this.toggled = cfg.skills?.toggled || {};
+    } catch (e) {}
+  }
+
+  async _persist() {
+    try {
+      await window.LabCode?.config?.set?.('skills.user', this.userSkills);
+      await window.LabCode?.config?.set?.('skills.toggled', this.toggled);
+    } catch (e) {}
+  }
+
+  registerPluginSkills(pluginId, skills) {
+    if (!Array.isArray(skills)) return;
+    skills.forEach(s => {
+      this.pluginSkills.push({
+        id: pluginId + ':' + s.name,
+        name: s.name, description: s.description || '',
+        prompt: s.prompt || '', source: 'plugin', enabled: true
+      });
+    });
+  }
+
+  allSkills() {
+    return [
+      ...this.builtin.map(s => ({ ...s, source: 'builtin' })),
+      ...this.pluginSkills,
+      ...this.userSkills
+    ].filter(s => this.toggled[s.id] !== false);
+  }
+
   selectSkill(userMessage, currentFile) {
-    const scores = this.skills.map(skill => {
+    const pool = this.allSkills();
+    if (!pool.length) return null;
+    const scores = pool.map(skill => {
       let score = 0;
-      // 文件扩展名匹配（高权重）
       if (currentFile && skill.fileExtensions) {
-        const ext = '.' + currentFile.split('.').pop();
+        const ext = '.' + currentFile.split('.').pop().toLowerCase();
         if (skill.fileExtensions.includes(ext)) score += 10;
       }
-      // 关键词匹配（从 description 提取）
-      const keywords = skill.description.toLowerCase()
-        .replace(/required for|triggers:|and|or|the|a|an/g, ' ')
-        .split(/[\s,./]+/)
-        .filter(w => w.length > 3);
-      keywords.forEach(kw => {
-        if (userMessage.toLowerCase().includes(kw)) score += 1;
+      const desc = (skill.description || '').toLowerCase();
+      const msg = (userMessage || '').toLowerCase();
+      desc.split(/[\s,，。、:：;；]/).filter(w => w.length > 2).forEach(kw => {
+        if (msg.includes(kw)) score += 1.5;
       });
-      // whenToUse 关键词匹配
-      skill.whenToUse.forEach(condition => {
-        const words = condition.toLowerCase().split(/[\s,./]+/).filter(w => w.length > 2);
-        words.forEach(w => {
-          if (userMessage.toLowerCase().includes(w)) score += 0.5;
+      (skill.whenToUse || []).forEach(cond => {
+        cond.toLowerCase().split(/[\s,，。、:：;；]/).filter(w => w.length > 2).forEach(w => {
+          if (msg.includes(w)) score += 0.5;
         });
       });
       return { skill, score };
@@ -3164,31 +3179,49 @@ class SkillManager {
     return null;
   }
 
-  // 获取 skill 的系统提示注入（参考 Omarchy SKILL.md 结构）
   getSystemPrompt(skill) {
     if (!skill) return '';
-    return `
-## SKILL: ${skill.name}
-${skill.description}
-
-### 何时必须使用（When This Skill MUST Be Used）
-${skill.whenToUse.map(u => `- ${u}`).join('\n')}
-
-### 关键安全规则（Critical Safety Rules）
-${skill.safetyRules.map(r => `- ${r}`).join('\n')}
-
-### 示例请求（Example Requests）
-${skill.examples.map(e => `- "${e.request}" → ${e.action}`).join('\n')}
-`;
+    const vars = {
+      sketchName: (state.activeTab || 'sketch').replace(/\.[^.]+$/, ''),
+      port: state.arduinoPort || '（未选择）',
+      projectPath: state.projectPath || ''
+    };
+    let body = skill.prompt || '';
+    if (!body) {
+      body = `## SKILL: ${skill.name}\n${skill.description}\n\n### 何时使用\n${(skill.whenToUse || []).map(u => '- ' + u).join('\n')}\n\n### 安全规则\n${(skill.safetyRules || []).map(r => '- ' + r).join('\n')}`;
+    }
+    body = body.replace(/\{(\w+)\}/g, (m, k) => vars[k] || m);
+    return `## SKILL: ${skill.name}\n${body}`;
   }
 
-  // 获取所有 skill 列表（UI 展示用）
+  async toggle(id) {
+    this.toggled[id] = this.toggled[id] === false ? true : false;
+    await this._persist();
+    return this.toggled[id];
+  }
+
+  async addSkill(skill) {
+    const s = {
+      id: 'user:' + (skill.name || Date.now()),
+      name: skill.name, description: skill.description || '',
+      prompt: skill.prompt || '', source: 'user', enabled: true
+    };
+    this.userSkills.push(s);
+    await this._persist();
+    return s;
+  }
+
+  async removeSkill(id) {
+    this.userSkills = this.userSkills.filter(s => s.id !== id);
+    await this._persist();
+  }
+
   listSkills() {
-    return this.skills.map(s => ({
-      id: s.id,
-      name: s.name,
+    return this.allSkills().map(s => ({
+      id: s.id, name: s.name,
       active: this.activeSkill?.id === s.id,
-      description: s.description
+      description: s.description, source: s.source,
+      enabled: this.toggled[s.id] !== false
     }));
   }
 }
