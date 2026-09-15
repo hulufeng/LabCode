@@ -1154,6 +1154,19 @@
     </div>
   </div>
 
+  <!-- ESP32 工具链自动安装进度弹窗 -->
+  <div class="modal-overlay" id="toolchain-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;">
+    <div style="background:#1e1e1e;border:1px solid #3c3c3c;border-radius:12px;padding:32px;max-width:480px;width:90%;text-align:center;">
+      <h3 style="margin:0 0 8px;font-size:18px;color:#fff;">准备 ESP32 工具链</h3>
+      <p id="toolchain-msg" style="color:#aaa;font-size:13px;margin-bottom:20px;">正在初始化...</p>
+      <div style="background:#2d2d2d;border-radius:6px;height:8px;overflow:hidden;margin-bottom:12px;">
+        <div id="toolchain-bar" style="background:#059669;height:100%;width:0%;transition:width 0.3s;"></div>
+      </div>
+      <p id="toolchain-pct" style="color:#059669;font-size:13px;font-weight:600;margin:0;">0%</p>
+      <button class="btn btn-secondary" id="toolchain-close" style="margin-top:16px;display:none;">关闭</button>
+    </div>
+  </div>
+
   <script src="js/terminal.js"></script>
   <script src="js/plugin-loader.js"></script>
   <script src="js/app.js"></script>

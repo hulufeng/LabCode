@@ -104,7 +104,9 @@ contextBridge.exposeInMainWorld('LabCode', {
   // 工具链（自研本体 P0-1：arduino-cli 路径探测）
   toolchain: {
     getArduinoCliPath: () => ipcRenderer.invoke('toolchain:getArduinoCliPath'),
-    status: () => ipcRenderer.invoke('toolchain:status')
+    status: () => ipcRenderer.invoke('toolchain:status'),
+    ensure: () => ipcRenderer.invoke('toolchain:ensure'),
+    onProgress: (cb) => ipcRenderer.on('toolchain:progress', (_e, data) => cb(data))
   },
 
   // MCP 服务器（Model Context Protocol stdio 接入）

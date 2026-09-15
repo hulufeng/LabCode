@@ -11316,3 +11316,30 @@ if (document.readyState === 'loading') {
 } else {
   init();
 }
+
+// ============ ESP32 工具链自动安装进度 ============
+(function setupToolchainProgress() {
+  const modal = document.getElementById('toolchain-modal');
+  const bar = document.getElementById('toolchain-bar');
+  const pct = document.getElementById('toolchain-pct');
+  const msg = document.getElementById('toolchain-msg');
+  const closeBtn = document.getElementById('toolchain-close');
+  function show() { modal.style.display = 'flex'; }
+  function hide() { modal.style.display = 'none'; }
+  if (closeBtn) closeBtn.addEventListener('click', hide);
+  if (window.labcode && window.labcode.toolchain && window.labcode.toolchain.onProgress) {
+    window.labcode.toolchain.onProgress((data) => {
+      show();
+      if (data.percent != null) { bar.style.width = data.percent + '%'; pct.textContent = data.percent + '%'; }
+      if (data.message) msg.textContent = data.message;
+      if (data.stage === 'done') {
+        bar.style.width = '100%'; pct.textContent = '100%';
+        msg.textContent = data.message || '完成';
+        setTimeout(hide, 2000);
+      } else if (data.stage === 'error') {
+        pct.textContent = '失败'; pct.style.color = '#ef4444';
+        closeBtn.style.display = 'inline-block';
+      }
+    });
+  }
+})();

@@ -27,6 +27,29 @@ function ensureDir(dir) {
 }
 ensureDir(SESSIONS_PATH);
 
+// ============ Arduino 数据目录隔离 ============
+// 商业化：LabCode 用自己的 arduino15 数据目录，不污染系统 Arduino15
+// 迁移逻辑：如果系统 Arduino15 已有 esp32 平台，复用它（开发机/老用户）；否则用隔离目录
+const ARDUINO_ISOLATED_DIR = path.join(USER_DATA_PATH, 'arduino15');
+const ARDUINO_SYSTEM_DIR = path.join(process.env.LOCALAPPDATA || '', 'Arduino15');
+
+function resolveArduinoDataDir() {
+  // 1. 隔离目录已有平台 → 用隔离目录
+  const isolatedPkg = path.join(ARDUINO_ISOLATED_DIR, 'packages', 'esp32');
+  if (fs.existsSync(isolatedPkg)) return ARDUINO_ISOLATED_DIR;
+  // 2. 系统目录已有 esp32 平台 → 复用（开发机/老用户迁移）
+  const systemPkg = path.join(ARDUINO_SYSTEM_DIR, 'packages', 'esp32');
+  if (fs.existsSync(systemPkg)) return ARDUINO_SYSTEM_DIR;
+  // 3. 全新用户 → 隔离目录（触发自动安装）
+  return ARDUINO_ISOLATED_DIR;
+}
+const ARDUINO_DATA_DIR = resolveArduinoDataDir();
+process.env.ARDUINO_DIRECTORIES_DATA = ARDUINO_DATA_DIR;
+process.env.ARDUINO_DIRECTORIES_DOWNLOADS = path.join(ARDUINO_DATA_DIR, 'staging');
+ensureDir(ARDUINO_DATA_DIR);
+ensureDir(process.env.ARDUINO_DIRECTORIES_DOWNLOADS);
+console.log('📁 Arduino 数据目录:', ARDUINO_DATA_DIR);
+
 // ============ 閰嶇疆瀛樺偍 ============
 function loadConfig() {
   try {
@@ -1248,6 +1271,99 @@ function setupIPC() {
     };
   });
 
+  // ============ ESP32 工具链自动安装（商业化：首次启动自动下载） ============
+  const ESP32_ADDITIONAL_URLS = [
+    'https://jihulab.com/esp32-arduino/esp32/-/raw/gh-pages/package_esp32_index.json',
+    'https://espressif.github.io/arduino-esp32/package_esp32_index.json'
+  ].join(',');
+
+  function isEsp32Installed() {
+    try {
+      const hwDir = path.join(ARDUINO_DATA_DIR, 'packages', 'esp32', 'hardware', 'esp32');
+      if (!fs.existsSync(hwDir)) return false;
+      return fs.readdirSync(hwDir).some(v => /^\d+\.\d+\.\d+/.test(v));
+    } catch (e) { return false; }
+  }
+
+  function sendToolchainProgress(stage, percent, message) {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('toolchain:progress', { stage, percent, message });
+    }
+  }
+
+  async function ensureEsp32Toolchain() {
+    if (isEsp32Installed()) {
+      console.log('✅ ESP32 平台已安装，跳过自动下载');
+      sendToolchainProgress('done', 100, 'ESP32 工具链已就绪');
+      return { installed: true, skipped: true };
+    }
+    if (!fs.existsSync(ARDUINO_CLI)) {
+      const msg = 'arduino-cli 未找到，无法自动安装 ESP32 工具链';
+      console.error('❌', msg);
+      sendToolchainProgress('error', 0, msg);
+      return { installed: false, error: msg };
+    }
+    console.log('📦 开始自动安装 ESP32 工具链（约 1.5GB，请耐心等待）...');
+    sendToolchainProgress('installing', 0, '正在准备 ESP32 工具链，首次需要下载约 1.5GB...');
+
+    return new Promise((resolve) => {
+      const args = ['core', 'install', 'esp32:esp32@3.3.11', '--additional-urls', ESP32_ADDITIONAL_URLS, '--no-color'];
+      const child = spawn(ARDUINO_CLI, args, {
+        env: { ...process.env },
+        stdio: ['ignore', 'pipe', 'pipe']
+      });
+      let stderrBuf = '';
+      let lastProgress = 0;
+
+      child.stderr.on('data', (data) => {
+        const text = data.toString();
+        stderrBuf += text;
+        // arduino-cli 进度格式："Downloading packages: [===>    ] 45% ..."
+        // 或 "Downloading esp32:esp32@3.3.11: 12%"
+        const m = text.match(/(\d+)%/);
+        if (m) {
+          const pct = parseInt(m[1], 10);
+          if (pct > lastProgress) {
+            lastProgress = pct;
+            // 下载阶段 0-90%，安装阶段 90-100%
+            const mapped = Math.min(90, pct);
+            sendToolchainProgress('downloading', mapped, `正在下载 ESP32 工具链... ${mapped}%`);
+          }
+        }
+        // 识别关键阶段
+        if (/Installing platform/.test(text)) sendToolchainProgress('installing', 92, '正在安装 ESP32 平台...');
+        if (/Installing tool esp32-arduino-libs/.test(text)) sendToolchainProgress('installing', 95, '正在安装 ESP32 库文件...');
+        if (/Configuring esp32:esp32/.test(text)) sendToolchainProgress('installing', 98, '正在配置...');
+      });
+      child.stdout.on('data', (data) => { stderrBuf += data.toString(); });
+
+      child.on('close', (code) => {
+        if (code === 0 && isEsp32Installed()) {
+          console.log('✅ ESP32 工具链安装完成');
+          sendToolchainProgress('done', 100, 'ESP32 工具链安装完成');
+          resolve({ installed: true, skipped: false });
+        } else {
+          const tail = stderrBuf.split('\n').slice(-10).join('\n');
+          const msg = `ESP32 工具链安装失败（退出码 ${code}）: ${tail.slice(-500)}`;
+          console.error('❌', msg);
+          sendToolchainProgress('error', 0, '安装失败，请检查网络后重试');
+          resolve({ installed: false, error: msg });
+        }
+      });
+      child.on('error', (err) => {
+        const msg = '启动 arduino-cli 失败: ' + err.message;
+        console.error('❌', msg);
+        sendToolchainProgress('error', 0, msg);
+        resolve({ installed: false, error: msg });
+      });
+    });
+  }
+
+  // IPC：手动触发工具链安装（前端"重试"按钮）
+  ipcMain.handle('toolchain:ensure', async () => {
+    return await ensureEsp32Toolchain();
+  });
+
   function runArduinoCli(args, cwd) {
     return new Promise((resolve) => {
       if (!fs.existsSync(ARDUINO_CLI)) {
@@ -1774,6 +1890,9 @@ app.whenReady().then(() => {
   setupIPC();
   setupAutoUpdate();
   createMainWindow();
+
+  // 首次启动自动安装 ESP32 工具链（异步，不阻塞 UI）
+  ensureEsp32Toolchain();
 
   // 鍚姩宸查厤缃殑 MCP 鏈嶅姟鍣紙stdio锛?
   try {
