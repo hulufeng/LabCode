@@ -4,7 +4,7 @@
 
 ## 下载
 
-[Windows v1.0.0](https://github.com/hulufeng/LabCode/releases/download/v1.0.0/LabCode-Setup-1.0.0.exe)（约 146 MB）
+[Windows v1.0.0](https://www.bluebubai.work/updates/LabCode-Setup-1.0.0.exe)（约 146 MB）
 
 ## 特性
 
