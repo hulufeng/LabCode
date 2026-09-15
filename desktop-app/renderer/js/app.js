@@ -3726,6 +3726,15 @@ void loop() {
         const nativeMessages = this._buildMessages(userInput, messages, true);
         const streamResult = await this._streamChat(nativeMessages);
         if (streamResult && streamResult.ok) {
+          // 累加 token 用量（对齐 TrieCode usage.promptTokens/completionTokens）
+          const u = streamResult.result.usage;
+          if (u) {
+            this.usageAcc = this.usageAcc || { promptTokens: 0, completionTokens: 0, totalTokens: 0, calls: 0 };
+            this.usageAcc.promptTokens += u.prompt_tokens || u.promptTokens || 0;
+            this.usageAcc.completionTokens += u.completion_tokens || u.completionTokens || 0;
+            this.usageAcc.totalTokens += u.total_tokens || u.totalTokens || 0;
+            this.usageAcc.calls += 1;
+          }
           return streamResult.result;
         }
         if (streamResult && streamResult.error) {
@@ -3865,7 +3874,7 @@ void loop() {
             }
           }
           if (calls.length > 0) {
-            resolve({ ok: true, result: { content: '', toolCalls: calls, streamed: true, thinking: thinkingText || null } });
+            resolve({ ok: true, result: { content: '', toolCalls: calls, streamed: true, thinking: thinkingText || null, usage: evt.usage || null } });
             return;
           }
           // 纯文本收尾：若此前因疑似工具 JSON 被抑制，补上屏（若是 ```json 包裹且未解析出工具，回显完整原文）
@@ -3877,7 +3886,7 @@ void loop() {
               this.onStreamDelta(toShow);
             }
           }
-          resolve({ ok: true, result: { content, toolCalls: [], streamed: true, thinking: thinkingText || null } });
+          resolve({ ok: true, result: { content, toolCalls: [], streamed: true, thinking: thinkingText || null, usage: evt.usage || null } });
         } else if (evt.type === 'error') {
           if (settled) return; settled = true; cleanup();
           if (suppressed && pending && this.onStreamDelta) {
@@ -5511,6 +5520,7 @@ class AgentRunner {
         projectPath: state.projectPath || null,
         projectType: state.projectType || null,
         plan: state.currentPlan || null,
+        usage: this.usageAcc || null,
         timestamp: Date.now()
       };
       await window.LabCode.sessions.save(session);

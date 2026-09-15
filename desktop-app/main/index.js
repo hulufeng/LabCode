@@ -710,6 +710,7 @@ function setupIPC() {
 
       let fullText = '';
       let lastFinish = '';
+      let lastUsage = null;
       for await (const evt of parseSSEStream(response.body)) {
         if (activeAiStreams.get(runId)) { activeAiStreams.delete(runId); break; }
         // 网关事件行（event: credits / event: error）透传给 renderer
@@ -721,6 +722,7 @@ function setupIPC() {
           send('error', { error: evt.error || '网关流错误' });
           continue;
         }
+        if (evt.usage) lastUsage = evt.usage;
         const choice = evt.choices && evt.choices[0];
         if (!choice) continue;
         if (choice.finish_reason) lastFinish = choice.finish_reason;
@@ -761,7 +763,7 @@ function setupIPC() {
       }
 
       // 注意：不在此 send('done')——外层可能需要自动续写，由外层统一发送最终 done
-      return { success: true, content: fullText, toolCalls: parsedToolCalls, finishReason: lastFinish };
+      return { success: true, content: fullText, toolCalls: parsedToolCalls, finishReason: lastFinish, usage: lastUsage };
     }
 
     // ===== 2026-09-14 自动续写：ollama/local 模型代码块未闭合时，自动续写拼接 =====
@@ -827,7 +829,7 @@ function setupIPC() {
       }
       _log(`最终 done, len=${result.content.length}`);
       // 统一发送最终 done（doStreamOnce 内部不再发 done，避免续写 delta 被忽略）
-      send('done', { content: result.content, toolCalls: result.toolCalls });
+      send('done', { content: result.content, toolCalls: result.toolCalls, usage: result.usage || null });
       return result;
     } catch (e) {
       // 用户/看门狗主动取消：不重启引擎、不回退非流式，直接静默结束
@@ -1217,6 +1219,30 @@ function setupIPC() {
   ipcMain.handle('toolchain:getArduinoCliPath', () => {
     const p = resolveArduinoCli();
     return { path: p, exists: fs.existsSync(p) };
+  });
+
+  // toolchain.status：检测 arduino-cli + 平台 + 库（对齐 TrieCode）
+  ipcMain.handle('toolchain:status', async () => {
+    const p = resolveArduinoCli();
+    const cliExists = fs.existsSync(p);
+    let version = '';
+    let platforms = [];
+    if (cliExists) {
+      try {
+        const v = await new Promise(r => execFile(p, ['version'], { timeout: 10000 }, (e, so) => r((so || '').trim())));
+        version = v;
+        const pl = await new Promise(r => execFile(p, ['core', 'list'], { timeout: 10000 }, (e, so) => r(so || '')));
+        platforms = pl.split('\n').slice(1).filter(l => l.trim()).map(l => l.split(/\s{2,}/)[0].trim());
+      } catch (e) {}
+    }
+    return {
+      ok: cliExists && platforms.length > 0,
+      cliPath: p,
+      cliExists,
+      version,
+      platforms,
+      error: cliExists ? (platforms.length ? '' : '无已安装平台') : 'arduino-cli 未安装'
+    };
   });
 
   function runArduinoCli(args, cwd) {
