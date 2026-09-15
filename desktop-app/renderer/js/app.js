@@ -10765,13 +10765,26 @@ function init() {
           return errs.length ? '校验失败:\n- ' + errs.join('\n- ') : '校验通过 ✓';
         }
       });
-      // 用户插件目录：%APPDATA%/LabCode/plugins
+      // 用户插件目录：%APPDATA%/LabCode/plugins（本地兜底）
       const userData = await window.LabCode.app.getPath('userData');
       if (!userData) { addOutputLog('插件系统：拿不到 userData 路径，跳过', 'warn'); return; }
       const pluginsRoot = userData.replace(/[\\\/]$/, '') + '/plugins';
       const r = await window.PluginSystem.loadPluginsFromDir(pluginsRoot);
+      // 远程市场（GitHub raw）—— 优先于本地，覆盖同 id
+      let marketURL = '';
+      try {
+        const cfg = await window.LabCode.config.get();
+        marketURL = (cfg && cfg.pluginMarketURL) || '';
+      } catch (e) {}
+      if (marketURL) {
+        try {
+          const rr = await window.PluginSystem.loadPluginsFromRemote(marketURL);
+          addOutputLog(`插件市场：远程拉取 ${rr.loaded.length} 个插件`, 'success');
+          if (rr.errors && rr.errors.length) addOutputLog('市场警告: ' + rr.errors.join('; '), 'warn');
+        } catch (e) { addOutputLog('远程市场失败: ' + e.message, 'warn'); }
+      }
       const totalTools = window.PluginSystem.allTools().length;
-      addOutputLog(`插件系统：加载 ${r.loaded.length} 个插件，共 ${totalTools} 个 manifest 工具`, 'success');
+      addOutputLog(`插件系统：加载 ${r.loaded.length} 个本地插件，共 ${totalTools} 个 manifest 工具`, 'success');
       if (r.errors && r.errors.length) addOutputLog('插件加载警告: ' + r.errors.join('; '), 'warn');
       // 加载持久化记忆
       state.memories = await loadMemoriesFromDisk();

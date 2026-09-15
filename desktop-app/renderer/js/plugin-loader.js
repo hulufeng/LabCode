@@ -245,11 +245,43 @@ async function loadPluginsFromDir(pluginsRoot) {
   return results;
 }
 
+/**
+ * 从远程市场拉插件 manifest（GitHub raw）。
+ * 不存本地，启动时按需 fetch。
+ * @param {string} marketURL  如 https://raw.githubusercontent.com/hulufeng/labcode-plugins/main
+ */
+async function loadPluginsFromRemote(marketURL) {
+  const results = { loaded: [], errors: [] };
+  if (!marketURL) return results;
+  const base = marketURL.replace(/\/$/, '');
+  try {
+    const idxResp = await fetch(base + '/index.json');
+    if (!idxResp.ok) throw new Error('HTTP ' + idxResp.status);
+    const idx = await idxResp.json();
+    const ids = (idx && Array.isArray(idx.plugins)) ? idx.plugins : [];
+    for (const id of ids) {
+      try {
+        const r = await fetch(base + '/' + id + '/plugin.json');
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const manifest = await r.json();
+        const r2 = loadPluginManifest(manifest);
+        results.loaded.push({ id, ...r2.loaded });
+      } catch (e) {
+        results.errors.push(id + ': ' + e.message);
+      }
+    }
+  } catch (e) {
+    results.errors.push('拉市场索引失败: ' + e.message);
+  }
+  return results;
+}
+
 // 暴露到 window 供 app.js 调用
 window.PluginSystem = {
   registerInternalService,
   loadPluginManifest,
   loadPluginsFromDir,
+  loadPluginsFromRemote,
   getToolDef: (name) => PLUGIN_TOOL_DEFS.find(t => t.name === name),
   allTools: () => PLUGIN_TOOL_DEFS.slice(),
   allSkills: () => PLUGIN_SKILLS.slice(),
