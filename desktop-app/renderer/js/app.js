@@ -7649,6 +7649,7 @@ function bindEvents() {
       const welcomePanel = document.getElementById('welcome-panel');
       const pluginsPanel = document.getElementById('plugins-panel');
       const devicePanel = document.getElementById('device-panel');
+      const gitPanel = document.getElementById('git-panel');
       const sidebarHeader = sidebar ? sidebar.querySelector('.sidebar-header') : null;
 
       if (panel === 'explorer') {
@@ -7659,7 +7660,17 @@ function bindEvents() {
         if (welcomePanel) welcomePanel.style.display = hasProject ? 'none' : 'flex';
         if (pluginsPanel) pluginsPanel.style.display = 'none';
         if (devicePanel) devicePanel.style.display = 'none';
+        if (gitPanel) gitPanel.style.display = 'none';
         if (sidebarHeader) sidebarHeader.style.display = 'flex';
+      } else if (panel === 'git') {
+        sidebar.style.display = 'flex';
+        if (fileTree) fileTree.style.display = 'none';
+        if (welcomePanel) welcomePanel.style.display = 'none';
+        if (pluginsPanel) pluginsPanel.style.display = 'none';
+        if (devicePanel) devicePanel.style.display = 'none';
+        if (gitPanel) gitPanel.style.display = 'flex';
+        if (sidebarHeader) sidebarHeader.style.display = 'none';
+        refreshGitStatus();
       } else if (panel === 'plugins') {
         sidebar.style.display = 'flex';
         if (fileTree) fileTree.style.display = 'none';
@@ -7674,6 +7685,7 @@ function bindEvents() {
         if (welcomePanel) welcomePanel.style.display = 'none';
         if (pluginsPanel) pluginsPanel.style.display = 'none';
         if (devicePanel) devicePanel.style.display = 'flex';
+        if (gitPanel) gitPanel.style.display = 'none';
         if (sidebarHeader) sidebarHeader.style.display = 'none';
         // 初始化设备面板真实数据
         initDevicePanel();
@@ -9744,6 +9756,50 @@ function bindEvents() {
   };
   const mcpOpenBtn = document.getElementById('mcp-open-btn');
   if (mcpOpenBtn) mcpOpenBtn.addEventListener('click', window.openMcpModal);
+
+  // ===== Git 面板 =====
+  async function refreshGitStatus() {
+    const cwd = state.projectPath;
+    const statusEl = document.getElementById('git-status');
+    const filesEl = document.getElementById('git-files');
+    if (!cwd || !window.LabCode.git) { if (statusEl) statusEl.textContent = '未选择项目'; return; }
+    const r = await window.LabCode.git.status(cwd);
+    if (!r.success) { if (statusEl) statusEl.textContent = '不是 git 仓库'; if (filesEl) filesEl.innerHTML = ''; return; }
+    if (statusEl) statusEl.textContent = '分支: ' + r.branch;
+    if (filesEl) {
+      if (!r.files.length) { filesEl.innerHTML = '<p style="color:#4caf50;font-size:12px;padding:8px;">无变更</p>'; }
+      else {
+        filesEl.innerHTML = r.files.map(f => {
+          const color = f.status === 'M' ? '#ff9800' : f.status === 'A' ? '#4caf50' : f.status === 'D' ? '#f44' : '#ccc';
+          return `<div style="padding:3px 8px;font-size:12px;cursor:pointer;" onclick="gitStageFile('${f.path.replace(/'/g, "\\'")}')" title="点击暂存"><span style="color:${color};font-weight:bold;">${f.status}</span> ${f.path}</div>`;
+        }).join('');
+      }
+    }
+  }
+  window.gitStageFile = async (path) => {
+    await window.LabCode.git.add(state.projectPath, [path]);
+    refreshGitStatus();
+  };
+  const gitRefreshBtn = document.getElementById('git-refresh');
+  if (gitRefreshBtn) gitRefreshBtn.addEventListener('click', refreshGitStatus);
+  const gitCommitBtn = document.getElementById('git-commit-btn');
+  if (gitCommitBtn) gitCommitBtn.addEventListener('click', async () => {
+    const msg = document.getElementById('git-commit-msg').value.trim();
+    if (!msg) { showToast('提交信息必填', 'warn'); return; }
+    const r = await window.LabCode.git.commit(state.projectPath, msg);
+    if (r.success) { showToast('已提交', 'success'); document.getElementById('git-commit-msg').value = ''; refreshGitStatus(); }
+    else showToast('提交失败: ' + (r.error || ''), 'error');
+  });
+  const gitPushBtn = document.getElementById('git-push-btn');
+  if (gitPushBtn) gitPushBtn.addEventListener('click', async () => {
+    const r = await window.LabCode.git.push(state.projectPath);
+    showToast(r.success ? '已推送' : '推送失败: ' + (r.error || ''), r.success ? 'success' : 'error');
+  });
+  const gitPullBtn = document.getElementById('git-pull-btn');
+  if (gitPullBtn) gitPullBtn.addEventListener('click', async () => {
+    const r = await window.LabCode.git.pull(state.projectPath);
+    showToast(r.success ? '已拉取' : '拉取失败: ' + (r.error || ''), r.success ? 'success' : 'error');
+  });
 
   // 工具活动面板（Flow）按钮
   const toolFlowClear = document.getElementById('ai-tool-flow-clear');
