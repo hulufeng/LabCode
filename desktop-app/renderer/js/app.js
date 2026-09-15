@@ -8347,6 +8347,8 @@ function bindEvents() {
       const targetContent = document.getElementById('device-tab-' + deviceTab);
       if (targetContent) {
         targetContent.style.display = 'block';
+        if (deviceTab === 'library') refreshLibraries();
+        if (deviceTab === 'platform') refreshCores();
       }
     });
   });
@@ -8984,14 +8986,35 @@ function bindEvents() {
       }
       el.innerHTML = '';
       if (cores.length === 0) {
-        el.innerHTML = '<div style="padding:12px;color:#999;font-size:12px;">未安装任何平台，可在下方安装</div>';
+        el.innerHTML = '<div style="padding:12px;color:#999;font-size:12px;">未安装任何平台</div>';
       }
       cores.forEach(c => {
         const item = document.createElement('div');
         item.className = 'platform-item';
-        item.innerHTML = `<div class="platform-info"><span class="platform-name">${c.name}</span><span class="platform-version">v${c.version}</span></div><button class="platform-btn uninstall" data-platform="${c.id}">卸载</button>`;
+        item.innerHTML = `<div class="platform-info"><span class="platform-name">${c.name}</span><span class="platform-version">v${c.version}</span></div>`;
         el.appendChild(item);
       });
+    } catch (e) { /* 忽略 */ }
+  }
+
+  async function refreshLibraries() {
+    const el = document.getElementById('library-list');
+    if (!el) return;
+    try {
+      const t = getToolDef('arduino-cli-toolchain_list_installed_libraries');
+      if (!t) return;
+      const out = await t.execute({});
+      const lines = String(out).split('\n').filter(l => l.trim() && !l.startsWith('#'));
+      el.innerHTML = '';
+      if (lines.length < 2) { el.innerHTML = '<div style="padding:12px;color:#999;font-size:12px;">未安装任何库</div>'; return; }
+      for (const line of lines.slice(1)) {
+        const parts = line.split(/\s{2,}/).map(s => s.trim()).filter(Boolean);
+        if (parts.length < 2) continue;
+        const item = document.createElement('div');
+        item.className = 'library-item';
+        item.innerHTML = `<div class="library-info"><span class="library-name">${parts[0]}</span><span class="library-version">v${parts[1]}</span></div>`;
+        el.appendChild(item);
+      }
     } catch (e) { /* 忽略 */ }
   }
 
