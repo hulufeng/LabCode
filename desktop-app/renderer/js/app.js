@@ -1703,6 +1703,27 @@ const ARDUINO_TOOL_IMPLS = {
     if (!r.ok) return r.out;
     return (r.code === 0 ? '库安装成功: ' + args.name + '\n' : '库安装返回: ' + args.name + '\n') + r.out.slice(0, 1200);
   },
+  async uninstall_library(args) {
+    if (!args.name) return 'Error: 缺少 name 参数';
+    const r = await runArduinoCli(['lib', 'uninstall', String(args.name)], 120000);
+    return r.out || (r.code === 0 ? '已卸载: ' + args.name : '卸载失败');
+  },
+  async uninstall_platform(args) {
+    if (!args.platform) return 'Error: 缺少 platform 参数';
+    const r = await runArduinoCli(['core', 'uninstall', String(args.platform)], 120000);
+    return r.out || (r.code === 0 ? '已卸载: ' + args.platform : '卸载失败');
+  },
+  async get_board_info(args) {
+    const fqbn = (args && args.fqbn) || state.arduinoFqbn;
+    if (!fqbn) return '未选择开发板，请先 select_board';
+    const r = await runArduinoCli(['board', 'details', fqbn]);
+    return r.out || '无信息';
+  },
+  async set_board_option(args) {
+    if (!args.name || !args.value) return 'Error: 缺少 name/value';
+    state.arduinoFqbn = (state.arduinoFqbn || '') + ':' + args.name + '=' + args.value;
+    return '已设置 ' + args.name + '=' + args.value + '（下次编译生效）';
+  },
   async list_installed_libraries() {
     const r = await runArduinoCli(['lib', 'list']);
     if (!r.ok) return r.out;
