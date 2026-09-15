@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>常见问题 · LabCode 文档</title>
+<link rel="stylesheet" href="https://miaoda.feishu.cn/fonts/css2?family=Noto+Sans+SC:wght@400;500;600;700;800&display=swap">
+<style>
+  :root{--ink:#1d1d1f;--ink-2:#424245;--gray:#86868b;--gray-2:#f5f5f7;--border:rgba(0,0,0,.08);--accent:#059669;--bg:#fff;--card:#f5f5f7;--font:'Noto Sans SC','PingFang SC','Microsoft YaHei',system-ui,sans-serif}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:var(--font);background:var(--bg);color:var(--ink);line-height:1.75}
+  a{color:var(--accent);text-decoration:none}
+  .layout{display:flex;max-width:1200px;margin:0 auto;gap:40px;padding:24px}
+  .sidebar{width:240px;flex:none;position:sticky;top:24px;max-height:calc(100vh - 48px);overflow-y:auto}
+  .sidebar h4{font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--gray);margin:20px 0 8px}
+  .sidebar a{display:block;padding:6px 12px;color:var(--ink-2);font-size:14px;border-radius:6px;margin-bottom:2px}
+  .sidebar a.active{background:rgba(5,150,105,.1);color:var(--accent);font-weight:600}
+  .content{flex:1;min-width:0;padding-bottom:80px}
+  .content h1{font-size:32px;font-weight:800;margin-bottom:8px}
+  .content h2{font-size:20px;font-weight:700;margin:32px 0 8px;padding-top:16px;border-top:1px solid var(--border)}
+  .content p{margin:8px 0;color:var(--ink-2)}
+  .topbar{background:var(--card);padding:12px 24px;font-size:14px;border-bottom:1px solid var(--border)}
+  .breadcrumb{max-width:1200px;margin:0 auto;font-size:13px;color:var(--gray)}
+  .topbar a{color:var(--ink-2)}
+  .nav-bot{display:flex;justify-content:space-between;margin-top:60px;padding-top:20px;border-top:1px solid var(--border);font-size:14px}
+</style>
+</head>
+<body>
+<div class="topbar"><div class="breadcrumb"><a href="/">LabCode 官网</a> · 文档 · 常见问题</div></div>
+<div class="layout">
+  <aside class="sidebar">
+    <h4>开始</h4>
+    <a href="/docs/">快速开始</a>
+    <a href="/docs/install/">下载与安装</a>
+    <h4>使用</h4>
+    <a href="/docs/interface/">界面介绍</a>
+    <a href="/docs/ai-agent/">AI 助手使用</a>
+    <a href="/docs/arduino/">Arduino / ESP32</a>
+    <a href="/docs/faq/" class="active">常见问题</a>
+    <h4>开发者</h4>
+    <a href="/docs/plugin-dev/">插件开发</a>
+    <a href="/docs/changelog/">更新日志</a>
+  </aside>
+  <main class="content">
+    <h1>常见问题</h1>
+
+    <h2>AI 回复很慢怎么办？</h2>
+    <p>本地 9B 模型在没有独立显卡的机器上会比较慢。有 NVIDIA 显卡会自动用 Vulkan 加速。或者在设置里接云端 API。</p>
+
+    <h2>AI 改了我不想让它改的文件怎么办？</h2>
+    <p>切到 default 模式（默认就是），每次改文件前它都会弹确认卡片。点"拒绝"就不会改。</p>
+
+    <h2>数据安全吗？</h2>
+    <p>用本地模型时代码完全在你电脑上，不会上传。接云端 API 时，你当前对话的代码片段会发给你配置的那个云端服务。</p>
+
+    <h2>怎么更新？</h2>
+    <p>自动更新，不用管。启动和运行中都会自动检查。</p>
+
+    <h2>支持哪些编程语言？</h2>
+    <p>编辑器层面支持所有 Monaco 支持的语言（Python、JS/TS、C/C++、Rust、Go、Java、Arduino 等）。AI 能帮你写什么取决于模型能力。</p>
+
+    <h2>ESP32 编译报 bootloader 缺失</h2>
+    <p>在 AI 对话里说"重装 esp32 平台"即可。</p>
+
+    <div class="nav-bot">
+      <a href="/docs/arduino/">← Arduino / ESP32</a>
+      <a href="/docs/plugin-dev/">插件开发 →</a>
+    </div>
+  </main>
+</div>
+</body>
+</html>

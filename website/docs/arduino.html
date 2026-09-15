@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Arduino / ESP32 · LabCode 文档</title>
+<link rel="stylesheet" href="https://miaoda.feishu.cn/fonts/css2?family=Noto+Sans+SC:wght@400;500;600;700;800&display=swap">
+<style>
+  :root{--ink:#1d1d1f;--ink-2:#424245;--gray:#86868b;--gray-2:#f5f5f7;--border:rgba(0,0,0,.08);--accent:#059669;--bg:#fff;--card:#f5f5f7;--font:'Noto Sans SC','PingFang SC','Microsoft YaHei',system-ui,sans-serif}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:var(--font);background:var(--bg);color:var(--ink);line-height:1.75}
+  a{color:var(--accent);text-decoration:none}
+  .layout{display:flex;max-width:1200px;margin:0 auto;gap:40px;padding:24px}
+  .sidebar{width:240px;flex:none;position:sticky;top:24px;max-height:calc(100vh - 48px);overflow-y:auto}
+  .sidebar h4{font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--gray);margin:20px 0 8px}
+  .sidebar a{display:block;padding:6px 12px;color:var(--ink-2);font-size:14px;border-radius:6px;margin-bottom:2px}
+  .sidebar a.active{background:rgba(5,150,105,.1);color:var(--accent);font-weight:600}
+  .content{flex:1;min-width:0;padding-bottom:80px}
+  .content h1{font-size:32px;font-weight:800;margin-bottom:8px}
+  .content h2{font-size:22px;font-weight:700;margin:36px 0 12px;padding-top:16px;border-top:1px solid var(--border)}
+  .content p{margin:10px 0;color:var(--ink-2)}
+  .content ul{margin:10px 0 10px 22px;color:var(--ink-2)}
+  .content li{margin:6px 0}
+  .content code{background:var(--gray-2);padding:2px 6px;border-radius:4px;font-family:Consolas,monospace;font-size:13px;color:#d63384}
+  .content pre{background:#1e1e2e;color:#cdd6f4;padding:16px;border-radius:12px;overflow-x:auto;margin:12px 0;font-family:Consolas,monospace;font-size:13px}
+  .callout{background:#ecfdf5;border:1px solid #a7f3d0;border-radius:12px;padding:14px 18px;margin:16px 0;font-size:14px}
+  .callout.warn{background:#fffbeb;border-color:#fcd34d}
+  .topbar{background:var(--card);padding:12px 24px;font-size:14px;border-bottom:1px solid var(--border)}
+  .breadcrumb{max-width:1200px;margin:0 auto;font-size:13px;color:var(--gray)}
+  .topbar a{color:var(--ink-2)}
+  .nav-bot{display:flex;justify-content:space-between;margin-top:60px;padding-top:20px;border-top:1px solid var(--border);font-size:14px}
+</style>
+</head>
+<body>
+<div class="topbar"><div class="breadcrumb"><a href="/">LabCode 官网</a> · 文档 · Arduino / ESP32</div></div>
+<div class="layout">
+  <aside class="sidebar">
+    <h4>开始</h4>
+    <a href="/docs/">快速开始</a>
+    <a href="/docs/install/">下载与安装</a>
+    <h4>使用</h4>
+    <a href="/docs/interface/">界面介绍</a>
+    <a href="/docs/ai-agent/">AI 助手使用</a>
+    <a href="/docs/arduino/" class="active">Arduino / ESP32</a>
+    <a href="/docs/faq/">常见问题</a>
+    <h4>开发者</h4>
+    <a href="/docs/plugin-dev/">插件开发</a>
+    <a href="/docs/changelog/">更新日志</a>
+  </aside>
+  <main class="content">
+    <h1>Arduino / ESP32 开发</h1>
+    <p>LabCode 内置了 Arduino CLI 工具链，AI 可以帮你完成从选板到烧录的全流程。</p>
+
+    <h2>第一次用</h2>
+    <ul>
+      <li>把开发板插 USB，装驱动（CH340 / CP2102 等，Windows 一般自动装）</li>
+      <li>新建项目时选"Arduino 项目"，会生成 <code>src/main.ino</code></li>
+      <li>在 AI 对话里说你要做什么，比如"用 ESP32-S3 接 DHT22 读温湿度"</li>
+    </ul>
+
+    <h2>AI 会做什么</h2>
+    <ul>
+      <li><code>search_boards</code>：按关键字搜开发板，列出 FQBN</li>
+      <li><code>select_board</code>：选中板子</li>
+      <li><code>install_library</code>：装需要的库（DHT、WiFi、传感器等）</li>
+      <li><code>write_file</code>：写 <code>.ino</code> 代码</li>
+      <li><code>compile</code>：编译，失败自动读报错改代码</li>
+      <li><code>upload</code>：烧录到板子</li>
+      <li><code>serial_log_open / serial_log</code>：开串口监视，实时看输出</li>
+    </ul>
+
+    <h2>常用命令示例</h2>
+    <pre><code># 编译当前项目
+arduino-cli compile --fqbn esp32:esp32:esp32s3 .
+
+# 烧录到 COM3
+arduino-cli upload -p COM3 --fqbn esp32:esp32:esp32s3 .
+
+# 看串口
+arduino-cli monitor -p COM3 -c baud=115200</code></pre>
+    <p>这些命令你不需要自己敲——AI 会自动调用。你只需要用自然语言描述需求。</p>
+
+    <div class="callout warn">
+      <strong>国内下载慢？</strong>LabCode 默认配了 jihulab 镜像源。如果还慢，可以在 <code>设置 → 工具链 → 镜像源</code> 里切换。
+    </div>
+
+    <h2>常见问题</h2>
+    <h3>编译报 bootloader 缺失</h3>
+    <p>ESP32 平台包安装不完整。在 AI 对话里说"重新装一下 esp32:esp32 平台"，它会自动卸载重装。</p>
+
+    <h3>串口被占用</h3>
+    <p>关掉 Arduino IDE 或其他串口监视器，再让 AI 重试。</p>
+
+    <h2>ESP-IDF</h2>
+    <p>目前只支持 Arduino 框架。ESP-IDF 原生支持在计划中。</p>
+
+    <div class="nav-bot">
+      <a href="/docs/ai-agent/">← AI 助手使用</a>
+      <a href="/docs/faq/">常见问题 →</a>
+    </div>
+  </main>
+</div>
+</body>
+</html>

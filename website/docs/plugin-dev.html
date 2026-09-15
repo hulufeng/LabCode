@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>插件开发 · LabCode 文档</title>
+<link rel="stylesheet" href="https://miaoda.feishu.cn/fonts/css2?family=Noto+Sans+SC:wght@400;500;600;700;800&display=swap">
+<style>
+  :root{--ink:#1d1d1f;--ink-2:#424245;--gray:#86868b;--gray-2:#f5f5f7;--border:rgba(0,0,0,.08);--accent:#059669;--bg:#fff;--card:#f5f5f7;--font:'Noto Sans SC','PingFang SC','Microsoft YaHei',system-ui,sans-serif}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:var(--font);background:var(--bg);color:var(--ink);line-height:1.75}
+  a{color:var(--accent);text-decoration:none}
+  .layout{display:flex;max-width:1200px;margin:0 auto;gap:40px;padding:24px}
+  .sidebar{width:240px;flex:none;position:sticky;top:24px;max-height:calc(100vh - 48px);overflow-y:auto}
+  .sidebar h4{font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--gray);margin:20px 0 8px}
+  .sidebar a{display:block;padding:6px 12px;color:var(--ink-2);font-size:14px;border-radius:6px;margin-bottom:2px}
+  .sidebar a.active{background:rgba(5,150,105,.1);color:var(--accent);font-weight:600}
+  .content{flex:1;min-width:0;padding-bottom:80px}
+  .content h1{font-size:32px;font-weight:800;margin-bottom:8px}
+  .content h2{font-size:22px;font-weight:700;margin:36px 0 12px;padding-top:16px;border-top:1px solid var(--border)}
+  .content p{margin:10px 0;color:var(--ink-2)}
+  .content ul{margin:10px 0 10px 22px;color:var(--ink-2)}
+  .content li{margin:6px 0}
+  .content code{background:var(--gray-2);padding:2px 6px;border-radius:4px;font-family:Consolas,monospace;font-size:13px;color:#d63384}
+  .content pre{background:#1e1e2e;color:#cdd6f4;padding:16px;border-radius:12px;overflow-x:auto;margin:12px 0;font-family:Consolas,monospace;font-size:13px}
+  .topbar{background:var(--card);padding:12px 24px;font-size:14px;border-bottom:1px solid var(--border)}
+  .breadcrumb{max-width:1200px;margin:0 auto;font-size:13px;color:var(--gray)}
+  .topbar a{color:var(--ink-2)}
+  .nav-bot{display:flex;justify-content:space-between;margin-top:60px;padding-top:20px;border-top:1px solid var(--border);font-size:14px}
+</style>
+</head>
+<body>
+<div class="topbar"><div class="breadcrumb"><a href="/">LabCode 官网</a> · 文档 · 插件开发</div></div>
+<div class="layout">
+  <aside class="sidebar">
+    <h4>开始</h4>
+    <a href="/docs/">快速开始</a>
+    <a href="/docs/install/">下载与安装</a>
+    <h4>使用</h4>
+    <a href="/docs/interface/">界面介绍</a>
+    <a href="/docs/ai-agent/">AI 助手使用</a>
+    <a href="/docs/arduino/">Arduino / ESP32</a>
+    <a href="/docs/faq/">常见问题</a>
+    <h4>开发者</h4>
+    <a href="/docs/plugin-dev/" class="active">插件开发</a>
+    <a href="/docs/changelog/">更新日志</a>
+  </aside>
+  <main class="content">
+    <h1>插件开发</h1>
+    <p>插件就是一个文件夹，里面有个 <code>plugin.json</code> 清单。LabCode 读这个清单就知道要给 AI 注册哪些工具。</p>
+
+    <h2>最小插件</h2>
+    <pre><code>my-plugin/
+├── plugin.json
+└── README.md</code></pre>
+
+    <h2>plugin.json 示例</h2>
+    <pre><code>{
+  "id": "my-git-tools",
+  "name": "Git 小工具",
+  "version": "0.1.0",
+  "tools": [
+    {
+      "name": "git_status",
+      "description": "查看 git 工作区状态",
+      "command": "git status --short"
+    },
+    {
+      "name": "git_commit",
+      "description": "提交当前改动",
+      "args": [
+        {"name": "message", "type": "string", "description": "提交信息"}
+      ],
+      "command": "git commit -m {{message}}"
+    }
+  ]
+}</code></pre>
+
+    <h2>安装插件</h2>
+    <ul>
+      <li>把插件文件夹丢到 <code>%APPDATA%\LabCode\plugins\</code> 下</li>
+      <li>或在 AI 对话里说"装这个插件：&lt;GitHub 地址&gt;"，它会自动下载</li>
+      <li>重启或在插件面板点"刷新"</li>
+    </ul>
+
+    <h2>通道类型</h2>
+    <p>目前支持：</p>
+    <ul>
+      <li><code>cli</code>：执行命令行（最常用）</li>
+      <li><code>http</code>：调 HTTP 接口</li>
+      <li><code>mcp</code>：接 MCP 服务器</li>
+    </ul>
+
+    <div class="nav-bot">
+      <a href="/docs/faq/">← 常见问题</a>
+      <a href="/docs/changelog/">更新日志 →</a>
+    </div>
+  </main>
+</div>
+</body>
+</html>

@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 助手使用 · LabCode 文档</title>
+<link rel="stylesheet" href="https://miaoda.feishu.cn/fonts/css2?family=Noto+Sans+SC:wght@400;500;600;700;800&display=swap">
+<style>
+  :root{--ink:#1d1d1f;--ink-2:#424245;--gray:#86868b;--gray-2:#f5f5f7;--border:rgba(0,0,0,.08);--accent:#059669;--bg:#fff;--card:#f5f5f7;--font:'Noto Sans SC','PingFang SC','Microsoft YaHei',system-ui,sans-serif}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:var(--font);background:var(--bg);color:var(--ink);line-height:1.75}
+  a{color:var(--accent);text-decoration:none}
+  .layout{display:flex;max-width:1200px;margin:0 auto;gap:40px;padding:24px}
+  .sidebar{width:240px;flex:none;position:sticky;top:24px;max-height:calc(100vh - 48px);overflow-y:auto}
+  .sidebar h4{font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--gray);margin:20px 0 8px}
+  .sidebar a{display:block;padding:6px 12px;color:var(--ink-2);font-size:14px;border-radius:6px;margin-bottom:2px}
+  .sidebar a.active{background:rgba(5,150,105,.1);color:var(--accent);font-weight:600}
+  .content{flex:1;min-width:0;padding-bottom:80px}
+  .content h1{font-size:32px;font-weight:800;margin-bottom:8px}
+  .content h2{font-size:22px;font-weight:700;margin:36px 0 12px;padding-top:16px;border-top:1px solid var(--border)}
+  .content p{margin:10px 0;color:var(--ink-2)}
+  .content ul{margin:10px 0 10px 22px;color:var(--ink-2)}
+  .content li{margin:6px 0}
+  .content code{background:var(--gray-2);padding:2px 6px;border-radius:4px;font-family:Consolas,monospace;font-size:13px;color:#d63384}
+  .topbar{background:var(--card);padding:12px 24px;font-size:14px;border-bottom:1px solid var(--border)}
+  .breadcrumb{max-width:1200px;margin:0 auto;font-size:13px;color:var(--gray)}
+  .topbar a{color:var(--ink-2)}
+  .nav-bot{display:flex;justify-content:space-between;margin-top:60px;padding-top:20px;border-top:1px solid var(--border);font-size:14px}
+</style>
+</head>
+<body>
+<div class="topbar"><div class="breadcrumb"><a href="/">LabCode 官网</a> · 文档 · AI 助手使用</div></div>
+<div class="layout">
+  <aside class="sidebar">
+    <h4>开始</h4>
+    <a href="/docs/">快速开始</a>
+    <a href="/docs/install/">下载与安装</a>
+    <h4>使用</h4>
+    <a href="/docs/interface/">界面介绍</a>
+    <a href="/docs/ai-agent/" class="active">AI 助手使用</a>
+    <a href="/docs/arduino/">Arduino / ESP32</a>
+    <a href="/docs/faq/">常见问题</a>
+    <h4>开发者</h4>
+    <a href="/docs/plugin-dev/">插件开发</a>
+    <a href="/docs/changelog/">更新日志</a>
+  </aside>
+  <main class="content">
+    <h1>AI 助手使用</h1>
+
+    <h2>怎么跟它说话</h2>
+    <p>用大白话就行，不需要写提示词。比如：</p>
+    <ul>
+      <li>"把这个 CSV 按日期去重排序"</li>
+      <li>"ESP32 接个 OLED 显示温度"</li>
+      <li>"这个报错帮我看看为啥"</li>
+      <li>"给项目加个 README"</li>
+    </ul>
+
+    <h2>三种权限模式</h2>
+    <ul>
+      <li><strong>plan</strong>：AI 只出方案，不动手。适合先看思路。</li>
+      <li><strong>default</strong>（默认）：改文件、跑命令前弹确认，你点头才执行。</li>
+      <li><strong>auto</strong>：全自动，AI 自己决定要不要做。适合信任它之后用。</li>
+    </ul>
+
+    <h2>它能调用的工具</h2>
+    <ul>
+      <li><code>read_file / write_file</code>：读写项目文件</li>
+      <li><code>run_command</code>：跑 shell 命令</li>
+      <li><code>web_search / web_fetch</code>：联网查资料</li>
+      <li><code>ask_user</code>：拿不准时问你（带选项）</li>
+      <li><code>create_project</code>：新建项目</li>
+      <li>Arduino 全套工具（见 <a href="/docs/arduino/">Arduino 章节</a>）</li>
+      <li>插件注册的工具</li>
+    </ul>
+
+    <h2>对话记录</h2>
+    <p>每次对话自动保存，左侧边栏可以切换历史会话。不会丢。</p>
+
+    <h2>本地模型 vs 云端</h2>
+    <p>默认用内置的 Qwen3.5-9B 本地模型，代码不出本机。如果想接更强的云端模型（DeepSeek、Qwen-Max 等），在设置里填 OpenAI 兼容的 API Key 和端点即可。</p>
+
+    <div class="nav-bot">
+      <a href="/docs/interface/">← 界面介绍</a>
+      <a href="/docs/arduino/">Arduino / ESP32 →</a>
+    </div>
+  </main>
+</div>
+</body>
+</html>

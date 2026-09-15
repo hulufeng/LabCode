@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LabCode 文档 · 快速上手</title>
+<link rel="stylesheet" href="https://miaoda.feishu.cn/fonts/css2?family=Noto+Sans+SC:wght@400;500;600;700;800&display=swap">
+<style>
+  :root{
+    --ink:#1d1d1f; --ink-2:#424245; --gray:#86868b; --gray-2:#f5f5f7;
+    --border:rgba(0,0,0,.08); --accent:#059669; --accent-deep:#047857;
+    --bg:#fff; --card:#f5f5f7; --font:'Noto Sans SC','PingFang SC','Microsoft YaHei',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:var(--font);background:var(--bg);color:var(--ink);line-height:1.75;-webkit-font-smoothing:antialiased}
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+  .layout{display:flex;max-width:1200px;margin:0 auto;gap:40px;padding:24px}
+  .sidebar{width:240px;flex:none;position:sticky;top:24px;max-height:calc(100vh - 48px);overflow-y:auto}
+  .sidebar h4{font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--gray);margin:20px 0 8px}
+  .sidebar a{display:block;padding:6px 12px;color:var(--ink-2);font-size:14px;border-radius:6px;margin-bottom:2px}
+  .sidebar a.active{background:rgba(5,150,105,.1);color:var(--accent);font-weight:600}
+  .sidebar a:hover{background:var(--gray-2);text-decoration:none}
+  .content{flex:1;min-width:0;padding-bottom:80px}
+  .content h1{font-size:36px;font-weight:800;letter-spacing:-.01em;margin-bottom:8px}
+  .content h2{font-size:24px;font-weight:700;margin:40px 0 12px;padding-top:20px;border-top:1px solid var(--border)}
+  .content h3{font-size:18px;font-weight:700;margin:24px 0 8px}
+  .content p{margin:10px 0;color:var(--ink-2)}
+  .content ul{margin:10px 0 10px 22px;color:var(--ink-2)}
+  .content li{margin:6px 0}
+  .content code{background:var(--gray-2);padding:2px 6px;border-radius:4px;font-family:'Cascadia Code',Consolas,monospace;font-size:13px;color:#d63384}
+  .content pre{background:#1e1e2e;color:#cdd6f4;padding:16px;border-radius:12px;overflow-x:auto;margin:12px 0;font-family:'Cascadia Code',Consolas,monospace;font-size:13px;line-height:1.6}
+  .content pre code{background:transparent;color:inherit;padding:0}
+  .callout{background:#ecfdf5;border:1px solid #a7f3d0;border-radius:12px;padding:14px 18px;margin:16px 0;font-size:14px}
+  .callout.warn{background:#fffbeb;border-color:#fcd34d}
+  .topbar{background:var(--card);padding:12px 24px;font-size:14px;border-bottom:1px solid var(--border)}
+  .topbar a{color:var(--ink-2)}
+  .breadcrumb{max-width:1200px;margin:0 auto;font-size:13px;color:var(--gray)}
+  .nav-bot{display:flex;justify-content:space-between;margin-top:60px;padding-top:20px;border-top:1px solid var(--border);font-size:14px}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="breadcrumb">
+    <a href="/">LabCode 官网</a> · 文档
+  </div>
+</div>
+
+<div class="layout">
+  <aside class="sidebar">
+    <h4>开始</h4>
+    <a href="/docs/" class="active">快速开始</a>
+    <a href="/docs/install/">下载与安装</a>
+    <h4>使用</h4>
+    <a href="/docs/interface/">界面介绍</a>
+    <a href="/docs/ai-agent/">AI 助手使用</a>
+    <a href="/docs/arduino/">Arduino / ESP32</a>
+    <a href="/docs/faq/">常见问题</a>
+    <h4>开发者</h4>
+    <a href="/docs/plugin-dev/">插件开发</a>
+    <a href="/docs/changelog/">更新日志</a>
+  </aside>
+
+  <main class="content">
+    <h1>快速开始</h1>
+    <p style="color:var(--gray);font-size:15px">5 分钟从安装到让 AI 帮你跑通第一个脚本。</p>
+
+    <p>LabCode 是一个跑在你本机的 AI 编程桌面端。它和聊天机器人最大的区别是：<strong>它真的会读你的项目、改你的文件、跑命令看结果</strong>。不是给你贴一段代码让你自己复制粘贴。</p>
+
+    <h2>1. 下载并安装</h2>
+    <p>到 <a href="/#download">官网首页</a> 点"免费下载"，拿到 <code>LabCode-Setup-1.0.0.exe</code>（约 146 MB）。</p>
+    <ul>
+      <li><strong>系统要求</strong>：Windows 10 / 11（64 位）</li>
+      <li>双击 exe，一路"下一步"即可，不需要先装 Python / Node / 编译器</li>
+      <li>安装完桌面会出现 LabCode 图标</li>
+    </ul>
+
+    <h2>2. 打开 AI 对话</h2>
+    <p>启动后，右侧就是 AI 对话面板。首次启动它会自动加载内置的本地模型（Qwen3.5-9B，Vulkan 加速），模型加载需要几秒钟。</p>
+    <p>你不需要做任何配置——API Key、模型路径、工具链路径都已经打包好了。</p>
+
+    <h2>3. 让 AI 帮你写第一个脚本</h2>
+    <p>在输入框里用大白话描述需求，比如：</p>
+    <pre><code>帮我写一个 Python 脚本，读取同目录的 data.csv，
+按"姓名"列去重，按"日期"排序，输出到 out.csv</code></pre>
+    <p>AI 会自己做这几件事：</p>
+    <ul>
+      <li>在左侧文件树里新建项目目录</li>
+      <li>写 <code>main.py</code> 和示例 <code>data.csv</code></li>
+      <li>在底部终端里跑 <code>python main.py</code></li>
+      <li>看到报错（如果有）会自己读、自己改、再跑</li>
+    </ul>
+    <p>整个过程你只需要看着，每一步它会在对话里告诉你它在干嘛。改文件前它会弹确认，你点头才执行。</p>
+
+    <h2>4. 跑通后看看结果</h2>
+    <p>切到底部"终端"标签，可以看到真实输出。切到左侧文件树，打开 <code>out.csv</code> 验证结果。</p>
+    <div class="callout">
+      <strong>小提示：</strong>每一步 AI 做的文件修改都可以撤销。如果它改得不满意，直接说"撤销刚才的修改"或者按 <code>Ctrl+Z</code>。
+    </div>
+
+    <h2>5. 下一步</h2>
+    <ul>
+      <li>想做硬件？去看 <a href="/docs/arduino/">Arduino / ESP32 开发</a>，从选板到烧录一条龙</li>
+      <li>想知道 AI 都有哪些工具？去看 <a href="/docs/ai-agent/">AI 助手使用</a></li>
+      <li>想自己写插件？去看 <a href="/docs/plugin-dev/">插件开发</a></li>
+    </ul>
+
+    <h2>嵌入式 5 分钟（Arduino）</h2>
+    <p>如果你有 ESP32 开发板，流程也很简单：</p>
+    <ul>
+      <li>新建项目时选"Arduino 项目"</li>
+      <li>把板子插上 USB，AI 会自动识别串口号</li>
+      <li>跟 AI 说"接 DHT22 读温湿度，板号选 ESP32-S3"</li>
+      <li>它自己搜板、装库、写代码、编译、烧录、开串口监视</li>
+    </ul>
+    <p>完整参数和故障排查见 <a href="/docs/arduino/">Arduino / ESP32 开发</a>。</p>
+
+    <div class="nav-bot">
+      <span>↑ 文档首页</span>
+      <a href="/docs/install/">下载与安装 →</a>
+    </div>
+  </main>
+</div>
+
+</body>
+</html>

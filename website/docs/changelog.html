@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>更新日志 · LabCode 文档</title>
+<link rel="stylesheet" href="https://miaoda.feishu.cn/fonts/css2?family=Noto+Sans+SC:wght@400;500;600;700;800&display=swap">
+<style>
+  :root{--ink:#1d1d1f;--ink-2:#424245;--gray:#86868b;--gray-2:#f5f5f7;--border:rgba(0,0,0,.08);--accent:#059669;--bg:#fff;--card:#f5f5f7;--font:'Noto Sans SC','PingFang SC','Microsoft YaHei',system-ui,sans-serif}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:var(--font);background:var(--bg);color:var(--ink);line-height:1.75}
+  .layout{display:flex;max-width:1200px;margin:0 auto;gap:40px;padding:24px}
+  .sidebar{width:240px;flex:none;position:sticky;top:24px;max-height:calc(100vh - 48px);overflow-y:auto}
+  .sidebar h4{font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--gray);margin:20px 0 8px}
+  .sidebar a{display:block;padding:6px 12px;color:var(--ink-2);font-size:14px;border-radius:6px;margin-bottom:2px}
+  .sidebar a.active{background:rgba(5,150,105,.1);color:var(--accent);font-weight:600}
+  .content{flex:1;min-width:0;padding-bottom:80px}
+  .content h1{font-size:32px;font-weight:800;margin-bottom:8px}
+  .version{margin:36px 0;padding:20px;background:var(--card);border-radius:16px}
+  .version h2{font-size:18px;font-weight:700;color:var(--accent)}
+  .version .date{font-size:13px;color:var(--gray);margin-left:8px}
+  .version ul{margin:12px 0 0 22px;color:var(--ink-2);font-size:14px}
+  .version li{margin:4px 0}
+  .topbar{background:var(--card);padding:12px 24px;font-size:14px;border-bottom:1px solid var(--border)}
+  .breadcrumb{max-width:1200px;margin:0 auto;font-size:13px;color:var(--gray)}
+  .topbar a{color:var(--ink-2)}
+</style>
+</head>
+<body>
+<div class="topbar"><div class="breadcrumb"><a href="/">LabCode 官网</a> · 文档 · 更新日志</div></div>
+<div class="layout">
+  <aside class="sidebar">
+    <h4>开始</h4>
+    <a href="/docs/">快速开始</a>
+    <a href="/docs/install/">下载与安装</a>
+    <h4>使用</h4>
+    <a href="/docs/interface/">界面介绍</a>
+    <a href="/docs/ai-agent/">AI 助手使用</a>
+    <a href="/docs/arduino/">Arduino / ESP32</a>
+    <a href="/docs/faq/">常见问题</a>
+    <h4>开发者</h4>
+    <a href="/docs/plugin-dev/">插件开发</a>
+    <a href="/docs/changelog/" class="active">更新日志</a>
+  </aside>
+  <main class="content">
+    <h1>更新日志</h1>
+
+    <div class="version">
+      <h2>v1.0.0 <span class="date">2026-09-15</span></h2>
+      <ul>
+        <li>首个公开测试版</li>
+        <li>内置 Qwen3.5-9B 本地模型（Vulkan 加速）</li>
+        <li>Arduino 工具链：编译、烧录、串口监视</li>
+        <li>插件系统（manifest 驱动）</li>
+        <li>三级权限模式（plan / default / auto）</li>
+        <li>自动更新</li>
+      </ul>
+    </div>
+
+  </main>
+</div>
+</body>
+</html>
