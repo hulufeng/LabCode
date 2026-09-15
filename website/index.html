@@ -41,11 +41,11 @@
           v1.0.0 · Windows 版已发布
         </div>
         <h1 class="hero-title">
-          说人话，<br>
-          <span class="highlight">它真的会写代码、烧固件。</span>
+          从想法到<br>
+          <span class="highlight">可运行的软件。</span>
         </h1>
         <p class="hero-subtitle">
-          LabCode 不是一个聊天框。它读你的项目目录、改你的源文件、跑编译和烧录、盯串口输出——一个桌面应用，从 Python 脚本到 ESP32 固件全包。
+          LabCode 内置真正动手的 AI 智能体：读写代码、执行命令、运行测试、联网检索。一个桌面应用，覆盖软件开发全流程。
         </p>
         <div class="hero-buttons">
           <a href="https://github.com/hulufeng/LabCode/releases/download/v1.0.0/LabCode-Setup-1.0.0.exe" class="btn btn-primary btn-large">
@@ -60,7 +60,7 @@
         <div class="hero-specs">
           <div class="spec-item">
             <span class="spec-icon">✨</span>
-            <span>本地 9B 模型 · 云端 API 可接</span>
+            <span>DeepSeek V4 · MiniMax M3 · 1M 上下文</span>
           </div>
           <div class="spec-item">
             <span class="spec-icon">💾</span>
@@ -193,34 +193,34 @@
   <section class="ai-agent" id="features">
     <div class="section-container">
       <div class="section-header">
-        <div class="section-label">—— 它能干嘛</div>
-        <h2 class="section-title">不是陪你聊代码，<span class="highlight">是替你动手写。</span></h2>
-        <p class="section-subtitle">你描述要什么，它读项目结构、写文件、跑命令、看报错、改 bug——全程在你本机完成，不经过第三方服务器。</p>
+        <div class="section-label">—— AI 智能体</div>
+        <h2 class="section-title">真正动手的 <span class="highlight">AI 软件工程师。</span></h2>
+        <p class="section-subtitle">不只是对话。LabCode 的智能体读懂你的项目，独立完成「描述 → 编码 → 验证」的完整闭环。</p>
       </div>
       <div class="feature-cards">
         <div class="feature-card">
           <div class="card-number">01</div>
           <div class="card-icon">📄</div>
-          <h3 class="card-title">直接改你的文件</h3>
-          <p class="card-desc">读项目目录树，精准改源文件，编辑器实时刷新——不是给你贴一段代码让你自己复制粘贴。</p>
+          <h3 class="card-title">读写代码</h3>
+          <p class="card-desc">读取项目结构、精准修改文件、自动生成模板——AI 直接在你的工程里写代码，编辑器实时刷新。</p>
         </div>
         <div class="feature-card">
           <div class="card-number">02</div>
           <div class="card-icon">⌨️</div>
-          <h3 class="card-title">跑命令·跑测试·看报错</h3>
-          <p class="card-desc">内置终端执行命令，自动识别 pytest / cargo / arduino-cli 编译输出，把报错带回给 AI 修。</p>
+          <h3 class="card-title">执行命令·跑测试</h3>
+          <p class="card-desc">内置终端执行命令；结构化测试运行器自动识别 pytest / unittest / go test / cargo test 并解析结果。</p>
         </div>
         <div class="feature-card">
           <div class="card-number">03</div>
-          <div class="card-icon">🔌</div>
-          <h3 class="card-title">嵌入式/硬件支持</h3>
-          <p class="card-desc">Arduino 工具链插件：搜开发板、装平台、编译、烧录、串口监视——AI 一条龙搞定。</p>
+          <div class="card-icon">🌐</div>
+          <h3 class="card-title">联网检索</h3>
+          <p class="card-desc">内建 web_search / web_fetch，查文档、找解决方案，把最新信息带回你的项目。</p>
         </div>
         <div class="feature-card">
           <div class="card-number">04</div>
-          <div class="card-icon">🧩</div>
-          <h3 class="card-title">插件可扩展</h3>
-          <p class="card-desc">任何 CLI 工具都能包成插件：声明 manifest，AI 就能调用。MCP 服务器也能接。</p>
+          <div class="card-icon">🧠</div>
+          <h3 class="card-title">记忆·技能·子智能体</h3>
+          <p class="card-desc">跨会话记忆、可复用技能（兼容 Claude Code 生态）、只读研究子智能体，越用越懂你。</p>
         </div>
       </div>
     </div>
@@ -231,8 +231,8 @@
     <div class="section-container">
       <div class="section-header">
         <div class="section-label">—— 能力</div>
-        <h2 class="section-title">一个窗口，从写代码到烧固件。</h2>
-        <p class="section-subtitle">代码编辑器 + AI 对话 + 终端 + 串口监视器——不用切来切去。</p>
+        <h2 class="section-title">一个工作台，覆盖开发全流程。</h2>
+        <p class="section-subtitle">现代编辑器 + AI 智能体 + 终端 + 测试运行器——从第一行代码到可运行的软件。</p>
       </div>
       <div class="capability-grid">
         <div class="capability-card">
@@ -273,26 +273,32 @@
   <section class="ai-models">
     <div class="section-container">
       <div class="section-header">
-        <div class="section-label">—— 模型</div>
-        <h2 class="section-title">本地跑 9B 小模型，也能接云端大模型。</h2>
+        <div class="section-label">—— 内置 AI 模型</div>
+        <h2 class="section-title">精选顶尖大语言模型，驱动智能编码体验</h2>
       </div>
       <div class="model-cards">
         <div class="model-card">
-          <div class="model-icon">🏠</div>
-          <div class="model-name">本地 Qwen3.5-9B</div>
-          <div class="model-desc">Vulkan 加速 · 隐私不出本机</div>
+          <div class="model-icon">🐋</div>
+          <div class="model-name">DeepSeek <span class="model-tag">V4</span></div>
+          <div class="model-desc">代码生成精准 · 毫秒级响应</div>
         </div>
         <div class="model-card">
           <div class="model-icon">☁️</div>
-          <div class="model-name">云端 API</div>
-          <div class="model-desc">OpenAI 兼容接口 · 后续接入</div>
+          <div class="model-name">通义千问 <span class="model-tag">Qwen</span></div>
+          <div class="model-desc">阿里云出品 · 多编程语言</div>
         </div>
         <div class="model-card">
-          <div class="model-icon">🦙</div>
-          <div class="model-name">Ollama</div>
-          <div class="model-desc">本地模型 · 即插即用</div>
+          <div class="model-icon">🎵</div>
+          <div class="model-name">MiniMax <span class="model-tag">M3</span></div>
+          <div class="model-desc">1M 上下文 · Agent 原生</div>
+        </div>
+        <div class="model-card">
+          <div class="model-icon">🧠</div>
+          <div class="model-name">智谱 <span class="model-tag">GLM-5.2</span></div>
+          <div class="model-desc">1M 上下文 · Coding SOTA</div>
         </div>
       </div>
+      <div class="model-extra">另有 Kimi · Doubao · OpenAI · Claude · Ollama 本地模型，及任意 OpenAI 兼容端点。</div>
     </div>
   </section>
 
@@ -300,30 +306,30 @@
   <section class="workflow">
     <div class="section-container">
       <div class="section-header">
-        <div class="section-label">—— 怎么用</div>
-        <h2 class="section-title">三步，跑起来。</h2>
-        <p class="section-subtitle">不用配环境，装完就能用。</p>
+        <div class="section-label">—— 从想法到软件</div>
+        <h2 class="section-title">三步，软件就绪。</h2>
+        <p class="section-subtitle">AI 全流程代劳，你只需描述需求。</p>
       </div>
       <div class="workflow-steps">
         <div class="workflow-step">
           <div class="step-number">01</div>
           <div class="step-icon">💬</div>
-          <h3>说你要做啥</h3>
-          <p>"给 ESP32 加个温湿度采集"——用大白话说需求。</p>
+          <h3>描述需求</h3>
+          <p>"给 Python 项目加一个登录功能"——用自然语言说清你要什么。</p>
         </div>
         <div class="step-arrow">→</div>
         <div class="workflow-step">
           <div class="step-number">02</div>
           <div class="step-icon">🤖</div>
-          <h3>它读项目、写代码</h3>
-          <p>AI 读你的工程目录，写源码、装库、选开发板。</p>
+          <h3>AI 读懂项目，写代码</h3>
+          <p>智能体读取项目结构，写代码、改文件、装依赖，全程可见可撤销。</p>
         </div>
         <div class="step-arrow">→</div>
         <div class="workflow-step">
           <div class="step-number">03</div>
           <div class="step-icon">✅</div>
-          <h3>编译烧录验证</h3>
-          <p>自动跑编译、烧录、盯串口——有问题它自己改。</p>
+          <h3>AI 跑测试验证</h3>
+          <p>自动运行测试、修复失败项，交付可运行的软件。</p>
         </div>
       </div>
     </div>
@@ -333,23 +339,55 @@
   <section class="pricing" id="pricing">
     <div class="section-container">
       <div class="section-header">
-        <div class="section-label">定价 · 个人免费</div>
-        <h2 class="section-title">先免费用，觉得好用再聊。</h2>
-        <p class="section-subtitle">个人开发者永久免费，不锁功能。</p>
+        <div class="section-label">定价方案 · 免费起步</div>
+        <h2 class="section-title">选择适合你的版本</h2>
+        <p class="section-subtitle">个人用户永久免费，专业版解锁更多 AI 模型和高级功能。</p>
       </div>
       <div class="pricing-cards">
-        <div class="pricing-card featured">
-          <div class="pricing-badge">当前版本</div>
-          <h3 class="pricing-name">测试版</h3>
-          <div class="pricing-price"><span class="price-amount">¥0</span><span class="price-period">/随便用</span></div>
+        <div class="pricing-card">
+          <div class="pricing-badge">免费</div>
+          <h3 class="pricing-name">社区版</h3>
+          <div class="pricing-price"><span class="price-amount">¥0</span><span class="price-period">/永久</span></div>
           <ul class="pricing-features">
-            <li>✅ 全部内置工具</li>
-            <li>✅ 本地 9B 模型</li>
-            <li>✅ Arduino/ESP32 插件</li>
-            <li>✅ 插件系统</li>
-            <li>✅ 串口监视</li>
+            <li>✅ 内置 AI 智能体引擎</li>
+            <li>✅ 17 种开发工具</li>
+            <li>✅ 3 种权限模式</li>
+            <li>✅ 本地文件系统</li>
+            <li>✅ 社区支持</li>
+            <li class="disabled">❌ 高级 AI 模型</li>
+            <li class="disabled">❌ 插件市场</li>
           </ul>
-          <a href="https://github.com/hulufeng/LabCode/releases/download/v1.0.0/LabCode-Setup-1.0.0.exe" class="btn btn-primary btn-full">免费下载</a>
+          <a href="#download" class="btn btn-secondary btn-full">免费下载</a>
+        </div>
+        <div class="pricing-card featured">
+          <div class="pricing-badge">推荐</div>
+          <h3 class="pricing-name">专业版</h3>
+          <div class="pricing-price"><span class="price-amount">¥29</span><span class="price-period">/月</span></div>
+          <ul class="pricing-features">
+            <li>✅ 社区版全部功能</li>
+            <li>✅ 全部 AI 模型（DeepSeek/Qwen/MiniMax）</li>
+            <li>✅ 插件市场（50+ 插件）</li>
+            <li>✅ 子智能体深度研究</li>
+            <li>✅ 云端同步</li>
+            <li>✅ 优先技术支持</li>
+            <li>✅ 自动更新</li>
+          </ul>
+          <a href="#download" class="btn btn-primary btn-full">立即升级</a>
+        </div>
+        <div class="pricing-card">
+          <div class="pricing-badge">企业</div>
+          <h3 class="pricing-name">企业版</h3>
+          <div class="pricing-price"><span class="price-amount">定制</span></div>
+          <ul class="pricing-features">
+            <li>✅ 专业版全部功能</li>
+            <li>✅ 私有化部署</li>
+            <li>✅ 企业级安全审计</li>
+            <li>✅ 自定义 AI 模型接入</li>
+            <li>✅ 团队协作功能</li>
+            <li>✅ 专属客户经理</li>
+            <li>✅ SLA 保障</li>
+          </ul>
+          <a href="#" class="btn btn-secondary btn-full">联系销售</a>
         </div>
       </div>
     </div>
@@ -510,8 +548,8 @@
   <section class="download" id="download">
     <div class="section-container">
       <div class="download-content">
-        <h2 class="download-title">装上就能用</h2>
-        <p class="download-subtitle">Windows 10/11，双击安装，不需要 Python/Node 环境。</p>
+        <h2 class="download-title">开始使用 LabCode</h2>
+        <p class="download-subtitle">免费下载，立即体验真正动手的 AI 软件工程师。</p>
         <div class="download-buttons">
           <a href="https://github.com/hulufeng/LabCode/releases/download/v1.0.0/LabCode-Setup-1.0.0.exe" class="btn btn-primary btn-xlarge">
             <span class="btn-icon">⬇</span>
