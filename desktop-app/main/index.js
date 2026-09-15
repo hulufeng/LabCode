@@ -1350,8 +1350,16 @@ function setupIPC() {
     }
     // 输出转发
     serialMonitorProc.stdout.on('data', (data) => {
+      const text = data.toString('utf8');
+      // 写入后台日志缓冲
+      text.split(/\r?\n/).forEach(line => {
+        if (line.trim()) {
+          serialLogBuffer.push({ ts: Date.now(), line });
+          if (serialLogBuffer.length > MAX_LOG_LINES) serialLogBuffer.shift();
+        }
+      });
       if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('serial:data', data.toString('utf8'));
+        mainWindow.webContents.send('serial:data', text);
       }
     });
     serialMonitorProc.stderr.on('data', (data) => {
@@ -1389,6 +1397,32 @@ function setupIPC() {
     } catch (e) {
       return { success: false, error: e.message };
     }
+  });
+
+  // ===== 后台串口日志缓冲（对齐 TrieCode serialLog）=====
+  const serialLogBuffer = []; // [{ts, line}]
+  const MAX_LOG_LINES = 5000;
+  // 把 serial:data 的输出同时写入缓冲
+  // （在 serialMonitorProc.stdout.on 处 push）
+  ipcMain.handle('serial:log-tail', async (_, opts) => {
+    const n = Math.min((opts && opts.line) || 50, 500);
+    return { success: true, lines: serialLogBuffer.slice(-n).map(e => e.line) };
+  });
+  ipcMain.handle('serial:log-grep', async (_, opts) => {
+    if (!opts || !opts.pattern) return { success: false, error: '缺 pattern' };
+    const re = new RegExp(opts.pattern, 'i');
+    const max = Math.min((opts.max) || 30, 200);
+    const hits = serialLogBuffer.filter(e => re.test(e.line)).slice(-max).map(e => e.line);
+    return { success: true, lines: hits };
+  });
+  ipcMain.handle('serial:log-analyze-crash', async () => {
+    const patterns = [
+      /Guru Meditation|Backtrace:/, /HardFault/, /panic\s*\(/.source, /assertion failed/,
+      /segfault|stack overflow|watchdog|out of memory|heap corruption/, /abort\(\)/
+    ];
+    const matches = serialLogBuffer.filter(e => patterns.some(p => p instanceof RegExp ? p.test(e.line) : new RegExp(p).test(e.line)));
+    if (!matches.length) return { success: true, diagnosis: '未检测到崩溃签名' };
+    return { success: true, lines: matches.map(m => m.line), diagnosis: '检测到 ' + matches.length + ' 行崩溃相关日志' };
   });
 
   // 外部链接
