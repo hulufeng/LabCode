@@ -140,6 +140,13 @@ contextBridge.exposeInMainWorld('LabCode', {
     ensureClangd: () => ipcRenderer.invoke('tools:ensure-clangd')
   },
 
+  // 串口日志
+  serialLog: {
+    tail: (opts) => ipcRenderer.invoke('serial:log-tail', opts),
+    grep: (opts) => ipcRenderer.invoke('serial:log-grep', opts),
+    analyzeCrash: () => ipcRenderer.invoke('serial:log-analyze-crash')
+  },
+
   // AI 对话
   ai: {
     chat: (options) => ipcRenderer.invoke('ai:chat', options),

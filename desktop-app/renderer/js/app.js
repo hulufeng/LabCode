@@ -10734,6 +10734,49 @@ function init() {
       });
       // Arduino CLI 工具链（迁移自硬编码 TOOL_DEFS）
       window.PluginSystem.registerInternalService('arduinoCli', ARDUINO_TOOL_IMPLS);
+
+      // 串口日志服务（对齐 TrieCode serialLog）
+      window.PluginSystem.registerInternalService('serialLog', {
+        open: async (a) => {
+          if (!window.LabCode.serial) return '串口桥不可用';
+          const r = await window.LabCode.serial.open({ port: a.port, baud: a.baud || 115200 });
+          return r.success ? '串口已打开 ' + a.port : '失败: ' + (r.error || '');
+        },
+        tail: async (a) => {
+          const r = await window.LabCode.serialLog.tail({ line: a.line || 50 });
+          return r.lines.join('\n');
+        },
+        grep: async (a) => {
+          const r = await window.LabCode.serialLog.grep({ pattern: a.pattern, max: a.max || 30 });
+          return r.lines.join('\n') || '无匹配';
+        },
+        send: async (a) => {
+          const r = await window.LabCode.serial.write(a.data);
+          return r.success ? '已发送' : '失败: ' + (r.error || '');
+        },
+        close: async () => {
+          await window.LabCode.serial.close();
+          return '串口已关闭';
+        },
+        analyzeCrash: async () => {
+          const r = await window.LabCode.serialLog.analyzeCrash();
+          return r.diagnosis + (r.lines ? '\n' + r.lines.join('\n') : '');
+        }
+      });
+      // 串口列表服务
+      window.PluginSystem.registerInternalService('serialport', {
+        list: async () => {
+          const r = await window.LabCode.serial.list();
+          return r.ports ? JSON.stringify(r.ports) : '无串口';
+        },
+        select: async (a) => {
+          // 简化：返回匹配的端口
+          const r = await window.LabCode.serial.list();
+          if (!r.ports || !r.ports.length) return '无可用串口';
+          const found = r.ports.find(p => p.port.toLowerCase().includes((a.query || '').toLowerCase()));
+          return found ? '已选择 ' + found.port : '未找到匹配端口';
+        }
+      });
       // clangd LSP 客户端（真接 LSP over stdio）
       const clangdSvc = {
         async _ensureStarted() {
