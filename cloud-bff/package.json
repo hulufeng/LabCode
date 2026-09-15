@@ -1,0 +1,11 @@
+{
+  "name": "labcode-cloud-bff",
+  "version": "0.1.0",
+  "private": true,
+  "description": "LabCode 云端 BFF：鉴权 + 转发 DeepSeek API + 用量记账（零依赖）",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": { "node": ">=18" }
+}

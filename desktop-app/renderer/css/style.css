@@ -1,53 +1,88 @@
 /* ============================================
-   LabCode - TrieCode 风格浅色主题
-   主色调: #2563eb (蓝色)
-   背景色: #ffffff (白色)
+   LabCode - 深色主题（1:1 对齐 TrieCode）
+   主色调: #3b82f6 (蓝色)
+   背景色: #1a1b26 (深灰蓝)
    ============================================ */
 
 /* CSS 变量 */
 :root {
   /* 主色调 */
+  --primary: #3b82f6;
+  --primary-light: #1e3a5f;
+  --primary-lighter: #1e293b;
+  --primary-hover: #2563eb;
+  --primary-active: #1d4ed8;
+  
+  /* 背景色 */
+  --bg-primary: #1a1b26;
+  --bg-secondary: #16161e;
+  --bg-tertiary: #24283b;
+  --bg-hover: #24283b;
+  --bg-selected: #1e3a5f;
+  
+  /* 边框色 */
+  --border-light: #2a2e42;
+  --border-medium: #3b3f52;
+  --border-dark: #565f89;
+  
+  /* 文字颜色 */
+  --text-primary: #c0caf5;
+  --text-secondary: #a9b1d6;
+  --text-tertiary: #565f89;
+  --text-quaternary: #414868;
+  --text-inverse: #1a1b26;
+  
+  /* 状态色 */
+  --success: #9ece6a;
+  --success-bg: #1a2e1a;
+  --error: #f7768e;
+  --error-bg: #2e1a1a;
+  --warning: #e0af68;
+  --warning-bg: #2e2a1a;
+  --info: #7aa2f7;
+  --info-bg: #1a1e2e;
+  
+  /* 尺寸 */
+  --titlebar-height: 40px;
+  --activity-bar-width: 48px;
+  --sidebar-width: 380px;
+  --statusbar-height: 24px;
+  --bottom-panel-height: 200px;
+}
+
+/* 浅色主题（对齐 TrieCode 浅色界面） */
+[data-theme="light"] {
   --primary: #2563eb;
   --primary-light: #dbeafe;
   --primary-lighter: #eff6ff;
   --primary-hover: #1d4ed8;
   --primary-active: #1e40af;
-  
-  /* 背景色 */
+
   --bg-primary: #ffffff;
-  --bg-secondary: #f9fafb;
-  --bg-tertiary: #f3f4f6;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #f9fafb;
   --bg-hover: #f3f4f6;
-  --bg-selected: #eff6ff;
-  
-  /* 边框色 */
-  --border-light: #e5e7eb;
+  --bg-selected: #dbeafe;
+
+  --border-light: #f0f0f0;
   --border-medium: #d1d5db;
   --border-dark: #9ca3af;
-  
-  /* 文字颜色 */
-  --text-primary: #111827;
-  --text-secondary: #374151;
-  --text-tertiary: #6b7280;
-  --text-quaternary: #9ca3af;
+
+  --text-primary: #1a1b1c;
+  --text-secondary: #6b7280;
+  --text-tertiary: #9ca3af;
+  --text-quaternary: #d1d5db;
   --text-inverse: #ffffff;
-  
-  /* 状态色 */
-  --success: #166534;
-  --success-bg: #dcfce7;
+
+  --success: #16a34a;
+  --success-bg: #f0fdf4;
   --error: #dc2626;
-  --error-bg: #fee2e2;
-  --warning: #92400e;
-  --warning-bg: #fef3c7;
-  --info: #1e40af;
-  --info-bg: #dbeafe;
-  
-  /* 尺寸 */
-  --titlebar-height: 40px;
-  --activity-bar-width: 48px;
-  --sidebar-width: 240px;
-  --statusbar-height: 24px;
-  --bottom-panel-height: 200px;
+  --error-bg: #fef2f2;
+  --warning: #d97706;
+  --warning-bg: #fffbeb;
+  --info: #2563eb;
+  --info-bg: #eff6ff;
+}
   
   /* 圆角 */
   --radius-sm: 4px;
@@ -267,6 +302,8 @@ button span + .icon {
 }
 
 html, body {
+  margin: 0;
+  padding: 0;
   height: 100%;
   overflow: hidden;
   font-family: var(--font-family);
@@ -275,6 +312,12 @@ html, body {
   background: var(--bg-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  display: flex;
+  flex-direction: column;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
 }
 
 button {
@@ -301,6 +344,7 @@ input, textarea {
   align-items: center;
   justify-content: space-between;
   padding: 0 8px;
+  flex-shrink: 0;
   -webkit-app-region: drag;
   user-select: none;
 }
@@ -308,7 +352,15 @@ input, textarea {
 .titlebar-left {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  padding-left: 8px;
+}
+
+.titlebar-divider {
+  width: 1px;
+  height: 18px;
+  background: var(--border-light);
+  margin: 0 4px;
 }
 
 .app-icon {
@@ -325,8 +377,8 @@ input, textarea {
 .menubar {
   display: flex;
   align-items: center;
-  gap: 2px;
-  margin-left: 16px;
+  gap: 8px;
+  margin-left: 0;
 }
 
 .menu-item {
@@ -583,7 +635,8 @@ input, textarea {
    ============================================ */
 .main-container {
   display: flex;
-  height: calc(100vh - var(--titlebar-height) - var(--statusbar-height) - var(--bottom-panel-height));
+  flex: 1;
+  min-height: 0;
 }
 
 /* ============================================
@@ -769,23 +822,29 @@ input, textarea {
    欢迎面板（侧栏下方）
    ============================================ */
 .welcome-panel {
+  flex: 1;
   padding: 24px 16px;
-  border-top: 1px solid var(--border-light);
   text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .welcome-panel-icon {
-  width: 48px;
-  height: 48px;
+  width: 56px;
+  height: 56px;
   margin: 0 auto 16px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--primary);
-  color: white;
-  font-size: 24px;
-  border-radius: var(--radius-full);
+  background: rgba(59, 130, 246, 0.12);
+  border-radius: 50%;
+  color: var(--primary, #3b82f6);
 }
+.welcome-panel-icon .icon { width: 28px; height: 28px; }
 
 .welcome-panel-title {
   font-size: 16px;
@@ -805,7 +864,40 @@ input, textarea {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  width: 100%;
 }
+
+/* 1:1 对齐 TrieCode：最近打开区域（欢迎组件的一部分，居中显示） */
+.recent-panel {
+  width: 100%;
+  padding: 16px 12px 0;
+  border-top: 1px solid var(--border-light);
+  margin-top: 20px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+.recent-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-tertiary);
+  padding: 4px 0;
+}
+.recent-header .icon { width: 14px; height: 14px; }
+.recent-list { display: flex; flex-direction: column; gap: 2px; }
+.recent-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.recent-item:hover { background: var(--bg-hover); color: var(--text-primary); }
+.recent-item .icon { width: 14px; height: 14px; color: var(--text-tertiary); }
 
 /* ============================================
    编辑器容器
@@ -914,9 +1006,123 @@ input, textarea {
 
 .welcome-content {
   width: 100%;
-  max-width: 720px;
+  max-width: 480px;
   padding: 40px 24px;
   text-align: center;
+}
+
+/* 空状态图标（对齐 TrieCode 简洁风格） */
+.welcome-empty-icon {
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-secondary);
+  border-radius: 14px;
+  color: var(--text-tertiary);
+}
+.welcome-empty-icon .icon { width: 28px; height: 28px; }
+.welcome-empty-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 8px 0;
+}
+.welcome-empty-desc {
+  font-size: 13px;
+  color: var(--text-tertiary);
+  margin: 0 0 24px 0;
+}
+
+/* 欢迎页快捷操作（水平排列，对齐 TrieCode） */
+.welcome-actions {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  max-width: 100%;
+}
+.welcome-action-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.welcome-action-btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-medium);
+  color: var(--text-primary);
+}
+.welcome-action-btn.primary {
+  background: var(--primary, #007acc);
+  border-color: var(--primary, #007acc);
+  color: #fff;
+}
+.welcome-action-btn.primary:hover {
+  background: var(--primary-hover, #0066b3);
+  border-color: var(--primary-hover, #0066b3);
+}
+.welcome-action-btn .icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+/* 欢迎页最近项目 */
+.welcome-recent {
+  text-align: left;
+  max-width: 320px;
+  margin: 0 auto;
+}
+.welcome-recent-title {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  margin: 0 0 8px 0;
+  font-weight: 500;
+}
+.welcome-recent-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.welcome-recent-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text-secondary);
+  transition: all 0.15s;
+}
+.welcome-recent-item:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.welcome-recent-item .icon {
+  width: 14px;
+  height: 14px;
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+.welcome-recent-path {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .welcome-title {
@@ -977,32 +1183,270 @@ input, textarea {
    ============================================ */
 .ai-input-container {
   width: 100%;
-  max-width: 640px;
+  max-width: 720px;
+  padding: 16px 16px 8px;
+  flex-shrink: 0;
   margin: 0 auto;
+  box-sizing: border-box;
+}
+
+/* 1:1 对齐 TrieCode：AI 面板顶部操作栏 */
+.ai-top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 16px;
+  border-bottom: 1px solid var(--border-light);
+  flex-shrink: 0;
+  height: 40px;
+  box-sizing: border-box;
+}
+.ai-top-left { display: flex; align-items: center; }
+.ai-top-icon { color: var(--primary); display: flex; }
+.ai-top-icon .icon { width: 20px; height: 20px; }
+.ai-top-right { display: flex; align-items: center; gap: 4px; }
+.ai-top-btn {
+  width: 28px; height: 28px;
+  display: flex; align-items: center; justify-content: center;
+  background: transparent; border: none; border-radius: var(--radius-sm);
+  color: var(--text-tertiary); cursor: pointer;
+}
+.ai-top-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+.ai-top-btn .icon { width: 16px; height: 16px; }
+
+/* 自研本体 P0-2：安全模式三按钮（⚡自动 / 🛡️默认 / 📋计划）——1:1 对齐 TrieCode：顶部不显示，移至设置 */
+.safety-mode-group {
+  display: none;
+}
+
+/* 1:1 对齐 TrieCode：AI 欢迎页（整体组件垂直居中，含输入框和项目栏） */
+.ai-welcome {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  padding: 24px 20px 24px;
+  text-align: center;
+}
+.ai-welcome-title {
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 12px 0;
+  letter-spacing: -0.5px;
+}
+.ai-welcome-subtitle {
+  font-size: 14px;
+  color: var(--text-tertiary);
+  margin: 0 0 20px 0;
+}
+/* LabCode 产品特性（差异化卖点，简洁灰色小字） */
+.ai-welcome-features {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 28px;
+  width: 100%;
+  max-width: 360px;
+}
+.ai-feature-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-tertiary);
+  text-align: left;
+}
+.ai-feature-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--primary, #3b82f6);
+  flex-shrink: 0;
+}
+.ai-quick-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  max-width: 100%;
+  width: 100%;
+}
+.ai-quick-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: transparent;
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: all 0.15s;
+  min-width: 0;
+}
+.ai-quick-btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-medium);
+  color: var(--text-primary);
+}
+.ai-quick-icon { color: var(--text-tertiary); display: flex; flex-shrink: 0; }
+.ai-quick-icon .icon { width: 15px; height: 15px; }
+.ai-quick-text { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+
+/* AI 欢迎页特点介绍（参考 Trae） */
+.ai-welcome-features {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 20px 0;
+  max-width: 400px;
+  width: 100%;
+}
+.ai-feature-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  text-align: left;
+}
+.ai-feature-item .icon {
+  width: 16px;
+  height: 16px;
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
+/* AI 模型状态（参考 Trae 登录按钮位置） */
+.ai-model-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  margin-bottom: 20px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.model-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #4caf50;
+  flex-shrink: 0;
+}
+.model-status-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 1:1 对齐 TrieCode：项目路径栏 */
+.ai-project-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  max-width: 720px;
+  padding: 4px 0 0;
+  flex-shrink: 0;
+}
+.ai-project-path {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+.ai-project-path .icon { width: 14px; height: 14px; }
+.ai-project-btn {
+  padding: 4px 12px;
+  font-size: 12px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.ai-project-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+/* 右侧面板内的输入框（窄面板适配） */
+.ai-input-container.ai-input-side {
+  max-width: 100%;
+  padding: 8px 10px 10px;
+  border-top: 1px solid var(--border-light);
+  background: var(--bg-primary);
+}
+
+.ai-input-side .ai-input-box {
+  border-radius: var(--radius-lg);
+  box-shadow: none;
+}
+
+.ai-input-side .ai-input-textarea {
+  min-height: 48px;
+  max-height: 160px;
+  padding: 10px 12px;
+  font-size: 13px;
+}
+
+.ai-input-side .ai-input-toolbar {
+  padding: 6px 8px;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.ai-input-side .ai-input-left,
+.ai-input-side .ai-input-right {
+  gap: 4px;
+}
+
+.ai-input-side .ai-input-project-status {
+  font-size: 11px;
+  padding: 3px 6px;
+}
+
+.ai-input-side .model-select-btn {
+  padding: 4px 8px;
+  font-size: 11px;
+}
+
+.ai-input-side .model-dropdown {
+  right: 0;
+  left: auto;
+  min-width: 160px;
 }
 
 .ai-input-box {
-  background: var(--bg-primary);
+  background: var(--bg-secondary);
   border: 1px solid var(--border-light);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-sm);
+  border-radius: 16px;
+  box-shadow: none;
   overflow: hidden;
   transition: all 0.2s;
 }
 
 .ai-input-box:focus-within {
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px var(--primary-light);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
 }
 
 .ai-input-textarea {
   width: 100%;
-  min-height: 60px;
+  min-height: 64px;
   max-height: 200px;
-  padding: 16px;
+  padding: 14px 16px;
   border: none;
   resize: none;
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.5;
   color: var(--text-primary);
   background: transparent;
@@ -1027,27 +1471,30 @@ input, textarea {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 12px;
+  padding: 6px 8px;
   border-top: 1px solid var(--bg-tertiary);
+  gap: 4px;
 }
 
 .ai-input-left,
 .ai-input-right {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
+  min-width: 0;
 }
 
 .ai-input-tool-btn {
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
+  font-size: 12px;
   color: var(--text-tertiary);
   border-radius: var(--radius-sm);
   transition: all 0.15s;
+  flex-shrink: 0;
 }
 
 .ai-input-tool-btn:hover {
@@ -1060,32 +1507,40 @@ input, textarea {
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text-tertiary);
-  padding: 4px 8px;
+  padding: 3px 6px;
   background: var(--bg-tertiary);
   border-radius: var(--radius-sm);
+  white-space: nowrap;
+  flex-shrink: 0;
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .project-status-icon {
-  font-size: 12px;
+  font-size: 11px;
 }
 
 /* 模型选择器 */
 .model-selector {
   position: relative;
+  flex-shrink: 0;
 }
 
 .model-select-btn {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 5px 10px;
+  padding: 4px 8px;
   background: var(--bg-tertiary);
   border-radius: var(--radius-md);
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text-secondary);
   transition: all 0.15s;
+  max-width: 100px;
+  overflow: hidden;
 }
 
 .model-select-btn:hover {
@@ -1094,11 +1549,15 @@ input, textarea {
 
 .model-name {
   font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .model-dropdown-arrow {
-  font-size: 10px;
+  font-size: 9px;
   color: var(--text-tertiary);
+  flex-shrink: 0;
 }
 
 .model-dropdown {
@@ -1135,8 +1594,8 @@ input, textarea {
 
 /* 发送按钮 */
 .ai-send-btn {
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1144,6 +1603,7 @@ input, textarea {
   color: var(--primary);
   border-radius: var(--radius-full);
   transition: all 0.15s;
+  flex-shrink: 0;
 }
 
 .ai-send-btn:hover {
@@ -1193,11 +1653,22 @@ input, textarea {
    AI 助手面板
    ============================================ */
 .ai-panel {
-  width: 360px;
+  flex: 2;
+  min-width: 480px;
   background: var(--bg-primary);
   border-left: 1px solid var(--border-light);
   display: flex;
   flex-direction: column;
+}
+
+/* 1:1 对齐 TrieCode：无打开文件时，保持三栏布局——中间编辑器显示空状态提示，右侧 AI 面板 flex:2 */
+body.no-open-file .editor-container {
+  display: flex;
+}
+body.no-open-file .ai-panel {
+  flex: 2;
+  min-width: 480px;
+  border-left: 1px solid var(--border-light);
 }
 
 .ai-header {
@@ -1232,7 +1703,49 @@ input, textarea {
   flex: 1;
   overflow-y: auto;
   padding: 16px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
 }
+
+/* ↓ 回到底部（对齐 TrieCode：工作流滚动时悬浮一键回底） */
+.chat-scroll-bottom {
+  position: sticky;
+  bottom: 14px;
+  margin-left: auto;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: 0.5px solid rgba(0,0,0,0.12);
+  border-radius: 999px;
+  background: rgba(255,255,255,0.95);
+  color: #1A1B1C;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.12);
+  transition: transform .15s ease, box-shadow .15s ease;
+  min-height: 40px;
+}
+.chat-scroll-bottom:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(0,0,0,0.16); }
+
+/* 工作状态条（对齐 TrieCode：▶ 已工作 Xs · 思考 · N 个工具 · 📚 已收集上下文） */
+.work-status-msg .work-status-bubble {
+  background: linear-gradient(135deg, rgba(99,102,241,0.08), rgba(139,92,246,0.14));
+  border: 0.5px solid rgba(99,102,241,0.22);
+  border-radius: 14px;
+  padding: 10px 14px;
+}
+.work-status-line { font-size: 13px; color: #1A1B1C; }
+.work-status-line b { color: #6366f1; font-weight: 700; }
+.work-status-meta { display: block; margin-top: 4px; font-size: 11.5px; color: #6B7280; }
+.work-status-msg.work-status-done .work-status-bubble {
+  background: linear-gradient(135deg, rgba(82,196,26,0.08), rgba(82,196,26,0.12));
+  border-color: rgba(82,196,26,0.25);
+}
+.work-status-msg.work-status-done .work-status-line b { color: #389e0d; }
 
 .ai-messages::-webkit-scrollbar {
   width: 6px;
@@ -1450,8 +1963,19 @@ input, textarea {
    ============================================ */
 .statusbar {
   height: var(--statusbar-height);
-  background: var(--primary);
-  color: var(--text-inverse);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  border-top: 1px solid var(--border-light);
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #4ade80;
+  display: inline-block;
+  margin-right: 4px;
+}
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1550,6 +2074,11 @@ input, textarea {
   justify-content: center;
   z-index: 10000;
   backdrop-filter: blur(2px);
+}
+
+/* active 时覆盖内联 display:none，确保弹窗显示 */
+.modal-overlay.active {
+  display: flex !important;
 }
 
 .modal {
@@ -1654,52 +2183,107 @@ input, textarea {
 }
 
 /* ===== 新建项目弹窗 ===== */
-.project-type-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 10px;
-  margin-bottom: 16px;
-}
-
-.project-type-card {
+/* 新建项目对话框 - TrieCode 风格左右两栏 */
+.new-project-layout {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-  padding: 12px;
-  background: var(--bg-secondary);
+  gap: 0;
   border: 1px solid var(--border-light);
   border-radius: var(--radius-md);
+  overflow: hidden;
+  margin-bottom: 16px;
+  height: 280px;
+}
+
+.project-type-list {
+  width: 200px;
+  min-width: 200px;
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border-light);
+  overflow-y: auto;
+}
+
+.project-type-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
   cursor: pointer;
-  text-align: left;
-  transition: all 0.15s;
+  transition: background 0.15s;
+  border-left: 3px solid transparent;
 }
 
-.project-type-card:hover {
-  border-color: var(--primary);
+.project-type-item:hover {
+  background: var(--bg-hover);
+}
+
+.project-type-item.active {
   background: var(--primary-light);
+  border-left-color: var(--primary);
 }
 
-.project-type-card.active {
-  border-color: var(--primary);
-  background: var(--primary-light);
-  box-shadow: 0 0 0 2px var(--primary-light);
-}
-
-.project-type-icon {
+.project-type-item .project-type-icon {
   font-size: 18px;
-  line-height: 1;
+  flex-shrink: 0;
 }
 
-.project-type-card span:nth-child(2) {
+.project-type-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.project-type-name {
   font-size: 13px;
   font-weight: 600;
   color: var(--text-primary);
 }
 
-.project-type-card small {
+.project-type-item small {
   font-size: 11px;
   color: var(--text-tertiary);
+}
+
+.project-preview {
+  flex: 1;
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.project-preview-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.project-preview-desc {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin-bottom: 16px;
+}
+
+.project-preview-files-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.project-preview-files {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.preview-file {
+  font-size: 12px;
+  color: var(--text-secondary);
+  padding: 6px 10px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-sm);
+  font-family: 'Consolas', 'Monaco', monospace;
 }
 
 .project-location-row {
@@ -1944,7 +2528,7 @@ input, textarea {
 }
 
 /* ============================================
-   TrieCode 风格新增样式
+   LabCode 风格新增样式
    ============================================ */
 
 /* 标题栏快速操作按钮 */
@@ -2113,8 +2697,9 @@ input, textarea {
 /* 状态栏简化样式 */
 .statusbar {
   height: var(--statusbar-height);
-  background: var(--primary);
-  color: white;
+  background: var(--bg-primary);
+  color: var(--success);
+  border-top: 1px solid var(--border-light);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -2358,12 +2943,12 @@ input, textarea {
   white-space: nowrap;
 }
 
-/* ============ AI 思考过程展示 ============ */
+/* ============ AI 思考过程展示（豆包式深度思考）============ */
 .thinking-block {
   margin: 8px 0;
-  border: 1px solid var(--border-light);
+  border: 1px solid rgba(99,102,241,0.18);
   border-radius: var(--radius-md);
-  background: var(--bg-secondary);
+  background: linear-gradient(180deg, rgba(99,102,241,0.06), rgba(99,102,241,0.02));
   overflow: hidden;
 }
 
@@ -2371,28 +2956,30 @@ input, textarea {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 12px;
+  padding: 9px 12px;
   cursor: pointer;
   user-select: none;
   font-size: 12px;
   color: var(--text-secondary);
-  background: var(--bg-tertiary);
+  background: transparent;
+  border-bottom: 1px solid rgba(99,102,241,0.10);
   transition: background 0.15s ease;
 }
 
 .thinking-header:hover {
-  background: var(--bg-hover);
+  background: rgba(99,102,241,0.06);
 }
 
 .thinking-icon {
   display: flex;
   align-items: center;
-  color: var(--primary);
+  color: #6366f1;
 }
 
 .thinking-title {
   flex: 1;
-  font-weight: 500;
+  font-weight: 600;
+  color: #4f46e5;
 }
 
 .thinking-time {
@@ -2413,8 +3000,8 @@ input, textarea {
   display: none;
   padding: 12px;
   font-size: 12px;
-  line-height: 1.6;
-  color: var(--text-secondary);
+  line-height: 1.7;
+  color: #4b5563;
   white-space: pre-wrap;
   word-break: break-word;
   max-height: 400px;
@@ -2423,6 +3010,27 @@ input, textarea {
 
 .thinking-block.expanded .thinking-content {
   display: block;
+}
+
+/* 思考中动画：标题脉冲 + 内容打字光标 */
+.thinking-block.streaming .thinking-title {
+  color: var(--primary);
+  animation: thinkingPulse 1.2s ease-in-out infinite;
+}
+.thinking-block.streaming .thinking-content::after {
+  content: '▋';
+  display: inline-block;
+  margin-left: 2px;
+  animation: thinkingBlink 0.8s step-end infinite;
+  color: var(--primary);
+}
+@keyframes thinkingPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+@keyframes thinkingBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
 }
 
 .thinking-content::-webkit-scrollbar {
@@ -2587,6 +3195,39 @@ input, textarea {
 }
 
 /* ============ 计划进度面板 ============ */
+/* 自研本体 P0-3：技能面板（对齐 TrieCode / 技能菜单） */
+.ai-skill-panel {
+  border-top: 1px solid var(--border-light);
+  background: var(--bg-secondary);
+  padding: 10px 12px;
+  flex-shrink: 0;
+}
+.ai-skill-panel-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 8px;
+}
+.ai-skill-panel-title {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12px; font-weight: 600; color: var(--text-primary);
+}
+.ai-skill-panel-hint { font-size: 11px; color: var(--text-tertiary); }
+.ai-skill-list { display: flex; flex-direction: column; gap: 4px; max-height: 220px; overflow-y: auto; }
+.ai-skill-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 10px; border-radius: 8px; cursor: pointer;
+  background: transparent; border: 1px solid transparent;
+}
+.ai-skill-item:hover { background: var(--bg-hover, rgba(0,0,0,0.04)); border-color: var(--border-light); }
+.ai-skill-item-icon { color: var(--primary); display: flex; flex-shrink: 0; }
+.ai-skill-item-icon .icon { width: 14px; height: 14px; }
+.ai-skill-item-main { flex: 1; min-width: 0; }
+.ai-skill-item-name { font-size: 12px; font-weight: 600; color: var(--text-primary); }
+.ai-skill-item-desc { font-size: 11px; color: var(--text-tertiary); margin-top: 1px; }
+.ai-skill-item-badge {
+  font-size: 10px; color: var(--primary); background: rgba(139,200,234,0.12);
+  padding: 2px 6px; border-radius: 8px; flex-shrink: 0;
+}
+
 .plan-progress-panel {
   border-top: 1px solid var(--border-light);
   background: var(--bg-secondary);
@@ -2718,6 +3359,311 @@ input, textarea {
   background: var(--primary-lighter);
 }
 
+/* ============ 工具活动面板（Flow，对齐 Trae） ============ */
+.ai-tool-flow {
+  border-top: 1px solid var(--border-light);
+  background: var(--bg-secondary);
+  flex-shrink: 0;
+}
+
+.ai-tool-flow-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+}
+
+.ai-tool-flow-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.ai-tool-flow-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.ai-tool-flow-btn {
+  font-size: 11px;
+  color: var(--text-secondary);
+  background: var(--bg-tertiary);
+  border: none;
+  border-radius: 6px;
+  padding: 3px 8px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.ai-tool-flow-btn:hover {
+  background: var(--bg-hover);
+}
+
+.ai-tool-flow-body {
+  max-height: 150px;
+  overflow-y: auto;
+  padding: 0 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tool-flow-item {
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  background: var(--bg-primary);
+  font-size: 12px;
+}
+
+.tool-flow-item.running {
+  border-color: rgba(96, 165, 250, 0.4);
+  background: var(--primary-lighter);
+}
+
+.tool-flow-item.done {
+  border-color: rgba(16, 185, 129, 0.35);
+}
+
+.tool-flow-item.error {
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+.tool-flow-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tool-flow-icon {
+  font-size: 12px;
+}
+
+.tool-flow-tool {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.tool-flow-status {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.tool-flow-time {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--text-tertiary);
+}
+
+.tool-flow-file,
+.tool-flow-cmd {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  word-break: break-all;
+}
+
+.tool-flow-cmd {
+  color: var(--primary);
+  font-family: 'Cascadia Code', Consolas, monospace;
+}
+
+.tool-flow-code,
+.tool-flow-out {
+  margin-top: 6px;
+  max-height: 90px;
+  overflow: auto;
+  font-size: 11px;
+  line-height: 1.5;
+  background: rgba(0, 0, 0, 0.03);
+  border-radius: 6px;
+  padding: 6px 8px;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-family: 'Cascadia Code', Consolas, monospace;
+}
+
+/* ============ diff 验收卡（对齐 Trae Diff 视图） ============ */
+.diff-summary-card {
+  background: var(--bg-secondary);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+}
+
+.diff-summary-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.diff-summary-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.diff-summary-meta {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.diff-add {
+  color: #10b981;
+  font-weight: 600;
+}
+
+.diff-del {
+  color: #ef4444;
+  font-weight: 600;
+}
+
+.diff-file-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.15s ease;
+  font-size: 12px;
+}
+
+.diff-file-row:hover {
+  background: var(--bg-hover);
+}
+
+.diff-file-name {
+  flex: 1;
+  color: var(--text-primary);
+  font-family: 'Cascadia Code', Consolas, monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.diff-file-stats {
+  display: flex;
+  gap: 6px;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.diff-file-chevron {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
+.diff-file-body {
+  padding: 2px 4px 8px;
+}
+
+.diff-preview {
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  max-height: 260px;
+  overflow: auto;
+  font-size: 11px;
+  line-height: 1.55;
+  font-family: 'Cascadia Code', Consolas, monospace;
+}
+
+.diff-line {
+  display: flex;
+  gap: 6px;
+  padding: 1px 8px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.diff-line.add {
+  background: rgba(16, 185, 129, 0.12);
+  color: #047857;
+}
+
+.diff-line.del {
+  background: rgba(239, 68, 68, 0.10);
+  color: #b91c1c;
+}
+
+.diff-line.same {
+  color: var(--text-tertiary);
+}
+
+.diff-gutter {
+  flex-shrink: 0;
+  width: 12px;
+  text-align: center;
+  user-select: none;
+}
+
+.diff-preview-empty {
+  padding: 12px;
+  font-size: 12px;
+  color: var(--text-tertiary);
+  text-align: center;
+}
+
+/* 计划修改意见输入框 */
+.plan-feedback-input {
+  width: 100%;
+  margin-bottom: 10px;
+  padding: 8px 10px;
+  font-size: 12px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  resize: vertical;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.plan-feedback-input:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+/* 计划步骤列表（结构化展示） */
+.plan-step-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 6px 0;
+  font-size: 12.5px;
+  color: var(--text-primary);
+  line-height: 1.5;
+}
+.plan-step-num {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 1px;
+}
+.plan-step-title {
+  flex: 1;
+  min-width: 0;
+  word-break: break-word;
+}
+
 /* ============ 权限确认弹窗 ============ */
 .permission-modal {
   max-width: 560px;
@@ -2818,26 +3764,727 @@ input, textarea {
   border-color: #d97706;
 }
 
-/* ============ AI 消息增强 ============ */
+/* ============ AI 对话消息 - 对齐 TrieCode ============ */
+.chat-message {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+  align-items: flex-start;
+}
+
+.chat-message.ai {
+  /* AI 消息：无头像，纯文字左对齐 */
+}
+
+.chat-message.user {
+  flex-direction: row-reverse;
+}
+
+.chat-avatar {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #e0e7ff;
+  color: #4f46e5;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* TrieCode AI 消息无头像 */
+.chat-message.ai .chat-avatar {
+  display: none;
+}
+
+.chat-bubble {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.65;
+  color: #1a1b1c;
+  word-break: break-word;
+}
+
+.chat-message.user .chat-bubble {
+  background: #2563eb;
+  color: #ffffff;
+  padding: 8px 14px;
+  border-radius: 12px;
+  max-width: 80%;
+}
+
 .chat-message.ai .chat-bubble {
   position: relative;
 }
 
+.chat-bubble p {
+  margin: 0 0 8px 0;
+}
+
+.chat-bubble p:last-child {
+  margin-bottom: 0;
+}
+
+.chat-bubble pre {
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 10px 12px;
+  overflow-x: auto;
+  margin: 8px 0;
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.chat-bubble code {
+  background: #f3f4f6;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 12px;
+}
+
+.chat-bubble pre code {
+  background: none;
+  padding: 0;
+}
+
+/* 思考过程 - 豆包式深度思考（浅紫柔和块） */
+.thinking-block {
+  border: 1px solid rgba(99,102,241,0.18);
+  border-radius: 8px;
+  overflow: hidden;
+  margin: 6px 0;
+  background: linear-gradient(180deg, rgba(99,102,241,0.06), rgba(99,102,241,0.02));
+}
+
+.thinking-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  background: transparent;
+  cursor: pointer;
+  font-size: 12px;
+  color: #6b7280;
+  user-select: none;
+}
+
+.thinking-content {
+  display: none;
+  padding: 10px 12px;
+  font-size: 12px;
+  color: #4b5563;
+  line-height: 1.7;
+  background: transparent;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.thinking-block.expanded .thinking-content {
+  display: block;
+}
+
+/* 工具调用卡片 - 对齐 TrieCode */
+.tool-call-block {
+  margin: 4px 0;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #ffffff;
+  overflow: hidden;
+  font-size: 12px;
+}
+
+.tool-call-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  cursor: pointer;
+  user-select: none;
+  background: #f9fafb;
+  transition: background 0.15s ease;
+}
+
+.tool-call-header:hover {
+  background: #f3f4f6;
+}
+
+.tool-call-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  font-size: 10px;
+  flex-shrink: 0;
+}
+
+.tool-call-status.running {
+  background: #fef3c7;
+  color: #92400e;
+  animation: pulse 1.5s infinite;
+}
+
+.tool-call-status.done {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.tool-call-status.error,
+.tool-call-status.rejected {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.tool-call-status.waiting {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.tool-call-name {
+  font-weight: 600;
+  color: #1a1b1c;
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 12px;
+}
+
+.tool-call-summary {
+  flex: 1;
+  color: #6b7280;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.tool-call-time {
+  color: #9ca3af;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.tool-call-chevron {
+  transition: transform 0.2s ease;
+  color: #9ca3af;
+  flex-shrink: 0;
+}
+
+.tool-call-block.expanded .tool-call-chevron {
+  transform: rotate(180deg);
+}
+
+.tool-call-detail {
+  display: none;
+  padding: 10px;
+  border-top: 1px solid #e5e7eb;
+  background: #ffffff;
+}
+
+.tool-call-block.expanded .tool-call-detail {
+  display: block;
+}
+
+.tool-call-args,
+.tool-call-result {
+  margin-bottom: 8px;
+}
+
+.tool-call-args:last-child,
+.tool-call-result:last-child {
+  margin-bottom: 0;
+}
+
+.tool-call-label {
+  font-size: 11px;
+  color: #6b7280;
+  margin-bottom: 4px;
+  font-weight: 600;
+}
+
+.tool-call-code {
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  padding: 8px 10px;
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: #1a1b1c;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.tool-call-code.error {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #991b1b;
+}
+
+.tool-call-code.success {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+  color: #065f46;
+}
+
+/* 计划进度 - 对齐 TrieCode（方形复选框） */
+.plan-progress-panel {
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #ffffff;
+  padding: 10px 12px;
+  margin: 6px 0;
+}
+
+.plan-progress-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.plan-progress-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #1a1b1c;
+}
+
+.plan-progress-count {
+  font-size: 11px;
+  color: #6b7280;
+  background: #f3f4f6;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.plan-progress-bar {
+  height: 3px;
+  background: #e5e7eb;
+  border-radius: 2px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.plan-progress-bar-fill {
+  height: 100%;
+  background: #2563eb;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.plan-progress-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.plan-progress-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  transition: background 0.15s ease;
+}
+
+.plan-progress-step:hover {
+  background: #f9fafb;
+}
+
+.plan-progress-step.running {
+  background: #eff6ff;
+}
+
+/* TrieCode 方形复选框 */
+.plan-progress-step-checkbox {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  border: 1.5px solid #d1d5db;
+  flex-shrink: 0;
+  font-size: 9px;
+  color: transparent;
+  transition: all 0.2s ease;
+  background: #ffffff;
+}
+
+.plan-progress-step.done .plan-progress-step-checkbox {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #ffffff;
+}
+
+.plan-progress-step.running .plan-progress-step-checkbox {
+  border-color: #2563eb;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.plan-progress-step-title {
+  flex: 1;
+  color: #374151;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.plan-progress-step.done .plan-progress-step-title {
+  color: #9ca3af;
+  text-decoration: line-through;
+}
+
+.plan-progress-step.running .plan-progress-step-title {
+  color: #2563eb;
+  font-weight: 500;
+}
+
+.plan-progress-step-action {
+  font-size: 11px;
+  color: #2563eb;
+  flex-shrink: 0;
+}
+
+/* 内联权限确认卡片 - 对齐 TrieCode */
+.inline-permission-card {
+  border: 1px solid #fde68a;
+  border-left: 3px solid #f59e0b;
+  border-radius: 6px;
+  background: #ffffff;
+  padding: 12px;
+  margin: 6px 0;
+}
+
+.inline-permission-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #92400e;
+}
+
+.inline-permission-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #f59e0b;
+  flex-shrink: 0;
+}
+
+.inline-permission-desc {
+  font-size: 12px;
+  color: #6b7280;
+  margin-bottom: 8px;
+}
+
+.inline-permission-command {
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  padding: 8px 10px;
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: #1a1b1c;
+  margin-bottom: 8px;
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+.inline-permission-input {
+  width: 100%;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-size: 12px;
+  margin-bottom: 10px;
+  box-sizing: border-box;
+  outline: none;
+}
+
+.inline-permission-input:focus {
+  border-color: #2563eb;
+}
+
+.inline-permission-buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.inline-permission-btn {
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.inline-permission-btn.primary {
+  background: #2563eb;
+  color: #ffffff;
+  border-color: #2563eb;
+}
+
+.inline-permission-btn.primary:hover {
+  background: #1d4ed8;
+}
+
+.inline-permission-btn.secondary {
+  background: #ffffff;
+  color: #374151;
+  border-color: #d1d5db;
+}
+
+.inline-permission-btn.secondary:hover {
+  background: #f9fafb;
+}
+
+.inline-permission-btn.modify {
+  background: #f3f4f6;
+  color: #6b7280;
+  border-color: #e5e7eb;
+}
+
+.inline-permission-btn.modify:hover {
+  background: #e5e7eb;
+}
+
+.inline-permission-btn.reject {
+  background: #ffffff;
+  color: #ef4444;
+  border-color: #fecaca;
+}
+
+.inline-permission-btn.reject:hover {
+  background: #fef2f2;
+}
+
+/* AI 询问用户选项卡片 - 对齐 TrieCode「AI 需要你的选择」 */
+.ask-user-card {
+  border: 1px solid #e5e7eb;
+  border-left: 3px solid #2563eb;
+  border-radius: 6px;
+  background: #ffffff;
+  padding: 12px;
+  margin: 6px 0;
+}
+
+.ask-user-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #1e40af;
+}
+
+.ask-user-question {
+  font-size: 13px;
+  color: #1a1b1c;
+  margin-bottom: 10px;
+  line-height: 1.5;
+}
+
+.ask-user-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.ask-option-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #f9fafb;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-size: 13px;
+  color: #1a1b1c;
+}
+
+.ask-option-btn:hover {
+  border-color: #93c5fd;
+  background: #eff6ff;
+}
+
+.ask-option-btn.selected {
+  border-color: #2563eb;
+  background: #eff6ff;
+  box-shadow: 0 0 0 1px #2563eb;
+}
+
+.ask-option-radio {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid #d1d5db;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  transition: all 0.15s ease;
+}
+
+.ask-option-btn.selected .ask-option-radio {
+  border-color: #2563eb;
+  background: radial-gradient(circle, #2563eb 45%, transparent 52%);
+}
+
+.ask-option-text {
+  line-height: 1.4;
+}
+
+.ask-option-desc {
+  display: block;
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+  font-weight: 400;
+  line-height: 1.4;
+}
+
+.ask-user-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.ask-user-btn {
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.15s ease;
+}
+
+.ask-user-btn.auto {
+  background: #ffffff;
+  color: #6b7280;
+  border-color: #d1d5db;
+}
+
+.ask-user-btn.auto:hover {
+  background: #f9fafb;
+}
+
+.ask-user-btn.submit {
+  background: #2563eb;
+  color: #ffffff;
+  border-color: #2563eb;
+}
+
+.ask-user-btn.submit:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.ask-user-btn.submit:disabled {
+  background: #d1d5db;
+  border-color: #d1d5db;
+  cursor: not-allowed;
+}
+
+/* 需求澄清卡片（多组选项，对齐 TrieCode 开发框架+项目功能） */
+.clarify-card .ask-user-options {
+  display: none;
+}
+
+.clarify-group {
+  margin-bottom: 12px;
+}
+
+.clarify-group-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 8px;
+}
+
+.clarify-group-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* AI 消息元信息 */
 .ai-message-meta {
   display: flex;
   align-items: center;
   gap: 8px;
   margin-top: 8px;
   padding-top: 8px;
-  border-top: 1px solid var(--border-light);
+  border-top: 1px solid #e5e7eb;
   font-size: 11px;
-  color: var(--text-tertiary);
+  color: #9ca3af;
 }
 
 .ai-message-meta-item {
   display: flex;
   align-items: center;
   gap: 4px;
+}
+
+.ai-message-actions {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.ai-message-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  border: none;
+  background: transparent;
+  color: #9ca3af;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.ai-message-action-btn:hover {
+  background: #f3f4f6;
+  color: #374151;
 }
 
 .ai-message-actions {
@@ -2904,4 +4551,257 @@ input, textarea {
 }
 .plugin-card:hover {
   border-color: var(--accent, #007acc) !important;
+}
+
+/* 设备面板样式（1:1 对齐 TrieCode） */
+.device-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
+  padding: 0 8px;
+}
+.device-tab {
+  flex: 1;
+  padding: 10px 8px;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+.device-tab:hover { color: var(--text-color); }
+.device-tab.active {
+  color: var(--text-color);
+  border-bottom-color: var(--accent, #007acc);
+  font-weight: 600;
+}
+.device-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+}
+.device-section {
+  background: var(--bg-secondary, #f5f5f5);
+  border-radius: 8px;
+  padding: 16px;
+}
+.device-section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-color);
+  margin-bottom: 12px;
+}
+.device-form-group {
+  margin-bottom: 16px;
+}
+.device-form-group:last-child {
+  margin-bottom: 0;
+}
+.device-label {
+  display: block;
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+.device-select {
+  width: 100%;
+  padding: 8px 12px;
+  background: var(--bg-primary, #fff);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-color);
+  font-size: 13px;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.device-select:focus {
+  border-color: var(--accent, #007acc);
+}
+.device-select:hover {
+  border-color: var(--text-secondary);
+}
+
+/* 平台管理和库管理样式 */
+.platform-list, .library-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.platform-item, .library-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  background: var(--bg-primary, #fff);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  transition: border-color 0.2s;
+}
+.platform-item:hover, .library-item:hover {
+  border-color: var(--accent, #007acc);
+}
+.platform-info, .library-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+.platform-name, .library-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-color);
+}
+.platform-version, .library-version {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+.library-desc {
+  font-size: 11px;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.platform-btn {
+  padding: 4px 12px;
+  font-size: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--bg-primary, #fff);
+  color: var(--text-color);
+  cursor: pointer;
+  transition: all 0.2s;
+  flex-shrink: 0;
+  margin-left: 8px;
+}
+.platform-btn:hover {
+  border-color: var(--accent, #007acc);
+  color: var(--accent, #007acc);
+}
+.platform-btn.install {
+  border-color: var(--accent, #007acc);
+  color: var(--accent, #007acc);
+}
+.platform-btn.install:hover {
+  background: var(--accent, #007acc);
+  color: #fff;
+}
+.platform-btn.uninstall {
+  border-color: #e74c3c;
+  color: #e74c3c;
+}
+.platform-btn.uninstall:hover {
+  background: #e74c3c;
+  color: #fff;
+}
+
+/* 设置标签复选框样式 */
+.device-form-group input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: var(--accent, #007acc);
+}
+
+/* ========== 全局可交互元素悬停小手（对齐 TrieCode/Trae 体验） ========== */
+button,
+[role="button"],
+[role="tab"],
+[role="menuitem"],
+[role="option"],
+[role="switch"],
+.clickable,
+.btn,
+.btn-primary,
+.btn-secondary,
+.btn-ghost,
+.btn-sm,
+.icon-btn,
+.action-btn,
+.tool-btn,
+.close-btn,
+.send-btn,
+.run-btn,
+.compile-btn,
+.upload-btn,
+.new-btn,
+.add-btn,
+.delete-btn,
+.edit-btn,
+.save-btn,
+.cancel-btn,
+.confirm-btn,
+.tab,
+.tab-item,
+.tab-close,
+.sidebar-icon,
+.sidebar-item,
+.sidebar-btn,
+.activity-bar-item,
+.file-tree-item,
+.file-tree-folder,
+.file-tree-file,
+.tree-item,
+.tree-node,
+.menu-item,
+.menu-option,
+.dropdown-item,
+.dropdown-option,
+.select-option,
+.option-item,
+.plugin-card,
+.plugin-item,
+.plugin-btn,
+.model-option,
+.model-item,
+.model-card,
+.session-item,
+.conversation-item,
+.chat-item,
+.history-item,
+.list-item,
+.list-row,
+.settings-item,
+.settings-row,
+.nav-item,
+.nav-link,
+.breadcrumb-item,
+.status-item,
+.status-bar-item,
+.ask-option-btn,
+.ask-option,
+.option-card,
+.skill-card,
+.skill-item,
+.template-card,
+.template-item,
+.project-card,
+.project-item,
+.board-item,
+.library-item,
+.platform-item,
+.tag,
+.chip,
+.badge-btn,
+.link,
+a {
+  cursor: pointer !important;
+}
+
+/* 输入框/文本区域保持文本光标，不被上面规则覆盖 */
+input, textarea, [contenteditable="true"] {
+  cursor: text !important;
+}
+
+/* 禁用状态恢复默认 */
+button:disabled,
+[disabled],
+[aria-disabled="true"],
+.disabled {
+  cursor: not-allowed !important;
 }

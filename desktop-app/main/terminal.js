@@ -6,6 +6,7 @@
 
 const os = require('os');
 const path = require('path');
+const guard = require('./terminal-guard');
 
 class TerminalService {
   constructor() {
@@ -67,7 +68,10 @@ class TerminalService {
       ...process.env,
       ...options.env,
       TERM: 'xterm-256color',
-      COLORTERM: 'truecolor'
+      COLORTERM: 'truecolor',
+      // 中文 Windows 乱码治本：子进程强制 UTF-8（对齐 TrieCode terminal-exec UTF8_CHILD_ENV）
+      PYTHONUTF8: '1',
+      PYTHONIOENCODING: 'utf-8'
     };
 
     let ptyProcess = null;
@@ -320,23 +324,43 @@ class TerminalService {
    * @param {string} command - 要执行的命令
    * @param {string} cwd - 工作目录
    * @param {number} timeout - 超时时间（毫秒）
-   * @returns {Promise<Object>} 执行结果
+   * @param {Object} opts - 选项 { force: boolean } force=true 表示用户已确认高风险命令
+   * @returns {Promise<Object>} 执行结果（blocked: 'deny'|'confirm' 表示被护栏拦截）
    */
-  async executeCommand(command, cwd = process.cwd(), timeout = 30000) {
+  async executeCommand(command, cwd = process.cwd(), timeout = 30000, opts = {}) {
     const { exec } = require('child_process');
+
+    // ===== 安全护栏（对齐 TrieCode terminal-exec 三层防线，2026-09-13）=====
+    const verdict = guard.checkCommand(command);
+    if (verdict.verdict === 'deny') {
+      const msg = `危险命令已被安全策略拦截：${verdict.reason}（命令未执行）`;
+      console.warn(`[TerminalGuard] DENY: ${command}`);
+      return { success: false, blocked: 'deny', exitCode: 1, stdout: '', stderr: '', error: msg, guardReason: verdict.reason };
+    }
+    if (verdict.verdict === 'confirm' && opts.force !== true) {
+      const msg = `高风险命令需用户确认：${verdict.reason}（命令未执行，确认后放行）`;
+      console.warn(`[TerminalGuard] CONFIRM: ${command}`);
+      return { success: false, blocked: 'confirm', exitCode: 1, stdout: '', stderr: '', error: msg, guardReason: verdict.reason };
+    }
     
     return new Promise((resolve, reject) => {
       const options = {
         cwd: cwd,
         timeout: timeout,
         maxBuffer: 1024 * 1024,
+        // 原始字节输出 + 智能双解码（UTF-8 严格 → 失败回退 GBK，中文 Windows 乱码根治）
+        encoding: 'buffer',
         env: {
           ...process.env,
-          TERM: 'xterm-256color'
+          TERM: 'xterm-256color',
+          PYTHONUTF8: '1',
+          PYTHONIOENCODING: 'utf-8'
         }
       };
 
-      exec(command, options, (error, stdout, stderr) => {
+      exec(command, options, (error, stdoutBuf, stderrBuf) => {
+        const stdout = guard.decodeOutput(stdoutBuf);
+        const stderr = guard.decodeOutput(stderrBuf);
         if (error) {
           resolve({
             success: false,
