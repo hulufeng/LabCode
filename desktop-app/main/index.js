@@ -293,6 +293,100 @@ function setupIPC() {
   ipcMain.handle('mcp:start-all', () => mcpService.startAll());
   ipcMain.handle('mcp:stop-all', () => { mcpService.stopAll(); return true; });
 
+  // ============ clangd LSP 客户端（对齐 TrieCode code-symbols.db）============
+  const lspClients = new Map(); // language -> { proc, pending: Map<id, resolve>, buf, initialized }
+  function spawnLsp(language, cmd, args) {
+    if (lspClients.has(language)) return lspClients.get(language);
+    let proc;
+    try {
+      proc = spawn(cmd, args || [], { stdio: ['pipe', 'pipe', 'pipe'] });
+    } catch (e) {
+      throw new Error('无法启动 ' + cmd + ': ' + e.message);
+    }
+    const client = { proc, pending: new Map(), buf: '', initialized: false, seq: 1, failed: false };
+    proc.on('error', (err) => {
+      client.failed = true;
+      client.pending.forEach((resolve) => resolve({ error: { code: -2, message: 'spawn 失败: ' + err.message } }));
+      client.pending.clear();
+      lspClients.delete(language);
+    });
+    proc.stdout.on('data', (chunk) => {
+      client.buf += chunk.toString('utf8');
+      // 按 Content-Length 头切帧
+      while (true) {
+        const headerEnd = client.buf.indexOf('\r\n\r\n');
+        if (headerEnd < 0) break;
+        const m = client.buf.slice(0, headerEnd).match(/Content-Length:\s*(\d+)/i);
+        if (!m) { client.buf = client.buf.slice(headerEnd + 4); continue; }
+        const len = parseInt(m[1], 10);
+        const bodyStart = headerEnd + 4;
+        if (client.buf.length < bodyStart + len) break;
+        const body = client.buf.slice(bodyStart, bodyStart + len);
+        client.buf = client.buf.slice(bodyStart + len);
+        try {
+          const msg = JSON.parse(body);
+          if (msg.id && client.pending.has(msg.id)) {
+            client.pending.get(msg.id)(msg);
+            client.pending.delete(msg.id);
+          }
+        } catch (e) {}
+      }
+    });
+    proc.stderr.on('data', (d) => console.warn('[clangd]', d.toString().slice(0, 200)));
+    proc.on('close', () => { lspClients.delete(language); });
+    lspClients.set(language, client);
+    return client;
+  }
+  function lspSend(client, msg) {
+    return new Promise((resolve) => {
+      const id = client.seq++;
+      client.pending.set(id, resolve);
+      msg.id = id;
+      const body = JSON.stringify(msg);
+      client.proc.stdin.write(`Content-Length: ${Buffer.byteLength(body)}\r\n\r\n${body}`);
+      // 30s 超时
+      setTimeout(() => { if (client.pending.has(id)) { client.pending.delete(id); resolve({ error: { code: -1, message: 'timeout' } }); } }, 30000);
+    });
+  }
+  ipcMain.handle('lsp:start', async (_, { language, cmd, args, rootPath }) => {
+    try {
+      const client = spawnLsp(language, cmd || 'clangd', args || []);
+      if (!client.initialized) {
+        await lspSend(client, {
+          jsonrpc: '2.0',
+          method: 'initialize',
+          params: {
+            processId: process.pid,
+            rootUri: 'file://' + (rootPath || '').replace(/\\/g, '/'),
+            capabilities: { textDocument: { hover: { contentFormat: ['plaintext', 'markdown'] }, definition: { linkSupport: true }, references: {}, documentSymbol: {} } }
+          }
+        });
+        client.initialized = true;
+      }
+      return { success: true };
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
+  });
+  ipcMain.handle('lsp:request', async (_, { language, method, params }) => {
+    const client = lspClients.get(language);
+    if (!client) return { success: false, error: 'LSP 未启动' };
+    const r = await lspSend(client, { jsonrpc: '2.0', method, params: params || {} });
+    return { success: true, result: r.result, error: r.error };
+  });
+  ipcMain.handle('lsp:notify', async (_, { language, method, params }) => {
+    const client = lspClients.get(language);
+    if (!client) return { success: false, error: 'LSP 未启动' };
+    const body = JSON.stringify({ jsonrpc: '2.0', method, params: params || {} });
+    client.proc.stdin.write(`Content-Length: ${Buffer.byteLength(body)}\r\n\r\n${body}`);
+    return { success: true };
+  });
+  ipcMain.handle('lsp:stop', (_, { language }) => {
+    const c = lspClients.get(language);
+    if (c) { try { c.proc.kill(); } catch (e) {} lspClients.delete(language); }
+    return { success: true };
+  });
+
   // ============ AI 对话（OpenAI 兼容 API：DeepSeek / 本地 llama 引擎 / Ollama / 自定义）============
   const AI_PROVIDERS = {
     deepseek: { baseURL: 'https://api.deepseek.com/v1', defaultModel: 'deepseek-chat' },

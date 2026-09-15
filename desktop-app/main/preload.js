@@ -117,6 +117,14 @@ contextBridge.exposeInMainWorld('LabCode', {
     stopAll: () => ipcRenderer.invoke('mcp:stop-all')
   },
 
+  // LSP 客户端（clangd 等）
+  lsp: {
+    start: (cfg) => ipcRenderer.invoke('lsp:start', cfg),
+    request: (req) => ipcRenderer.invoke('lsp:request', req),
+    notify: (req) => ipcRenderer.invoke('lsp:notify', req),
+    stop: (cfg) => ipcRenderer.invoke('lsp:stop', cfg)
+  },
+
   // AI 对话
   ai: {
     chat: (options) => ipcRenderer.invoke('ai:chat', options),
