@@ -124,9 +124,19 @@ function loadPluginManifest(manifest) {
               const ctx = Object.assign({}, a, { projectPath });
               const cmd = cmdTpl.replace(/\{(\w+)\}/g, (m, k) => (ctx[k] != null ? String(ctx[k]) : m));
               if (!cmd) return 'Error: cli.command 未配置';
+              // cli.envScript: 先 source 环境脚本（如 ESP-IDF export.ps1）再跑命令
+              let finalCmd = cmd;
+              if (cli.envScript) {
+                const script = cli.envScript.replace(/\\/g, '/');
+                if (/\.ps1$/i.test(script)) {
+                  finalCmd = `powershell -NoProfile -ExecutionPolicy Bypass -Command "& '${script}'; ${cmd.replace(/"/g, '\\"')}"`;
+                } else {
+                  finalCmd = `source '${script}' && ${cmd}`;
+                }
+              }
               const exec = window.LabCode && window.LabCode.terminal && window.LabCode.terminal.execute;
               if (!exec) return 'Error: terminal.execute 不可用';
-              const r = await exec(cmd, projectPath || undefined, cli.timeoutMs || 120000);
+              const r = await exec(finalCmd, projectPath || undefined, cli.timeoutMs || 120000);
               if (r && r.success) {
                 return (r.stdout || '') + (r.stderr ? '\n[stderr]\n' + r.stderr : '');
               }
