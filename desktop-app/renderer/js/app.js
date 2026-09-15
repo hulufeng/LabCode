@@ -10817,6 +10817,39 @@ function init() {
         }
       };
       window.PluginSystem.registerInternalService('clangd', clangdSvc);
+
+      // pylsp LSP 客户端（Python）—— 复用同一 LSP 协议，不同 language/cmd
+      function makeLspService(language, cmd, args) {
+        return {
+          async _ensureStarted() {
+            if (!window.LabCode.lsp) return { ok: false, error: 'LSP 桥不可用' };
+            return await window.LabCode.lsp.start({
+              language, cmd, args: args || [], rootPath: state.projectPath || ''
+            });
+          },
+          async status() {
+            const r = await this._ensureStarted();
+            return r.success ? language + ' LSP 已启动' : 'LSP 未启动: ' + (r.error || '');
+          },
+          async _openDoc(filePath) {
+            const abs = (state.projectPath || '') + '\\' + filePath.replace(/\//g, '\\');
+            const uri = 'file:///' + abs.replace(/\\/g, '/');
+            try {
+              const r = await window.LabCode.fs.readFile(abs);
+              await window.LabCode.lsp.notify({
+                language, method: 'textDocument/didOpen',
+                params: { textDocument: { uri, languageId: language === 'python' ? 'python' : 'cpp', version: 1, text: (r && r.content) || '' } }
+              });
+              return uri;
+            } catch (e) { return null; }
+          },
+          async goToDefinition(a) { const uri = await this._openDoc(a.file_path); if (!uri) return '无法打开'; return JSON.stringify(await window.LabCode.lsp.request({ language, method: 'textDocument/definition', params: { textDocument: { uri }, position: { line: a.line - 1, character: a.col - 1 } } })); },
+          async references(a) { const uri = await this._openDoc(a.file_path); if (!uri) return '无法打开'; return JSON.stringify(await window.LabCode.lsp.request({ language, method: 'textDocument/references', params: { textDocument: { uri }, position: { line: a.line - 1, character: a.col - 1 }, context: { includeDeclaration: true } } })); },
+          async documentSymbols(a) { const uri = await this._openDoc(a.file_path); if (!uri) return '无法打开'; return JSON.stringify(await window.LabCode.lsp.request({ language, method: 'textDocument/documentSymbol', params: { textDocument: { uri } } })); },
+          async hover(a) { const uri = await this._openDoc(a.file_path); if (!uri) return '无法打开'; return JSON.stringify(await window.LabCode.lsp.request({ language, method: 'textDocument/hover', params: { textDocument: { uri }, position: { line: a.line - 1, character: a.col - 1 } } })); }
+        };
+      }
+      window.PluginSystem.registerInternalService('pythonLsp', makeLspService('python', 'pylsp', []));
       // plugin-dev 工具链：插件开发辅助
       window.PluginSystem.registerInternalService('pluginDev', {
         listInstalled: async () => {
