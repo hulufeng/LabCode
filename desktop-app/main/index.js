@@ -5,6 +5,7 @@ const { app, BrowserWindow, ipcMain, Menu, shell, dialog, net } = require('elect
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+const https = require('https');
 const { spawn, execFile } = require('child_process');
 
 // 终端服务
@@ -433,6 +434,70 @@ function setupIPC() {
   ipcMain.handle('git:pull', async (_, cwd) => {
     const r = await runGit(cwd, ['pull']);
     return { success: r.ok, stdout: r.stdout, error: r.stderr };
+  });
+
+  // ============ 工具自动下载（clangd 等，不打包进安装包，首次用时拉）============
+  const TOOLS_DIR = path.join(app.getPath('userData'), 'tools');
+  const CLANGD_DIR = path.join(TOOLS_DIR, 'clangd');
+  const CLANGD_EXE = path.join(CLANGD_DIR, 'bin', 'clangd.exe');
+
+  function downloadFile(url, dest, redirects = 5) {
+    return new Promise((resolve, reject) => {
+      const follow = (u) => {
+        https.get(u, { headers: { 'User-Agent': 'LabCode' } }, (res) => {
+          if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+            if (redirects <= 0) return reject(new Error('too many redirects'));
+            return follow(res.headers.location);
+          }
+          if (res.statusCode !== 200) return reject(new Error('HTTP ' + res.statusCode));
+          fs.mkdirSync(path.dirname(dest), { recursive: true });
+          const ws = fs.createWriteStream(dest);
+          res.pipe(ws);
+          ws.on('finish', () => ws.close(() => resolve(dest)));
+          ws.on('error', reject);
+        }).on('error', reject);
+      };
+      follow(url);
+    });
+  }
+
+  function extractZip(zipPath, destDir) {
+    // 用 PowerShell Expand-Archive
+    return new Promise((resolve, reject) => {
+      execFile('powershell', ['-NoProfile', '-Command', `Expand-Archive -Path '${zipPath}' -DestinationPath '${destDir}' -Force`],
+        { encoding: 'utf8', timeout: 120000 }, (err) => err ? reject(err) : resolve());
+    });
+  }
+
+  ipcMain.handle('tools:ensure-clangd', async () => {
+    if (fs.existsSync(CLANGD_EXE)) return { success: true, path: CLANGD_EXE, cached: true };
+    const mirrors = [
+      'https://github.com/llvm/llvm-project/releases/download/llvmorg-18.1.8/clangd-18.1.8-windows-x86_64.zip',
+      'https://ghproxy.net/https://github.com/llvm/llvm-project/releases/download/llvmorg-18.1.8/clangd-18.1.8-windows-x86_64.zip',
+      'https://mirror.ghproxy.com/https://github.com/llvm/llvm-project/releases/download/llvmorg-18.1.8/clangd-18.1.8-windows-x86_64.zip'
+    ];
+    const zipPath = path.join(TOOLS_DIR, 'clangd.zip');
+    let lastErr = null;
+    for (const url of mirrors) {
+      try {
+        console.log('[clangd] trying', url);
+        await downloadFile(url, zipPath);
+        const sz = fs.statSync(zipPath).size;
+        if (sz < 1000000) throw new Error('下载文件太小 (' + sz + ' bytes)，可能是错误页');
+        await extractZip(zipPath, CLANGD_DIR);
+        // clangd zip 解压后是 clangd_18.1.8/bin/clangd.exe，需要铺平
+        const subDir = fs.readdirSync(CLANGD_DIR).find(f => f.startsWith('clangd'));
+        if (subDir) {
+          const src = path.join(CLANGD_DIR, subDir);
+          fs.cpSync(src, CLANGD_DIR, { recursive: true });
+          fs.rmSync(src, { recursive: true, force: true });
+        }
+        fs.unlinkSync(zipPath);
+        if (fs.existsSync(CLANGD_EXE)) return { success: true, path: CLANGD_EXE, cached: false };
+        throw new Error('解压后找不到 clangd.exe');
+      } catch (e) { lastErr = e; console.warn('[clangd] mirror failed:', e.message); }
+    }
+    return { success: false, error: '所有镜像都失败: ' + (lastErr && lastErr.message) };
   });
 
   // ============ AI 对话（OpenAI 兼容 API：DeepSeek / 本地 llama 引擎 / Ollama / 自定义）============

@@ -135,6 +135,11 @@ contextBridge.exposeInMainWorld('LabCode', {
     pull: (cwd) => ipcRenderer.invoke('git:pull', cwd)
   },
 
+  // 工具自动下载
+  tools: {
+    ensureClangd: () => ipcRenderer.invoke('tools:ensure-clangd')
+  },
+
   // AI 对话
   ai: {
     chat: (options) => ipcRenderer.invoke('ai:chat', options),

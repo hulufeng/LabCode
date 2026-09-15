@@ -10738,9 +10738,16 @@ function init() {
       const clangdSvc = {
         async _ensureStarted() {
           if (!window.LabCode.lsp) return { ok: false, error: 'LSP 桥不可用' };
+          // 首次用时自动下载 clangd 到 %APPDATA%/LabCode/tools/
+          let clangdPath = 'clangd';
+          try {
+            const r = await window.LabCode.tools.ensureClangd();
+            if (r && r.success) clangdPath = r.path;
+            else if (r && r.error) console.warn('[clangd] auto-download failed:', r.error);
+          } catch (e) { console.warn('[clangd] ensureClangd error:', e.message); }
           const r = await window.LabCode.lsp.start({
             language: 'cpp',
-            cmd: 'clangd',
+            cmd: clangdPath,
             args: ['--background-index', '--clang-tidy'],
             rootPath: state.projectPath || ''
           });
