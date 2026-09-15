@@ -2,29 +2,6 @@
 // 基于业界 IDE 设计实践：agent-runner / loop-engine / permission-policy /
 // tool-pipeline / context-manager / plan-store / terminal-exec / ai-provider
 
-// ============ 记忆持久化（对齐 TrieCode memory/ 目录）============
-async function saveMemoriesToDisk(memories) {
-  if (!isElectron || !window.LabCode || !window.LabCode.fs) return;
-  try {
-    const userData = await window.LabCode.app.getPath('userData');
-    const fp = userData.replace(/[\\\/]$/, '') + '/memory/memories.json';
-    // writeFile 内部会 ensureDir
-    await window.LabCode.fs.writeFile(fp, JSON.stringify(memories || [], null, 2));
-  } catch (e) { console.warn('saveMemoriesToDisk:', e.message); }
-}
-async function loadMemoriesFromDisk() {
-  if (!isElectron || !window.LabCode || !window.LabCode.fs) return [];
-  try {
-    const userData = await window.LabCode.app.getPath('userData');
-    const p = userData.replace(/[\\\/]$/, '') + '/memory/memories.json';
-    const exists = await window.LabCode.fs.exists(p);
-    if (!exists) return [];
-    const r = await window.LabCode.fs.readFile(p);
-    if (r && r.success) return JSON.parse(r.content);
-  } catch (e) { console.warn('loadMemoriesFromDisk:', e.message); }
-  return [];
-}
-
 // ============ Electron 环境适配层 ============
 const isElectron = typeof window !== 'undefined' && !!window.LabCode;
 const electronFS = isElectron ? window.LabCode.fs : null;
@@ -93,7 +70,6 @@ const state = {
   mode: 'default', monaco: null, editor: null, terminal: null,
   agent: null, planApproved: false, currentPlan: null, todoList: [],
   projectPath: null,
-  arduinoFqbn: '', // 2026-09-14 对齐 TrieCode：select_board 选择的 FQBN，compile 优先使用
 };
 
 // ============ 样本项目 ============
@@ -174,17 +150,6 @@ function updateProjectStatusText(projectPath) {
   } catch (e) { console.error('更新项目状态显示失败:', e); }
 }
 
-// 统一同步欢迎页/文件树显隐（对齐 TrieCode：有项目/文件则隐藏欢迎页，无项目则显示）
-function syncWelcomePanel() {
-  try {
-    const welcomePanel = document.getElementById('welcome-panel');
-    const fileTree = document.getElementById('file-tree');
-    const hasProject = !!(state && (state.projectPath || (state.files && Object.keys(state.files).length > 0)));
-    if (welcomePanel) welcomePanel.style.display = hasProject ? 'none' : 'flex';
-    if (fileTree) fileTree.style.display = hasProject ? 'block' : 'none';
-  } catch (e) { console.error('同步欢迎页显隐失败:', e); }
-}
-
 async function loadProjectFromDisk(projectPath) {
   state.projectPath = projectPath;
   state.files = {};
@@ -208,9 +173,6 @@ async function loadProjectFromDisk(projectPath) {
     buildFileTree();
     renderFileTree();
     document.getElementById('file-tree').style.display = '';
-    // 修复：项目加载后隐藏欢迎页，避免与文件树同时显示
-    const wp = document.getElementById('welcome-panel');
-    if (wp) wp.style.display = 'none';
     updateProjectStatusText(projectPath);
     showToast(`已加载项目: ${projectPath}`, 'success');
     addOutputLog(`项目已加载: ${projectPath}`, 'success');
@@ -471,9 +433,6 @@ async function createProject(type, name, location) {
     }
     buildFileTree();
     renderFileTree();
-    // 修复：浏览器模式创建项目后隐藏欢迎页
-    const wp2 = document.getElementById('welcome-panel');
-    if (wp2) wp2.style.display = 'none';
     // 打开第一个文件
     const firstFile = Object.keys(state.files).find(f => f.endsWith('.ino') || f.endsWith('.py') || f.endsWith('.c') || f.endsWith('.js'));
     if (firstFile) openFile(firstFile);
@@ -868,28 +827,6 @@ function addOutputLog(message, type='info') {
 
 // ---------- 1. 工具注册表（ToolRegistry）----------
 // 参考业界: 工具分三类 query(只读) / modify(修改) / execute(执行)
-
-// glob 模式 → 正则（find_files 用，对齐 TrieCode）：** 任意层级，* 单层任意，? 单字符
-function globToRegExp(pattern) {
-  let re = '';
-  let i = 0;
-  const p = String(pattern || '');
-  while (i < p.length) {
-    const c = p[i];
-    if (c === '*') {
-      if (p[i + 1] === '*') {
-        if (p[i + 2] === '/') { re += '(?:.*/)?'; i += 3; continue; }
-        re += '.*'; i += 2; continue;
-      }
-      re += '[^/]*'; i++; continue;
-    }
-    if (c === '?') { re += '[^/]'; i++; continue; }
-    if ('\\.[]{}()+-^$|'.indexOf(c) >= 0) { re += '\\' + c; i++; continue; }
-    re += c; i++;
-  }
-  return new RegExp('^' + re + '$');
-}
-
 const TOOL_DEFS = [
   {
     name: 'list_files', category: 'query', description: '列出工作区文件和目录',
@@ -980,22 +917,6 @@ const TOOL_DEFS = [
     }
   },
   {
-    name: 'undo_last_turn', category: 'execute', description: '撤销最近一轮 AI 对文件的全部变更（含磁盘同步；用户手动改过的文件自动跳过，绝不覆盖用户改动）',
-    parameters: { type: 'object', properties: {}, required: [] },
-    execute: async () => {
-      const r = await undoLastAgentTurn();
-      return r.success ? `已撤销最近一轮（${r.rolledBack} 项变更）` : `撤销失败：${r.error}`;
-    }
-  },
-  {
-    name: 'redo_last_turn', category: 'execute', description: '重做最近一次被撤销的 AI 文件变更（含磁盘同步）',
-    parameters: { type: 'object', properties: {}, required: [] },
-    execute: async () => {
-      const r = await redoLastAgentTurn();
-      return r.success ? `已重做（${r.redone} 项变更）` : `重做失败：${r.error}`;
-    }
-  },
-  {
     name: 'terminal', category: 'execute', description: '执行终端命令（真实 shell 执行，非模拟）',
     parameters: { type: 'object', properties: { command: {type:'string', description:'要执行的 shell 命令'} }, required: ['command'] },
     execute: async (args) => {
@@ -1005,25 +926,9 @@ const TOOL_DEFS = [
       if (!isElectron || !window.LabCode || !window.LabCode.terminal) {
         return `$ ${cmd}\n(非 Electron 环境，模拟执行完成，退出码 0)`;
       }
-      // ===== 2026-09-13 安全护栏（对齐 TrieCode terminal-exec 三层防线）=====
-      // deny：危险命令硬拦截，不可绕过；confirm：高风险命令弹确认窗，用户同意后 force 放行
       try {
         const cwd = state.projectPath || undefined;
-        let result = await window.LabCode.terminal.execute(cmd, cwd, 30000);
-        if (result && result.blocked === 'deny') {
-          const msg = result.error || '危险命令已被拦截';
-          if (state.terminal) state.terminal.writeln(msg);
-          return `${msg}\n(退出码 1)`;
-        }
-        if (result && result.blocked === 'confirm') {
-          const ok = window.confirm(`LabCode 安全护栏\n\n命令将被判定为高风险：${result.guardReason || '需确认'}\n\n$ ${cmd}\n\n是否允许执行？`);
-          if (!ok) {
-            const msg = `已取消：${result.error || '高风险命令未执行'}`;
-            if (state.terminal) state.terminal.writeln(msg);
-            return `${msg}\n(退出码 1)`;
-          }
-          result = await window.LabCode.terminal.execute(cmd, cwd, 30000, { force: true });
-        }
+        const result = await window.LabCode.terminal.execute(cmd, cwd, 30000);
         const stdout = result.stdout || '';
         const stderr = result.stderr || '';
         const output = stdout + (stderr ? '\n' + stderr : '');
@@ -1073,8 +978,6 @@ const TOOL_DEFS = [
       }
       let cmd = '';
       let tmpSketchDir = ''; // 2026-09-13：arduino 临时 sketch 目录（switch 外声明，供编译后清理使用）
-      let tmpInoName = '';   // 2026-09-13：临时主文件名（结构化输出需映射回原始 ino 名，避免 agent 改错文件）
-      let inoFile = '';      // 2026-09-13：主 .ino 文件名（switch 外声明，供结构化映射使用）
       switch (framework) {
         case 'pytest': cmd = 'python -m pytest -v ' + (args.test_path || ''); break;
         case 'unittest': cmd = 'python -m unittest discover -v ' + (args.test_path || ''); break;
@@ -1082,7 +985,7 @@ const TOOL_DEFS = [
         case 'cargo': cmd = 'cargo test'; break;
         case 'npm': cmd = 'npm test'; break;
         case 'arduino': {
-          inoFile = (await safeList(cwd)).find(f => /\.ino$/.test(f));
+          let inoFile = (await safeList(cwd)).find(f => /\.ino$/.test(f));
           // ===== 2026-09-13 兜底扫 src/ 子目录与内存 state.files =====
           // 模型代码块经 resolveCodeTargetPath 可能落到 src/xxx.ino（projectType 推断失败场景），
           // 仅扫根目录会找不到主文件 → 传目录给 arduino-cli 报 "main file missing" 死循环。
@@ -1116,18 +1019,20 @@ const TOOL_DEFS = [
           // ===== 2026-09-13 修复：临时 sketch 目录编译（解决两个真实问题）=====
           // ① arduino-cli 对 sketch 目录要求主 .ino 与目录同名（否则 "main file missing"）；
           // ② 项目内其他 .ino 会一并编译，残片/旧文件错误拖垮整个编译。
-          // 2026-09-13 二次修复：md+copy 复合命令会被终端护栏判 confirm 拦截 → 改用纯 fs API（mkdir/copyFile/exists/deleteFile）
+          // 方案：在项目内建隐藏临时目录 → 复制主 .ino 为 <目录名>.ino → 编译临时目录 → 清理。
+          // 不用 fs.copyFile（目录不存在会失败），改用 terminal md+copy 命令。
           let tmpSketchDir = '';
           let compileSketchArg = cwd;
           if (inoFile) {
             try {
+              // 2026-09-13 修复：主 .ino 必须与 sketch 目录同名——临时目录名与临时主文件名统一生成
               const tmpDirName = 'labcode_build_' + Date.now();
               tmpSketchDir = cwd + '\\' + tmpDirName;
-              tmpInoName = tmpDirName + '.ino';
-              await window.LabCode.fs.mkdir(tmpSketchDir);
-              const copyRes = await window.LabCode.fs.copyFile(cwd + '\\' + inoFile, tmpSketchDir + '\\' + tmpInoName);
+              const tmpInoName = tmpDirName + '.ino';
+              const setupCmd = 'md "' + tmpSketchDir + '" 2>nul & copy /y "' + cwd + '\\' + inoFile + '" "' + tmpSketchDir + '\\' + tmpInoName + '" >nul';
+              const setupRes = await window.LabCode.terminal.execute(setupCmd, cwd, 20000);
               const existsCheck = await window.LabCode.fs.exists(tmpSketchDir + '\\' + tmpInoName);
-              if (copyRes && copyRes.success && existsCheck) {
+              if (existsCheck) {
                 compileSketchArg = tmpSketchDir;
                 addOutputLog(`[run_test] 已创建临时 sketch 目录编译: ${tmpSketchDir}\\${tmpInoName}`, 'info');
               } else {
@@ -1158,16 +1063,10 @@ const TOOL_DEFS = [
       try {
         const result = await window.LabCode.terminal.execute(cmd, cwd, execTimeout);
         const output = (result.stdout || '') + (result.stderr ? '\n' + result.stderr : '');
-        // 2026-09-13：编译完成后清理临时 sketch 目录（fs API，避免 rmdir 被终端护栏 deny）
+        // 2026-09-13：编译完成后清理临时 sketch 目录
         if (tmpSketchDir) {
-          try {
-            const tmpFiles = await window.LabCode.fs.listDir(tmpSketchDir);
-            if (tmpFiles && tmpFiles.success && Array.isArray(tmpFiles.files)) {
-              for (const tf of tmpFiles.files) {
-                try { await window.LabCode.fs.deleteFile(tf.path); } catch (e1) {}
-              }
-            }
-          } catch (e) { addOutputLog('[run_test] 临时目录清理失败: ' + e.message, 'warn'); }
+          try { await window.LabCode.terminal.execute('rmdir /s /q "' + tmpSketchDir + '"', cwd, 15000); }
+          catch (e) { addOutputLog('[run_test] 临时目录清理失败: ' + e.message, 'warn'); }
         }
         if (state.terminal && output) output.split('\n').forEach(l => state.terminal.writeln(l));
         const exitCode = result.exitCode !== undefined ? result.exitCode : (result.success ? 0 : 1);
@@ -1183,9 +1082,9 @@ const TOOL_DEFS = [
           let firstErr = '';
           const errLine = output.split('\n').find(l => /:\d+:\d+:\s*error:|:\d+:\s*error:|error:\s+/i.test(l));
           if (errLine) firstErr = errLine.trim().slice(0, 300);
-          // 2) 提取错误文件与行号（含盘符，便于临时 sketch 路径完整映射回原始文件）
+          // 2) 提取错误文件与行号
           let errLoc = '';
-          const locM = output.match(/([A-Za-z]:[\\\/][\w\\\/\.\-]+\.(?:ino|cpp|c|cc|cxx|h|py|js|ts|go|rs)):\s*(\d+):\s*(\d+)?\s*:/i);
+          const locM = output.match(/([\w\\\/\.\-]+\.(?:ino|cpp|c|cc|cxx|h|py|js|ts|go|rs)):\s*(\d+):\s*(\d+)?\s*:/i);
           if (locM) errLoc = `${locM[1]} 第${locM[2]}行${locM[3] ? ' 第'+locM[3]+'列' : ''}`;
           // 3) 失败分类（复用 ToolFailureClassifier）
           let failCat = 'unknown', failStrategy = '分析错误信息，修复后重新运行验证';
@@ -1212,12 +1111,6 @@ const TOOL_DEFS = [
             if (kb.length) knowledgeNote = '\n\n[编译知识提示]\n- ' + kb.join('\n- ');
           }
           classifyNote = `\n\n[测试失败分类]\n- 类型: ${failCat}\n- 修复建议: ${failStrategy}`;
-          // 临时 sketch 路径映射回原始 ino（与 [TEST_RESULT] 块保持一致）
-          if (tmpInoName && inoFile) {
-            const tmpFull = (tmpSketchDir ? tmpSketchDir + '\\' : '') + tmpInoName;
-            if (errLoc) errLoc = errLoc.split(tmpFull).join(inoFile).split(tmpInoName).join(inoFile);
-            if (firstErr) firstErr = firstErr.split(tmpFull).join(inoFile).split(tmpInoName).join(inoFile);
-          }
           if (errLoc) classifyNote += `\n- 错误位置: ${errLoc}`;
           if (firstErr) classifyNote += `\n- 首条错误: ${firstErr}`;
           classifyNote += knowledgeNote;
@@ -1235,160 +1128,12 @@ const TOOL_DEFS = [
         }
         const summary = '测试完成: ' + passed + ' 通过, ' + failed + ' 失败, ' + errors + ' 错误 (退出码 ' + exitCode + ')';
         addOutputLog(summary, exitCode === 0 ? 'success' : 'error');
-        // ===== 测试输出结构化解析（对齐 TrieCode test-runner.js parseTestOutput）=====
-        // 把失败明细解析成 {name,file,error,category} 注入模型，agent 可按类别精准修复
-        let structBlock = '';
-        try {
-          const parsed = testResultParser.parse(output, framework);
-          // arduino 临时 sketch：把错误行中的临时目录+临时文件名映射回原始 ino 文件名，
-          // 否则 agent 会去修改不存在的临时文件（对齐真实文件语义）
-          if (tmpInoName && inoFile) {
-            const tmpFull = (tmpSketchDir ? tmpSketchDir + '\\' : '') + tmpInoName;
-            for (const f of parsed.failures) {
-              if (f.error) f.error = f.error.split(tmpFull).join(inoFile).split(tmpInoName).join(inoFile);
-              if (f.file) f.file = f.file.split(tmpFull).join(inoFile).split(tmpInoName).join(inoFile);
-            }
-          }
-          structBlock = '\n\n' + testResultParser.toInjectionBlock(parsed, exitCode);
-          // 失败类别分布提示（让 9B 模型一眼看到错误类型）
-          const catKeys = Object.keys(parsed.categories);
-          if (catKeys.length) {
-            structBlock += '\n[测试失败类别] ' + catKeys.map(k => `${k}: ${parsed.categories[k]}`).join('，');
-          }
-          addOutputLog(`结构化解析: ${parsed.failures.length} 条失败明细 ${catKeys.length ? '(' + catKeys.join(',') + ')' : ''}`, 'debug');
-        } catch (e) {
-          addOutputLog('测试结构化解析失败: ' + e.message, 'warn');
-        }
-        // ===== 编译后自动显示底部面板 + 渲染环形资源占用图（对齐 TrieCode）=====
-        try {
-          showBottomPanel('output');
-          const oc = document.getElementById('output-content');
-          if (oc) {
-            let html = '';
-            // 重新匹配资源占用（sketchM/memM 在上层 if 块内是 const，此处独立匹配）
-            const sM = output.match(/Sketch uses\s+([\d,]+)\s+bytes?\s+\((\d+)%\)\s+of\s+program\s+storage\s+space/i);
-            const mM = output.match(/Global\s+variables\s+use\s+([\d,]+)\s+bytes?\s+\((\d+)%\)\s+of\s+dynamic\s+memory/i);
-            if (framework === 'arduino' && !failedFlag && (sM || mM)) {
-              const sBytes = sM ? parseInt(sM[1].replace(/,/g, '')) : 0;
-              const sPct = sM ? parseInt(sM[2]) : 0;
-              const mBytes = mM ? parseInt(mM[1].replace(/,/g, '')) : 0;
-              const mPct = mM ? parseInt(mM[2]) : 0;
-              const sTotal = sPct ? Math.round(sBytes * 100 / sPct) : 0;
-              const mTotal = mPct ? Math.round(mBytes * 100 / mPct) : 0;
-              html += renderResourceRings(sBytes, sPct, sTotal, mBytes, mPct, mTotal);
-            }
-            if (failedFlag) {
-              html += `<div style="padding:10px 14px;background:rgba(234,102,104,0.08);border-radius:8px;font-size:12px;color:var(--error);margin-bottom:10px;">编译失败（退出码 ${exitCode}），详见上方 AI 面板的失败分类与修复建议。</div>`;
-            }
-            html += `<details style="font-size:12px;margin-top:10px;"><summary style="cursor:pointer;color:var(--text-secondary);padding:4px 0;">▸ 详细输出</summary><pre style="white-space:pre-wrap;word-break:break-all;font-size:11px;color:var(--text-tertiary);margin-top:8px;max-height:220px;overflow:auto;background:var(--bg-secondary);padding:10px;border-radius:6px;">${escapeHtml(output.slice(0, 8000))}</pre></details>`;
-            oc.innerHTML = html;
-          }
-        } catch (e) { addOutputLog('底部输出面板渲染失败: ' + e.message, 'warn'); }
-        return output + '\n\n' + summary + classifyNote + resourceNote + structBlock;
+        return output + '\n\n' + summary + classifyNote + resourceNote;
       } catch (e) {
         const errMsg = '测试执行失败: ' + e.message;
         if (state.terminal) state.terminal.writeln(errMsg);
         return errMsg + '\n(退出码 1)';
       }
-    }
-  },
-  // ===== 2026-09-14 对齐 TrieCode：arduino-cli 工具链 agent 工具族 =====
-  // TrieCode 实测：agent 自主调用 search_boards→select_board→install_platform→install_library→compile 完成自愈
-  // （参照 %APPDATA%\TrieCode\chat-sessions\mtzwd2k6b2osu1.json / mtze2zuhnod8rr.json）
-  // 统一执行器：优先主进程探测的 arduino-cli 完整路径（避免 PATH 缺失），经真实 terminal 执行
-  // 2026-09-15 迁移：这 8 个工具从硬编码 TOOL_DEFS 迁到 manifest（plugins/arduino-cli-toolchain/plugin.json）
-  // 执行逻辑保留为命名函数，通过 internal service 暴露给 manifest 调用
-
-  // (arduino 工具的 execute 函数定义见下方 ARDUINO_TOOL_IMPLS)
-  {
-    name: 'create_project', category: 'modify', description: '创建新项目（对齐 TrieCode：生成项目骨架 + .labcode.json 配置）',
-    parameters: { type: 'object', properties: { name: { type:'string', description:'项目名称' }, type: { type:'string', description:'项目类型：arduino/python/node/esp-idf/c/generic' } }, required: ['name','type'] },
-    execute: async (args) => {
-      const name = (args.name || '').trim();
-      const type = args.type || 'generic';
-      if (!name) return 'Error: 缺少项目名称 name';
-      if (!PROJECT_PREVIEW_DATA[type] && !PROJECT_TEMPLATES[type]) return 'Error: 不支持的 project type: ' + type;
-      const root = await createProject(type, name, null);
-      if (!root) return 'Error: 项目创建失败';
-      return '项目已创建: ' + root + '（类型 ' + type + '，已生成 .labcode.json 配置与骨架文件）';
-    }
-  },
-  {
-    name: 'add_file', category: 'modify', description: '在项目中添加新文件（对齐 TrieCode 签名：sketch_name + file_path + content，自动创建父目录）',
-    parameters: { type: 'object', properties: { sketch_name: { type:'string', description:'项目名称（用于归属校验）' }, file_path: { type:'string', description:'相对项目根的文件路径，如 src/main.c' }, content: { type:'string', description:'文件内容' } }, required: ['file_path'] },
-    execute: async (args) => {
-      const filePath = (args.file_path || '').trim();
-      const content = args.content || '';
-      if (!filePath) return 'Error: 缺少 file_path';
-      const existed = !!state.files[filePath];
-      state.files[filePath] = { content, language: getLanguage(filePath), dirty: true };
-      buildFileTree(); renderFileTree();
-      try { openFile(filePath); } catch (e) { console.error('openFile 失败:', e); }
-      if (isElectron && state.projectPath) {
-        const fullPath = state.projectPath + '\\' + filePath.replace(/\//g, '\\');
-        try {
-          const parent = fullPath.split('\\').slice(0, -1).join('\\');
-          if (parent && window.LabCode && window.LabCode.fs && window.LabCode.fs.mkdir) {
-            try { await window.LabCode.fs.mkdir(parent); } catch (e1) {}
-          }
-          await FileSystem.writeFile(fullPath, content);
-        } catch (e) { console.error('add_file 落盘失败:', e); }
-      }
-      return (existed ? '文件已更新: ' : '文件已添加: ') + filePath + ' (' + content.length + ' 字符)';
-    }
-  },
-  {
-    name: 'find_files', category: 'query', description: '按 glob 模式查找文件（支持 **/*.md、**/*todo* 等，对齐 TrieCode）',
-    parameters: { type: 'object', properties: { pattern: { type:'string', description:'glob 模式，如 **/*.ino' } }, required: ['pattern'] },
-    execute: (args) => {
-      const pattern = (args.pattern || '').trim();
-      if (!pattern) return 'Error: 缺少 pattern';
-      const re = globToRegExp(pattern);
-      const hits = Object.keys(state.files).filter(f => re.test(f));
-      if (hits.length === 0) return '(未找到匹配文件)';
-      const shown = hits.slice(0, 25);
-      let res = '匹配 ' + hits.length + ' 个文件' + (hits.length > 25 ? '（显示前 25 个）' : '') + ':\n' + shown.map(f => f).join('\n');
-      return res;
-    }
-  },
-  {
-    name: 'search_files', category: 'query', description: '按正则搜索文件内容（对齐 TrieCode：pattern 为正则，subpath 限定子目录）',
-    parameters: { type: 'object', properties: { pattern: { type:'string', description:'正则表达式' }, subpath: { type:'string', description:'限定搜索的子路径（可选）' } }, required: ['pattern'] },
-    execute: (args) => {
-      const pattern = (args.pattern || '').trim();
-      if (!pattern) return 'Error: 缺少 pattern';
-      let re;
-      try { re = new RegExp(pattern); } catch (e) { return 'Error: 非法正则: ' + e.message; }
-      const sub = args.subpath ? String(args.subpath).replace(/\/$/,'') + '/' : '';
-      const hits = [];
-      for (const [fp, f] of Object.entries(state.files)) {
-        if (sub && !fp.startsWith(sub)) continue;
-        const content = (f && f.content) ? String(f.content) : '';
-        if (!content) continue;
-        const lines = content.split('\n');
-        for (let i = 0; i < lines.length; i++) {
-          if (re.test(lines[i])) {
-            hits.push(`${fp}:${i + 1}: ${lines[i].trim().slice(0, 120)}`);
-            if (hits.length >= 40) break;
-          }
-        }
-        if (hits.length >= 40) break;
-      }
-      if (hits.length === 0) return '(未找到匹配内容)';
-      return '匹配 ' + hits.length + ' 处' + (hits.length >= 40 ? '（已达上限）' : '') + ':\n' + hits.join('\n');
-    }
-  },
-  {
-    name: 'read_diagnostics', category: 'query', description: '读取最近编译诊断（对齐 TrieCode：返回 COMPILE OK/FAIL、首条错误、FQBN）',
-    parameters: { type: 'object', properties: { file_path: { type:'string', description:'文件路径（可选）' } } },
-    execute: (args) => {
-      const d = state.lastCompileResult;
-      if (!d) return '暂无诊断信息。可先运行 plugin_arduino-cli-toolchain_compile 获取编译诊断。';
-      let res = (d.ok ? 'COMPILE OK' : 'COMPILE FAILED (exit ' + d.exitCode + ')') + '\n';
-      if (d.errLine) res += '首条错误: ' + String(d.errLine).trim().slice(0, 300) + '\n';
-      res += 'FQBN: ' + (d.fqbn || '') + '\n';
-      if (d.output) res += '\n--- 编译输出（截断） ---\n' + String(d.output).slice(0, 2000);
-      return res;
     }
   },
   {
@@ -1411,27 +1156,25 @@ const TOOL_DEFS = [
   {
     name: 'remember', category: 'modify', description: '保存一条长期记忆（用户偏好/项目事实/常用配置），跨会话保留',
     parameters: { type: 'object', properties: { name: {type:'string', description:'记忆名称'}, content: {type:'string', description:'记忆内容'}, type: {type:'string', enum:['user','feedback','project','reference']} }, required: ['name','content'] },
-    execute: async (args) => {
+    execute: (args) => {
       if (!state.memories) state.memories = [];
       const existing = state.memories.findIndex(m => m.name === args.name);
       const entry = { name: args.name, content: args.content, type: args.type || 'reference', updatedAt: Date.now() };
       if (existing >= 0) state.memories[existing] = entry;
       else state.memories.unshift(entry);
       state.memoryVersion = (state.memoryVersion || 0) + 1;
-      try { await saveMemoriesToDisk(state.memories); } catch (e) { console.warn('save memories failed', e); }
       return `记忆已保存: ${args.name} (${args.content.length} 字符)`;
     }
   },
   {
     name: 'forget', category: 'modify', description: '删除一条长期记忆',
     parameters: { type: 'object', properties: { name: {type:'string', description:'要删除的记忆名称'} }, required: ['name'] },
-    execute: async (args) => {
+    execute: (args) => {
       if (!state.memories) return '暂无记忆';
       const idx = state.memories.findIndex(m => m.name === args.name);
       if (idx === -1) return `未找到记忆: ${args.name}`;
       state.memories.splice(idx, 1);
       state.memoryVersion = (state.memoryVersion || 0) + 1;
-      try { await saveMemoriesToDisk(state.memories); } catch (e) { console.warn('save memories failed', e); }
       return `记忆已删除: ${args.name}`;
     }
   },
@@ -1463,65 +1206,32 @@ const TOOL_DEFS = [
     }
   },
   {
-    name: 'list_plugins', category: 'query', description: '查看 LabCode 插件/能力清单（已安装与可安装）。当任务缺少编译工具链、AI 模型、依赖或功能插件时，先调用它确认可用能力，再决定是否请求安装',
-    parameters: { type: 'object', properties: {} },
-    execute: async () => {
-      const api = window.__labPluginAPI;
-      if (!api) return '插件系统未就绪（界面尚未初始化）';
-      const list = api.list();
-      if (!list || list.length === 0) return '（暂无可用插件）';
-      return 'LabCode 插件清单（✅=已安装 ⬜=未安装）：\n' + list.map(p => `${p.installed ? '✅' : '⬜'} ${p.id}「${p.name}」（${p.category}${p.sizeHint ? '，' + p.sizeHint : ''}）\n   ${p.description}`).join('\n');
-    }
-  },
-  {
-    name: 'install_plugin', category: 'execute', description: '安装 LabCode 插件/模型（AI 模型、编译工具链等）。安装前必须先调用 ask_user 询问用户是否同意（说明插件名、用途、大小）；用户同意后调用本工具执行安装。模型下载需数分钟',
-    parameters: { type: 'object', properties: { pluginId: { type: 'string', description: '插件 id（先用 list_plugins 查看）' } }, required: ['pluginId'] },
-    execute: async (args) => {
-      const api = window.__labPluginAPI;
-      if (!api) return 'Error: 插件系统未就绪';
-      const list = api.list() || [];
-      const plugin = list.find(p => p.id === args.pluginId);
-      if (!plugin) return 'Error: 插件不存在（可用: ' + (list.map(p => p.id).join(', ') || '无') + '）';
-      if (plugin.installed) return '该插件已安装，无需重复安装';
-      // 大文件（AI 模型）二次确认，防止误装大体积文件
-      if (plugin.category === 'ai-model') {
-        const ans = await askUserConfirm(
-          `是否允许安装 AI 模型「${plugin.name}」？（${plugin.sizeHint || ''}，将下载到本地 models 目录）`,
-          [{ label: '允许安装', description: '开始下载并安装' }, { label: '取消', description: '不安装，改用其他方案' }],
-          'AI 模型安装'
-        );
-        if (ans.indexOf('取消') >= 0) return '用户拒绝了安装。请改用其他方案（如改用已安装模型或给出替代建议），不要强行安装。';
-      }
-      const result = await api.install(args.pluginId);
-      return result.success ? `✅ 插件「${result.name}」安装完成。可继续执行后续任务。` : `Error: ${result.error}`;
-    }
-  },
-  {
     name: 'ask_user', category: 'query', description: '向用户提问（多选选项弹窗）。用户取消/超时时模型应基于已有信息自行决策',
     parameters: {
       type: 'object',
       properties: {
         question: { type: 'string', description: '问题内容（≤200字符）' },
-        options: { type: 'array', items: { oneOf: [{ type: 'string', description: '选项文本' }, { type: 'object', properties: { label: { type: 'string', description: '选项标题' }, description: { type: 'string', description: '选项说明（小字，可选）' } }, required: ['label'] }] }, description: '选项列表（2-4个，可传 {label,description} 结构化对象）' },
+        options: { type: 'array', items: { type: 'string' }, description: '选项列表（2-4个）' },
         header: { type: 'string', description: '弹窗标题（≤12字符）' }
       },
       required: ['question', 'options']
     },
-    execute: async (args) => {
+    execute: (args) => {
       const question = args.question || '';
       const options = args.options || [];
-      const header = args.header || 'AI 需要你的选择';
       if (options.length < 2 || options.length > 4) {
         return 'Error: 选项数量必须在2-4个之间';
       }
       if (question.length > 200) {
         return 'Error: 问题内容不能超过200字符';
       }
-      return await askUserConfirm(question, options, header);
+      // 模拟用户选择第一个选项
+      const selected = options[0];
+      return `用户回答：${selected}\n\n（注：用户选择了「${selected}」，请基于此回答继续执行。）`;
     }
   },
   {
-    name: 'run_subagent', category: 'query', description: '派只读子智能体做深度研究/调研。子智能体独立 LLM 循环，只能用只读工具，返回结构化结论。maxTurns=6',
+    name: 'run_subagent', category: 'query', description: '派只读子智能体做深度研究/调研。子智能体只能用只读工具，返回结构化结论。maxTurns=6',
     parameters: {
       type: 'object',
       properties: {
@@ -1541,267 +1251,9 @@ const TOOL_DEFS = [
       return `## 子智能体研究结果\n\n${result}\n\n（注：以上为只读子智能体的研究结论，仅使用了只读工具。）`;
     }
   },
-  {
-    name: 'open_plugin_view', category: 'modify',
-    description: '在右侧面板打开插件声明的 webview 视图（如平台管理、库管理面板）。先 list_plugin_views 看有哪些可用。',
-    parameters: {
-      type: 'object',
-      properties: {
-        view_id: { type: 'string', description: '视图 key，格式 pluginId:viewId，如 arduino-cli:boards' }
-      },
-      required: ['view_id']
-    },
-    execute: async (args) => {
-      if (!window.PluginSystem) return '插件系统未就绪';
-      const v = window.PluginSystem.getView(args.view_id);
-      if (!v) return `视图 ${args.view_id} 未找到。可用: ` + window.PluginSystem.listViews().map(x => x.pluginId + ':' + x.id).join(', ');
-      const panel = document.getElementById('plugin-view-panel');
-      const title = document.getElementById('plugin-view-title');
-      const wv = document.getElementById('plugin-view-webview');
-      if (!panel || !wv) return '视图面板 DOM 未就绪';
-      title.textContent = v.title || args.view_id;
-      wv.setAttribute('src', v.webviewUrl);
-      panel.style.display = 'flex';
-      return `已打开视图: ${v.title || args.view_id}（${v.webviewUrl}）`;
-    }
-  },
-  {
-    name: 'list_plugin_views', category: 'query',
-    description: '列出所有插件声明的 webview 视图',
-    parameters: { type: 'object', properties: {}, required: [] },
-    execute: async () => {
-      if (!window.PluginSystem) return '插件系统未就绪';
-      const vs = window.PluginSystem.listViews();
-      if (!vs.length) return '无插件声明视图';
-      return vs.map(v => `- ${v.pluginId}:${v.id} (${v.title}) → ${v.webviewUrl}`).join('\n');
-    }
-  }
 ];
 
-// 统一的「向用户确认」弹窗助手（ask_user 工具与 install_plugin 工具共用）
-async function askUserConfirm(question, options, header) {
-  // 真实选择弹窗（对齐 TrieCode）：渲染选项卡片，等待用户点击选择或「让 AI 自行决定」
-  let selected = null;
-  try {
-    // 健壮性：若存在上一个未决的询问弹窗，先自动关闭（超时路径）
-    if (window.__askUserCallback) {
-      const prev = window.__askUserCallback;
-      window.__askUserCallback = null;
-      try { prev(null, true); } catch (e) {}
-    }
-    selected = await new Promise((resolve) => {
-      let settled = false;
-      const timer = setTimeout(() => { if (!settled) { settled = true; resolve('__AI_DECIDE__'); } }, 90000); // 90 秒超时 → 自动「让 AI 自行决定」
-      window.__askUserCallback = (choice, auto) => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(timer);
-        if (auto) resolve('__AI_DECIDE__');
-        else resolve(choice);
-      };
-      showAskUserCard(question, options, header);
-      // 若回调被清空（面板重置等）→ 超时路径兜底
-      const guard = setInterval(() => {
-        if (!window.__askUserCallback && !settled) {
-          settled = true;
-          clearTimeout(timer);
-          clearInterval(guard);
-          resolve('__AI_DECIDE__');
-        }
-      }, 3000);
-    });
-  } catch (e) {
-    selected = '__AI_DECIDE__';
-  }
-  if (selected === '__AI_DECIDE__') {
-    return `用户回答：让 AI 自行决定\n\n（注：用户未指定选项，请你根据专业判断自行决策，并说明选择理由后继续执行。）`;
-  }
-  return `用户回答：${selected}\n\n（注：用户选择了「${selected}」，请基于此回答继续执行。）`;
-}
-
-// ===== 2026-09-14 对齐 TrieCode：arduino-cli 工具链辅助执行器 =====
-// 统一：主进程探测完整路径（避免 PATH 缺失）→ 真实 terminal 执行 → {ok, code, out}
-async function getArduinoCliCmd() {
-  if (!isElectron || !window.LabCode) return { ok: false, out: '错误：非 Electron 环境，arduino-cli 不可用' };
-  try {
-    if (window.LabCode.toolchain && window.LabCode.toolchain.getArduinoCliPath) {
-      const tc = await window.LabCode.toolchain.getArduinoCliPath();
-      if (tc && tc.path && tc.exists) return { ok: true, cmd: '"' + tc.path + '"' };
-    }
-  } catch (e) {}
-  return { ok: false, out: '错误：arduino-cli 未找到，请先安装 Arduino 编译插件（设置 → 插件市场 → Arduino 编译上传）' };
-}
-async function runArduinoCli(args, timeoutMs) {
-  const cli = await getArduinoCliCmd();
-  if (!cli.ok) return { ok: false, code: -1, out: cli.out };
-  const cwd = state.projectPath || '';
-  const cmd = cli.cmd + ' ' + args.map(a => /[\s"&|<>^]/.test(String(a)) ? '"' + String(a).replace(/"/g, '\\"') + '"' : String(a)).join(' ');
-  try {
-    const result = await window.LabCode.terminal.execute(cmd, cwd, timeoutMs || 120000);
-    const out = (result.stdout || '') + (result.stderr ? '\n' + result.stderr : '');
-    const code = result.exitCode !== undefined ? result.exitCode : (result.success ? 0 : 1);
-    if (state.terminal) out.split('\n').forEach(l => state.terminal.writeln(l));
-    return { ok: true, code, out };
-  } catch (e) {
-    return { ok: false, code: -1, out: '执行失败: ' + e.message };
-  }
-}
-
-// ===== Arduino 工具实现（迁移自 TOOL_DEFS，供 manifest internal service 调用）=====
-const ARDUINO_TOOL_IMPLS = {
-  async list_platforms() {
-    const r = await runArduinoCli(['core', 'list']);
-    if (!r.ok) return r.out;
-    return '已安装平台:\n' + (r.out.trim() || '(空)');
-  },
-  async search_boards(args) {
-    if (!args.query) return 'Error: 缺少 query 参数';
-    const r = await runArduinoCli(['board', 'search', String(args.query)]);
-    if (!r.ok) return r.out;
-    const out = (r.out.trim() || '(无结果，可能平台未安装)');
-    const lines = out.split('\n');
-    const head = lines.slice(0, 25).join('\n');
-    const note = lines.length > 25 ? '\n...（共 ' + lines.length + ' 行，已截断）' : '';
-    return '搜索结果（board search ' + args.query + '）:\n' + head + note;
-  },
-  async select_board(args) {
-    if (!args.query) return 'Error: 缺少 query 参数';
-    const r = await runArduinoCli(['board', 'search', String(args.query)]);
-    if (!r.ok) return r.out;
-    const lines = (r.out || '').split('\n').map(l => l.trim()).filter(Boolean);
-    let fqbn = '';
-    const q = String(args.query).toLowerCase();
-    const fqbnMatches = [];
-    for (const ln of lines) {
-      const m = ln.match(/([a-zA-Z0-9_]+:[a-zA-Z0-9_]+:[a-zA-Z0-9_\-]+)/);
-      if (m) fqbnMatches.push({ fqbn: m[1], line: ln.toLowerCase() });
-    }
-    if (fqbnMatches.length) {
-      const byLine = fqbnMatches.find(x => x.line.includes(q));
-      const byTail = fqbnMatches.find(x => x.fqbn.split(':').pop().includes(q));
-      fqbn = (byLine || byTail || fqbnMatches[0]).fqbn;
-    }
-    if (!fqbn) {
-      if (q.includes('esp32c3') || q.includes('esp32-c3')) fqbn = 'esp32:esp32:esp32c3';
-      else if (q.includes('esp32')) fqbn = 'esp32:esp32:esp32';
-      else if (q.includes('stm32')) fqbn = 'stm32:stm32:stm32';
-    }
-    if (!fqbn) return '未从搜索结果解析到 FQBN，请先安装对应平台（install_platform）后重试。\n原始输出:\n' + r.out.slice(0, 1200);
-    state.arduinoFqbn = fqbn;
-    return '已选择开发板: ' + fqbn + '（后续 compile 将使用该 FQBN）';
-  },
-  async install_platform(args) {
-    if (!args.platform) return 'Error: 缺少 platform 参数';
-    const r = await runArduinoCli(['core', 'install', String(args.platform)], 600000);
-    if (!r.ok) return r.out;
-    const ok = /installed|已安装|success/i.test(r.out) || r.code === 0;
-    return (ok ? '平台安装成功: ' + args.platform + '\n' : '平台安装返回: ' + args.platform + '\n') + r.out.slice(0, 1500);
-  },
-  async install_library(args) {
-    if (!args.name) return 'Error: 缺少 name 参数';
-    const r = await runArduinoCli(['lib', 'install', String(args.name)], 300000);
-    if (!r.ok) return r.out;
-    return (r.code === 0 ? '库安装成功: ' + args.name + '\n' : '库安装返回: ' + args.name + '\n') + r.out.slice(0, 1200);
-  },
-  async list_installed_libraries() {
-    const r = await runArduinoCli(['lib', 'list']);
-    if (!r.ok) return r.out;
-    return '已安装库:\n' + (r.out.trim() || '(空)');
-  },
-  async search_libraries(args) {
-    if (!args.query) return 'Error: 缺少 query 参数';
-    const r = await runArduinoCli(['lib', 'search', String(args.query)]);
-    if (!r.ok) return r.out;
-    const out = (r.out.trim() || '(无结果)');
-    const lines = out.split('\n');
-    const head = lines.slice(0, 20).join('\n');
-    const note = lines.length > 20 ? '\n...（共 ' + lines.length + ' 行，已截断）' : '';
-    return '库搜索结果（lib search ' + args.query + '）:\n' + head + note;
-  },
-  async compile() {
-    const cwd = state.projectPath;
-    if (!cwd) return '错误：未打开项目目录，无法编译';
-    if (!isElectron || !window.LabCode) return '(非 Electron 环境，编译不可用)';
-    const cli = await getArduinoCliCmd();
-    if (!cli.ok) return cli.out;
-    let inoFile = '';
-    try {
-      const safeList = async (dir) => {
-        try {
-          if (window.LabCode.fs.listDir) {
-            const r = await window.LabCode.fs.listDir(dir);
-            if (r && r.success && Array.isArray(r.files)) return r.files.map(f => f.name);
-          }
-          return [];
-        } catch (e) { return []; }
-      };
-      inoFile = (await safeList(cwd)).find(f => /\.ino$/.test(f)) || '';
-      if (!inoFile) {
-        const src = (await safeList(cwd + '\\src'));
-        inoFile = (src.find(f => /\.ino$/.test(f))) ? 'src\\' + src.find(f => /\.ino$/.test(f)) : '';
-      }
-      if (!inoFile && state.files) {
-        const mem = Object.keys(state.files).find(f => /\.ino$/.test(f));
-        if (mem) inoFile = mem.replace(/\//g, '\\');
-      }
-    } catch (e) {}
-    if (!inoFile) return '错误：项目中没有 .ino 文件';
-    let fqbn = state.arduinoFqbn || '';
-    if (!fqbn) {
-      try {
-        const inoRes = await window.LabCode.fs.readFile(cwd + '\\' + inoFile);
-        const inoContent = (inoRes && inoRes.content) ? inoRes.content : String(inoRes || '');
-        const lower = (inoContent + '|' + cwd).toLowerCase();
-        fqbn = /(esp32[-_]?c3|esp32c3)/.test(lower) ? 'esp32:esp32:esp32c3' : 'esp32:esp32:esp32';
-      } catch (e) { fqbn = 'esp32:esp32:esp32'; }
-    }
-    let tmpSketchDir = '', compileArg = cwd;
-    try {
-      const tmpDirName = 'labcode_build_' + Date.now();
-      tmpSketchDir = cwd + '\\' + tmpDirName;
-      const tmpInoName = tmpDirName + '.ino';
-      await window.LabCode.fs.copyFile(cwd + '\\' + inoFile, tmpSketchDir + '\\' + tmpInoName);
-      const existsCheck = await window.LabCode.fs.exists(tmpSketchDir + '\\' + tmpInoName);
-      if (existsCheck) compileArg = tmpSketchDir;
-      else tmpSketchDir = '';
-    } catch (e) { tmpSketchDir = ''; }
-    const cmd = cli.cmd + ' compile --fqbn ' + fqbn + ' "' + compileArg + '"';
-    let output = '';
-    let result;
-    try {
-      result = await window.LabCode.terminal.execute(cmd, cwd, 300000);
-      output = (result.stdout || '') + (result.stderr ? '\n' + result.stderr : '');
-    } catch (e) {
-      output = '编译执行异常: ' + e.message;
-    }
-    if (tmpSketchDir) {
-      try {
-        const tmpFiles = await window.LabCode.fs.listDir(tmpSketchDir);
-        if (tmpFiles && tmpFiles.success && Array.isArray(tmpFiles.files)) {
-          for (const tf of tmpFiles.files) { try { await window.LabCode.fs.deleteFile(tf.path); } catch (e1) {} }
-        }
-      } catch (e) {}
-    }
-    const exitCode = /Compiling sketch|Sketch uses|Global variables use|COMPILE OK/i.test(output) ? 0 : (result && result.exitCode !== undefined ? result.exitCode : 1);
-    const success = /COMPILE OK|Sketch uses\s+[\d,]+\s+bytes/i.test(output);
-    const errLine = output.split('\n').find(l => /:\d+:\d+:\s*error:|:\d+:\s*error:|error:\s+/i.test(l));
-    state.lastCompileResult = { ok: success, exitCode, errLine: errLine || '', fqbn, output, at: Date.now() };
-    let res = success ? 'COMPILE OK.\n' : 'COMPILE FAILED (exit ' + exitCode + ')\n';
-    if (errLine) res += '首条错误: ' + errLine.trim().slice(0, 300) + '\n';
-    const sketchM = output.match(/Sketch uses\s+([\d,]+)\s+bytes?\s+\((\d+)%\)\s+of\s+program\s+storage\s+space/i);
-    const memM = output.match(/Global\s+variables\s+use\s+([\d,]+)\s+bytes?\s+\((\d+)%\)\s+of\s+dynamic\s+memory/i);
-    if (sketchM) res += '程序存储: ' + sketchM[1] + ' bytes (' + sketchM[2] + '%)\n';
-    if (memM) res += '动态内存: ' + memM[1] + ' bytes (' + memM[2] + '%)\n';
-    res += '\n--- 完整输出（截断） ---\n' + output.slice(0, 3500);
-    return res;
-  }
-};
-function getToolDef(name) {
-  // 先找内置，再找插件 manifest 注册的工具
-  return TOOL_DEFS.find(t => t.name === name)
-    || (window.PluginSystem && window.PluginSystem.getToolDef(name))
-    || null;
-}
+function getToolDef(name) { return TOOL_DEFS.find(t => t.name === name); }
 function getToolCategory(name) { const t = getToolDef(name); return t ? t.category : 'query'; }
 
 // ---------- 2. 权限策略（PermissionPolicy）----------
@@ -2167,103 +1619,6 @@ class ToolFailureClassifier {
 
 const toolFailureClassifier = new ToolFailureClassifier();
 
-// ============ 测试输出结构化解析（对齐 TrieCode test-runner.js）============
-// 把 pytest/jest/node:test 的散文输出解析成结构化失败对象，agent 可按错误类别精准修复
-class TestResultParser {
-  constructor() {
-    // categorizeError 判定顺序对齐 TrieCode：import → timeout → assertion → compile → crash → unknown
-    this.errorCategories = [
-      { name: 'import', patterns: [/cannot find module/i, /module not found/i, /no module named/i, /import error/i, /unresolved import/i, /include.*no such file/i, /undefined reference to/i] },
-      { name: 'timeout', patterns: [/timed out/i, /timeout(?!\s*error:)/i, /timeouterror/i, /killed/i, /runaway/i, /test execution timeout/i] },
-      { name: 'assertion', patterns: [/assertionerror/i, /\bassert\b/i, /expected.*got/i, /expect\(|tobe|toequal/i, /test.*fail/i, /failed.*assert/i, /✗|×/] },
-      { name: 'compile', patterns: [/error:/i, /syntax error/i, /fatal error/i, /expected '|expected ;|expected }/i, /undefined\s+(?:variable|type|function)/i, /not declared/i, /too few arguments|too many arguments/i, /no such file or directory.*\.(?:h|ino|cpp|c|hpp)/i, /collect2/i, /\.(?:ino|cpp|c|h):\d+:\d+/i] },
-      { name: 'crash', patterns: [/segmentation fault/i, /core dumped/i, /stack overflow/i, /panic/i, /guru meditation/i, /hardfault/i, /abort/i, /null pointer/i, /double free/i] }
-    ];
-  }
-
-  categorizeError(text) {
-    if (!text) return 'unknown';
-    const head = String(text).substring(0, 800);
-    for (const cat of this.errorCategories) {
-      for (const p of cat.patterns) {
-        if (p.test(head)) return cat.name;
-      }
-    }
-    return 'unknown';
-  }
-
-  /** 解析测试输出 → 结构化结果（含失败明细 + 每项错误类别） */
-  parse(output, framework = '') {
-    const text = String(output || '');
-    const fw = String(framework || '').toLowerCase();
-    const failures = [];
-    let passed = 0, failed = 0, skipped = 0;
-
-    // 1) pytest 风格：FAILED path::name - Error
-    if (fw === 'pytest' || fw === 'unittest' || /FAILED\s+[\w\\/.\-]+::/.test(text)) {
-      const re = /FAILED\s+([\w\\/.\-]+)::([\w\[\]\/.\-]+)\s*-\s*(.*)/g;
-      let m;
-      while ((m = re.exec(text))) {
-        failures.push({ name: m[2], file: m[1], error: String(m[3] || '').trim().slice(0, 300), category: this.categorizeError(m[3]) });
-      }
-      const p = text.match(/(\d+)\s+passed/);
-      const f = text.match(/(\d+)\s+failed/);
-      const s = text.match(/(\d+)\s+skipped/);
-      if (p) passed = parseInt(p[p.length - 1]);
-      if (f) failed = parseInt(f[f.length - 1]);
-      if (s) skipped = parseInt(s[s.length - 1]);
-      if (failed === 0 && /FAILED/i.test(text)) failed = failures.length;
-    }
-    // 2) jest 风格：✓/✗/× 前缀
-    else if (fw === 'jest' || /(✓|✗|×|√)/.test(text)) {
-      const lines = text.split('\n');
-      for (const line of lines) {
-        const t = line.trim();
-        if (/^✗|^×/.test(t)) {
-          failed++;
-          failures.push({ name: t.replace(/^[✗×]\s*/, '').slice(0, 120), file: '', error: t.slice(0, 300), category: this.categorizeError(t) });
-        } else if (/^✓|^√/.test(t)) { passed++; }
-      }
-    }
-    // 3) node:test 风格：# pass N / # fail N
-    else if (/#\s*(pass|fail|todo)\s+\d+/i.test(text)) {
-      const p = text.match(/#\s*pass\s+(\d+)/i);
-      const f = text.match(/#\s*fail\s+(\d+)/i);
-      if (p) passed = parseInt(p[1]);
-      if (f) failed = parseInt(f[1]);
-      // node:test 失败行（✖ 或 not ok）
-      const nre = /(?:not ok|✖)\s+(\d+)?\s*(.*)/g;
-      let m;
-      while ((m = nre.exec(text))) {
-        failures.push({ name: (m[2] || '').trim().slice(0, 120), file: '', error: m[0].slice(0, 300), category: this.categorizeError(m[0]) });
-      }
-    }
-    // 4) 兜底：无统计但明显失败 → 至少 1 条失败 + 首错误行（含 crash/panic 等无 error 字样的输出）
-    if (failed === 0 && failures.length === 0 && (/error|failed|traceback|exception|segmentation|core dumped|panic|assert/i.test(text) || this.categorizeError(text) !== 'unknown')) {
-      failed = 1;
-      const firstErr = text.split('\n').find(l => /error|failed|traceback|exception|assert|segmentation|panic|core dumped/i.test(l)) || text.slice(0, 300);
-      failures.push({ name: 'error', file: '', error: String(firstErr).trim().slice(0, 300), category: this.categorizeError(firstErr) });
-    }
-
-    return {
-      passed, failed, skipped, failures,
-      summary: `${passed} 通过, ${failed} 失败, ${skipped} 跳过`,
-      categories: failures.reduce((acc, f) => { acc[f.category] = (acc[f.category] || 0) + 1; return acc; }, {})
-    };
-  }
-
-  /** 生成注入模型的 [TEST_RESULT] 结构化块（对齐 TrieCode 结构化失败结果） */
-  toInjectionBlock(parsed, exitCode) {
-    const slim = {
-      exitCode,
-      passed: parsed.passed, failed: parsed.failed, skipped: parsed.skipped,
-      failures: parsed.failures.slice(0, 5).map(f => ({ name: f.name, file: f.file, category: f.category, error: (f.error || '').slice(0, 200) }))
-    };
-    return `[TEST_RESULT]${JSON.stringify(slim)}[/TEST_RESULT]`;
-  }
-}
-const testResultParser = new TestResultParser();
-
 // ============ 增强：AI 调用错误分类器 ============
 // 参考业界 error-classification.js: transient可重试/deterministic不重试/unknown
 class AIErrorClassifier {
@@ -2551,216 +1906,81 @@ class WebTools {
 }
 const webTools = new WebTools();
 
-// ============ 增强：文件回滚系统（Turn级回滚 + undo/redo + 磁盘同步）============
-// 对齐 TrieCode file-change-tracker.js：turn 级快照 / 安全校验不覆盖用户改动 / 磁盘同步 / undo-redo 栈
+// ============ 增强：文件回滚系统（Turn级回滚）============
+// 参考业界 file-change-tracker.js: Turn级回滚+绝不覆盖用户改动
 class FileChangeTracker {
   constructor() {
-    this.turns = new Map();        // sessionId -> [{ turn, changes, timestamp, rolledBack }]
-    this.redoStacks = new Map();   // sessionId -> [changes...]（undo 后暂存，redo 重放）
-    this.activeTurn = new Map();   // sessionId -> bool（当前轮是否已开 turn，避免空轮撑大数组）
+    this.turns = new Map();
     this.maxTurns = 20;
     this.currentTurn = 0;
   }
-
+  
   beginTurn(sessionId = 'default') {
-    // 同一轮内多个工具共享一个 turn；仅当上一轮已 endTurn 才开新 turn
-    if (this.activeTurn.get(sessionId)) return;
-    this.activeTurn.set(sessionId, true);
     this.currentTurn++;
     if (!this.turns.has(sessionId)) this.turns.set(sessionId, []);
     const sessionTurns = this.turns.get(sessionId);
-    sessionTurns.push({ turn: this.currentTurn, changes: [], timestamp: Date.now(), rolledBack: false });
+    sessionTurns.push({ turn: this.currentTurn, changes: [], timestamp: Date.now() });
     if (sessionTurns.length > this.maxTurns) sessionTurns.shift();
+    return this.currentTurn;
   }
-
-  endTurn(sessionId = 'default') {
-    this.activeTurn.set(sessionId, false);
-  }
-
-  /**
-   * 记录一次文件变更（before/after 由调用方提供，before 必须是执行前快照）
-   * @param {string} sessionId
-   * @param {Object} change { path, before, after, action: 'create'|'modify'|'delete' }
-   */
-  recordChange(sessionId, change) {
-    this.beginTurn(sessionId);
-    const sessionTurns = this.turns.get(sessionId);
+  
+  recordChange(sessionId, path, beforeContent, afterContent, action = 'modify') {
+    let sessionTurns = this.turns.get(sessionId);
+    if (!sessionTurns || sessionTurns.length === 0) {
+      this.beginTurn(sessionId);
+      sessionTurns = this.turns.get(sessionId);
+    }
     const currentTurnData = sessionTurns[sessionTurns.length - 1];
-    // 同 turn 同 path 合并（流式 partial→completed 或 completed→autoApply 会多次落盘同一文件，只保留最早 before + 最新 after）
-    const existing = currentTurnData.changes.find(c => c.path === change.path);
-    if (existing) {
-      if (change.after !== undefined && change.after !== null) existing.after = change.after;
-      if (change.before !== undefined && existing.before === null) existing.before = change.before;
-      if (change.action) existing.action = change.action;
-      existing.timestamp = Date.now();
-      return;
-    }
-    currentTurnData.changes.push({
-      path: change.path,
-      before: change.before !== undefined ? change.before : null,
-      after: change.after !== undefined ? change.after : null,
-      action: change.action || 'modify',
-      timestamp: Date.now()
-    });
-    // 新变更使 redo 栈失效（对齐标准撤销语义）
-    if (this.redoStacks.has(sessionId)) this.redoStacks.delete(sessionId);
+    currentTurnData.changes.push({ path, before: beforeContent, after: afterContent, action, timestamp: Date.now() });
   }
-
-  /** 磁盘路径解析：相对路径 → 项目绝对路径 */
-  _diskPath(path) {
-    if (!state.projectPath) return null;
-    if (path && /^[A-Za-z]:[\\/]/.test(path)) return path;
-    return state.projectPath + '\\' + String(path || '').replace(/^\//, '').replace(/\//g, '\\');
-  }
-
-  /**
-   * 回滚单条变更（安全校验：仅当当前内容仍等于 agent 写入后的 after 才恢复；
-   * 用户手工改过则跳过，绝不覆盖用户改动 —— 对齐 TrieCode 核心不变量）
-   */
-  async rollbackChange(change) {
-    const path = change.path;
-    const currentContent = state.files[path]?.content ?? null;
-    const diskPath = this._diskPath(path);
-
-    if (change.action === 'create') {
-      // agent 创建了文件 → 撤销 = 删除（仅当内容未被用户改动）
-      if (currentContent === change.after) {
-        delete state.files[path];
-        closeTab(path);
-        if (isElectron && diskPath && await FileSystem.exists(diskPath)) {
-          try { await window.LabCode.fs.deleteFile(diskPath); } catch (e) { console.error('回滚删除磁盘文件失败:', e); }
-        }
-        buildFileTree(); renderFileTree();
-        return { success: true, path, action: 'deleted' };
-      }
-      return { success: false, path, action: 'skipped', reason: '用户已修改文件，跳过删除' };
-    }
-
-    if (change.action === 'delete') {
-      // agent 删除了文件 → 撤销 = 恢复 before（文件可能被用户重建，重建则跳过）
-      if (state.files[path]) {
-        return { success: false, path, action: 'skipped', reason: '文件已存在（用户重建），跳过恢复' };
-      }
-      state.files[path] = { content: change.before, language: getLanguage(path), dirty: true };
-      if (isElectron && diskPath && change.before !== null && change.before !== undefined) {
-        try { await FileSystem.writeFile(diskPath, change.before); } catch (e) { console.error('回滚恢复磁盘文件失败:', e); }
-      }
-      buildFileTree(); renderFileTree();
-      return { success: true, path, action: 'restored' };
-    }
-
-    // modify：仅当当前内容 === agent 写入后的 after 才回滚到 before
-    if (currentContent === change.after) {
-      if (state.files[path]) state.files[path].content = change.before;
-      if (state.activeTab === path && state.editor) state.editor.setValue(change.before || '');
-      if (isElectron && diskPath && change.before !== null && change.before !== undefined) {
-        try { await FileSystem.writeFile(diskPath, change.before); } catch (e) { console.error('回滚写盘失败:', e); }
-      }
-      return { success: true, path, action: 'reverted' };
-    }
-    return { success: false, path, action: 'skipped', reason: '用户已修改文件，跳过回滚' };
-  }
-
-  /** 撤销最近一个 turn（逆序回滚该 turn 内全部变更），变更转存 redo 栈 */
-  async undoLastTurn(sessionId = 'default') {
+  
+  async rollbackToTurn(sessionId, targetTurn) {
     const sessionTurns = this.turns.get(sessionId);
-    if (!sessionTurns || sessionTurns.length === 0) return { success: false, error: '没有可撤销的记录' };
-    const turnData = sessionTurns[sessionTurns.length - 1];
-    if (!turnData.changes.length) return { success: false, error: '最近一轮无文件变更' };
-    const results = [];
+    if (!sessionTurns) return { success: false, error: '会话不存在' };
+    const rollbackResults = [];
     let rolledBack = 0;
-    for (let j = turnData.changes.length - 1; j >= 0; j--) {
-      const result = await this.rollbackChange(turnData.changes[j]);
-      results.push(result);
-      if (result.success) rolledBack++;
-    }
-    turnData.rolledBack = true;
-    sessionTurns.pop();
-    // 转存 redo（保持原顺序）
-    if (!this.redoStacks.has(sessionId)) this.redoStacks.set(sessionId, []);
-    this.redoStacks.get(sessionId).push(turnData.changes);
-    return { success: true, rolledBack, results, turn: turnData.turn };
-  }
-
-  /** 重做最近一次撤销的 turn */
-  async redoLastTurn(sessionId = 'default') {
-    const stack = this.redoStacks.get(sessionId);
-    if (!stack || stack.length === 0) return { success: false, error: '没有可重做的记录' };
-    const changes = stack.pop();
-    this.beginTurn(sessionId);
-    const sessionTurns = this.turns.get(sessionId);
-    const currentTurnData = sessionTurns[sessionTurns.length - 1];
-    // 重放变更：直接把变更对象放回 turn 记录（before/after 已含原始快照），并重放内容
-    for (const change of changes) {
-      currentTurnData.changes.push({ ...change });
-      // 重放写回 after 内容（对齐 reapply）
-      if (change.action === 'create' || change.action === 'modify') {
-        state.files[change.path] = { content: change.after, language: getLanguage(change.path), dirty: true };
-        const diskPath = this._diskPath(change.path);
-        if (isElectron && diskPath && change.after !== null && change.after !== undefined) {
-          try { await FileSystem.writeFile(diskPath, change.after); } catch (e) { console.error('重做写盘失败:', e); }
-        }
-      } else if (change.action === 'delete') {
-        delete state.files[change.path];
-        closeTab(change.path);
-        const diskPath = this._diskPath(change.path);
-        if (isElectron && diskPath) {
-          try { if (await FileSystem.exists(diskPath)) await window.LabCode.fs.deleteFile(diskPath); } catch (e) {}
-        }
+    for (let i = sessionTurns.length - 1; i >= 0; i--) {
+      const turnData = sessionTurns[i];
+      if (turnData.turn <= targetTurn) break;
+      for (let j = turnData.changes.length - 1; j >= 0; j--) {
+        const result = await this.rollbackChange(turnData.changes[j]);
+        rollbackResults.push(result);
+        if (result.success) rolledBack++;
       }
-      if (state.activeTab === change.path && state.editor) state.editor.setValue(state.files[change.path]?.content || '');
+      turnData.rolledBack = true;
     }
-    this.endTurn(sessionId);
-    buildFileTree(); renderFileTree();
-    return { success: true, redone: changes.length };
+    return { success: true, rolledBack, results: rollbackResults };
   }
-
+  
+  async rollbackChange(change) {
+    const currentContent = state.files[change.path]?.content || null;
+    if (change.action === 'create') {
+      if (currentContent === change.after) {
+        delete state.files[change.path];
+        return { success: true, path: change.path, action: 'deleted' };
+      }
+      return { success: false, path: change.path, action: 'skipped', reason: '用户已修改文件，跳过删除' };
+    } else if (change.action === 'delete') {
+      if (state.files[change.path]) state.files[change.path].content = change.before;
+      return { success: true, path: change.path, action: 'restored' };
+    } else {
+      if (currentContent === change.after) {
+        if (state.files[change.path]) state.files[change.path].content = change.before;
+        return { success: true, path: change.path, action: 'reverted' };
+      }
+      return { success: false, path: change.path, action: 'skipped', reason: '用户已修改文件，跳过回滚' };
+    }
+  }
+  
   getTurnHistory(sessionId = 'default') {
     const sessionTurns = this.turns.get(sessionId);
     if (!sessionTurns) return [];
     return sessionTurns.map(t => ({ turn: t.turn, changeCount: t.changes.length, timestamp: t.timestamp, rolledBack: t.rolledBack || false, files: t.changes.map(c => ({ path: c.path, action: c.action })) }));
   }
-
-  clear(sessionId = 'default') { this.turns.delete(sessionId); this.redoStacks.delete(sessionId); this.activeTurn.delete(sessionId); this.currentTurn = 0; }
+  
+  clear(sessionId = 'default') { this.turns.delete(sessionId); this.currentTurn = 0; }
 }
 const fileChangeTracker = new FileChangeTracker();
-
-// 全局撤销/重做入口（UI 按钮 + agent 工具共用）
-// 双栈感知：'default'（工具调用轮）与 'stream'（流式写码轮）统一进撤销/重做，取最新
-function _pickLatestTurnSession(turnsMap, redoOnly) {
-  const def = turnsMap.get('default') || [];
-  const stream = turnsMap.get('stream') || [];
-  const defLast = def.length ? def[def.length - 1] : null;
-  const streamLast = stream.length ? stream[stream.length - 1] : null;
-  if (defLast && streamLast) return defLast.timestamp >= streamLast.timestamp ? 'default' : 'stream';
-  return defLast ? 'default' : (streamLast ? 'stream' : null);
-}
-
-async function undoLastAgentTurn() {
-  const sessionId = _pickLatestTurnSession(fileChangeTracker.turns);
-  if (!sessionId) return { success: false, error: '没有可撤销的记录' };
-  const result = await fileChangeTracker.undoLastTurn(sessionId);
-  if (result.success) {
-    addOutputLog(`已撤销最近一轮（${result.rolledBack} 项变更）`, 'success');
-    showToast('已撤销最近一轮 AI 文件变更', 'success');
-  } else {
-    addOutputLog(`撤销失败: ${result.error}`, 'warn');
-    showToast(result.error || '无可撤销记录', 'info');
-  }
-  return result;
-}
-async function redoLastAgentTurn() {
-  const sessionId = _pickLatestTurnSession(fileChangeTracker.redoStacks);
-  if (!sessionId) return { success: false, error: '没有可重做的记录' };
-  const result = await fileChangeTracker.redoLastTurn(sessionId);
-  if (result.success) {
-    addOutputLog(`已重做（${result.redone} 项变更）`, 'success');
-    showToast('已重做', 'success');
-  } else {
-    showToast(result.error || '无可重做记录', 'info');
-  }
-  return result;
-}
 
 // ============ 增强：LRU 缓存系统 ============
 // 参考业界 cache.js: AI响应LRU缓存带TTL+在途请求去重
@@ -3266,31 +2486,12 @@ class RealAIClient {
   }
 
   _buildSystemPrompt(useNativeTools = false) {
-    const allDefs = TOOL_DEFS.concat(window.PluginSystem ? window.PluginSystem.allTools() : []);
-    const toolList = allDefs.map(t => {
+    const toolList = TOOL_DEFS.map(t => {
       const params = t.parameters?.properties ? Object.entries(t.parameters.properties).map(([k, v]) =>
         `  - ${k}: ${v.type}${v.description ? ' - ' + v.description : ''}`
       ).join('\n') : '  (无参数)';
       return `### ${t.name}\n${t.description}\n参数:\n${params}`;
     }).join('\n\n');
-
-    // 插件 skills 注入（对齐 TrieCode Claude Code 兼容 skills）
-    let skillsSection = '';
-    if (window.PluginSystem) {
-      const skills = window.PluginSystem.allSkills();
-      if (skills.length) {
-        skillsSection = '\n## 可用技能（Skills）\n' + skills.map(s =>
-          `### ${s.name}\n${s.description || ''}\n${s.prompt}`
-        ).join('\n\n') + '\n';
-      }
-    }
-
-    // 长期记忆注入（跨会话）
-    let memorySection = '';
-    if (state.memories && state.memories.length) {
-      memorySection = '\n## 用户长期记忆（remember 保存，跨会话保留，回答时自动参考）\n' +
-        state.memories.map(m => `- **${m.name}** (${m.type}): ${m.content}`).join('\n') + '\n';
-    }
 
     const formatSection = useNativeTools
       ? `当你需要调用工具时，直接发起函数调用（function call）。调用后会收到工具结果，请根据结果继续执行或收尾。`
@@ -3341,7 +2542,7 @@ class RealAIClient {
     }
 
     return `你是 LabCode（代码实验室）的 AI 编程助手。你可以使用工具来读写文件、执行命令、联网搜索等。
-${memorySection}
+
 ## 当前项目
 - 项目类型: ${projectTypeDesc}
 - ${mainFileHint || '请根据项目类型创建正确格式的文件。'}
@@ -3349,7 +2550,6 @@ ${memorySection}
 ## 可用工具
 
 ${toolList}
-${skillsSection}
 
 ## 工具调用格式
 
@@ -3357,42 +2557,15 @@ ${formatSection}
 
 ## 规则
 1. 先思考再行动，需要看文件就用 read_file，需要写文件就用 write_file
-2. **生成代码时必须把完整代码交给用户**：优先使用 write_file 工具创建文件（文件会自动在中间编辑器打开）；**如果工具调用不可用或无法输出工具调用格式，直接在回复中输出完整代码块**（用 \`\`\`ino、\`\`\`cpp、\`\`\`py、\`\`\`js 等语言标注），系统会自动把代码块创建为文件并在中间编辑器打开。两种方式任选其一，**不要只输出思路文字而省略代码**；写完文件后用简短中文说明做了什么。**绝对禁止只说"让我先查看项目文件""让我先读取""我先看看""现在我来编写""现在直接覆盖"这类话就结束回复**——如果写了这类过渡句，必须在该句之后立即输出完整代码块；要么直接调用工具，要么直接输出代码块，你必须一次完成整个任务，不能半途而废。**绝对禁止输出项目模板自带的空 setup()/loop() 骨架当作完成任务**——必须写出包含完整业务逻辑、引脚定义、头文件引用的可编译代码。参考最小完整示例（Arduino LED 闪烁）：
-\`\`\`ino
-#define LED_PIN 2
-
-void setup() {
-  pinMode(LED_PIN, OUTPUT);
-  Serial.begin(115200);
-}
-
-void loop() {
-  digitalWrite(LED_PIN, HIGH);
-  Serial.println("LED ON");
-  delay(1000);
-  digitalWrite(LED_PIN, LOW);
-  Serial.println("LED OFF");
-  delay(1000);
-}
-\`\`\`
-当用户要求的功能（如 WiFi/传感器/电机/屏幕）比示例复杂时，输出功能对应的完整代码（含所需 #include、引脚宏定义、全局对象、setup 初始化、loop 主逻辑），不要截断为示例。项目越完整越好：能编译通过、能烧录运行是硬标准。
+2. **生成代码时必须把完整代码交给用户**：优先使用 write_file 工具创建文件（文件会自动在中间编辑器打开）；**如果工具调用不可用或无法输出工具调用格式，直接在回复中输出完整代码块**（用 \`\`\`ino、\`\`\`cpp、\`\`\`py、\`\`\`js 等语言标注），系统会自动把代码块创建为文件并在中间编辑器打开。两种方式任选其一，**不要只输出思路文字而省略代码**；写完文件后用简短中文说明做了什么。**绝对禁止只说"让我先查看项目文件""让我先读取""我先看看""现在我来编写""现在直接覆盖"这类话就结束回复**——如果写了这类过渡句，必须在该句之后立即输出完整代码块；要么直接调用工具，要么直接输出代码块，你必须一次完成整个任务，不能半途而废
 3. **必须根据项目类型使用正确的文件格式和扩展名**：Arduino 项目用 .ino（C/C++），Python 项目用 .py，Node.js 项目用 .js。禁止在 Arduino 项目中生成 Python 代码或 .py 文件；**Arduino 项目的代码块必须用 \`\`\`ino 标注（禁止 \`\`\`cpp 或 \`\`\`c），否则代码不会被 Arduino 编译**
 4. **优先覆盖项目已有的主文件**，不要创建多个重复文件（如 main_1.py、main_2.py）。如果项目已有主文件，直接覆盖它
 5. 调用工具后等待结果，根据结果决定下一步
 6. 如果不需要工具，直接用自然语言回复
 7. 代码要完整可运行，不要省略关键部分
 8. 用中文回复用户
-8.5 **本地模型简化流程（重要）**：如果你是本地小模型，工具调用能力有限，可以**直接输出代码块**（用 \`\`\`ino、\`\`\`py、\`\`\`js 等语言标注），系统会自动：① 创建对应类型的项目（Arduino/Python/Node）② 把代码块保存为正确格式的文件并在中间编辑器打开 ③ 自动编译验证。你只需专注输出正确、完整、可编译的代码，不需要调用 create_project/write_file/compile 等工具。编译失败时系统会把错误信息发给你，你直接输出修复后的完整代码块即可。
 9. **支持合法的爬虫、数据采集和自动化测试开发**：对于用户有合法授权或公开数据的采集需求，应提供完整可运行的代码实现（requests/httpx/BeautifulSoup/Scrapy/Playwright 等），同时提醒用户遵守 robots.txt、平台条款和相关法律法规；不要因"爬虫"关键词直接拒绝
-10. 涉及账号密码时，提醒用户通过环境变量或配置文件管理敏感信息，不要硬编码在代码中
-11. **需求模糊时先询问用户（对齐 TrieCode 澄清机制）**：当用户需求存在多个合理实现方向（如开发框架选择、功能范围、技术方案取舍）且缺少关键信息时，优先调用 ask_user 工具向用户提问（给出 2-4 个具体可选的选项），等收到用户回答后再继续；不要擅自替用户做重大技术选型。只有当选项确实不重要或用户明确说"随便/你决定"时才自行决策。询问一次即可，不要连环追问
-12. **任务完成收尾时输出文档式总结（对齐 TrieCode 文档式输出）**：当任务执行完毕（写完代码并通过/尝试过验证）需要给出最终答复时，不要只写一句"已完成"，用清晰的 Markdown 文档式总结输出，包含以下区块（按需取舍，有则必写）：
-- **项目结构**：用代码块树形展示创建/修改的文件
-- **功能特性**：用表格列出实现了哪些功能及说明
-- **使用方法**：接线说明（引脚对应关系）、需要修改的配置（如 WiFi 账号密码）、如何编译上传、如何使用
-- **验证结果**：编译是否成功（exit code）、依赖库、目标平台
-这是最终交付形态，让用户拿到项目即可上手。不要在收尾时继续抛出新问题或新任务分支。
-13. **自主迭代与问题自愈（像豆包一样主动解决）**：遇到编译/运行/配置错误时不要停在报错上，先自行分析根因并尝试修复（修改代码→重跑验证，可多轮迭代直到通过）。确认缺少依赖或工具链时：① 先调用 list_plugins 查看已安装/可安装的插件能力；② 如果缺的是 LabCode 插件能解决的（AI 模型、编译工具链、串口等），先用 ask_user 询问用户「是否允许安装 X（说明用途、大小、耗时）」，用户同意后调用 install_plugin 安装，装完继续执行任务；③ 如果缺的是系统级软件（python、gcc、库等）且插件市场没有，评估是否可用 terminal 安装（需先向用户说明并确认）；④ 用户拒绝时说明影响并给出替代方案。不要假装问题已解决，也不要跳过验证直接宣称完成——每轮修复后必须重新编译/运行验证，拿到真实结果再收尾。`;
+10. 涉及账号密码时，提醒用户通过环境变量或配置文件管理敏感信息，不要硬编码在代码中`;
   }
 
   _buildMessages(userInput, messages, useNativeTools) {
@@ -3486,26 +2659,6 @@ void loop() {
           const text = codeBlockMatch ? content.replace(codeBlockMatch[0], '').trim() : '';
           return { text, toolCalls };
         }
-        // ===== 2026-09-14 新增：qwen3.5:9b 输出扁平 JSON（{task, focus} 无 name 字段）=====
-        // 按参数名集合推断工具：对象键能覆盖某工具的全部必需参数且不含多余键 → 推断为该工具调用
-        if (arr.length === 1 && !arr[0].name) {
-          const obj = arr[0];
-          if (obj && typeof obj === 'object') {
-            const keys = Object.keys(obj).filter(k => ['string', 'number', 'boolean'].includes(typeof obj[k]));
-            if (keys.length > 0) {
-              for (const t of TOOL_DEFS) {
-                const props = t.parameters && t.parameters.properties ? Object.keys(t.parameters.properties) : [];
-                const required = t.parameters && Array.isArray(t.parameters.required) ? t.parameters.required : [];
-                if (required.length && required.every(r => keys.includes(r)) && keys.every(k => props.includes(k))) {
-                  const args = {};
-                  for (const k of keys) args[k] = obj[k];
-                  const text = codeBlockMatch ? content.replace(codeBlockMatch[0], '').trim() : '';
-                  return { text, toolCalls: [{ id: 'call_1', name: t.name, arguments: args }] };
-                }
-              }
-            }
-          }
-        }
       } catch (e) {
         // 不是合法 JSON，按普通文本处理
       }
@@ -3555,110 +2708,20 @@ void loop() {
       }
     }
 
-    // ===== 2026-09-14 新增：qwen3.5:9b 自定义 <tool_call>/<ask_user> 标签解析 =====
-    // 本地模型长上下文下 <|tool_calls|> JSON 格式漂移，实测常输出：
-    //   <tool_call>\n<function=install_plugin>\n  - pluginId: stm32\n}\n</tool_call>
-    //   <tool_call>\n<function=create_project name="X" type="arduino">\n\n</tool_call>
-    //   <ask_user question="..." options="[{'label':...}]" header="..."/>
-    // 客户端兜底解析为真实工具调用（仅映射已注册工具，未知工具如 plugin_xxx 忽略）。
-    {
-      const customBlocks = content.match(/<tool_call>[\s\S]*?(?:<\/tool_call>|$)|<function=[a-z_][a-z0-9_]*>[\s\S]*?(?:<\/function>|$)|<ask_user\s+[^>]*\/?>/gi) || [];
-      const found = [];
-      let text = content;
-      for (const blk of customBlocks) {
-        const lower = blk.toLowerCase();
-        if (lower.startsWith('<tool_call>') || lower.startsWith('<function=')) {
-          const fnM = blk.match(/<function=([a-z_][a-z0-9_]*)(?:\s+([^>]*))?>([\s\S]*?)(?:<\/function>|$)/i);
-          if (!fnM) continue;
-          const name = fnM[1];
-          if (!getToolDef(name)) continue;
-          const schemaProps = (getToolDef(name).parameters && getToolDef(name).parameters.properties) || {};
-          let args = {};
-          // 属性风格：<function=create_project name="X" type="arduino">
-          if (fnM[2]) {
-            const attrRe = /([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*("([^"]*)"|'([^']*)'|(\S+))/gi;
-            let am;
-            while ((am = attrRe.exec(fnM[2])) !== null) {
-              const k = am[1];
-              if (schemaProps[k]) args[k] = am[3] !== undefined ? am[3] : (am[4] !== undefined ? am[4] : am[5]);
-            }
-          }
-          // 键值行风格：- pluginId: stm32 / pluginId: "stm32"
-          if (Object.keys(args).length === 0) {
-            const inner = String(fnM[3] || '').replace(/^\s*\}/, '').trim();
-            for (const ln of inner.split('\n')) {
-              const lm = ln.match(/^\s*-?\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*:\s*(.+?)\s*$/);
-              if (lm && schemaProps[lm[1]]) {
-                let v = lm[2].trim();
-                if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) v = v.slice(1, -1);
-                args[lm[1]] = v;
-              }
-            }
-          }
-          found.push({ name, arguments: args });
-          text = text.replace(blk, '').trim();
-        } else if (lower.startsWith('<ask_user')) {
-          const attrs = {};
-          const attrRe = /([a-z_][a-z0-9_]*)\s*=\s*("([^"]*)"|'([^']*)')/gi;
-          let am;
-          while ((am = attrRe.exec(blk)) !== null) {
-            attrs[am[1]] = am[3] !== undefined ? am[3] : am[4];
-          }
-          if (attrs.question) {
-            let options = [];
-            try {
-              const parsedOpts = JSON.parse(String(attrs.options || '').replace(/'/g, '"'));
-              if (Array.isArray(parsedOpts)) options = parsedOpts;
-            } catch (e) { /* options 解析失败 → 空数组，ask_user 会报错提示 */ }
-            found.push({ name: 'ask_user', arguments: { question: attrs.question, options, header: attrs.header || 'AI 需要你的选择' } });
-            text = text.replace(blk, '').trim();
-          }
-        }
-      }
-      if (found.length > 0) {
-        const toolCalls = found.map((tc, i) => ({ id: 'call_c' + (i + 1), name: tc.name, arguments: tc.arguments }));
-        addOutputLog(`自定义标签工具调用解析: ${toolCalls.map(t => t.name).join(', ')}`, 'info');
-        return { text, toolCalls };
-      }
-    }
-
-    // 2026-09-15：grammar/response_format=json_object 约束下，模型直接吐裸 JSON 对象
-    // （无 ```json 围栏、无 <tool_call> 包裹）。兼容 {"name","arguments"} 与 {"tool_call":{...}} 两种形状。
-    const bare = content.trim();
-    if (bare.startsWith('{') && bare.endsWith('}')) {
-      try {
-        const obj = JSON.parse(bare);
-        let callObj = obj;
-        if (obj && typeof obj === 'object' && obj.tool_call && typeof obj.tool_call === 'object') callObj = obj.tool_call;
-        if (callObj && typeof callObj.name === 'string' && (callObj.arguments === undefined || typeof callObj.arguments === 'object')) {
-          addOutputLog(`裸JSON工具调用解析: ${callObj.name}`, 'info');
-          return { text: '', toolCalls: [{ id: 'call_c1', name: callObj.name, arguments: callObj.arguments || {} }] };
-        }
-      } catch (e) { /* 非合法 JSON，落到正文 */ }
-    }
-
     return { text: content.trim(), toolCalls: [] };
   }
 
   _buildToolDefs() {
-    // 对齐 TrieCode：ask_user 对模型可见——需求模糊、存在多个实现方向时，模型应主动询问用户
-    const builtin = TOOL_DEFS.map(t => ({
-      type: 'function',
-      function: {
-        name: t.name,
-        description: t.description || '',
-        parameters: t.parameters || { type: 'object', properties: {} }
-      }
-    }));
-    const pluginTools = (window.PluginSystem ? window.PluginSystem.allTools() : []).map(t => ({
-      type: 'function',
-      function: {
-        name: t.name,
-        description: t.description || '',
-        parameters: t.parameters || { type: 'object', properties: {} }
-      }
-    }));
-    return builtin.concat(pluginTools);
+    return TOOL_DEFS
+      .filter(t => t.name !== 'ask_user')
+      .map(t => ({
+        type: 'function',
+        function: {
+          name: t.name,
+          description: t.description || '',
+          parameters: t.parameters || { type: 'object', properties: {} }
+        }
+      }));
   }
 
   async generateResponse(userInput, messages) {
@@ -3690,12 +2753,12 @@ void loop() {
       }
     }
 
-    const hasApiKey = !!(aiCfg.apiKey || aiCfg.gatewayToken || aiCfg.provider === 'ollama' || aiCfg.provider === 'local');
+    const hasApiKey = !!(aiCfg.apiKey || aiCfg.provider === 'ollama' || aiCfg.provider === 'local');
 
     if (!hasApiKey) {
       // 未配置 API Key → 回退模拟，但提示用户
       const mockResult = this.mock.generateResponse(userInput, messages);
-      mockResult.content = '[系统提示：当前未配置 AI API Key，使用模拟模式。请在设置中登录 LabCode 账号（云端积分）或配置 API Key / 本地模型。]\n\n' + mockResult.content;
+      mockResult.content = '[系统提示：当前未配置 AI API Key，使用模拟模式。请在设置中配置 DeepSeek API Key 或启动本地 Ollama 模型。]\n\n' + mockResult.content;
       return mockResult;
     }
 
@@ -3714,23 +2777,15 @@ void loop() {
 
       // ===== 回退：非流式 + 文本解析工具调用 =====
       const chatMessages = this._buildMessages(userInput, messages, false);
-      // 2026-09-14：ollama 也按本地模型，输出预算提到 16384
-      const isLocalFallback = (aiCfg.provider === 'local' || aiCfg.provider === 'ollama');
+      const isLocalFallback = (aiCfg.provider === 'local');
       const result = await window.LabCode.ai.chat({
         messages: chatMessages,
         temperature: 0.7,
-        maxTokens: isLocalFallback ? 16384 : 8192
+        maxTokens: isLocalFallback ? 12288 : 8192
       });
 
       if (!result || !result.success) {
         console.warn('[RealAIClient] AI 请求失败:', result?.error);
-        // 网关积分不足：给出升级引导
-        if (result && result.creditsInsufficient) {
-          const mockResult = this.mock.generateResponse(userInput, messages);
-          mockResult.content = `[积分不足：${result.error || '云端积分已用完'}。请在设置面板查看账号积分，充值或切换为本地模型（免费）后重试。]\n\n` + mockResult.content;
-          if (this.onCredits) this.onCredits({ remaining: result.creditsLeft });
-          return mockResult;
-        }
         const mockResult = this.mock.generateResponse(userInput, messages);
         mockResult.content = `[AI 请求失败: ${result?.error || '未知错误'}，回退模拟模式]\n\n` + mockResult.content;
         return mockResult;
@@ -3778,21 +2833,18 @@ void loop() {
       const timer = setTimeout(() => {
         if (!settled) { settled = true; cleanup(); resolve({ ok: false, error: 'AI 响应超时（' + (isLocal ? 300 : 120) + 's）' }); }
       }, isLocal ? 300000 : 120000);
-      // ===== 2026-09-13 活性看门狗；2026-09-15 改豆包式快回退 =====
-      // 本地思考模型长思考期间 SSE 无事件，原 60s 死等体验极差；
-      // 12s 无事件 → 先 cancel 旧流（主进程 AbortController 真断 llama-server slot）→ 再回退非流式。
-      // thinking_delta 也会刷新 lastEventAt，所以模型真在思考时不会被误杀。
+      // ===== 2026-09-13 修复：活性看门狗——60s 无任何流事件 → 视为挂起，回退非流式请求 =====
+      // 本地 9B 模型/主进程转发偶发断流，300s 超时太久用户感知"卡死"；先降级再重试
       let lastEventAt = Date.now();
       const watchdog = setInterval(() => {
-        if (Date.now() - lastEventAt > 12000) {
+        if (Date.now() - lastEventAt > 60000) {
           if (!settled) {
             settled = true; cleanup();
-            try { window.LabCode.ai.chatCancel(runId); } catch (e) {}
-            addOutputLog('流式响应无数据（12s 无事件），已取消旧流并回退非流式请求', 'warn');
-            resolve({ ok: false, error: '流式响应无数据（12s 无事件），已取消旧流并回退非流式请求' });
+            addOutputLog('流式响应无数据（60s 无事件），回退非流式请求', 'warn');
+            resolve({ ok: false, error: '流式响应无数据（60s 无事件），回退非流式请求' });
           }
         }
-      }, 3000);
+      }, 15000);
 
       const onEvent = (evt) => {
         if (!evt || evt.runId !== runId) return;
@@ -3828,9 +2880,6 @@ void loop() {
           }
         } else if (evt.type === 'tool_calls') {
           toolCalls = evt.toolCalls || [];
-        } else if (evt.type === 'credits') {
-          // 网关积分事件：更新余额显示（对齐 TrieCode 右侧积分显示）
-          if (this.onCredits) this.onCredits(evt);
         } else if (evt.type === 'done') {
           if (settled) return; settled = true; cleanup();
           let content = evt.content || fullText || '';
@@ -3862,7 +2911,7 @@ void loop() {
           if (suppressed && pending && this.onStreamDelta) {
             this.onStreamDelta(pending);
           }
-          resolve({ ok: false, error: evt.error, creditsInsufficient: !!evt.creditsInsufficient });
+          resolve({ ok: false, error: evt.error });
         }
       };
 
@@ -3904,16 +2953,12 @@ void loop() {
       };
 
       const listener = window.LabCode.ai.onStream(onEvent);
-      // ===== 2026-09-14 修复：ollama 本地模型也按本地思考流处理 =====
-      // 原逻辑只认 provider==='local'，ollama 被当云端 → maxTokens=8192，
-      // qwen3.5:9b 思考占满预算后正文被截断（长代码切断）+ 修复轮空输出。
-      // ollama 同样是本地模型，需要更大输出预算。
-      const isLocalCfg = (this.config && this.config.ai && (this.config.ai.provider === 'local' || this.config.ai.provider === 'ollama'));
+      const isLocalCfg = (this.config && this.config.ai && this.config.ai.provider === 'local');
       window.LabCode.ai.chatStream({
         runId,
         messages: chatMessages,
         temperature: 0.3,
-        maxTokens: isLocalCfg ? 16384 : 8192,  // 本地思考流：思考+正文需要更大预算（9B 长代码需 16K）
+        maxTokens: isLocalCfg ? 12288 : 8192,  // 本地思考流：思考+正文需要更大预算
         tools: this._buildToolDefs()
       }).catch((e) => {
         if (!settled) { settled = true; cleanup(); resolve({ ok: false, error: e.message || String(e) }); }
@@ -4193,7 +3238,7 @@ class VerificationAgent {
 // ============ 增强：只读子智能体 ============
 // 参考业界 subagent.js: 只读子智能体，运行时硬门，结构化输出契约
 const SUBAGENT_READONLY_TOOLS = [
-  'read_file', 'list_dir', 'list_files', 'grep_search', 'web_search', 'web_fetch',
+  'read_file', 'list_dir', 'grep_search', 'web_search', 'web_fetch',
   'terminal', 'run_test', 'view_image', 'query_memory', 'list_memories'
 ];
 
@@ -4207,78 +3252,32 @@ class SubAgent {
     this.isCancelled = false;
   }
   
-  // 运行只读子智能体（真 LLM 循环，独立 messages 数组，不污染主上下文）
+  // 运行只读子智能体
   async run() {
-    this.onStream({ type: 'text', content: `\n🔬 子智能体启动（真 LLM 循环，只读工具）：${this.task.substring(0, 50)}...\n` });
-
-    // 只读工具白名单（硬门）
-    const READONLY = ['list_files','read_file','find_files','search_files','web_search','web_fetch','list_memories'];
-    const readonlyDefs = TOOL_DEFS.filter(t => READONLY.includes(t.name));
-    const toolListText = readonlyDefs.map(t => {
-      const ps = t.parameters?.properties ? Object.entries(t.parameters.properties).map(([k,v])=>`  - ${k}: ${v.type}${v.description?' - '+v.description:''}`).join('\n') : '  (无参数)';
-      return `### ${t.name}\n${t.description}\n参数:\n${ps}`;
-    }).join('\n\n');
-
-    const sys = `你是只读研究子智能体。你的任务是研究问题并返回结构化结论。
-你只能使用以下只读工具，禁止任何写操作：
-${toolListText}
-
-调用工具格式（在回复末尾）：
-<|tool_calls|>[{"name":"工具名","arguments":{}}]<|/tool_calls|>
-完成研究后，直接用 Markdown 输出结论，不要再调用工具。最多 ${this.maxTurns} 轮。`;
-
-    const messages = [
-      { role: 'system', content: sys },
-      { role: 'user', content: `研究任务：${this.task}\n${this.parentContext?.focus ? '研究重点：' + this.parentContext.focus : ''}` }
-    ];
-
-    for (let turn = 0; turn < this.maxTurns; turn++) {
+    this.onStream({ type: 'text', content: `\n🔬 子智能体启动：${this.task.substring(0, 50)}...\n` });
+    
+    const findings = [];
+    
+    // 步骤1：理解任务，确定研究方向
+    const plan = this.planResearch(this.task);
+    findings.push({ type: 'plan', content: plan });
+    
+    // 步骤2：执行只读研究（运行时硬门：只允许只读工具）
+    for (const step of plan.steps) {
       if (this.isCancelled) break;
-      let result;
-      try {
-        result = await window.LabCode.ai.chat({ messages, temperature: 0.3, maxTokens: 4096 });
-      } catch (e) {
-        return `子智能体 LLM 调用失败: ${e.message}`;
-      }
-      if (!result || !result.success) {
-        return `子智能体 LLM 调用失败: ${result?.error || 'unknown'}`;
-      }
-      let raw = String(result.content || '');
-      // 剥 <think>
-      const tm = raw.match(/^[\s\S]*?<\/think>/);
-      if (tm) raw = raw.slice(tm[0].length).trim();
-      const parsed = (typeof aiEngine !== 'undefined' && aiEngine._parseToolCalls)
-        ? aiEngine._parseToolCalls(raw)
-        : { text: raw, toolCalls: [] };
-      // 如果有工具调用
-      if (parsed.toolCalls && parsed.toolCalls.length) {
-        messages.push({ role: 'assistant', content: raw });
-        const toolResults = [];
-        for (const tc of parsed.toolCalls) {
-          if (!READONLY.includes(tc.name)) {
-            toolResults.push(`工具 ${tc.name} 不在只读白名单，已拒绝`);
-            continue;
-          }
-          const def = getToolDef(tc.name);
-          if (!def || typeof def.execute !== 'function') {
-            toolResults.push(`工具 ${tc.name} 未实现`);
-            continue;
-          }
-          try {
-            const out = await def.execute(tc.arguments || {});
-            toolResults.push(typeof out === 'string' ? out : JSON.stringify(out));
-          } catch (e) {
-            toolResults.push(`工具 ${tc.name} 执行异常: ${e.message}`);
-          }
-        }
-        messages.push({ role: 'user', content: '工具结果:\n' + toolResults.join('\n\n---\n\n') });
-        continue;
-      }
-      // 无工具调用 → 最终答案
-      this.onStream({ type: 'text', content: `\n✅ 子智能体完成\n` });
-      return parsed.text || raw;
+      if (this.turnCount >= this.maxTurns) break;
+      
+      const result = await this.guardedExecute(step.tool, step.args);
+      findings.push({ type: 'finding', step: step.description, result });
+      this.turnCount++;
     }
-    return '子智能体达到最大轮次，未完成。';
+    
+    // 步骤3：结构化输出契约（强制固定 Markdown 结构）
+    const structuredOutput = this.formatStructuredOutput(findings);
+    
+    this.onStream({ type: 'text', content: `\n✅ 子智能体完成，返回结构化结论\n` });
+    
+    return structuredOutput;
   }
   
   // 规划研究方向
@@ -4287,17 +3286,14 @@ ${toolListText}
     const steps = [];
     
     if (t.includes('错误') || t.includes('error') || t.includes('bug')) {
-      // 错误类：列目录 + 读取主文件（grep_search 仅在 MCP 提供时可用，默认走 read_file 兜底）
-      steps.push({ tool: 'list_files', args: { path: '.' }, description: '列出项目结构定位入口' });
-      steps.push({ tool: 'read_file', args: { file_path: 'src/main.py' }, description: '读取主文件分析错误' });
-      steps.push({ tool: 'read_file', args: { file_path: 'src/main.ino' }, description: '读取主程序文件' });
+      steps.push({ tool: 'grep_search', args: { pattern: 'error|Error|ERROR' }, description: '搜索错误相关代码' });
+      steps.push({ tool: 'read_file', args: { path: 'src/main.py' }, description: '读取主文件分析' });
     } else if (t.includes('文档') || t.includes('doc') || t.includes('说明')) {
-      steps.push({ tool: 'read_file', args: { file_path: 'README.md' }, description: '读取项目文档' });
-      steps.push({ tool: 'list_files', args: { path: '.' }, description: '列出项目结构' });
+      steps.push({ tool: 'read_file', args: { path: 'README.md' }, description: '读取项目文档' });
+      steps.push({ tool: 'list_dir', args: { path: '.' }, description: '列出项目结构' });
     } else {
-      steps.push({ tool: 'list_files', args: { path: '.' }, description: '了解项目结构' });
-      steps.push({ tool: 'read_file', args: { file_path: 'src/main.py' }, description: '读取核心文件' });
-      steps.push({ tool: 'read_file', args: { file_path: 'src/main.ino' }, description: '读取主程序文件' });
+      steps.push({ tool: 'list_dir', args: { path: '.' }, description: '了解项目结构' });
+      steps.push({ tool: 'read_file', args: { path: 'src/main.py' }, description: '读取核心文件' });
     }
     
     return { steps, summary: `针对「${task}」的研究计划` };
@@ -4309,19 +3305,9 @@ ${toolListText}
     if (!SUBAGENT_READONLY_TOOLS.includes(toolName)) {
       return { success: false, error: `子智能体安全门：工具「${toolName}」不在只读白名单中，已拒绝执行` };
     }
-    // ===== 2026-09-14 修复：接入真实只读工具执行（复用 TOOL_DEFS 的 execute）=====
-    // 之前是模拟执行（"模拟只读工具 X 执行结果"），子代理研究结果空洞；
-    // 现在 list_dir/read_file/grep_search/web_search 等走真实实现（工作区文件 + 真实网络）。
-    const def = getToolDef(toolName);
-    if (def && typeof def.execute === 'function') {
-      try {
-        const output = await def.execute(args || {});
-        return { success: true, output: typeof output === 'string' ? output : JSON.stringify(output), tool: toolName };
-      } catch (e) {
-        return { success: false, error: `子智能体工具 ${toolName} 执行异常: ${e.message}`, tool: toolName };
-      }
-    }
-    return { success: false, error: `子智能体工具 ${toolName} 无执行实现`, tool: toolName };
+    
+    // 模拟执行只读工具
+    return { success: true, output: `模拟只读工具 ${toolName} 执行结果`, tool: toolName };
   }
   
   // 结构化输出契约（强制固定 Markdown 结构）
@@ -4381,11 +3367,6 @@ class AgentRunner {
     this.planPendingResolve = null;   // 计划确认 Promise resolve
     // ===== diff 验收：记录本轮文件变更（before/after）=====
     this.fileChanges = {};
-    // ===== 2026-09-14 对齐 TrieCode 会话持久化：workLog 全程记录 + 会话 JSON 落盘 =====
-    this.workLog = [];
-    this.sessionId = (state.currentSessionId) || ('session_' + Date.now().toString(36));
-    this.sessionTitle = '';
-    this._persistTimer = null;
     // 验证闸门状态（P0-4）：跟踪最近文件修改轮次和最近真实验证轮次
     this.lastFileModTurn = -1;
     this.lastVerifyTurn = -1;
@@ -4416,17 +3397,13 @@ class AgentRunner {
 
   async run(userInput) {
     try {
-    state._agentRunning = true;
     this.cancelled = false;
     this.messages.push({ role: 'user', content: userInput });
-    if (!this.sessionTitle) this.sessionTitle = String(userInput).replace(/\s+/g, ' ').trim().slice(0, 24);
     this.budget = new BudgetTracker(20, 4);
     this.sterileRecovered = false;
     this.budgetHinted = false;         // 每次 run 重置预算提醒
     this._startedSteps.clear();        // 每次 run 重置工具 step 追踪
     this.recentReads.clear();          // 每次 run 重置最近读（新任务从干净状态开始）
-    this._expectingCodeAfterProject = false;  // 每次 run 重置"项目创建后强制写码"状态
-    this.forceCodeNudges = 0;          // 强制写码追问次数
 
     // ===== 工作状态条：任务开始计时与计数归零（对齐 TrieCode 提交后即时显示状态条）=====
     this.workStartTime = Date.now();
@@ -4473,20 +3450,6 @@ class AgentRunner {
       addOutputLog(`模型族提示词: ${modelFamily}`, 'debug');
       this.messages.unshift({ role: 'system', content: `## 模型专属引导\n${familyGuidance.guidance}` });
     }
-
-    // ===== 本地小模型标志：失败/验证消息按模型能力分流 =====
-    // 云端大模型（deepseek/minimax 等）会输出 <|tool_calls|>，可引导"调用 run_test/edit_file"；
-    // 本地 7B 模型不输出工具调用格式，必须引导"直接输出修复后的完整代码块"，否则会在失败提示上空转。
-    this._isLocalModel = false;
-    try {
-      const _aiCfg = await window.LabCode.config.get();
-      const _prov = _aiCfg && _aiCfg.ai ? (_aiCfg.ai.provider || '') : '';
-      const _model = _aiCfg && _aiCfg.ai ? (_aiCfg.ai.model || '') : '';
-      if (_prov === 'ollama' || _prov === 'local' || /qwen|7b|9b|gguf|local/i.test(String(_model))) {
-        this._isLocalModel = true;
-        addOutputLog('本地小模型模式：失败/验证消息走"直接输出代码块"引导', 'info');
-      }
-    } catch (e) { /* 配置读取失败时默认按云端模型处理 */ }
     
     // ===== 增强6：思考强度自适应（参考业界 thinking.js）=====
     const suggestedLevel = thinkingManager.suggestLevel(userInput);
@@ -4505,63 +3468,6 @@ class AgentRunner {
       addOutputLog('计划先行模式：等待 AI 输出执行计划', 'info');
       // 注入计划先行引导（模型本轮先输出计划，不要直接改文件/执行命令）
       this.messages.push({ role: 'system', content: '## 执行模式：计划先行\n请先分析需求，输出一份结构化的「执行计划」。\n\n【输出格式要求】\n1. 第一行写：执行计划：\n2. 然后用编号列表列出 3-6 个具体步骤，每个步骤一行，格式如：\n   1. 读取/分析现有文件（列出文件名）\n   2. 编写核心代码（说明要创建/修改哪些文件）\n   3. 补充配置或依赖文件\n   4. 保存并验证\n3. 每个步骤必须具体，不要写"我将为您编写..."这种空话。\n\n本轮【绝对不要】调用 write_file/edit_file/terminal/run_test 等任何工具，只输出计划文本，等待用户批准后再执行。' });
-    }
-
-    // ===== 对齐 TrieCode：需求澄清预处理（第一轮，需求模糊时先弹「AI 需要你的选择」）=====
-    // 本地 7B 模型工具调用不稳定，不保证主动 ask_user；客户端在入口兜底：
-    // 用户要求"写项目/用某开发板"但未明确框架/功能 → 先弹多组选项卡片（开发框架+项目功能），
-    // 用户选择后注入回答再让模型继续，与 TrieCode 截图1 的澄清交互一致。
-    const userMsgCount = this.messages.filter(m => m.role === 'user').length;
-    if (userMsgCount <= 1) {
-      const clar = detectClarification(userInput);
-      if (clar && !this.cancelled) {
-        addOutputLog(`需求澄清预处理触发: ${JSON.stringify(clar)}`, 'info');
-        this._stream('', true);
-        let answers = null;
-        try {
-          answers = await new Promise((resolve) => {
-            window.__askUserCallback = (result, auto) => resolve(auto ? null : result);
-            showClarifyCard(clar.questions, clar.headers || {});
-            const guard = setInterval(() => {
-              if (!window.__askUserCallback) { clearInterval(guard); resolve(null); }
-            }, 3000);
-          });
-        } catch (e) { answers = null; }
-        if (this.cancelled) { this._emitDiffSummary(); this._emitWorkStatus('done'); this._stream('已停止。', true); return; }
-        if (answers && answers.length) {
-          // ===== 对齐 TrieCode 截图2：选择框架后自动创建项目（当前无工作空间/untitled 残留时）=====
-          let projectNote = '';
-          try {
-            const frameworkLine = answers.find(a => a.startsWith('开发框架'));
-            let projType = null;
-            if (frameworkLine && frameworkLine.includes('Arduino 框架')) projType = 'arduino';
-            else if (frameworkLine && frameworkLine.includes('ESP-IDF 原生')) projType = 'esp-idf';
-            if (projType) {
-              // untitled 残留（无项目标记）→ 视为未打开工作空间，重置后创建到默认目录
-              const isUntitledResidue = state.projectPath && /untitled|未命名/i.test(state.projectPath) && Object.keys(state.files || {}).length <= 1;
-              if (isUntitledResidue) {
-                state.projectPath = null;
-                state.projectType = null;
-                state.files = {};
-              }
-              if (!state.projectPath) {
-                const name = genProjectName(userInput);
-                const root = await createProject(projType, name, null);
-                if (root) {
-                  projectNote = `\n\n（系统：已为你创建 ${projType === 'arduino' ? 'Arduino' : 'ESP-IDF'} 项目「${name}」，工作空间已切换到 ${root}，主文件已就绪。现在编写主程序代码：请直接在主文件中输出完整可编译的功能代码（对齐用户选择的项目功能），包含必要头文件、引脚定义、初始化与主逻辑。不要创建其他格式文件，不要只输出项目模板空骨架。写完主文件后运行编译验证，编译失败则修复后重试，直至通过。）`;
-                  this._expectingCodeAfterProject = true;  // 开启强制写码闸：本轮任务必须产出代码才算完成
-                }
-              }
-            }
-          } catch (e) { addOutputLog('澄清后自动创建项目失败: ' + e.message, 'warn'); }
-          const answerText = answers.join('\n');
-          this.messages.push({ role: 'user', content: `（用户回答）\n${answerText}${projectNote}\n\n请基于用户的选择继续执行任务。` });
-          this._stream(`[用户选择]\n${answerText}${projectNote}\n`, false);
-        } else {
-          this.messages.push({ role: 'user', content: '（用户回答）用户选择：让 AI 自行决定\n\n请根据专业判断自行决策并继续执行任务。' });
-          this._stream('[用户选择] 让 AI 自行决定\n', false);
-        }
-      }
     }
 
     for (let turn = 0; turn < 20; turn++) {
@@ -4642,17 +3548,10 @@ class AgentRunner {
           updateThinkingContent(this.thinkingBlockId, delta);
         }
       };
-      // 网关积分事件：实时更新 AI 面板余额徽标
-      this.ai.onCredits = (evt) => {
-        if (evt && typeof evt.remaining === 'number') {
-          updateCreditsBadge(evt.remaining);
-        }
-      };
       const result = await this.ai.generateResponse(lastUserMsg?.content || userInput, this.messages);
       this.ai.onStreamDelta = null;
       this.ai.onStreamDeltaReset = null;
       this.ai.onThinkingDelta = null;
-      this.ai.onCredits = null;
       const duration = ((Date.now() - startTime) / 1000).toFixed(1);
 
       // 生成思考过程并展示（优先模型真实推理 thinkingAcc/result.thinking，否则模板兜底）
@@ -4674,119 +3573,30 @@ class AgentRunner {
       // 无工具调用 → 结束（先过验证硬闸门）
       if (!result.toolCalls || result.toolCalls.length === 0) {
         const finalText = String(result.content || '').trim();
-        // 代码块检测（提前定义，供强制写码闸/思路兜底/提问判定共用）
-        // 2026-09-14 修复：本地模型常输出"裸代码块"（``` 后无语言标识），
-        // 旧正则只认带标识的 ```ino，导致 UI 已落盘但 hasCodeBlock=false，
-        // stuck 兜底误判"只有思路没有代码"重复追问 2 轮浪费推理。
-        // 放宽为：``` 后跟可选语言标识 + 换行（裸 ```\n 亦匹配）。
-        const hasCodeBlock = /```[a-zA-Z0-9_+\-]*\s*\n/.test(finalText) || /```\s*\n[\s\S]*?```/.test(finalText);
-
-        // ===== 2026-09-14 新增：安装类散文询问 → 确认卡 → 允许后自动 install_plugin（本地小模型工具调用兜底）=====
-        // qwen3.5:9b 等本地模型缺依赖时不稳定输出 <|tool_calls|>，倾向散文式询问
-        //（"是否允许安装「stm32」STM32 开发工具插件？（约 500MB...）"）。客户端兜底：
-        // 识别"安装 X 插件/模型"类陈述或问句 → 弹「允许安装/取消」卡片 → 允许则自动执行 install_plugin → 继续任务。
-        // 安全护栏：仅当能在插件清单中匹配到「未安装」的插件时才弹卡，已安装/无法匹配一律不触发。
-        if (this.installAskNudges === undefined) this.installAskNudges = 0;
-        if (this.installNudges === undefined) this.installNudges = 0;
-        const installAskText = String(finalText || '').replace(/```[\s\S]*?```/g, '').trim();
-        const looksInstallAsk = /(?:是否|需要|可以|能不能|要不要|请确认|允许|同意|我将|我来|先|直接|马上|立即|准备)[^。！？\n]{0,24}(?:安装|下载|引入)[^。！？\n]{0,24}(?:插件|模型|工具链|工具|依赖)/i.test(installAskText)
-          || /(?:安装|下载)[^。！？\n]{0,30}(?:插件|模型|工具链)[^。！？\n]{0,20}[?？]/.test(installAskText.slice(-200));
-        if (looksInstallAsk) {
-          const _pluginList = (window.__labPluginAPI && typeof window.__labPluginAPI.list === 'function') ? window.__labPluginAPI.list() : [];
-          const _uninstalled = _pluginList.filter(p => !p.installed);
-          let _target = null;
-          if (_uninstalled.length) {
-            const _quoted = installAskText.match(/「([^」]+)」/);
-            if (_quoted) {
-              const q = _quoted[1];
-              _target = _uninstalled.find(p => p.id === q || (p.name || '').includes(q) || q.includes(p.id))
-                || _uninstalled.find(p => p.id.includes(q) || q.includes(p.name || ''));
-            }
-            if (!_target) _target = _uninstalled.find(p => installAskText.includes(p.name)) || null;
-          }
-          if (_target && this.installAskNudges < 2) {
-            this.installAskNudges += 1;
-            this.messages.push({ role: 'assistant', content: finalText });
-            this._stream('', true);
-            this._stream('\n[系统] 检测到需要安装插件，已转为确认卡片等待选择...\n', false);
-            const askRes = await askUserConfirm(
-              `是否允许安装插件「${_target.name}」？（${_target.category === 'ai-model' ? (_target.sizeHint || '大文件模型，下载需数分钟') : '安装后即可使用对应工具链'}）`,
-              [{ label: '允许安装', description: '开始下载并安装' }, { label: '取消', description: '不安装，改用其他方案' }],
-              '插件安装确认'
-            );
-            if (this.cancelled) { this._emitDiffSummary(); this._emitWorkStatus('done'); return; }
-            // 超时自动决定（__AI_DECIDE__）→ 视为允许：模型主动提出安装，用户 90s 未作答时按模型意图继续
-            const allowed = String(askRes).indexOf('允许') >= 0 || String(askRes).indexOf('自行决定') >= 0;
-            if (allowed) {
-              this._stream('\n[系统] 用户允许安装，正在调用 install_plugin 安装...\n', false);
-              const def = getToolDef('install_plugin');
-              let out;
-              try {
-                out = def ? await def.execute({ pluginId: _target.id }) : 'Error: install_plugin 工具未定义';
-              } catch (e) { out = 'Error: ' + e.message; }
-              addOutputLog('install_plugin 执行结果: ' + String(out).slice(0, 200), 'info');
-              this.messages.push({ role: 'tool', tool_call_id: 'install_plugin_' + this.installAskNudges, name: 'install_plugin', content: String(out) });
-              this._stream('\n' + String(out) + '\n', false);
-            } else {
-              this.messages.push({ role: 'user', content: '（用户回答）取消安装该插件。请说明影响并给出替代方案（如改用已安装的插件），不要强行安装。' });
-              this._stream('\n[用户选择] 取消安装，请给出替代方案。\n', false);
-            }
-            continue;
-          }
-          // ===== 2026-09-14 新增：复询兜底——插件已安装但模型仍在询问安装（本地 9B 常见）=====
-          // 安装成功后模型可能继续复述"插件未安装/是否需要安装"，此时不再弹卡，
-          // 直接注入"插件已安装，请继续执行任务"提示，避免死循环和 run 空转收尾。
-          const reAsk = /未安装|询问|是否需要|需要.{0,8}安装|是否安装|同意安装/.test(installAskText);
-          const installedMention = _pluginList.some(p => p.installed && installAskText.includes(p.name));
-          if (reAsk && installedMention && this.installNudges < 2) {
-            this.installNudges += 1;
-            this.messages.push({ role: 'user', content: '（系统提示：所需插件已安装完成，无需再次询问安装。请直接继续执行任务剩余部分：创建工程、编写代码、编译验证。不要输出任何询问或 <tool_call> 内容，直接输出代码块即可。）' });
-            this._stream('\n[系统] 所需插件已安装，请继续执行任务（创建工程并编译验证）...\n', false);
-            continue;
-          }
-        }
 
         // ===== 计划先行：模型输出了计划文本 → 展示计划并等待用户确认 =====
         if (this.planPending && !this.planApproved) {
-          // ===== 2026-09-14 修复：本地小模型不按"执行计划："格式输出时不再跳过计划窗 =====
-          // 由客户端基于任务上下文生成确定性计划，弹窗确认后再执行，
-          // 落实主打功能「智能任务规划，确认后精准推进执行」（用户点名要求实测）。
+          // 本地小模型常不遵守"执行计划："格式（直接输出"我将为您编写..."承诺句）
+          // 非计划格式 → 不弹窗挂起，切直接执行模式，交给下方 stuck 兜底继续追问代码
           const finalTextTrim = String(finalText || '').trim();
           const looksLikePlan = /执行计划|^\s*\d+[\.、:：)]|^\s*[-*•]|^\s*步骤/.test(finalTextTrim);
           if (!looksLikePlan) {
-            this.messages.push({ role: 'assistant', content: finalText });
-            this._stream('', true);
-            const localPlan = buildLocalPlan(userInput, finalText);
-            const approved = await this._waitPlanApproval(localPlan);
-            if (this.cancelled) { this._emitDiffSummary(); this._emitWorkStatus('done'); return; }
-            if (approved) {
-              this.planApproved = true;
-              this.planPending = false;
-              // ===== 2026-09-14 修复：批准后直接复用计划轮已输出的完整代码落盘 =====
-              // 本地 7B 在"计划已批准"后重跑会反问"需要什么具体功能"死循环（实测两次），
-              // 而计划轮模型往往已输出完整代码（被 planPending 暂存）。批准后直接落盘 → 编译验证 → 结束 run。
-              this.messages.push({ role: 'system', content: '## 执行模式：计划已批准\n用户已批准上述执行计划。' });
-              try {
-                const appliedFiles = autoApplyCodeBlocks(finalText);
-                if (appliedFiles.length > 0) {
-                  addOutputLog(`计划批准后已落盘代码块: ${appliedFiles.join(', ')}`, 'info');
-                  this._stream('计划已批准，代码已生成并落盘，正在编译验证...\n', false);
-                  return; // 落盘已触发自动编译验证；run 结束，编译结果异步注入总结轮
-                }
-              } catch (e) {
-                addOutputLog('计划批准后落盘失败: ' + e.message, 'warn');
+            this.planPending = false;
+            this.planApproved = true;
+            addOutputLog('计划先行：模型未按计划格式输出，跳过计划窗直接进入执行流程', 'info');
+            this.messages.push({ role: 'system', content: '## 执行模式：直接执行\n计划已省略，请直接分析任务并调用工具（read_file/write_file/edit_file/terminal/run_test）完成，每步简要说明。' });
+            // ===== 修复：跳过计划窗时立即落盘本轮已生成的代码块 =====
+            // 生成过程中 planPending=true 会拦截 onStream 落盘（"代码块已暂存"）；
+            // 若不在跳过计划窗时补落盘，lastFileModTurn 保持 -1，自动验证/验证闸门会被整体绕过，
+            // 表现为"AI 写完了代码但从不编译"。这里直接复用 autoApplyCodeBlocks 提取并落盘。
+            try {
+              const appliedFiles = autoApplyCodeBlocks(finalText);
+              if (appliedFiles.length > 0) {
+                addOutputLog(`跳过计划窗后已落盘代码块: ${appliedFiles.join(', ')}`, 'info');
               }
-              // 第一轮无代码块（只有思路）→ 才让模型重跑
-              this._stream('计划已批准，开始执行...\n', false);
-              continue;
+            } catch (e) {
+              addOutputLog('跳过计划窗后落盘失败: ' + e.message, 'warn');
             }
-            // 用户拒绝/要求修改 → 带着反馈重新出计划
-            this.planPending = true;
-            const feedback = this._planFeedback || '计划未被批准。请重新制定更合适的执行计划（仍以「执行计划：」开头，不要直接修改文件或执行命令）。';
-            this._planFeedback = null;
-            this.messages.push({ role: 'user', content: feedback });
-            this._stream('\n[系统] 等待重新制定计划...\n', false);
-            continue;
           } else {
           // 模型未严格遵守、直接输出了代码块：提取代码块前的说明文本作为计划
           let planText = finalText;
@@ -4821,61 +3631,14 @@ class AgentRunner {
           }
         }
 
-        // ===== 2026-09-14 新增：真实模型研究类任务路由（qwen3.5:9b 等对"深度研究"输出承诺句而非工具 JSON）=====
-        // 用户任务明确是研究/调研类且本轮无工具调用 → 客户端直接派只读子智能体执行（安全：只读白名单），
-        // 不让 stuck 兜底把研究任务误判为"承诺写码"而强制输出代码。
-        const _researchMatch = String(userInput || '').match(/(深度研究|调研|子智能体|subagent|深入研究|全面分析|做个研究)/);
-        if (_researchMatch && !hasCodeBlock && this.messages.filter(m => m.role === 'user').length <= 2) {
-          const _task = String(userInput).replace(/(帮我|请|深度研究|调研|子智能体|subagent|深入研究|全面分析|做个研究)/g, '').trim() || '当前项目的技术架构';
-          addOutputLog(`研究类任务路由 → run_subagent: ${_task.substring(0, 50)}...`, 'info');
-          this._stream('正在派只读子智能体深度研究（子智能体只能使用只读工具，不会修改任何文件）...\n', false);
-          try {
-            const subagent = new SubAgent({ task: _task, parentContext: { focus: '技术实现和最佳实践' }, onStream: (evt) => { if (evt && evt.content) this._stream(evt.content, false); } });
-            const result = await subagent.run();
-            this._stream(`## 子智能体研究结果\n\n${result}\n`, false);
-            this.messages.push({ role: 'assistant', content: `## 子智能体研究结果\n\n${result}` });
-            this._emitDiffSummary();
-            this._emitWorkStatus('done');
-            return;
-          } catch (e) {
-            addOutputLog('子智能体研究失败: ' + e.message, 'warn');
-          }
-        }
-
-        // ===== 对齐 TrieCode 进展闸：项目创建后强制写码 =====
-        // 用户已通过澄清卡片选定框架+功能，模型仍输出纯文本（反问/承诺句/思路）即视为未完成任务。
-        // 本地 7B 模型常用陈述句反问（"请提供更多详细信息。"无问号）绕过 asksUser 检测，
-        // 因此此闸门不依赖问句特征：只要 _expectingCodeAfterProject 且本轮无代码块、无工具调用 → 强制重写代码。
-        if (this._expectingCodeAfterProject && !hasCodeBlock && (this.forceCodeNudges || 0) < 3) {
-          this.forceCodeNudges = (this.forceCodeNudges || 0) + 1;
-          this.messages.push({ role: 'assistant', content: finalText });
-          let mainFile = '';
-          let codeLang = 'ino';
-          if (state.projectPath && state.files) {
-            const ino = Object.keys(state.files).find(f => f.endsWith('.ino'));
-            const cMain = Object.keys(state.files).find(f => /main\.c/.test(f));
-            if (ino) { mainFile = ino; codeLang = 'ino'; }
-            else if (cMain) { mainFile = cMain; codeLang = 'c'; }
-          }
-          if (!mainFile) mainFile = (state.projectType === 'esp-idf' ? 'main/main.c' : (Object.keys(state.files||{}).find(f => f.endsWith('.ino')) || 'src/main.ino'));
-          this.messages.push({ role: 'user', content: `（系统提示：任务未完成！用户已通过选项卡片明确选择了项目框架与功能，请不要再询问需求、不要只输出思路或承诺。现在请立即直接输出完整可编译的 ${mainFile} 代码：用 \`\`\`${codeLang} 标注，包含必要的头文件引用、引脚宏定义、setup 初始化和 loop 主逻辑，代码必须对应所选功能、能编译通过。你的回复必须以 \`\`\`${codeLang} 开头、以 \`\`\` 结尾，中间只放代码，不要任何解释、过渡句或反问。）` });
-          this._stream('\n[系统] 检测到项目已创建但代码未编写，正在强制生成完整代码...\n', false);
-          continue;
-        }
-
         // ===== 修复：思路后缺代码兜底（模型说"现在我来/让我先查看"等半途句但没输出代码块/工具调用）=====
+        const hasCodeBlock = /```(ino|arduino|cpp|c|c\+\+|python|py|javascript|js|typescript|ts|java|go|rust|rs|html|css)\s*\n/.test(finalText);
+        // 2026-09-13 修复：补上"我将为…创建一个完整的程序/首先创建…"等承诺句式（本地 9B 高频输出，原正则漏捕导致任务空转收尾）
         const stuckTail = /(现在(编写|我来|直接|开始|给出|提供|生成|覆盖)|下面(是|给出|直接|展示)|让我(先|查看|读|看)|接下来|即将|马上|先查看|代码如下|完整代码|编写完整|编写完成|代码实现|开始编写|我将(直接|为您|为你|创建|编写|覆盖|生成|写入)|我准备|我打算|我会(直接|使用|创建|编写|覆盖|生成|写入)|我已(了解|明白|理解).{0,40}(代码|程序|文件|需求)|我将(为|要|先|开始)|我会(为|先|开始)|首先(创建|编写|生成|写)|先(创建|编写|生成|写|看一下|查看)|准备(创建|编写|生成|写)|马上(创建|编写|生成|写)|接下来(创建|编写|生成|写)|开始(创建|编写|生成|写))/i.test(finalText.slice(-180));
         // 思考意图兜底：模型在思考里明确决定用写文件工具或直接覆盖，但正文只输出承诺 → 同样视为 stuck
         const thoughtToolIntent = /(使用|调用)\s*(write_file|edit_file)|直接(覆盖|写入)|覆盖主文件|写入主文件|创建完整的|编写完整的|生成完整的|创建.{0,6}(程序|文件|代码)|编写.{0,6}(程序|文件|代码)|生成.{0,6}(程序|文件|代码)/.test(String(this.thinkingAcc || '').slice(-400) + '\n' + finalText.slice(-400));
-        // ===== 2026-09-14 修复：总结/验证轮误触发 stuck =====
-        // 编译完成后的总结轮（系统注入"编译结果+总结请求"）模型正常输出无代码的总结文本，
-        // 但 thoughtToolIntent 会命中总结文本中"创建/生成/编写代码"等字眼 → 误判"只有思路没代码"
-        // → 注入"请直接输出完整代码"提示 → 模型重写代码 → 又编译 → 又总结 → 死循环（实测 2 次）。
-        // 修复：当最后一条 user 消息是系统注入轮（以"（系统"开头）时，跳过 stuck 兜底。
-        const _lastUserMsg = [...this.messages].reverse().find(m => m.role === 'user');
-        const isSystemInjectedTurn = !!(_lastUserMsg && /^（系统/.test(String(_lastUserMsg.content || '').trim()));
-        const stuckIntent = !isSystemInjectedTurn && !hasCodeBlock && (stuckTail || thoughtToolIntent);
-        if (stuckIntent) {
+        const stuckIntent = !hasCodeBlock && (stuckTail || thoughtToolIntent);
+        if (stuckIntent && (this.codeRetryNudges || 0) < 2) {
           this.codeRetryNudges = (this.codeRetryNudges || 0) + 1;
           this.messages.push({ role: 'assistant', content: finalText });
           let mainFile = '';
@@ -4901,34 +3664,6 @@ class AgentRunner {
           const tail = noCode.trim().slice(-80);
           return /[?？]\s*$/.test(noCode.trim()) || /(请问|是否应该|要不要我|需不需要|你觉得|可以吗|是否先|是否需要)[?？]?\s*$/.test(tail);
         })();
-        // ===== 对齐 TrieCode：模型自然语言反问 → 结构化「AI 需要你的选择」卡片 =====
-        // 本地小模型（qwen2.5-coder 等）工具调用格式不稳定，需求模糊时倾向自然语言反问
-        //（"项目的目标是什么？"）。客户端检测到开放式提问且无代码块 → 自动转为选项卡片，
-        // 用户点选后把回答注入对话继续执行，体验与 TrieCode 的 ask_user 弹窗一致。
-        if (asksUser && !hasCodeBlock && (this.askNudges || 0) < 2) {
-          const conv = buildAskCardFromText(finalText);
-          if (conv) {
-            this.askNudges = (this.askNudges || 0) + 1;
-            this.messages.push({ role: 'assistant', content: finalText });
-            this._stream('', true);
-            this._stream('\n[系统] 检测到你的回复在询问用户，已转为选项卡片等待选择...\n', false);
-            let choice = null;
-            try {
-              choice = await new Promise((resolve) => {
-                window.__askUserCallback = (c, auto) => resolve(auto ? '__AI_DECIDE__' : c);
-                showAskUserCard(conv.question, conv.options, conv.header);
-                const guard = setInterval(() => {
-                  if (!window.__askUserCallback) { clearInterval(guard); resolve('__AI_DECIDE__'); }
-                }, 3000);
-              });
-            } catch (e) { choice = '__AI_DECIDE__'; }
-            if (this.cancelled) { this._emitDiffSummary(); this._emitWorkStatus('done'); return; }
-            const answer = choice === '__AI_DECIDE__' ? '让 AI 自行决定' : String(choice);
-            this.messages.push({ role: 'user', content: `（用户回答）${answer}\n\n请基于用户的选择继续执行任务。` });
-            this._stream(`\n[用户选择] ${answer}\n`, false);
-            continue;
-          }
-        }
         // ===== 2026-09-13 修复：流式落盘可能晚于本轮验证检查（fm=-1 空转）=====
         // 本地 9B 的代码块经 autoApplyCodeBlocks 异步落盘，时序上晚于 3534 验证检查；
         // 此处同步兜底落盘一次，确保验证闸门能看到真实文件修改并触发编译。
@@ -4994,15 +3729,6 @@ class AgentRunner {
                 this.lastTestFailed = false;
                 this.lastVerifyTurn = turn;
                 this._stream('\n[系统] 自动验证通过。\n', false);
-                // ===== 对齐 TrieCode：验证通过后解除强制写码闸，并要求文档式总结收尾 =====
-                // 代码已写出并通过编译：不再强制"必须输出代码"，转入总结模式；
-                // 注入文档式总结要求（项目结构/功能特性/使用方法/验证结果），对齐 TrieCode 最终交付形态。
-                if (this._expectingCodeAfterProject) {
-                  this._expectingCodeAfterProject = false;
-                  const inoK = Object.keys(state.files || {}).find(f => f.endsWith('.ino') && !f.includes('labcode_build'));
-                  this.messages.push({ role: 'user', content: `（系统：编译验证已通过。现在请输出最终交付总结，包含：\n1. **项目结构**：用代码块树形展示项目文件\n2. **功能特性**：用表格列出实现了哪些功能\n3. **使用方法**：接线说明（引脚对应）、需要修改的配置、如何编译上传\n4. **验证结果**：编译通过（exit code 0）、目标平台${inoK ? '、主文件 ' + inoK : ''}\n不要输出代码本体，只要总结文档。）` });
-                  this._stream('\n[系统] 验证通过，正在生成项目交付总结...\n', false);
-                }
               }
               continue;
             }
@@ -5066,9 +3792,7 @@ class AgentRunner {
                 this.testFixRounds = Math.min(this.testFixRounds + 1, this.MAX_TEST_FIX_ROUNDS + 1);
                 this._stream(`\n[系统] 真实编译未通过（${verdict.level}），进入自动修复循环...\n`, false);
                 this.messages.push({ role: 'assistant', content: result.content || '' });
-                this.messages.push({ role: 'user', content: this._isLocalModel
-                  ? `（系统提示：验证代理真实编译失败：${String(verdict.reasoning || '').slice(0, 400)}。任务未完成，不允许就此收尾。请直接分析编译错误，输出修复后的【完整代码块】（用 \`\`\`ino 或对应语言标注），系统会自动覆盖文件并重新编译。不要调用工具、不要只写思路或片段。）`
-                  : `（系统提示：验证代理真实编译失败：${String(verdict.reasoning || '').slice(0, 400)}。任务未完成，不允许就此收尾。请：\n1. 分析编译错误输出并修复代码（edit_file/write_file）\n2. 重新调用 run_test 验证\n3. 直到输出真实的编译通过结果为止\n不要回复"看起来没问题"或编造通过——必须看到真实运行输出。）` });
+                this.messages.push({ role: 'user', content: `（系统提示：验证代理真实编译失败：${String(verdict.reasoning || '').slice(0, 400)}。任务未完成，不允许就此收尾。请：\n1. 分析编译错误输出并修复代码（edit_file/write_file）\n2. 重新调用 run_test 验证\n3. 直到输出真实的编译通过结果为止\n不要回复"看起来没问题"或编造通过——必须看到真实运行输出。）` });
                 this._stream('\n[系统] 编译失败，继续自动修复...\n', false);
                 continue;
               }
@@ -5078,9 +3802,7 @@ class AgentRunner {
           }
           
           this.messages.push({ role: 'assistant', content: result.content || '' });
-          this.messages.push({ role: 'user', content: this._isLocalModel
-            ? `（你有文件修改但尚未运行验证。系统会自动运行编译验证，你不需要调用任何工具。请继续完成当前任务：如果有编译错误会由系统注入给你，你只需直接输出修复后的完整代码块；如果没有错误，请直接给出最终结论。）${harder}`
-            : `（你有文件修改但尚未运行验证。请在给出最终结论前：要么运行验证（terminal / run_test）并引用真实输出，要么明确说明为何无法验证。测试失败是事实——不要仅凭"应该可以"下结论，不要谎报测试通过。）${harder}` });
+          this.messages.push({ role: 'user', content: `（你有文件修改但尚未运行验证。请在给出最终结论前：要么运行验证（terminal / run_test）并引用真实输出，要么明确说明为何无法验证。测试失败是事实——不要仅凭"应该可以"下结论，不要谎报测试通过。）${harder}` });
           this._stream('\n[系统] 检测到文件修改但未验证，请运行验证后再收尾。\n', false);
           continue;
         }
@@ -5097,21 +3819,7 @@ class AgentRunner {
         if (this.lastTestFailed && this.testFixRounds < this.MAX_TEST_FIX_ROUNDS) {
           this.messages.push({ role: 'assistant', content: result.content || '' });
           const remaining = this.MAX_TEST_FIX_ROUNDS - this.testFixRounds;
-          // 本地模型修复轮：把当前文件内容喂回给模型，避免 7B 模型"忘记"自己写的代码、输出无关残片
-          // 2026-09-14：qwen3.5:9b 等思考模型在长上下文下输出空（4096 token 生成硬限制），不贴文件只贴错误
-          let curContent = '';
-          const aiModel = (window.LabCode && window.LabCode.config && window.LabCode.config.ai && window.LabCode.config.ai.model) || '';
-          const isThinkModel = /qwen3|9b|deepseek/i.test(aiModel);
-          if (!isThinkModel && state.projectPath && state.files) {
-            const curIno = Object.keys(state.files).find(f => f.endsWith('.ino')) || Object.keys(state.files)[0];
-            if (curIno && state.files[curIno] && state.files[curIno].content) {
-              curContent = String(state.files[curIno].content).slice(0, 2000);
-            }
-          }
-          const failMsg = this._isLocalModel
-            ? `（系统提示：最近一次测试/编译仍然失败（已修复 ${this.testFixRounds} 轮，还剩 ${remaining} 次机会）。任务尚未完成，不允许就此收尾。请直接分析上面的编译错误，输出修复后的【完整代码块】（用 \`\`\`ino 或对应语言标注，代码必须完整、至少 30 行、包含 setup/loop 全部逻辑），系统会自动覆盖文件并重新编译验证。不要调用任何工具，不要只写思路，不要只回"已生成文件"这类文本，不要只写修复片段。请基于当前文件内容修复（当前文件：\n\n${curContent}\n\n——以上是当前文件内容，请在其基础上修复错误后输出完整版本）。）`
-            : `（系统提示：最近一次测试/编译仍然失败（已修复 ${this.testFixRounds} 轮，还剩 ${remaining} 次机会）。任务尚未完成，不允许就此收尾。请：\n1. 检查失败输出并修复代码\n2. 重新调用 run_test 验证\n3. 直到输出真实的通过结果为止\n不要回复"看起来没问题"或编造通过——必须看到真实运行输出。）`;
-          this.messages.push({ role: 'user', content: failMsg });
+          this.messages.push({ role: 'user', content: `（系统提示：最近一次测试/编译仍然失败（已修复 ${this.testFixRounds} 轮，还剩 ${remaining} 次机会）。任务尚未完成，不允许就此收尾。请：\n1. 检查失败输出并修复代码\n2. 重新调用 run_test 验证\n3. 直到输出真实的通过结果为止\n不要回复"看起来没问题"或编造通过——必须看到真实运行输出。）` });
           this._stream(`\n[系统] 测试/编译仍失败（第 ${this.testFixRounds} 轮），继续自动修复...\n`, false);
           continue;
         }
@@ -5210,10 +3918,6 @@ class AgentRunner {
         // ===== 工具面板 Flow：执行前通知（write_file/edit_file 记录 before 快照）=====
         if (this.onToolFlow) this.onToolFlow({ tool: tc.name, status: 'running', args: tc.arguments });
         this._pendingChange = null;
-        // ===== 文件回滚：本轮工具执行前开 turn（同一轮多工具共享一个 turn）=====
-        if (['write_file','edit_file','delete_file'].includes(tc.name)) {
-          fileChangeTracker.beginTurn('default');
-        }
         if ((tc.name === 'write_file' || tc.name === 'edit_file') && tc.arguments && tc.arguments.file_path) {
           const fp = tc.arguments.file_path;
           const before = (this._preGenSnapshot && this._preGenSnapshot[fp] !== undefined)
@@ -5258,12 +3962,6 @@ class AgentRunner {
         }
 
         this._toolStep(tc.id, tc.name, 'done', String(toolResult).slice(0,80));
-        // ===== 2026-09-14 对齐 TrieCode workLog：{tool,status,args,summary} 全程记录（落盘前持久化）=====
-        this.workLog.push({
-          type: 'tool', tool: tc.name, status: 'done',
-          args: tc.arguments,
-          summary: String(toolResult).slice(0, 80)
-        });
         // ===== 工具面板 Flow：执行完成后通知 + diff 快照记录 after =====
         if (this.onToolFlow) this.onToolFlow({ tool: tc.name, status: 'done', args: tc.arguments, result: String(toolResult).slice(0, 3000) });
         if (this._pendingChange) {
@@ -5362,19 +4060,14 @@ class AgentRunner {
           if (this.onToolFlow && this.testFixRounds > 0) this.onToolFlow({ tool: 'auto_fix', status: 'done', args: { round: this.testFixRounds, max: this.MAX_TEST_FIX_ROUNDS, passed: true } });
         }
         
-        // ===== 增强2：文件回滚记录（对齐 TrieCode file-change-tracker.js）=====
-        // 修复：before 必须用执行前快照（_pendingChange/fileChanges），此前取执行后 state 值导致回滚无效
+        // ===== 增强2：文件回滚记录（参考业界 file-change-tracker.js）=====
         if (['write_file','edit_file','delete_file'].includes(tc.name) && !isFailed) {
           try {
             const filePath = tc.arguments?.path || tc.arguments?.file || tc.arguments?.file_path || 'unknown';
-            const before = (this._pendingChange && this._pendingChange.file === filePath)
-              ? (this._pendingChange.before ?? '')
-              : ((this.fileChanges[filePath] && this.fileChanges[filePath].before) ?? '');
-            const after = (tc.name === 'delete_file')
-              ? null
-              : ((state.files[filePath] && state.files[filePath].content) ?? String(toolResult));
+            const beforeContent = state.files[filePath]?.content || '';
+            const afterContent = tc.arguments?.content || tc.arguments?.newText || '';
             const action = tc.name === 'write_file' ? (state.files[filePath] ? 'modify' : 'create') : tc.name === 'delete_file' ? 'delete' : 'modify';
-            fileChangeTracker.recordChange('default', { path: filePath, before, after, action });
+            fileChangeTracker.recordChange('default', filePath, beforeContent, afterContent, action);
             addOutputLog(`文件回滚记录: ${filePath} (${action})`, 'debug');
           } catch (e) {
             addOutputLog(`文件回滚记录失败: ${e.message}`, 'warn');
@@ -5402,8 +4095,6 @@ class AgentRunner {
         // 验证跟踪（P0-4）：文件修改 → lastFileModTurn；验证 → lastVerifyTurn + 占位符检测
         if (['write_file','edit_file','delete_file'].includes(tc.name) && !isFailed) {
           this.lastFileModTurn = turn;
-          // 写文件后同步隐藏欢迎页、显示文件树（对齐 TrieCode）
-          try { if (typeof syncWelcomePanel === 'function') syncWelcomePanel(); } catch (e) {}
         }
         // ===== 对齐 TrieCode context-manager：最近读文件 LRU（读成功记录，写成功失效）=====
         if (tc.name === 'read_file' && !isFailed && tc.arguments) {
@@ -5462,40 +4153,13 @@ class AgentRunner {
       }
 
       // 工具调用轮结束：将工具结果反馈给模型，进入下一轮生成最终总结（对齐用户预期：读文件后要有总结）
-      fileChangeTracker.endTurn('default');
       continue;
     }
     // ===== 工作状态条：循环自然结束（达到轮次上限）收尾 =====
     this._emitWorkStatus('done');
     } finally {
-      state._agentRunning = false;
+      // ===== 对齐 TrieCode agent-runner finally：孤儿工具补发 interrupted =====
       this._cleanupOrphanTools();
-      // ===== 2026-09-14 对齐 TrieCode：会话持久化（messages+thinking+workLog 落盘 %APPDATA%/LabCode/chat-sessions/）=====
-      this._persistSession();
-    }
-  }
-
-  // ===== 2026-09-14 对齐 TrieCode 会话存储：{id,title,messages,mode,modelId,projectPath,projectType,plan,timestamp} =====
-  async _persistSession() {
-    try {
-      if (!isElectron || !window.LabCode || !window.LabCode.sessions || !window.LabCode.sessions.save) return;
-      const session = {
-        id: this.sessionId,
-        title: this.sessionTitle || '未命名对话',
-        messages: this.messages,
-        thinking: this.thinkingAcc || null,
-        workLog: this.workLog || [],
-        mode: this.mode || 'default',
-        modelId: state.modelId || state.model || '',
-        projectPath: state.projectPath || null,
-        projectType: state.projectType || null,
-        plan: state.currentPlan || null,
-        timestamp: Date.now()
-      };
-      await window.LabCode.sessions.save(session);
-      if (typeof addOutputLog === 'function') addOutputLog('会话已持久化: ' + session.id + '（' + session.messages.length + ' 条消息 / ' + session.workLog.length + ' 条工具记录）', 'debug');
-    } catch (e) {
-      if (typeof addOutputLog === 'function') addOutputLog('会话持久化失败: ' + e.message, 'error');
     }
   }
 
@@ -5692,19 +4356,10 @@ class AgentRunner {
       r(true);
       return;
     }
-    // 旧路径（submit_plan 工具）：run 循环已 return 退出，必须重新 kick 一轮，否则批准后卡住不动
+    // 旧路径（submit_plan 工具）
     this.planPending = false;
+    this.messages.push({ role: 'user', content: '计划已批准，请按计划执行。' });
     this._stream('计划已批准，开始执行...\n', false);
-    // 2026-09-15 修复：批准后不续跑的 bug。
-    // 原实现只 push 了一条 user 消息并打印"开始执行"，但 run() 已 finally 退出，没有任何代码再触发 LLM，
-    // 导致用户点"批准执行"后 agent 永远沉默。这里直接再跑一轮，消息历史里已有计划与工具结果。
-    setTimeout(() => {
-      if (!state._agentRunning) {
-        this.run('计划已批准，请严格按上述计划逐步执行：创建工程→写代码→编译验证。每步执行后简要汇报结果。').catch(e => {
-          addOutputLog('计划批准后续跑异常: ' + (e && e.message), 'error');
-        });
-      }
-    }, 300);
   }
 
   rejectPlan(feedback) {
@@ -5843,104 +4498,6 @@ function addChatMessage(role, content) {
   return bubble;
 }
 
-// ===== 智能推断项目类型（本地模型不调用 create_project 时的兜底）=====
-// 当 state.projectType 为 null/generic 时，根据代码块语言和内容自动识别项目类型
-function inferProjectType(lang, code) {
-  const l = String(lang || '').toLowerCase();
-  const c = String(code || '');
-  if (l === 'ino' || l === 'arduino') return 'arduino';
-  if (l === 'py' || l === 'python') return 'python';
-  if (l === 'js' || l === 'javascript' || l === 'ts' || l === 'typescript') return 'node';
-  if (/\bvoid\s+setup\s*\(|\bvoid\s+loop\s*\(|pinMode\s*\(|digitalWrite\s*\(|Serial\.begin\s*\(/.test(c)) return 'arduino';
-  if (/^#include\s*<esp_|esp_err_t|esp_vfs|nvs_flash_init/.test(c)) return 'esp-idf';
-  if (/^import\s+\w+|^from\s+\w+\s+import|def\s+\w+\s*\(/.test(c) && l !== 'cpp' && l !== 'c') return 'python';
-  if (/^const\s+\w+\s*=|^let\s+\w+|require\s*\(|module\.exports/.test(c) && (l === 'js' || l === '')) return 'node';
-  return null;
-}
-
-// ===== 防残片公共判定：短/无关代码块不得覆盖已有完整主文件 =====
-// 2026-09-14 增强：本地 7B 模型修复轮常输出"无关小代码"（如 LED 示例）覆盖好代码，
-// 导致功能跑偏但编译"通过"。主文件已完整（>40 行）时，新代码 <30 行 → 绝对拦截。
-function isShardCodeBlock(filePath, code) {
-  if (!(state.projectType === 'arduino' && /\.ino$/.test(filePath) && state.files[filePath])) return false;
-  const exL = (state.files[filePath].content || '').split('\n').length;
-  const newL = (code || '').split('\n').length;
-  if (exL > 40 && newL < 30) return true;            // 绝对残片：好文件被 <30 行片段覆盖
-  if (exL > 20 && newL < 15) return true;            // 原有绝对阈值
-  if (exL > 40 && newL < exL * 0.4) return true;     // 比例阈值（半残片）
-  return false;
-}
-function rejectShardCode(filePath, code, where) {
-  const exL = (state.files[filePath].content || '').split('\n').length;
-  const newL = (code || '').split('\n').length;
-  addOutputLog(`拦截疑似残片代码块（${where} ${newL} 行 < 现有 ${exL} 行）: ${filePath}`, 'warn');
-  if (state.agent && state.agent._isLocalModel && state.agent.messages) {
-    state.agent.messages.push({ role: 'user', content: `（系统拦截：你输出的代码块只有 ${newL} 行，远小于现有文件（${exL} 行），疑似与任务无关的片段，已被系统拒绝写入。请基于当前文件内容输出完整修复版本：用 \`\`\`ino 标注、至少 30 行、包含全部原有功能逻辑（如电机控制/传感器/串口命令），不要输出无关示例代码。）` });
-  }
-}
-
-// ===== 自动编译验证（本地模型不调用 compile 工具时的兜底，对齐 TrieCode 写码后自动编译）=====
-function triggerAutoCompile() {
-  if (!state.projectType || !['arduino','esp-idf','python','node','c'].includes(state.projectType)) return;
-  if (state._autoCompileTimer) return;
-  // ===== 立即标记验证已运行：阻止验证闸门注入"文件修改但未运行验证"提示带偏模型 =====
-  // （自动编译会在 800ms 后真实运行，这里先占住 lastVerifyTurn，避免 agent 循环在编译完成前注入提示）
-  if (state.agent && typeof state.agent.lastFileModTurn === 'number') {
-    state.agent.lastVerifyTurn = state.agent.lastFileModTurn;
-  }
-  state._autoCompileTimer = setTimeout(async () => {
-    state._autoCompileTimer = null;
-    try {
-      addOutputLog(`[自动编译] 检测到代码变更，自动运行 ${state.projectType} 编译验证...`, 'info');
-      if (state.agent && typeof state.agent.onToolFlow === 'function') {
-        state.agent.onToolFlow({ tool: 'run_test', status: 'running', args: { projectType: state.projectType } });
-      }
-      const compileTool = TOOL_DEFS.find(t => t.name === 'run_test');
-      if (compileTool && compileTool.execute) {
-        const out = await compileTool.execute({});
-        const outStr = String(out);
-        let ok = false;
-        const trMatch = outStr.match(/\[TEST_RESULT\]([\s\S]*?)\[\/TEST_RESULT\]/);
-        if (trMatch) {
-          try {
-            const tr = JSON.parse(trMatch[1]);
-            ok = tr.exitCode === 0 && (tr.failed === 0 || tr.errors === 0);
-          } catch (e) { ok = false; }
-        } else {
-          const hasRealError = /error:\s*\d+|fatal error|main file missing|collect2:|undefined reference/i.test(outStr)
-            && !/0\s*(失败|错误)/.test(outStr);
-          ok = !hasRealError && /(Sketch uses|program storage|exit code 0|退出码 0)/i.test(outStr);
-        }
-        state.lastCompileResult = { ok, exitCode: ok ? 0 : 1, output: outStr.slice(0, 3000), at: Date.now(), projectType: state.projectType };
-        if (state.agent) {
-          state.agent.lastVerifyTurn = (typeof state.agent._streamTurn === 'number') ? state.agent._streamTurn : 0;
-          if (ok) { state.agent.lastTestFailed = false; state.agent.testFixRounds = 0; }
-          else { state.agent.lastTestFailed = true; }
-          if (typeof state.agent.onToolFlow === 'function') {
-            state.agent.onToolFlow({ tool: 'run_test', status: ok ? 'done' : 'error', args: { projectType: state.projectType }, result: outStr.slice(0, 500) });
-          }
-        }
-        addOutputLog(`[自动编译] ${ok ? '✓ 编译通过' : '✗ 编译失败'}: ${outStr.slice(0, 200)}`, ok ? 'info' : 'warn');
-        // ===== 编译完成后：若 agent 已结束，重新触发一轮让模型总结结果（成功）或修复代码（失败）=====
-        // 延迟 1.5s 等 agent 当前轮次自然收尾，避免并发冲突
-        setTimeout(() => {
-          if (!state.agent || state._agentRunning) return;
-          const summary = ok
-            ? `（系统自动编译已完成，结果：✓ 编译通过。\n\n${outStr.slice(0, 600)}\n\n请用 2-3 句话向用户总结：项目已创建、代码已生成、编译通过，并简要说明代码功能和使用方法。）`
-            : `（系统自动编译失败，错误输出如下，请修复代码后重新输出完整代码块。\n\n编译错误:\n${outStr.slice(0, 1500)}\n\n请直接输出修复后的完整代码块，无需调用工具。）`;
-          try {
-            state.agent.run(summary);
-          } catch (e) {
-            addOutputLog(`[自动编译] 触发总结轮失败: ${e.message}`, 'warn');
-          }
-        }, 1500);
-      }
-    } catch (e) {
-      addOutputLog(`[自动编译] 异常: ${e.message}`, 'warn');
-    }
-  }, 800);
-}
-
 // 对齐 TrieCode：AI 回复中的代码块自动创建文件并在中间编辑器打开
 // 返回创建的文件路径列表
 // 代码块落盘（Electron 环境写真实磁盘，与 write_file 工具一致）
@@ -5963,23 +4520,14 @@ async function persistCodeFile(filePath, code) {
 }
 // 统一代码块目标路径：优先覆盖项目主文件（Arduino 编译只认项目同名 .ino；Python/Node 同理），
 // 其次复用项目里已存在的知名文件（README.md 等），无主文件时 src/{baseName}.{ext}
-function resolveCodeTargetPath(lang, ext, code) {
+function resolveCodeTargetPath(lang, ext) {
   // ===== 修复：Arduino 项目下，C/C++/ino/arduino 代码块一律落到项目主 .ino =====
-  // ===== 智能推断项目类型（本地模型不调用 create_project 时的兜底）=====
-  if ((!state.projectType || state.projectType === 'generic') && code) {
-    const inferred = inferProjectType(lang, code);
-    if (inferred) {
-      state.projectType = inferred;
-      try { updateProjectStatusText(state.projectPath); } catch(e) {}
-      addOutputLog(`自动识别项目类型: ${inferred}（根据代码特征）`, 'info');
-    }
-  }
   // arduino-cli 只编译项目同名主 .ino；模型常用 ```cpp 标记（而非 ```ino），
   // 若落到 src/main.cpp 会导致验证永远编译旧 .ino 内容（死循环）。
   if (state.projectType === 'arduino' && ['cpp', 'c', 'c++', 'ino', 'arduino'].includes(lang)) {
     const inoFile = (state.files ? Object.keys(state.files).find(f => f.endsWith('.ino')) : null);
     if (inoFile) return inoFile;
-    const base = (state.projectPath || 'untitled').split(/[\\/]/).pop() || 'untitled';
+    const base = (state.projectPath || '').split(/[\\/]/).pop() || 'robot';
     return base + '.ino';
   }
   let baseName = lang === 'ino' || lang === 'arduino' ? 'robot' : 'main';
@@ -6047,31 +4595,32 @@ function autoApplyCodeBlocks(text) {
     if (!codeLangs.includes(lang)) continue;
     if (code.trim().length < 80) continue;
     const ext = extMap[lang] || 'txt';
-    const filePath = resolveCodeTargetPath(lang, ext, code);
+    const filePath = resolveCodeTargetPath(lang, ext);
     // ===== 防覆盖：Arduino 主 .ino 已有完整代码时，短代码块（疑似模型输出残片/说明）不落盘 =====
-    // 2026-09-13/14：绝对行数 + 比例判断 + 本地模型绝对拦截（isShardCodeBlock），并注入提示要求重写
-    if (isShardCodeBlock(filePath, code)) {
-      rejectShardCode(filePath, code, 'autoApply');
-      continue;
+    // 实测修复轮模型会输出几行注释块覆盖整个主文件 → 编译失败且丢失好代码。
+    // 2026-09-13 增强：除绝对行数外，新增比例判断（新代码 < 现有 40% 视为残片），
+    // 拦截 500-800 字符的半残片（原 <15 行阈值会被 17 行残片绕过）。
+    if (state.projectType === 'arduino' && /\.ino$/.test(filePath) && state.files[filePath]) {
+      const existingLines = (state.files[filePath].content || '').split('\n').length;
+      const newLines = code.split('\n').length;
+      if ((existingLines > 20 && newLines < 15) || (existingLines > 40 && newLines < existingLines * 0.4)) {
+        addOutputLog(`跳过疑似残片代码块（${newLines} 行，现有主文件 ${existingLines} 行）: ${filePath}`, 'warn');
+        continue;
+      }
     }
     // before 优先取生成前快照（避免流式 partial 覆盖导致 +0 -0）
     const before = (state.agent && state.agent._preGenSnapshot && state.agent._preGenSnapshot[filePath] !== undefined)
       ? state.agent._preGenSnapshot[filePath]
       : ((state.files[filePath] && state.files[filePath].content) || '');
-    const _streamIsNew = !state.files[filePath];
     state.files[filePath] = { content: code, language: getLanguage(filePath), dirty: true };
     buildFileTree(); renderFileTree();
     openFile(filePath); // 对齐 TrieCode：渲染编辑器 tab、显示中间代码区、更新面包屑
     persistCodeFile(filePath, code);
-    fileChangeTracker.beginTurn('stream');
-    fileChangeTracker.recordChange('stream', { path: filePath, before, after: code, action: _streamIsNew ? 'create' : 'modify' });
     // ===== 兜底落盘：记录 diff 变更 + 触发工具面板 Flow + 标记文件修改（触发验证闸门）=====
     if (state.agent) {
       if (typeof state.agent._streamTurn === 'number') state.agent.lastFileModTurn = state.agent._streamTurn;
       else if (state.agent.lastFileModTurn < 0) state.agent.lastFileModTurn = 0;
     }
-    // ===== 自动编译验证（必须在 lastFileModTurn 设置之后调用，才能正确标记 lastVerifyTurn 阻止验证提示）=====
-    triggerAutoCompile();
     // 注意：onStream completed 分支已记录过时跳过，避免 before 被覆写为最终版导致 +0 -0
     if (state.agent && !state.agent.fileChanges[filePath]) {
       state.agent.fileChanges[filePath] = { before, after: code };
@@ -6084,8 +4633,6 @@ function autoApplyCodeBlocks(text) {
     count++;
     if (count >= 10) break;
   }
-  // AI 写文件后同步隐藏欢迎页、显示文件树（对齐 TrieCode）
-  if (created.length > 0) syncWelcomePanel();
   return created;
 }
 
@@ -6166,46 +4713,6 @@ function escapeHtml(text) {
   const div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;
-}
-
-// ===== 编译资源占用环形图（对齐 TrieCode 底部输出面板）=====
-function renderResourceRings(sketchBytes, sketchPct, sketchTotal, memBytes, memPct, memTotal) {
-  function ring(pct, bytes, total, label, color) {
-    const r = 42, c = 2 * Math.PI * r;
-    const offset = c * (1 - Math.min(100, Math.max(0, pct)) / 100);
-    const fmt = n => Number(n).toLocaleString();
-    return `<div style="display:flex;align-items:center;gap:14px;background:var(--bg-secondary);border-radius:10px;padding:14px 18px;min-width:240px;flex:1;">
-      <svg width="100" height="100" viewBox="0 0 100 100" style="flex-shrink:0;">
-        <circle cx="50" cy="50" r="${r}" fill="none" stroke="var(--border-light)" stroke-width="8"/>
-        <circle cx="50" cy="50" r="${r}" fill="none" stroke="${color}" stroke-width="8" stroke-linecap="round"
-          stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${offset.toFixed(1)}" transform="rotate(-90 50 50)"/>
-        <text x="50" y="48" text-anchor="middle" font-size="18" font-weight="600" fill="var(--text-primary)">${pct}%</text>
-        <text x="50" y="64" text-anchor="middle" font-size="9" fill="var(--text-tertiary)">${fmt(bytes)}</text>
-      </svg>
-      <div style="display:flex;flex-direction:column;gap:2px;min-width:0;">
-        <div style="font-size:12px;color:var(--text-secondary);display:flex;align-items:center;gap:4px;">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 7h-9M14 17H5M17 17a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM7 7a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/></svg>
-          ${label}
-        </div>
-        <div style="font-size:13px;font-weight:600;color:var(--text-primary);">${fmt(bytes)} <span style="font-size:11px;color:var(--text-tertiary);font-weight:400;">/ ${fmt(total)} bytes</span></div>
-        <div style="font-size:11px;color:var(--text-tertiary);">${fmt(total)} bytes</div>
-      </div>
-    </div>`;
-  }
-  return `<div style="display:flex;gap:14px;flex-wrap:wrap;">
-    ${ring(sketchPct, sketchBytes, sketchTotal, '程序存储', '#52C41A')}
-    ${ring(memPct, memBytes, memTotal, '动态内存', '#52C41A')}
-  </div>`;
-}
-
-// ===== 显示底部面板并切换到指定 tab =====
-function showBottomPanel(panelName) {
-  try {
-    const bp = document.getElementById('bottom-panel');
-    if (bp) bp.style.display = 'flex';
-    document.querySelectorAll('.bottom-tab').forEach(t => t.classList.toggle('active', t.dataset.panel === panelName));
-    document.querySelectorAll('.bottom-panel-content').forEach(c => c.classList.toggle('active', c.id === panelName + '-panel'));
-  } catch (e) { addOutputLog('显示底部面板失败: ' + e.message, 'warn'); }
 }
 
 // ============ 改进的工具调用记录 ============
@@ -6484,30 +4991,6 @@ function updateToolFlowPanel({ tool, status, args, result }) {
     const cmd = (args && (args.command || args.test_path || '')) || '';
     inner += `<div class="tool-flow-cmd">$ ${escapeHtml(String(cmd).slice(0, 120))}</div>`;
     if (status === 'done' && result) {
-      // 测试结果结构化徽标（对齐 TrieCode test-runner 摘要）
-      if (tool === 'run_test') {
-        try {
-          const sm = String(result).match(/测试完成:\s*(\d+)\s*通过,\s*(\d+)\s*失败[^]*?错误\s*\(退出码\s*(-?\d+)\)/);
-          if (sm) {
-            const passedN = parseInt(sm[1]), failedN = parseInt(sm[2]), code = parseInt(sm[3]);
-            inner += `<div class="tool-flow-test-badges">` +
-              `<span style="display:inline-block;padding:1px 8px;border-radius:10px;font-size:11px;margin-right:6px;background:${code === 0 ? 'rgba(82,196,26,0.15)' : 'rgba(234,102,104,0.15)'};color:${code === 0 ? '#389e0d' : '#cf1322'};">通过 ${passedN}</span>` +
-              `<span style="display:inline-block;padding:1px 8px;border-radius:10px;font-size:11px;margin-right:6px;background:${failedN > 0 ? 'rgba(234,102,104,0.15)' : 'rgba(0,0,0,0.05)'};color:${failedN > 0 ? '#cf1322' : '#999'};">失败 ${failedN}</span>` +
-              `<span style="display:inline-block;padding:1px 8px;border-radius:10px;font-size:11px;background:rgba(0,0,0,0.05);color:#666;">退出码 ${code}</span></div>`;
-            // 错误类别徽标
-            const cm = String(result).match(/\[测试失败类别\]\s*([^\n]+)/);
-            if (cm) {
-              inner += `<div class="tool-flow-test-cats" style="margin-top:4px;font-size:11px;color:#888;">${cm[1].split(/，|,/).map(c => {
-                const kv = c.trim().split(':');
-                const cat = (kv[0] || '').trim();
-                const n = (kv[1] || '').trim();
-                const colors = { compile: '#cf1322', assertion: '#d46b08', import: '#722ed1', timeout: '#d4b106', crash: '#eb2f96', unknown: '#8c8c8c' };
-                return `<span style="display:inline-block;padding:0 6px;border-radius:8px;margin-right:4px;border:1px solid ${colors[cat] || '#bbb'};color:${colors[cat] || '#888'};">${cat}: ${n}</span>`;
-              }).join('')}</div>`;
-            }
-          }
-        } catch (e) {}
-      }
       const out = String(result).length > 800 ? String(result).slice(0, 800) + '\n…' : String(result);
       inner += `<pre class="tool-flow-out">${escapeHtml(out)}</pre>`;
     }
@@ -6543,10 +5026,6 @@ function addDiffSummaryCard({ files, totalAdd, totalDel }) {
         <div class="diff-summary-header">
           <span class="diff-summary-title"><svg class="icon icon-xs"><use href="#icon-check"></use></svg> 变更验收</span>
           <span class="diff-summary-meta">${files.length} 个文件 · <span class="diff-add">+${totalAdd}</span> <span class="diff-del">-${totalDel}</span> 行</span>
-          <span class="diff-undo-btns">
-            <button onclick="undoLastAgentTurn()" title="撤销最近一轮 AI 文件变更" style="background:none;border:1px solid #333;border-radius:4px;color:#ccc;cursor:pointer;font-size:11px;padding:1px 8px;margin-left:6px;">↶ 撤销</button>
-            <button onclick="redoLastAgentTurn()" title="重做" style="background:none;border:1px solid #333;border-radius:4px;color:#ccc;cursor:pointer;font-size:11px;padding:1px 8px;margin-left:4px;">↷ 重做</button>
-          </span>
         </div>
         ${rows}
       </div>
@@ -6625,228 +5104,6 @@ function showInlinePermission(tool, command, detail, callback) {
   });
 }
 
-// ============ AI 询问用户 - 选项卡片（对齐 TrieCode 截图1「AI 需要你的选择」）============
-// 从用户输入生成项目名（如 "esp32_led"、"esp32_robot"）
-function genProjectName(input) {
-  const s = String(input || '');
-  const boardM = s.match(/(?:用|基于)?(esp32|esp8266|arduino|stm32|nodemcu|rp2040|单片机)/i);
-  const board = boardM ? boardM[1].toLowerCase() : 'esp32';
-  const featM = s.match(/(led|blink|闪烁|机器人|robot|小车|car|传感器|sensor|灯|游戏|game|爬虫|crawler|网页|web|遥控|遥控车|温度|温湿度|wifi|蓝牙|bt|串口|hello|摄像头|camera|屏|display|lcd|oled)/i);
-  const feat = featM ? featM[1].toLowerCase() : 'project';
-  return `${board}_${feat}`.replace(/[\\/:*?"<>|\s]/g, '_').slice(0, 40);
-}
-
-// 需求澄清检测：第一轮创建类需求且未明确框架/功能 → 返回待问问题组
-function detectClarification(input) {
-  const s = String(input || '').trim();
-  // 需要创建项目/程序，或点名开发板
-  const wantCreate = /(写|创建|开发|做一个|帮我|需要|开始|搞一个).{0,14}(项目|程序|软件|应用|代码|工程)/.test(s)
-    || /用(esp32|arduino|stm32|单片机|开发板)/.test(s)
-    || /(esp32|arduino|stm32).{0,6}(项目|程序|开发|写)/.test(s);
-  if (!wantCreate) return null;
-  const hasFramework = /arduino\s*(框架)?|esp-idf|idf\s*原生|stm32\s*库|platformio|micropython|python\s*项目|node\.?js|javascript|vue|react|前端|后端|网站|网页|小程序|app/.test(s);
-  const hasFeature = /(led|blink|闪烁|传感器|电机|屏幕|显示屏|wifi|蓝牙|串口|按键|开关|功能|爬虫|抓取|游戏|计算器|todo|待办|hello|打印|控制|遥控)/.test(s);
-  // 需求已足够具体（明确框架且明确功能）→ 不澄清
-  if (hasFramework && hasFeature) return null;
-  const questions = [];
-  const headers = {};
-  if (!hasFramework) {
-    questions.push({ key: 'framework', q: '开发框架', opts: ['Arduino 框架', 'ESP-IDF 原生', '其他（自定义回答）'] });
-    headers.framework = '开发框架';
-  }
-  if (!hasFeature) {
-    questions.push({
-      key: 'feature', q: '项目功能',
-      opts: ['LED 闪烁 + 串口输出（入门）', '按键/传感器控制', 'WiFi/蓝牙 联网功能', '其他（自定义回答）']
-    });
-    headers.feature = '项目功能';
-  }
-  if (!questions.length) return null;
-  return { questions, headers };
-}
-
-// 把模型的自然语言反问（"你的目标是什么？"）转为结构化选项卡片
-function buildAskCardFromText(text) {
-  if (!text) return null;
-  const clean = String(text).replace(/```[\s\S]*?```/g, '').trim();
-  if (!/[?？]/.test(clean)) return null;
-  // 提取最后一个问句
-  const sentences = clean.split(/(?<=[。！？!?])/);
-  let question = '';
-  for (let i = sentences.length - 1; i >= 0; i--) {
-    const s = (sentences[i] || '').trim();
-    if (/[?？]/.test(s)) { question = s; break; }
-  }
-  if (!question) question = clean.slice(-60);
-  question = question.replace(/^(好的|好的，|嗯|OK|明白了|明白|了解|你好|您好|hello|hi)[，,、\s]*/i, '').slice(0, 120);
-
-  // 根据关键词生成结构化选项（对齐 TrieCode：开发框架 / 项目功能 分组）
-  const lower = clean.toLowerCase();
-  let options = null;
-  let header = 'AI 需要你的选择';
-  if (/(esp32|arduino|单片机|嵌入式|开发板|芯片|stm32|idf)/.test(lower) && /(框架|开发方式|用什么|哪个|还是|原生|环境|平台)/.test(lower)) {
-    options = ['Arduino 框架', 'ESP-IDF 原生', '其他（自定义回答）'];
-    header = '开发框架';
-  } else if (/(功能|做什么|目标|项目|需求|想要|实现什么)/.test(lower)) {
-    options = ['基础入门功能（尽量简单、快速完成）', '完整功能（考虑扩展与可维护性）', '先做最小原型再迭代'];
-    header = '项目功能';
-  } else if (/(硬件|传感器|电机|模块|外设)/.test(lower)) {
-    options = ['使用常见模块（传感器/显示屏等）', '使用指定模块（我稍后补充型号）', '先不接硬件，仅编写软件逻辑'];
-    header = '硬件方案';
-  } else {
-    options = ['方案 A（简单直接）', '方案 B（功能更完整）', '让 AI 自行决定'];
-    header = '请确认实现方向';
-  }
-  return { question, options, header };
-}
-
-function showAskUserCard(question, options, header) {
-  const area = document.getElementById('ai-chat-area');
-  if (!area) return;
-  const uid = Date.now();
-  const card = document.createElement('div');
-  card.className = 'chat-message ai';
-  card.id = 'ask-user-' + uid;
-  // 2026-09-14 对齐 TrieCode：options 支持 {label, description} 结构化选项（模型侧 ask_user 用对象数组）
-  const normOpts = (options || []).map(o => (typeof o === 'string') ? { label: o, description: '' } : o);
-  const optsHtml = normOpts.map((o, i) => `
-    <button type="button" class="ask-option-btn" data-idx="${i}">
-      <span class="ask-option-radio"></span>
-      <span class="ask-option-text">${escapeHtml(String(o.label))}${o.description ? `<span class="ask-option-desc">${escapeHtml(String(o.description))}</span>` : ''}</span>
-    </button>`).join('');
-  card.innerHTML = `
-    <div class="chat-bubble" style="padding:0;">
-      <div class="ask-user-card">
-        <div class="ask-user-header"><span class="inline-permission-dot"></span><span>${escapeHtml(header || 'AI 需要你的选择')}</span></div>
-        <div class="ask-user-question">${escapeHtml(question || '请选择：')}</div>
-        <div class="ask-user-options">${optsHtml}</div>
-        <div class="ask-user-actions">
-          <button type="button" class="ask-user-btn auto" id="ask-auto-${uid}">让 AI 自行决定</button>
-          <button type="button" class="ask-user-btn submit" id="ask-submit-${uid}" disabled>提交选择</button>
-        </div>
-      </div>
-    </div>`;
-  area.appendChild(card);
-  area.scrollTop = area.scrollHeight;
-
-  let currentIdx = -1;
-  const submitBtn = card.querySelector('#ask-submit-' + uid);
-  const optionBtns = card.querySelectorAll('.ask-option-btn');
-  optionBtns.forEach(btn => {
-    btn.addEventListener('click', () => {
-      currentIdx = parseInt(btn.dataset.idx, 10);
-      optionBtns.forEach(b => b.classList.toggle('selected', b === btn));
-      if (submitBtn) submitBtn.disabled = false;
-    });
-  });
-  if (submitBtn) {
-    submitBtn.addEventListener('click', () => {
-      if (currentIdx >= 0 && normOpts.length) {
-        const picked = normOpts[currentIdx];
-        finishAskUserCard(card, (typeof picked === 'object' && picked.label) ? picked.label : String(picked), false);
-      }
-    });
-  }
-  const autoBtn = card.querySelector('#ask-auto-' + uid);
-  if (autoBtn) {
-    autoBtn.addEventListener('click', () => finishAskUserCard(card, null, true));
-  }
-}
-
-// ============ 需求澄清卡片（多组选项，对齐 TrieCode 截图1：开发框架 + 项目功能）============
-function showClarifyCard(questions, headers) {
-  const area = document.getElementById('ai-chat-area');
-  if (!area) return;
-  const uid = Date.now();
-  const card = document.createElement('div');
-  card.className = 'chat-message ai';
-  card.id = 'clarify-' + uid;
-  const groupsHtml = (questions || []).map((g, gi) => `
-    <div class="clarify-group">
-      <div class="clarify-group-title">${escapeHtml((headers && headers[g.key]) || g.q)}</div>
-      <div class="clarify-group-options">
-        ${(g.opts || []).map((o, oi) => `
-          <button type="button" class="ask-option-btn" data-g="${gi}" data-o="${oi}">
-            <span class="ask-option-radio"></span>
-            <span class="ask-option-text">${escapeHtml(String(o))}</span>
-          </button>`).join('')}
-      </div>
-    </div>`).join('');
-  card.innerHTML = `
-    <div class="chat-bubble" style="padding:0;">
-      <div class="ask-user-card clarify-card">
-        <div class="ask-user-header"><span class="inline-permission-dot"></span><span>AI 需要你的选择</span></div>
-        <div class="ask-user-question">开始之前，请先确认几个关键选项：</div>
-        ${groupsHtml}
-        <div class="ask-user-actions">
-          <button type="button" class="ask-user-btn auto" id="clarify-auto-${uid}">让 AI 自行决定</button>
-          <button type="button" class="ask-user-btn submit" id="clarify-submit-${uid}" disabled>提交选择</button>
-        </div>
-      </div>
-    </div>`;
-  area.appendChild(card);
-  area.scrollTop = area.scrollHeight;
-
-  const selections = {};
-  const submitBtn = card.querySelector('#clarify-submit-' + uid);
-  const allBtns = card.querySelectorAll('.ask-option-btn');
-  allBtns.forEach(btn => {
-    btn.addEventListener('click', () => {
-      const g = btn.dataset.g;
-      const o = btn.dataset.o;
-      selections[g] = { opt: btn.querySelector('.ask-option-text').textContent };
-      card.querySelectorAll(`.ask-option-btn[data-g="${g}"]`).forEach(b => b.classList.toggle('selected', b === btn));
-      // 所有组都已选 → 启用提交
-      const allDone = (questions || []).every((_, i) => selections[String(i)]);
-      if (submitBtn) submitBtn.disabled = !allDone;
-    });
-  });
-  if (submitBtn) {
-    submitBtn.addEventListener('click', () => {
-      const lines = (questions || []).map((g, i) => {
-        const sel = selections[String(i)];
-        return `${(headers && headers[g.key]) || g.q}: ${sel ? sel.opt : '让 AI 自行决定'}`;
-      });
-      finishClarifyCard(card, lines);
-    });
-  }
-  const autoBtn = card.querySelector('#clarify-auto-' + uid);
-  if (autoBtn) {
-    autoBtn.addEventListener('click', () => {
-      const lines = (questions || []).map(g => `${(headers && headers[g.key]) || g.q}: 让 AI 自行决定`);
-      finishClarifyCard(card, lines);
-    });
-  }
-}
-
-function finishClarifyCard(card, lines) {
-  if (!card) return;
-  const cb = window.__askUserCallback;
-  window.__askUserCallback = null;
-  const header = card.querySelector('.ask-user-header');
-  if (header) header.innerHTML = `<span class="inline-permission-dot" style="background:#10b981"></span><span>已确认选择</span>`;
-  const groups = card.querySelectorAll('.clarify-group');
-  groups.forEach(g => g.remove());
-  const acts = card.querySelector('.ask-user-actions');
-  if (acts) acts.remove();
-  if (cb) cb(lines, false);
-}
-
-function finishAskUserCard(card, choice, isAuto) {
-  const cb = window.__askUserCallback;
-  window.__askUserCallback = null;
-  const header = card.querySelector('.ask-user-header');
-  const label = isAuto ? '让 AI 自行决定' : String(choice);
-  if (header) {
-    header.innerHTML = `<span class="inline-permission-dot" style="background:#10b981"></span><span>已选择：${escapeHtml(label)}</span>`;
-  }
-  const opts = card.querySelector('.ask-user-options');
-  const acts = card.querySelector('.ask-user-actions');
-  if (opts) opts.remove();
-  if (acts) acts.remove();
-  if (cb) cb(choice, isAuto);
-}
-
 // ============ 权限确认弹窗（保留备选）============
 let permissionCallback = null;
 function showPermissionModal(tool, command, detail, callback) {
@@ -6865,41 +5122,6 @@ function handlePermissionChoice(choice) {
     permissionCallback(choice);
   }
   hidePermissionModal();
-}
-
-// ===== 2026-09-14 新增：本地模型计划兜底生成 =====
-// 本地小模型不按"执行计划："格式输出时，由客户端基于任务上下文生成确定性计划，
-// 弹窗确认后执行，落实主打功能「确认后精准推进执行」。
-function buildLocalPlan(userInput, modelText) {
-  const task = String(userInput || '').trim().slice(0, 100);
-  const modelBrief = String(modelText || '').replace(/\s+/g, ' ').trim().slice(0, 120);
-  let steps = [];
-  if (/修复|解决|bug|报错|失败|异常|问题/i.test(task)) {
-    steps = [
-      '读取相关文件与错误信息，定位问题根因',
-      '以最小改动修复核心代码',
-      '运行编译/测试验证修复结果',
-      '总结修复内容与验证结论'
-    ];
-  } else if (/重构|优化|改进|清理/i.test(task)) {
-    steps = [
-      '梳理现有代码结构与职责边界',
-      '实施重构：拆分模块/优化逻辑/清理冗余',
-      '编译验证功能未回归',
-      '总结改动清单与验证结果'
-    ];
-  } else {
-    steps = [
-      '分析任务需求，梳理项目结构',
-      '编写核心代码文件（含引脚/配置定义）',
-      '配置依赖与编译环境',
-      '编译验证并修复错误',
-      '总结实现结果与使用方法'
-    ];
-  }
-  const lines = ['执行计划：' + (modelBrief ? '（初步分析：' + modelBrief + '）' : ''), ''];
-  steps.forEach((s, i) => lines.push((i + 1) + '. ' + s));
-  return lines.join('\n');
 }
 
 function showPlanApproval(plan) {
@@ -6956,12 +5178,15 @@ function ensureAgent() {
                 continue;
               }
               const ext = extMap[lang] || 'txt';
-              const filePath = resolveCodeTargetPath(lang, ext, code);
-              // ===== 防覆盖（流式）：短代码块不覆盖已有完整主文件（isShardCodeBlock 公共判定）=====
-              if (isShardCodeBlock(filePath, code)) {
-                rejectShardCode(filePath, code, 'stream');
-                idx++;
-                continue;
+              const filePath = resolveCodeTargetPath(lang, ext);
+              // ===== 防覆盖（流式）：短代码块不覆盖已有完整主文件 =====
+              if (state.projectType === 'arduino' && /\.ino$/.test(filePath) && state.files[filePath]) {
+                const _exL = (state.files[filePath].content || '').split('\n').length;
+                if ((_exL > 20 && code.split('\n').length < 15) || (_exL > 40 && code.split('\n').length < _exL * 0.4)) {
+                  addOutputLog(`跳过疑似残片代码块（流式 ${code.split('\n').length} 行 < 现有 ${_exL} 行）: ${filePath}`, 'warn');
+                  idx++;
+                  continue;
+                }
               }
               // before 优先取生成前快照（避免流式 partial 覆盖导致 +0 -0）
               const before = (state.agent && state.agent._preGenSnapshot && state.agent._preGenSnapshot[filePath] !== undefined)
@@ -6976,15 +5201,10 @@ function ensureAgent() {
               }
               buildFileTree(); renderFileTree();
               persistCodeFile(filePath, code);
-              // ===== 流式代码块落盘：接入 turn 级文件回滚（对齐 TrieCode file-change-tracker）=====
-              fileChangeTracker.beginTurn('stream');
-              fileChangeTracker.recordChange('stream', { path: filePath, before, after: code, action: isNew ? 'create' : 'modify' });
               // ===== 代码块落盘视为文件修改：更新 lastFileModTurn 触发验证闸门（对齐 TrieCode 写码后自动编译验证）=====
               if (state.agent) {
                 state.agent.lastFileModTurn = (typeof state.agent._streamTurn === 'number') ? state.agent._streamTurn : 0;
               }
-              // ===== 自动编译验证（必须在 lastFileModTurn 设置之后调用）=====
-              triggerAutoCompile();
               // ===== 流式代码块落盘：记录 diff 变更 + 触发工具面板 Flow =====
               if (state.agent) {
                 if (!state.agent.fileChanges[filePath]) state.agent.fileChanges[filePath] = { before, after: code };
@@ -7013,23 +5233,8 @@ function ensureAgent() {
               // 暂不处理，等批准后由 approvePlan 统一落盘
             } else {
             const ext = extMap[lang] || 'txt';
-            const filePath = resolveCodeTargetPath(lang, ext, code);
+            const filePath = resolveCodeTargetPath(lang, ext);
             
-            // ===== 防覆盖（流式 partial）：边生成边更新的代码不得覆盖已有"完整"主文件 =====
-            // 本地模型修复轮常输出未闭合代码块（如只有引脚定义的残片），若直接覆盖 117 行完整代码会丢失功能。
-            // partial 本质是"正在增长"：首次创建/同一次 partial 递增允许；但已有非 partial 完整文件时，
-            // 新内容明显更短（< 现有 50%）→ 跳过本次 partial 更新，保留完整文件。
-            const _exFile = state.files[filePath];
-            let _skipPartial = false;
-            if (_exFile && !_exFile._partial) {
-              const _exL2 = (_exFile.content || '').split('\n').length;
-              const _newL2 = code.split('\n').length;
-              if (_exL2 > 20 && _newL2 < _exL2 * 0.5) {
-                addOutputLog(`partial 不覆盖完整文件: ${filePath} (${_newL2} 行 < ${_exL2} 行)`, 'warn');
-                _skipPartial = true;
-              }
-            }
-            if (!_skipPartial) {
             // 实时更新文件内容（不标记为已完成，因为代码还在生成中）——统一覆盖目标路径，不产生 _N 递增文件
             const isNew = !state.files[filePath];
             state.files[filePath] = { content: code, language: getLanguage(filePath), dirty: true, _partial: true };
@@ -7052,15 +5257,12 @@ function ensureAgent() {
               }
             }
             }
-            }
           }
         }
       }
       if (done) {
         // 对齐 TrieCode：代码块自动创建文件到中间编辑器，AI 面板只显示文字分析
         const createdFiles = autoApplyCodeBlocks(currentAIStream);
-        // ===== 流式写码轮结束：关闭 'stream' turn（完成 turn 级记录，供撤销/重做）=====
-        fileChangeTracker.endTurn('stream');
         if (createdFiles.length > 0 && currentAIBubble) {
           // 过滤掉代码块，只保留文字说明（用围栏配对提取，避免吞掉块间说明文本）
           let textOnly = currentAIStream;
@@ -7653,10 +5855,8 @@ function bindEvents() {
 
       if (panel === 'explorer') {
         sidebar.style.display = 'flex';
-        // 修复：有项目显示文件树、隐藏欢迎页；无项目显示欢迎页、隐藏文件树
-        const hasProject = !!(state && state.projectPath);
-        if (fileTree) fileTree.style.display = hasProject ? 'block' : 'none';
-        if (welcomePanel) welcomePanel.style.display = hasProject ? 'none' : 'flex';
+        if (fileTree) fileTree.style.display = 'block';
+        if (welcomePanel) welcomePanel.style.display = 'flex';
         if (pluginsPanel) pluginsPanel.style.display = 'none';
         if (devicePanel) devicePanel.style.display = 'none';
         if (sidebarHeader) sidebarHeader.style.display = 'flex';
@@ -7708,7 +5908,6 @@ function bindEvents() {
     // ============ 大模型插件（本地运行，内置 llama 引擎，模型走国内直链）============
     { id: 'llama-runtime', name: 'LabCode AI 引擎', description: '内置 llama.cpp 大模型引擎（GPU 加速），无需安装任何外部软件，安装模型后即可使用', version: '1.0.0', author: 'LabCode', icon: '🧠', category: 'ai-model', channels: ['bundled'], capabilities: ['llm-runtime', 'local-ai'], bundled: true, minRamGB: 4, minDiskGB: 0.5 },
     { id: 'qwen25-coder-1.5b', name: 'Qwen2.5-Coder 1.5B（轻量）', description: '通义千问代码模型 1.5B 量化版，8GB 内存即可流畅运行，适合代码补全和简单问答', version: '1.0.0', author: 'LabCode', icon: '⚡', category: 'ai-model', channels: ['http'], capabilities: ['llm-model', 'code'], requires: 'llama-runtime', modelName: 'qwen2.5-coder-1.5b-instruct-q4_k_m.gguf', ggufFile: 'qwen2.5-coder-1.5b-instruct-q4_k_m.gguf', downloadUrl: 'https://modelscope.cn/models/Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF/resolve/master/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf', minRamGB: 4, minDiskGB: 2, recommendedFor: 'low' },
-    { id: 'qwen25-coder-3b', name: 'Qwen2.5-Coder 3B（平衡）', description: '通义千问代码模型 3B 量化版，约 2GB 体积，4GB 显存或 8GB 内存即可跑，代码补全和单文件修改的甜点档', version: '1.0.0', author: 'LabCode', icon: '🔧', category: 'ai-model', channels: ['http'], capabilities: ['llm-model', 'code'], requires: 'llama-runtime', modelName: 'qwen2.5-coder-3b-instruct-q4_k_m.gguf', ggufFile: 'qwen2.5-coder-3b-instruct-q4_k_m.gguf', downloadUrl: 'https://modelscope.cn/models/Qwen/Qwen2.5-Coder-3B-Instruct-GGUF/resolve/master/qwen2.5-coder-3b-instruct-q4_k_m.gguf', minRamGB: 6, minDiskGB: 3, recommendedFor: 'entry' },
     { id: 'qwen25-coder-7b', name: 'Qwen2.5-Coder 7B（推荐）', description: '通义千问代码模型 7B，代码生成和调试能力强，AI 编程主力模型，6GB+ 显存或 16GB 内存', version: '1.0.0', author: 'LabCode', icon: '🌟', category: 'ai-model', channels: ['http'], capabilities: ['llm-model', 'code'], requires: 'llama-runtime', modelName: 'qwen2.5-coder-7b-instruct-q4_k_m.gguf', ggufFile: 'qwen2.5-coder-7b-instruct-q4_k_m.gguf', downloadUrl: 'https://modelscope.cn/models/Qwen/Qwen2.5-Coder-7B-Instruct-GGUF/resolve/master/qwen2.5-coder-7b-instruct-q4_k_m.gguf', minRamGB: 8, minDiskGB: 5, recommendedFor: 'medium' },
     { id: 'qwen25-coder-14b', name: 'Qwen2.5-Coder 14B（高性能）', description: '通义千问代码模型 14B，更强的代码理解和生成能力，需 12GB+ 显存或 32GB 内存', version: '1.0.0', author: 'LabCode', icon: '🚀', category: 'ai-model', channels: ['http'], capabilities: ['llm-model', 'code'], requires: 'llama-runtime', modelName: 'qwen2.5-coder-14b-instruct-q4_k_m.gguf', ggufFile: 'qwen2.5-coder-14b-instruct-q4_k_m.gguf', downloadUrl: 'https://modelscope.cn/models/Qwen/Qwen2.5-Coder-14B-Instruct-GGUF/resolve/master/qwen2.5-coder-14b-instruct-q4_k_m.gguf', minRamGB: 16, minDiskGB: 9, recommendedFor: 'high' },
     { id: 'qwen35-9b', name: 'Qwen3.5-9B（强推理）', description: '通义千问 3.5 系列 9B，代码理解与多步推理更强，支持思考模式，需 10GB+ 显存或 24GB 内存', version: '1.0.0', author: 'LabCode', icon: '🧠', category: 'ai-model', channels: ['http'], capabilities: ['llm-model', 'code', 'reasoning'], requires: 'llama-runtime', modelName: 'Qwen_Qwen3.5-9B-Q4_K_M.gguf', ggufFile: 'Qwen_Qwen3.5-9B-Q4_K_M.gguf', downloadUrl: 'https://modelscope.cn/models/bartowski/Qwen_Qwen3.5-9B-GGUF/resolve/main/Qwen_Qwen3.5-9B-Q4_K_M.gguf', minRamGB: 10, minDiskGB: 7, recommendedFor: 'strong' }
@@ -7863,7 +6062,7 @@ function bindEvents() {
       text = `内存 ${ram}GB 偏小，建议使用云端 API 或 1.5B 量化模型`;
     }
     const recommended = getAllPlugins().filter(p =>
-      p.category === 'ai-model' && (p.capabilities||[]).includes('llm-model') && p.recommendedFor === level
+      p.category === 'ai-model' && p.capabilities.includes('llm-model') && p.recommendedFor === level
     );
     return { level, text, recommended, ram, vram: maxVramGB, hasNvidia };
   }
@@ -8200,57 +6399,40 @@ function bindEvents() {
     }
 
     // 大模型插件：从国内直链（ModelScope）下载 GGUF 模型文件
-    // 修复1：仅当存在真实目标文件名时才走下载分支（llama-runtime 等内置引擎条目无 ggufFile/modelName，避免空文件名误触发）
-    // 修复2：安装器命令为应用自生成（用户点「安装」即已授权），带 {force:true} 绕过护栏 confirm，否则 curl 下载被 TerminalGuard 拦截永不执行
-    // 修复3：内层输出串改单引号（cmd.exe 会提前闭合双引号导致 PowerShell 语法错误）
-    let dlOk = true;
-    if (plugin.category === 'ai-model' && plugin.downloadUrl && (plugin.ggufFile || plugin.modelName)) {
+    if (plugin.category === 'ai-model' && plugin.downloadUrl) {
       try {
         const modelsDir = 'D:\\LabCode\\models';
         const targetFile = modelsDir + '\\' + (plugin.ggufFile || plugin.modelName);
         // 辅助函数：给 PowerShell 传单引号路径
         const psPath = (p) => "'" + p.replace(/'/g, "''") + "'";
-        // 已存在则跳过下载（terminal.execute 返回对象 {success,stdout,...}，取 stdout 判断）
+        // 已存在则跳过下载
         const fsCheck = await window.LabCode.terminal.execute(
-          'powershell -NoProfile -Command "if (Test-Path ' + psPath(targetFile) + ') { $s=(Get-Item ' + psPath(targetFile) + ').Length/1GB; Write-Output (\'EXISTS \' + [math]::Round($s,2).ToString()) } else { Write-Output \'MISSING\' }"',
-          null, 20000, { force: true }
+          'powershell -NoProfile -Command "if (Test-Path ' + psPath(targetFile) + ') { $s=(Get-Item ' + psPath(targetFile) + ').Length/1GB; Write-Output (\"EXISTS \" + [math]::Round($s,2).ToString()) } else { Write-Output \"MISSING\" }"',
+          null, 20000
         );
-        const fsCheckOut = String((fsCheck && fsCheck.stdout) || '').trim();
-        if (fsCheckOut.includes('EXISTS')) {
-          addOutputLog('模型已存在（' + fsCheckOut.replace('EXISTS ', '') + ' GB），跳过下载', 'success');
+        if (typeof fsCheck === 'string' && fsCheck.includes('EXISTS')) {
+          addOutputLog('模型已存在（' + fsCheck.trim() + ' GB），跳过下载', 'success');
         } else {
           addOutputLog('正在下载模型 ' + (plugin.ggufFile || plugin.modelName) + '（约 ' + plugin.minDiskGB + 'GB，国内直链约 15MB/s，首次需几分钟）...', 'info');
-          const dlRes = await window.LabCode.terminal.execute(
+          await window.LabCode.terminal.execute(
             'powershell -NoProfile -Command "New-Item -ItemType Directory -Force -Path ' + psPath(modelsDir) + ' | Out-Null; curl.exe -L --retry 3 -C - -o ' + psPath(targetFile) + ' ' + psPath(plugin.downloadUrl) + '"',
-            null, 1800000, { force: true }
+            null, 1800000
           );
-          if (!dlRes || dlRes.success === false) {
-            addOutputLog('模型下载命令执行失败: ' + ((dlRes && dlRes.error) || '未知错误'), 'warning');
-            dlOk = false;
-          }
           // 校验文件存在且大于 100MB
           const fsVerify = await window.LabCode.terminal.execute(
-            'powershell -NoProfile -Command "if (Test-Path ' + psPath(targetFile) + ') { $s=(Get-Item ' + psPath(targetFile) + ').Length/1MB; Write-Output ([math]::Round($s,1).ToString()) } else { Write-Output \'0\' }"',
-            null, 20000, { force: true }
+            'powershell -NoProfile -Command "if (Test-Path ' + psPath(targetFile) + ') { $s=(Get-Item ' + psPath(targetFile) + ').Length/1MB; Write-Output ([math]::Round($s,1).ToString()) } else { Write-Output \"0\" }"',
+            null, 20000
           );
-          const sizeMB = parseFloat(String((fsVerify && fsVerify.stdout) || '0').trim());
+          const sizeMB = parseFloat(String(fsVerify || '0').trim());
           if (sizeMB < 100) {
             addOutputLog('模型下载不完整（' + sizeMB + 'MB），请重试', 'warning');
-            dlOk = false;
           } else {
             addOutputLog('模型下载完成：' + (plugin.ggufFile || plugin.modelName) + '（' + sizeMB + ' MB）', 'success');
           }
         }
       } catch (e) {
-        dlOk = false;
         addOutputLog('模型下载失败: ' + e.message, 'warning');
       }
-    }
-
-    // 下载失败/不完整 → 中止安装，不标记已安装（避免「安装成功」但模型文件不存在）
-    if (!dlOk) {
-      addOutputLog('安装中止：模型文件不可用（下载失败或不完整），未标记为已安装。可稍后重新点击安装重试', 'warning');
-      return;
     }
 
     // 模拟安装过程
@@ -8275,34 +6457,9 @@ function bindEvents() {
     updateCompilerPluginStatus();
   }
 
-  // ============ 暴露插件 API 给 AI 工具（agent 自主插件管理）============
-  // 让 agent 能自查已装能力、请求安装缺的插件/模型（对齐「缺依赖→询问用户→授权安装」）
-  window.__labPluginAPI = {
-    list: () => getAllPlugins().map(p => ({
-      id: p.id, name: p.name, category: p.category, version: p.version,
-      installed: isPluginInstalled(p.id),
-      description: (p.description || '').slice(0, 120),
-      sizeHint: p.category === 'ai-model' ? (p.minDiskGB ? `约 ${p.minDiskGB}GB` : '') : ''
-    })),
-    install: async (id) => {
-      const plugin = getAllPlugins().find(p => p.id === id);
-      if (!plugin) return { success: false, error: '插件不存在: ' + id };
-      if (isPluginInstalled(id)) return { success: false, error: '插件已安装: ' + id };
-      if (plugin.category === 'ai-model' && plugin.requires && !isPluginInstalled(plugin.requires)) {
-        return { success: false, error: '缺少依赖: 请先安装 ' + plugin.requires + '（LabCode AI 引擎）' };
-      }
-      try {
-        await installPlugin(id);
-      } catch (e) {
-        return { success: false, error: '安装执行异常: ' + e.message };
-      }
-      return { success: isPluginInstalled(id), id, name: plugin.name, installed: isPluginInstalled(id) };
-    }
-  };
-
   function updateCompilerPluginStatus() {
     // 更新编辑器工具栏的编译/烧录按钮状态
-    const hasCompiler = installedPlugins.some(p => (p.capabilities||[]).includes('compile'));
+    const hasCompiler = installedPlugins.some(p => p.capabilities.includes('compile'));
     const compileBtn = document.getElementById('compile-btn');
     const uploadBtn = document.getElementById('upload-btn');
     if (compileBtn) compileBtn.style.opacity = hasCompiler ? '1' : '0.4';
@@ -8709,29 +6866,12 @@ function bindEvents() {
         // 写入真实配置
         try {
           if (window.LabCode && window.LabCode.config) {
-            // ===== 网关积分通道：登录 LabCode 账号后，云端模型自动走内置模型池（扣积分）=====
-            const curCfg = await window.LabCode.config.get();
-            const hasGw = !!(curCfg?.ai?.gatewayToken);
-            const isCloudMapping = (mapping.provider === 'deepseek' || mapping.provider === 'custom');
-            // 云端模型 → 网关模型 id 映射（对齐网关 models.json）
-            const GATEWAY_MODEL_MAP = {
-              'deepseek-flash': 'deepseek-flash',
-              'deepseek-v4': 'deepseek-pro',
-              'qwen': 'deepseek-flash',
-              'minimax': 'minimax-m3',
-              'glm': 'deepseek-pro',
-              'doubao': 'deepseek-flash'
-            };
-            if (hasGw && isCloudMapping) {
-              await window.LabCode.config.set('ai.provider', 'gateway');
-              await window.LabCode.config.set('ai.model', GATEWAY_MODEL_MAP[modelKey] || 'deepseek-flash');
-            } else {
-              await window.LabCode.config.set('ai.provider', mapping.provider);
-              await window.LabCode.config.set('ai.model', mapping.model);
-              // custom 提供商：仅当未配置 baseURL 时写入默认值
-              if (mapping.provider === 'custom' && mapping.baseURL) {
-                if (!curCfg?.ai?.baseURL) await window.LabCode.config.set('ai.baseURL', mapping.baseURL);
-              }
+            await window.LabCode.config.set('ai.provider', mapping.provider);
+            await window.LabCode.config.set('ai.model', mapping.model);
+            // custom 提供商：仅当未配置 baseURL 时写入默认值
+            if (mapping.provider === 'custom' && mapping.baseURL) {
+              const cur = await window.LabCode.config.get();
+              if (!cur?.ai?.baseURL) await window.LabCode.config.set('ai.baseURL', mapping.baseURL);
             }
             // 刷新 RealAIClient 配置
             if (state.agent && state.agent.ai && typeof state.agent.ai._loadConfig === 'function') {
@@ -8739,9 +6879,8 @@ function bindEvents() {
             }
             // 检查 API Key 是否就绪
             const cfg = await window.LabCode.config.get();
-            const ready = !!(cfg?.ai?.apiKey || cfg?.ai?.gatewayToken || mapping.provider === 'ollama' || mapping.provider === 'local');
-            const gwSuffix = (hasGw && isCloudMapping) ? '（积分通道）' : '';
-            showToast(ready ? `已切换到 ${modelName}${gwSuffix}` : `已切换到 ${modelName}，请在设置中登录账号或配置 API Key`,
+            const ready = !!(cfg?.ai?.apiKey || mapping.provider === 'ollama' || mapping.provider === 'local');
+            showToast(ready ? `已切换到 ${modelName}` : `已切换到 ${modelName}，请在设置中配置 API Key`,
                       ready ? 'success' : 'warning');
           }
         } catch (e) {
@@ -8850,9 +6989,6 @@ function bindEvents() {
   try {
     detectSystemInfo().then(() => { refreshLocalModelsInSelector(); }).catch(e => console.error('硬件检测失败:', e));
   } catch(e) { console.error('硬件检测启动失败:', e); }
-
-  // 启动时刷新网关积分徽标（登录态回显）
-  try { refreshCreditsBadge(); } catch (e) { console.warn('[积分徽标] 初始化失败:', e); }
   
   // 权限模式按钮
   const permissionBtn = document.getElementById('permission-btn');
@@ -9004,7 +7140,7 @@ function bindEvents() {
         showToast('非 Electron 环境，无法编译', 'error'); return;
       }
       // 检查 Arduino 插件是否安装
-      const hasCompiler = installedPlugins.some(p => (p.capabilities||[]).includes('compile'));
+      const hasCompiler = installedPlugins.some(p => p.capabilities.includes('compile'));
       if (!hasCompiler) {
         showToast('请先在插件市场安装 Arduino 编译插件', 'warning'); return;
       }
@@ -9079,7 +7215,7 @@ function bindEvents() {
       if (!window.LabCode || !window.LabCode.compile) {
         showToast('非 Electron 环境，无法烧录', 'error'); return;
       }
-      const hasCompiler = installedPlugins.some(p => (p.capabilities||[]).includes('compile'));
+      const hasCompiler = installedPlugins.some(p => p.capabilities.includes('compile'));
       if (!hasCompiler) {
         showToast('请先在插件市场安装 Arduino 编译插件', 'warning'); return;
       }
@@ -9954,117 +8090,7 @@ function bindEvents() {
     document.getElementById('ai-model').value = ai.model || '';
     document.getElementById('ai-test-result').textContent = '';
     updateAiSettingsVisibility();
-    // 刷新网关账号状态（登录态 + 余额）
-    refreshGatewayUI();
     modal.style.display = 'flex';
-  }
-
-  // ============ 网关账号（登录/注册/余额/登出，对齐 TrieCode 账号与积分）============
-  // AI 面板顶部积分徽标（登录后显示；点击打开设置）
-  async function updateCreditsBadge(credits) {
-    try {
-      const badge = document.getElementById('gw-credits-badge');
-      if (!badge) return;
-      if (typeof credits === 'number') {
-        badge.style.display = 'inline-flex';
-        badge.textContent = '⚡ ' + credits.toLocaleString() + ' 积分';
-      } else {
-        badge.style.display = 'none';
-      }
-    } catch (e) { console.warn('[积分徽标] 更新失败:', e); }
-  }
-
-  async function refreshCreditsBadge() {
-    try {
-      let cfg = {};
-      if (window.LabCode && window.LabCode.config) {
-        try { cfg = await window.LabCode.config.get(); } catch (e) {}
-      }
-      const ai = cfg.ai || {};
-      if (!ai.gatewayToken) { updateCreditsBadge(null); return; }
-      if (window.LabCode && window.LabCode.ai && window.LabCode.ai.gatewayAuth) {
-        const r = await window.LabCode.ai.gatewayAuth({ action: 'me' });
-        if (r && r.success && r.user) {
-          updateCreditsBadge(r.user.totalCredits);
-        } else {
-          updateCreditsBadge(null);
-        }
-      }
-    } catch (e) { console.warn('[积分徽标] 刷新失败:', e); }
-  }
-
-  // 徽标点击 → 打开设置面板
-  document.addEventListener('click', (e) => {
-    const badge = document.getElementById('gw-credits-badge');
-    if (badge && e.target === badge) {
-      openSettingsModal();
-    }
-  });
-
-  async function refreshGatewayUI() {
-    try {
-      const gwLoginForm = document.getElementById('gw-login-form');
-      const gwUserInfo = document.getElementById('gw-user-info');
-      if (!gwLoginForm || !gwUserInfo) return;
-      let cfg = {};
-      if (window.LabCode && window.LabCode.config) {
-        try { cfg = await window.LabCode.config.get(); } catch (e) {}
-      }
-      const ai = cfg.ai || {};
-      if (ai.gatewayEmail) {
-        gwLoginForm.style.display = 'none';
-        gwUserInfo.style.display = 'block';
-        document.getElementById('gw-email-show').textContent = ai.gatewayEmail;
-        document.getElementById('gw-credits-show').textContent = '积分查询中...';
-        // 拉取余额
-        if (window.LabCode && window.LabCode.ai && window.LabCode.ai.gatewayAuth) {
-          const r = await window.LabCode.ai.gatewayAuth({ action: 'me' });
-          if (r && r.success && r.user) {
-            document.getElementById('gw-credits-show').textContent = '积分 ' + (r.user.totalCredits ?? '?');
-          } else {
-            document.getElementById('gw-credits-show').textContent = '登录已失效';
-          }
-        }
-        return;
-      }
-      gwLoginForm.style.display = 'flex';
-      gwUserInfo.style.display = 'none';
-    } catch (e) {
-      console.warn('[网关账号] 刷新失败:', e);
-    }
-  }
-
-  // 网关登录 / 注册公共处理
-  async function gatewayAuth(action) {
-    const msg = document.getElementById('gw-msg');
-    const email = document.getElementById('gw-email').value.trim();
-    const password = document.getElementById('gw-password').value.trim();
-    if (!email || !password) { msg.textContent = '请输入邮箱和密码'; msg.style.color = '#EA6668'; return; }
-    if (password.length < 6) { msg.textContent = '密码至少 6 位'; msg.style.color = '#EA6668'; return; }
-    msg.textContent = action === 'login' ? '登录中...' : '注册中...';
-    msg.style.color = 'var(--text-secondary)';
-    if (window.LabCode && window.LabCode.ai && window.LabCode.ai.gatewayAuth) {
-      const r = await window.LabCode.ai.gatewayAuth({ action, email, password });
-      if (r && r.success) {
-        msg.textContent = action === 'login' ? '✓ 登录成功' : '✓ 注册成功（已自动登录）';
-        msg.style.color = '#52C41A';
-        document.getElementById('gw-password').value = '';
-        await refreshGatewayUI();
-        await refreshCreditsBadge();
-        // 若当前模型是云端模型，提示切换为积分通道
-        let cfg = {};
-        try { cfg = await window.LabCode.config.get(); } catch (e) {}
-        const ai = cfg.ai || {};
-        if (ai.provider && ai.provider !== 'local' && ai.provider !== 'ollama') {
-          showToast('已登录网关，云端模型将走积分通道', 'success');
-        } else {
-          showToast('已登录网关账号', 'success');
-        }
-      } else {
-        msg.textContent = (r && r.error) || '操作失败';
-        msg.style.color = '#EA6668';
-      }
-    }
   }
 
   function updateAiSettingsVisibility() {
@@ -10133,23 +8159,6 @@ function bindEvents() {
       } else {
         resultEl.textContent = '✗ 非 Electron 环境';
         resultEl.style.color = '#EA6668';
-      }
-    });
-    // 网关账号按钮
-    const gwLoginBtn = document.getElementById('gw-login-btn');
-    if (gwLoginBtn) gwLoginBtn.addEventListener('click', () => gatewayAuth('login'));
-    const gwRegisterBtn = document.getElementById('gw-register-btn');
-    if (gwRegisterBtn) gwRegisterBtn.addEventListener('click', () => gatewayAuth('register'));
-    const gwRefreshBtn = document.getElementById('gw-refresh-btn');
-    if (gwRefreshBtn) gwRefreshBtn.addEventListener('click', () => { refreshGatewayUI(); });
-    const gwLogoutBtn = document.getElementById('gw-logout-btn');
-    if (gwLogoutBtn) gwLogoutBtn.addEventListener('click', async () => {
-      if (window.LabCode && window.LabCode.ai && window.LabCode.ai.gatewayAuth) {
-        const r = await window.LabCode.ai.gatewayAuth({ action: 'logout' });
-        if (r && r.success) {
-          showToast('已登出网关账号', 'info');
-          refreshGatewayUI();
-        }
       }
     });
     // 点击遮罩关闭
@@ -10471,20 +8480,6 @@ function bindEvents() {
     });
   }
 
-  // AI 辅助新建项目：聚焦 AI 输入框并填入引导提示
-  const welcomeAiNewProject = document.getElementById('welcome-ai-new-project');
-  if (welcomeAiNewProject) {
-    welcomeAiNewProject.addEventListener('click', () => {
-      const input = document.getElementById('ai-input');
-      if (input) {
-        input.value = '帮我创建一个项目';
-        input.focus();
-        input.setSelectionRange(input.value.length, input.value.length);
-      }
-      showToast('请在 AI 对话框描述你的项目需求', 'info');
-    });
-  }
-
   // 加载最近项目列表
   function loadRecentProjects() {
     const recentList = document.getElementById('welcome-recent-list');
@@ -10609,102 +8604,8 @@ function init() {
   }
   try { setupMonaco(); } catch(e) { console.error('Monaco setup error:', e); }
   try { setupTerminal(); } catch(e) { console.error('Terminal setup error:', e); }
-  // 插件视图面板关闭按钮
-  try {
-    const closeBtn = document.getElementById('plugin-view-close');
-    if (closeBtn) closeBtn.onclick = () => {
-      const p = document.getElementById('plugin-view-panel');
-      if (p) p.style.display = 'none';
-      const wv = document.getElementById('plugin-view-webview');
-      if (wv) wv.setAttribute('src', 'about:blank');
-    };
-  } catch(e) { console.error('plugin view close btn:', e); }
   // 加载 MCP 工具并合并进 AI 工具注册表（stdio 接入）
   setTimeout(() => { loadMcpTools(); }, 2500);
-  // ============ 插件 manifest 系统（对齐 TrieCode）============
-  setTimeout(async () => {
-    try {
-      if (!window.PluginSystem) return;
-      // 注册内置 internal service：把宿主已有的能力暴露给插件
-      // demo service：证明 manifest 工具能跑通，可删
-      window.PluginSystem.registerInternalService('demo', {
-        ping: async (args) => 'pong from plugin manifest system, echo: ' + JSON.stringify(args)
-      });
-      // Arduino CLI 工具链（迁移自硬编码 TOOL_DEFS）
-      window.PluginSystem.registerInternalService('arduinoCli', ARDUINO_TOOL_IMPLS);
-      // clangd LSP 客户端骨架（TODO: 真接 LSP over stdio）
-      window.PluginSystem.registerInternalService('clangd', {
-        async status() { return 'clangd 服务：尚未启动。需要安装 clangd 并在设置中指定路径。骨架已就位。'; },
-        async goToDefinition() { return 'Error: clangd 未启动，go_to_definition 不可用。'; },
-        async references() { return 'Error: clangd 未启动，references 不可用。'; },
-        async documentSymbols() { return 'Error: clangd 未启动，document_symbols 不可用。'; },
-        async hover() { return 'Error: clangd 未启动，hover 不可用。'; }
-      });
-      // plugin-dev 工具链：插件开发辅助
-      window.PluginSystem.registerInternalService('pluginDev', {
-        listInstalled: async () => {
-          const list = window.PluginSystem.listPlugins();
-          if (!list.length) return '无已加载插件';
-          return list.map(p => `- ${p.id} v${p.version} (${p.name}) — ${p.tools.length} 工具, ${p.skills.length} 技能`).join('\n');
-        },
-        showSchema: async () => [
-          'plugin.json schema:',
-          '  id: string (必填，唯一标识，工具名自动加 {id}_ 前缀)',
-          '  name: string',
-          '  version: string (semver)',
-          '  description: string',
-          '  category: string (embedded/devtools/demo/...)',
-          '  tools: [{',
-          '    name: string (必填)',
-          '    description: string',
-          '    parameters: {type:object, properties:{...}, required:[...]}',
-          '    category: query|modify|execute|delete',
-          '    transport: internal|cli|http|mcp',
-          '    internal: {service, method}  // transport=internal',
-          '    cli: {command:"cmd {arg}", timeoutMs, resolve}  // transport=cli',
-          '    http: {url, method, headers}  // transport=http',
-          '    mcp: {server, tool}  // transport=mcp',
-          '  }]',
-          '  skills: [{name, description, prompt}]  // 注入系统提示词',
-          '  projectTypes: [string]  // 激活条件',
-          '  views: [{id, webviewUrl}]  // sidebar webview',
-          '  dependencies: [{name, url, sha256}]  // 外部依赖',
-        ].join('\n'),
-        validate: async (args) => {
-          const m = args.manifest;
-          const errs = [];
-          if (!m || typeof m !== 'object') return 'Error: manifest 不是对象';
-          if (!m.id) errs.push('缺 id');
-          if (!Array.isArray(m.tools)) errs.push('tools 必须是数组');
-          else {
-            m.tools.forEach((t, i) => {
-              if (!t.name) errs.push(`tools[${i}].name 缺`);
-              const tp = t.transport || 'internal';
-              if (!['internal','cli','http','mcp'].includes(tp)) errs.push(`tools[${i}].transport="${tp}" 非法`);
-              if (tp === 'internal' && (!t.internal || !t.internal.service)) errs.push(`tools[${i}].internal.service 缺`);
-              if (tp === 'cli' && !t.cli) errs.push(`tools[${i}].cli 缺`);
-              if (tp === 'http' && !t.http) errs.push(`tools[${i}].http 缺`);
-              if (tp === 'mcp' && !t.mcp) errs.push(`tools[${i}].mcp 缺`);
-            });
-          }
-          return errs.length ? '校验失败:\n- ' + errs.join('\n- ') : '校验通过 ✓';
-        }
-      });
-      // 用户插件目录：%APPDATA%/LabCode/plugins
-      const userData = await window.LabCode.app.getPath('userData');
-      if (!userData) { addOutputLog('插件系统：拿不到 userData 路径，跳过', 'warn'); return; }
-      const pluginsRoot = userData.replace(/[\\\/]$/, '') + '/plugins';
-      const r = await window.PluginSystem.loadPluginsFromDir(pluginsRoot);
-      const totalTools = window.PluginSystem.allTools().length;
-      addOutputLog(`插件系统：加载 ${r.loaded.length} 个插件，共 ${totalTools} 个 manifest 工具`, 'success');
-      if (r.errors && r.errors.length) addOutputLog('插件加载警告: ' + r.errors.join('; '), 'warn');
-      // 加载持久化记忆
-      state.memories = await loadMemoriesFromDisk();
-      addOutputLog(`记忆系统：加载 ${state.memories.length} 条长期记忆`, 'info');
-    } catch (e) {
-      addOutputLog('插件系统初始化失败: ' + e.message, 'error');
-    }
-  }, 1500);
   // 硬件配置检测 + 本地模型刷新（大模型插件化）
   // 硬件检测已移至 bindEvents 内部调用（detectSystemInfo 定义在该作用域）
   try {

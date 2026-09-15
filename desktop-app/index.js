@@ -133,8 +133,7 @@ function createMainWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
-      webSecurity: true,
-      webviewTag: true
+      webSecurity: true
     }
   });
 
@@ -374,9 +373,6 @@ function setupIPC() {
   // ============ AI 流式对话（SSE + 真 function calling）============
   // 通过 ai:stream 事件推送执行过程：delta / tool_calls / usage / done / error
   const activeAiStreams = new Map();
-  // 2026-09-15：每 runId 一个 AbortController，cancel/看门狗回退时真断 fetch，
-  // 否则 llama-server 旧请求还占着 slot，新请求又进来 → GPU 并发跑满 → 客户端崩。
-  const activeAiControllers = new Map();
 
   // 解析 OpenAI 兼容 SSE 流
   // 解析 OpenAI 兼容 SSE 流（保留 event: 行，供网关 credits/error 事件透传）
@@ -420,19 +416,7 @@ function setupIPC() {
   async function streamChatCompletion(sender, runId, { messages, model, temperature, maxTokens, tools, aiCfg }) {
     const provider = AI_PROVIDERS[aiCfg.provider] || AI_PROVIDERS.deepseek;
     const baseURL = (aiCfg.provider === 'gateway' && aiCfg.gatewayUrl) ? aiCfg.gatewayUrl : (aiCfg.baseURL || provider.baseURL);
-    let useModel = model || aiCfg.model || provider.defaultModel;
-    const abortCtrl = new AbortController();
-    activeAiControllers.set(runId, abortCtrl);
-    const acSignal = abortCtrl.signal;
-    // 2026-09-14：修复轮自动路由到 coder 模型
-    // 根因：qwen3.5:9b 在 ollama 下有 ~4096 token 生成硬限制 + 长上下文下输出空（think=true/false 均空），
-    // 无法自愈编译错误。qwen2.5-coder:7b 是专用编码模型，已验证能输出完整代码并编译通过。
-    const _lastUserMsg = messages.filter(m => m.role === 'user').pop();
-    const _isFixTurn = !!(aiCfg.provider === 'ollama' && _lastUserMsg && /编译失败|修复代码|仍然失败|编译错误|代码不完整|被截断/.test(_lastUserMsg.content || ''));
-    if (_isFixTurn) {
-      useModel = 'qwen2.5-coder:7b';
-      console.warn('[chatStream] 修复轮自动切换到 qwen2.5-coder:7b（9b 长上下文输出空）');
-    }
+    const useModel = model || aiCfg.model || provider.defaultModel;
     const apiKey = aiCfg.apiKey || '';
     const isGateway = aiCfg.provider === 'gateway';
     // 网关模式：走内置模型池 + 积分扣费；请求体只发模型 id 与消息（Key 在服务端）
@@ -466,19 +450,8 @@ function setupIPC() {
     // 已实测：enable_thinking=true + 流式 + max_tokens 充足时，reasoning_content 与正文会先后输出，
     // finish=stop（真实豆包式思考流）。思考过长占满 max_tokens 时正文可能为空，
     // 由 doStreamOnce 内"空正文→关闭思考重试"降级兜底，保证正文输出。
-    // 本地引擎（Qwen3 等思考模型）：
-    // 已实测：enable_thinking=true + 流式 + max_tokens 充足时，reasoning_content 与正文会先后输出，
-    // finish=stop（真实豆包式思考流）。思考过长占满 max_tokens 时正文可能为空，
-    // 由 doStreamOnce 内"空正文→关闭思考重试"降级兜底，保证正文输出。
     if (aiCfg.provider === 'local') {
       // bodyObj.chat_template_kwargs 由 doStreamOnce(enableThinking) 按轮次设置
-      // 2026-09-15：工具决策轮可选 JSON 约束。
-      // 冒烟（curl）实测 response_format=json_object 下 9B 吐合法 JSON；
-      // 但真链路实测：约束导致流式 60s 无数据→回退非流式→新旧请求叠加→GPU 并发跑满→客户端崩。
-      // 故默认关闭，仅当 ai.localForceToolJson=true 显式开启。
-      if (Array.isArray(tools) && tools.length > 0 && aiCfg.localForceToolJson === true) {
-        bodyObj.response_format = { type: 'json_object' };
-      }
     } else if (aiCfg.provider === 'ollama') {
       bodyObj.think = false;
     }
@@ -493,7 +466,7 @@ function setupIPC() {
       if (aiCfg.provider === 'local') b.chat_template_kwargs = { enable_thinking: enableThinking !== false };
       else if (aiCfg.provider === 'ollama') b.think = enableThinking !== false;
       const toolCalls = [];
-      const response = await net.fetch(url, { method: 'POST', headers, body: JSON.stringify(b), signal: acSignal });
+      const response = await net.fetch(url, { method: 'POST', headers, body: JSON.stringify(b) });
       if (!response.ok) {
         const errText = await response.text().catch(() => '');
         const err = new Error(`API 返回 ${response.status}: ${errText.slice(0, 300)}`);
@@ -502,7 +475,6 @@ function setupIPC() {
       }
 
       let fullText = '';
-      let lastFinish = '';
       for await (const evt of parseSSEStream(response.body)) {
         if (activeAiStreams.get(runId)) { activeAiStreams.delete(runId); break; }
         // 网关事件行（event: credits / event: error）透传给 renderer
@@ -516,7 +488,6 @@ function setupIPC() {
         }
         const choice = evt.choices && evt.choices[0];
         if (!choice) continue;
-        if (choice.finish_reason) lastFinish = choice.finish_reason;
         if (choice.delta && choice.delta.reasoning_content) {
           send('thinking_delta', { delta: choice.delta.reasoning_content });
         }
@@ -547,87 +518,18 @@ function setupIPC() {
         });
 
       // ===== 本地思考流降级：思考过长占满 max_tokens → 正文为空 → 关闭思考重试一次 =====
-      // 2026-09-14：扩展到 ollama（Qwen3.5-9B 等思考模型同样会思考占满预算导致正文截断/空输出）
-      if ((aiCfg.provider === 'local' || aiCfg.provider === 'ollama') && enableThinking !== false && !String(fullText || '').trim()) {
+      if (aiCfg.provider === 'local' && enableThinking !== false && !String(fullText || '').trim()) {
         console.warn('[streamChat] 本地思考流未产出正文（思考占满预算），关闭思考重试');
         return doStreamOnce(false);
       }
 
-      // 注意：不在此 send('done')——外层可能需要自动续写，由外层统一发送最终 done
-      return { success: true, content: fullText, toolCalls: parsedToolCalls, finishReason: lastFinish };
-    }
-
-    // ===== 2026-09-14 自动续写：ollama/local 模型代码块未闭合时，自动续写拼接 =====
-    // 根因：ollama 0.33.x + qwen3.5:9b 有 ~4096 token 生成硬限制（num_predict 不生效），长代码在 4096 token 处被切断。
-    // 检测：``` 计数为奇数（代码块未闭合）或花括号不匹配 → 发"请继续"请求拼接，最多 3 次。
-    function hasUnclosedCodeBlock(text) {
-      const t = text || '';
-      const ticks = t.match(/```/g);
-      if (ticks && ticks.length % 2 === 1) return true;
-      // 代码块已闭合但花括号不匹配（函数未写完）也视为未完成
-      const open = (t.match(/\{/g) || []).length;
-      const close = (t.match(/\}/g) || []).length;
-      return open > close;
-    }
-    async function continueStream(prevContent, attempt) {
-      const continueMessages = [
-        ...messages,
-        { role: 'assistant', content: prevContent },
-        { role: 'user', content: '请直接继续输出剩余代码，绝对不要输出 ``` 闭合标记，不要重复已输出内容，不要写解释文字，直到所有函数和逻辑完整、花括号全部闭合。' }
-      ];
-      const b = Object.assign({}, bodyObj, { messages: continueMessages });
-      if (aiCfg.provider === 'local') b.chat_template_kwargs = { enable_thinking: false };
-      else if (aiCfg.provider === 'ollama') b.think = false;
-      const resp = await net.fetch(url, { method: 'POST', headers, body: JSON.stringify(b), signal: acSignal });
-      if (!resp.ok) throw new Error(`续写 API 返回 ${resp.status}`);
-      let cont = '';
-      let fin = '';
-      for await (const evt of parseSSEStream(resp.body)) {
-        if (activeAiStreams.get(runId)) break;
-        const choice = evt.choices && evt.choices[0];
-        if (!choice) continue;
-        if (choice.finish_reason) fin = choice.finish_reason;
-        if (choice.delta && choice.delta.content) { cont += choice.delta.content; send('delta', { delta: choice.delta.content }); }
-      }
-      return { content: cont, finishReason: fin };
+      send('done', { content: fullText, toolCalls: parsedToolCalls });
+      return { success: true, content: fullText, toolCalls: parsedToolCalls };
     }
 
     try {
-      // 2026-09-14：修复轮（编译失败提示）强制关闭思考——避免思考占满 4096 token 预算导致正文空输出
-      const lastUserMsg = messages.filter(m => m.role === 'user').pop();
-      const isFixTurn = !!(lastUserMsg && /编译失败|修复代码|仍然失败|编译错误/.test(lastUserMsg.content || ''));
-      const thinkForTurn = isFixTurn ? false : true;
-      if (isFixTurn) _log('检测到编译修复轮，强制 think=false');
-      let result = await doStreamOnce(thinkForTurn);
-      // 自动续写循环（仅 ollama/local，代码块未闭合时——不依赖 finish_reason，ollama 流式可能不传）
-      const _fs = require('fs'); const _log = (s) => { try { _fs.appendFileSync(require('path').join(require('os').tmpdir(), 'labcode_stream.log'), new Date().toISOString() + ' ' + s + '\n'); } catch(e){} };
-      _log(`doStreamOnce done, len=${result.content.length}, unclosed=${hasUnclosedCodeBlock(result.content)}`);
-      if ((aiCfg.provider === 'ollama' || aiCfg.provider === 'local') && hasUnclosedCodeBlock(result.content)) {
-        for (let i = 0; i < 3; i++) {
-          _log(`续写第 ${i + 1} 次开始, 当前 len=${result.content.length}`);
-          try {
-            const cont = await continueStream(result.content, i + 1);
-            _log(`续写第 ${i + 1} 次完成, 续接 len=${cont.content.length}, finish=${cont.finishReason}`);
-            result.content += cont.content;
-            result.finishReason = cont.finishReason;
-            if (!hasUnclosedCodeBlock(result.content)) { _log('代码块已闭合，停止续写'); break; }
-          } catch (ce) {
-            _log(`续写失败: ${ce.message}`);
-            console.warn('[streamChat] 续写失败:', ce.message);
-            break;
-          }
-        }
-      }
-      _log(`最终 done, len=${result.content.length}`);
-      // 统一发送最终 done（doStreamOnce 内部不再发 done，避免续写 delta 被忽略）
-      send('done', { content: result.content, toolCalls: result.toolCalls });
-      return result;
+      return await doStreamOnce(true);
     } catch (e) {
-      // 用户/看门狗主动取消：不重启引擎、不回退非流式，直接静默结束
-      if (e && (e.name === 'AbortError' || e.aborted)) {
-        activeAiControllers.delete(runId);
-        return { success: false, aborted: true };
-      }
       // ===== 本地引擎自动恢复：连接失败（含覆盖安装后旧实例假活）→ 强杀残留并重启引擎 → 重试一次 =====
       if (!e.noFallback && aiCfg.provider === 'local' && !activeAiStreams.get(runId)) {
         try {
@@ -648,7 +550,7 @@ function setupIPC() {
             : { model: useModel, messages, temperature, max_tokens: maxTokens, stream: false };
           if (aiCfg.provider === 'local') fbBody.chat_template_kwargs = { enable_thinking: false };
           else if (aiCfg.provider === 'ollama') fbBody.think = false;
-          const fbResp = await net.fetch(fbUrl, { method: 'POST', headers, body: JSON.stringify(fbBody), signal: acSignal });
+          const fbResp = await net.fetch(fbUrl, { method: 'POST', headers, body: JSON.stringify(fbBody) });
           if (fbResp.ok) {
             const data = await fbResp.json();
             if (isGateway) {
@@ -685,8 +587,6 @@ function setupIPC() {
         await streamChatCompletion(event.sender, runId, { messages, model, temperature, maxTokens, tools, aiCfg });
       } catch (e) {
         try { event.sender.send('ai:stream', { runId, type: 'error', error: e.message || String(e) }); } catch (_) {}
-      } finally {
-        activeAiControllers.delete(runId);
       }
     })();
     return { success: true, runId };
@@ -694,11 +594,7 @@ function setupIPC() {
 
   // 取消流式对话
   ipcMain.handle('ai:chatCancel', (_, runId) => {
-    if (runId) {
-      activeAiStreams.set(runId, true);
-      const ctrl = activeAiControllers.get(runId);
-      if (ctrl) { try { ctrl.abort(); } catch (e) {} }
-    }
+    if (runId) activeAiStreams.set(runId, true);
     return { success: true };
   });
 
@@ -976,9 +872,9 @@ function setupIPC() {
   });
   
   // 执行命令（一次性执行）
-  ipcMain.handle('terminal:execute', async (_, command, cwd, timeout, opts) => {
+  ipcMain.handle('terminal:execute', async (_, command, cwd, timeout) => {
     try {
-      const result = await terminalService.executeCommand(command, cwd, timeout, opts);
+      const result = await terminalService.executeCommand(command, cwd, timeout);
       return result;
     } catch (e) {
       return { success: false, error: e.message };
