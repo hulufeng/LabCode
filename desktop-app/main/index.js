@@ -413,6 +413,113 @@ function setupIPC() {
     if (c) { try { c.proc.kill(); } catch (e) {} lspClients.delete(language); }
     return { success: true };
   });
+  // ============ DAP 调试器客户端（对齐 TrieCode 路线图：DAP 调试器与断点）============
+  const dapClients = new Map(); // sessionId -> { proc, pending, buf, seq, sender }
+  function dapSend(sessionId, msg) {
+    return new Promise((resolve) => {
+      const cli = dapClients.get(sessionId);
+      if (!cli) return resolve({ success: false, error: '调试会话不存在' });
+      msg.seq = cli.seq++;
+      cli.pending.set(msg.seq, resolve);
+      const body = JSON.stringify(msg);
+      try {
+        cli.proc.stdin.write('Content-Length: ' + Buffer.byteLength(body) + '\r\n\r\n' + body);
+      } catch (e) {
+        cli.pending.delete(msg.seq);
+        resolve({ success: false, error: e.message });
+      }
+      setTimeout(() => {
+        if (cli.pending.has(msg.seq)) { cli.pending.delete(msg.seq); resolve({ success: false, error: 'timeout' }); }
+      }, 30000);
+    });
+  }
+  ipcMain.handle('dap:start', async (_, { sessionId, dapPath, args, cwd, sender }) => {
+    try {
+      if (dapClients.has(sessionId)) return { success: true, alreadyRunning: true };
+      const proc = spawn(dapPath, args || [], { cwd: cwd || process.cwd(), stdio: ['pipe', 'pipe', 'pipe'] });
+      const cli = { proc, pending: new Map(), buf: '', seq: 1, sender: sender || null };
+      proc.on('error', (err) => {
+        cli.pending.forEach(r => r({ success: false, error: err.message }));
+        cli.pending.clear();
+        dapClients.delete(sessionId);
+        if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('dap:event', { sessionId, event: 'terminated', reason: err.message });
+      });
+      proc.stdout.on('data', (chunk) => {
+        cli.buf += chunk.toString('utf8');
+        while (true) {
+          const he = cli.buf.indexOf('\r\n\r\n');
+          if (he < 0) break;
+          const m = cli.buf.slice(0, he).match(/Content-Length:\s*(\d+)/i);
+          if (!m) { cli.buf = cli.buf.slice(he + 4); continue; }
+          const len = parseInt(m[1]);
+          const bs = he + 4;
+          if (cli.buf.length < bs + len) break;
+          const body = cli.buf.slice(bs, bs + len);
+          cli.buf = cli.buf.slice(bs + len);
+          try {
+            const msg = JSON.parse(body);
+            if (msg.type === 'response' && cli.pending.has(msg.request_seq)) {
+              const resolve = cli.pending.get(msg.request_seq);
+              cli.pending.delete(msg.request_seq);
+              resolve({ success: msg.success, body: msg });
+            } else if (msg.type === 'event') {
+              if (mainWindow && !mainWindow.isDestroyed()) {
+                mainWindow.webContents.send('dap:event', { sessionId, event: msg.event, body: msg.body || {} });
+              }
+            }
+          } catch (e) {}
+        }
+      });
+      proc.stderr.on('data', (d) => console.warn('[dap]', d.toString().slice(0, 200)));
+      proc.on('close', () => {
+        dapClients.delete(sessionId);
+        if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('dap:event', { sessionId, event: 'terminated' });
+      });
+      dapClients.set(sessionId, cli);
+      // DAP initialize
+      const initResp = await dapSend(sessionId, { type: 'request', command: 'initialize', arguments: {
+        adapterID: 'labcode', clientID: 'labcode', clientName: 'LabCode',
+        linesStartAt1: true, columnsStartAt1: true, pathFormat: 'path',
+        supportsRunInTerminalRequest: false, supportsVariableType: true,
+        supportsVariablePaging: false, supportsRunInTerminalRequest: false
+      }});
+      return { success: true, initialized: true, capabilities: initResp.body && initResp.body.body };
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
+  });
+  ipcMain.handle('dap:request', async (_, { sessionId, command, args }) => {
+    const r = await dapSend(sessionId, { type: 'request', command, arguments: args || {} });
+    return r;
+  });
+  ipcMain.handle('dap:stop', async (_, { sessionId }) => {
+    const cli = dapClients.get(sessionId);
+    if (cli) {
+      try { await dapSend(sessionId, { type: 'request', command: 'disconnect', arguments: {} }); } catch (e) {}
+      setTimeout(() => { try { cli.proc.kill(); } catch (e) {} }, 500);
+    }
+    dapClients.delete(sessionId);
+    return { success: true };
+  });
+  // 自动下载 debugpy（Python 调试适配器）
+  const DEBUGPY_DIR = path.join(TOOLS_DIR, 'debugpy');
+  const DEBUGPY_PY = path.join(DEBUGPY_DIR, 'venv', 'Scripts', 'python.exe');
+  ipcMain.handle('dap:ensureDebugpy', async () => {
+    if (fs.existsSync(DEBUGPY_PY)) return { success: true, path: DEBUGPY_PY, cached: true };
+    try {
+      fs.mkdirSync(DEBUGPY_DIR, { recursive: true });
+      await new Promise((resolve, reject) => {
+        execFile('python', ['-m', 'venv', DEBUGPY_DIR + '\\venv'], { timeout: 60000 }, (err) => err ? reject(err) : resolve());
+      });
+      const pip = DEBUGPY_PY;
+      await new Promise((resolve, reject) => {
+        execFile(pip, ['-m', 'pip', 'install', 'debugpy', '-q', '-i', 'https://pypi.tuna.tsinghua.edu.cn/simple'], { timeout: 120000 }, (err) => err ? reject(err) : resolve());
+      });
+      return { success: true, path: DEBUGPY_PY, cached: false };
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
+  });
 
   // ============ Git 鎿嶄綔 ============
   const { execFile: gitExec } = require('child_process');

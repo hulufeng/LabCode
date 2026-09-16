@@ -776,6 +776,7 @@
       <button class="bottom-tab" data-panel="serial">串口监视器</button>
       <button class="bottom-tab" data-panel="plotter">绘图仪</button>
       <button class="bottom-tab" data-panel="terminal">终端</button>
+      <button class="bottom-tab" data-panel="debug">调试</button>
     </div>
     <div class="bottom-content">
       <div class="bottom-panel-content" id="terminal-panel">
@@ -802,7 +803,34 @@
         </div>
       </div>
       <div class="bottom-panel-content" id="debug-panel">
-        <div class="debug-content">调试控制台</div>
+        <div style="display:flex;flex-direction:column;height:100%;">
+          <div style="display:flex;gap:4px;padding:6px 10px;border-bottom:1px solid var(--border-color);align-items:center;flex-wrap:wrap;">
+            <button id="dbg-start" class="btn btn-primary" style="font-size:11px;padding:3px 10px;" title="启动调试 (F5)">▶ 调试</button>
+            <button id="dbg-stop" class="btn btn-secondary" style="font-size:11px;padding:3px 10px;" title="停止">■ 停止</button>
+            <button id="dbg-continue" class="btn btn-secondary" style="font-size:11px;padding:3px 10px;" title="继续">▶| 继续</button>
+            <button id="dbg-next" class="btn btn-secondary" style="font-size:11px;padding:3px 10px;" title="单步跳过">↷ 跳过</button>
+            <button id="dbg-step-in" class="btn btn-secondary" style="font-size:11px;padding:3px 10px;" title="单步进入">↓ 进入</button>
+            <button id="dbg-step-out" class="btn btn-secondary" style="font-size:11px;padding:3px 10px;" title="单步跳出">↑ 跳出</button>
+            <span style="flex:1;"></span>
+            <select id="dbg-config" style="background:#1e1e1e;border:1px solid #3c3c3c;color:#ccc;padding:3px 6px;font-size:11px;">
+              <option value="python">Python (debugpy)</option>
+            </select>
+          </div>
+          <div style="display:flex;flex:1;overflow:hidden;">
+            <div style="flex:1;overflow:auto;border-right:1px solid var(--border-color);padding:4px 8px;">
+              <div style="font-size:11px;color:var(--text-secondary);margin-bottom:4px;">变量</div>
+              <div id="dbg-vars-list" style="font-size:12px;font-family:monospace;"></div>
+            </div>
+            <div style="flex:1;overflow:auto;padding:4px 8px;">
+              <div style="font-size:11px;color:var(--text-secondary);margin-bottom:4px;">调用栈</div>
+              <div id="dbg-stack-list" style="font-size:12px;font-family:monospace;"></div>
+            </div>
+          </div>
+          <div style="height:120px;border-top:1px solid var(--border-color);overflow:auto;padding:4px 8px;">
+            <div style="font-size:11px;color:var(--text-secondary);">调试控制台</div>
+            <div id="dbg-output" style="font-size:12px;font-family:monospace;white-space:pre-wrap;"></div>
+          </div>
+        </div>
       </div>
       <!-- 串口监视器面板 -->
       <div class="bottom-panel-content" id="serial-panel">

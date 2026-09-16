@@ -11448,3 +11448,143 @@ if (document.readyState === 'loading') {
     });
   }
 })();
+
+
+// ============ DAP 调试器（对齐 TrieCode 路线图：DAP 调试器与断点）============
+(function() {
+  const dbgState = { breakpoints: new Map(), sessionId: null, stoppedThreadId: null, currentFrameId: null };
+
+  function log(msg) {
+    const out = document.getElementById('dbg-output');
+    if (out) { out.textContent += msg + '\n'; out.scrollTop = out.scrollHeight; }
+  }
+
+  async function sendBreakpoints(filePath) {
+    if (!dbgState.sessionId) return;
+    const lines = dbgState.breakpoints.get(filePath) || new Set();
+    const path = (state.projectPath || '') + '\\' + filePath.replace(/\//g, '\\');
+    await window.LabCode.dap.request({
+      sessionId: dbgState.sessionId,
+      command: 'setBreakpoints',
+      args: {
+        source: { path: path },
+        breakpoints: Array.from(lines).map(l => ({ line: l }))
+      }
+    });
+  }
+
+  async function startDebug() {
+    if (dbgState.sessionId) { log('调试会话已在运行'); return; }
+    const config = document.getElementById('dbg-config');
+    const type = config ? config.value : 'python';
+    const currentFile = state.activeTab || '';
+    if (!currentFile) { showToast('请先打开一个文件', 'warn'); return; }
+    log('启动调试: ' + type);
+    try {
+      if (type === 'python') {
+        const r = await window.LabCode.dap.ensureDebugpy();
+        if (!r.success) { log('debugpy 安装失败: ' + r.error); return; }
+        const sessionId = 'dbg_' + Date.now();
+        dbgState.sessionId = sessionId;
+        const fullPath = (state.projectPath || '') + '\\' + currentFile.replace(/\//g, '\\');
+        const startR = await window.LabCode.dap.start({
+          sessionId, dapPath: r.path, args: ['-m', 'debugpy.adapter'], cwd: state.projectPath
+        });
+        if (!startR.success) { log('DAP 启动失败: ' + startR.error); return; }
+        log('DAP adapter 已连接');
+        window.LabCode.dap.onEvent(handleDapEvent);
+        await window.LabCode.dap.request({
+          sessionId, command: 'launch',
+          args: { name: 'LabCode Debug', type: 'python', request: 'launch', program: fullPath, cwd: state.projectPath, console: 'integratedTerminal', justMyCode: false }
+        });
+        await window.LabCode.dap.request({ sessionId, command: 'setExceptionBreakpoints', args: { filters: ['raised'] } });
+        for (const [fp] of dbgState.breakpoints) await sendBreakpoints(fp);
+        await window.LabCode.dap.request({ sessionId, command: 'configurationDone', args: {} });
+        log('调试已启动: ' + currentFile);
+        const tab = document.querySelector('.bottom-tab[data-panel="debug"]');
+        if (tab) tab.click();
+      }
+    } catch (e) { log('启动错误: ' + e.message); }
+  }
+
+  async function stopDebug() {
+    if (!dbgState.sessionId) return;
+    log('停止调试...');
+    await window.LabCode.dap.stop(dbgState.sessionId);
+    dbgState.sessionId = null;
+    dbgState.stoppedThreadId = null;
+    const v = document.getElementById('dbg-vars-list'); if (v) v.innerHTML = '';
+    const s = document.getElementById('dbg-stack-list'); if (s) s.innerHTML = '';
+  }
+
+  async function dapCommand(command) {
+    if (!dbgState.sessionId) return;
+    await window.LabCode.dap.request({
+      sessionId: dbgState.sessionId, command,
+      args: { threadId: dbgState.stoppedThreadId || 1 }
+    });
+  }
+
+  async function handleDapEvent(data) {
+    const { sessionId, event, body } = data;
+    if (event === 'stopped') {
+      dbgState.stoppedThreadId = body.threadId;
+      log('已暂停 (原因: ' + (body.reason || '') + ')');
+      const stk = await window.LabCode.dap.request({ sessionId, command: 'stackTrace', args: { threadId: body.threadId } });
+      if (stk.success && stk.body && stk.body.body) {
+        const frames = stk.body.body.stackFrames || [];
+        dbgState.currentFrameId = frames[0] ? frames[0].id : null;
+        document.getElementById('dbg-stack-list').innerHTML =
+          frames.map(f => '<div style="padding:1px 0;cursor:pointer;" onclick="selectFrame(' + f.id + ')">' +
+            '<span style="color:#888;">' + (f.line || '') + '</span> ' + (f.name || '?') + '</div>').join('');
+        await loadVariables(dbgState.currentFrameId);
+      }
+    } else if (event === 'continued') {
+      dbgState.stoppedThreadId = null;
+      const v = document.getElementById('dbg-vars-list'); if (v) v.innerHTML = '';
+      log('继续运行');
+    } else if (event === 'output') {
+      if (body.category === 'stderr') log('[stderr] ' + (body.output || ''));
+      else log(body.output || '');
+    } else if (event === 'terminated' || event === 'exited') {
+      log('调试会话结束');
+      dbgState.sessionId = null;
+      dbgState.stoppedThreadId = null;
+    }
+  }
+
+  async function loadVariables(frameId) {
+    if (!dbgState.sessionId || !frameId) return;
+    const scopes = await window.LabCode.dap.request({ sessionId: dbgState.sessionId, command: 'scopes', args: { frameId } });
+    if (!scopes.success) return;
+    let html = '';
+    for (const scope of (scopes.body.body.scopes || [])) {
+      html += '<div style="color:#888;margin-top:4px;">' + scope.name + '</div>';
+      const vars = await window.LabCode.dap.request({ sessionId: dbgState.sessionId, command: 'variables', args: { variablesReference: scope.variablesReference } });
+      if (vars.success) {
+        for (const v of (vars.body.body.variables || [])) {
+          html += '<div style="padding-left:8px;">' + v.name + ' = <span style="color:#4caf50;">' + (v.value || '') + '</span></div>';
+        }
+      }
+    }
+    document.getElementById('dbg-vars-list').innerHTML = html;
+  }
+
+  window.selectFrame = async (frameId) => { dbgState.currentFrameId = frameId; await loadVariables(frameId); };
+
+  document.addEventListener('DOMContentLoaded', () => {
+    const bind = (id, fn) => { const el = document.getElementById(id); if (el) el.addEventListener('click', fn); };
+    bind('dbg-start', startDebug);
+    bind('dbg-stop', stopDebug);
+    bind('dbg-continue', () => dapCommand('continue'));
+    bind('dbg-next', () => dapCommand('next'));
+    bind('dbg-step-in', () => dapCommand('stepIn'));
+    bind('dbg-step-out', () => dapCommand('stepOut'));
+  });
+  window.__dbg = { toggleBreakpoint: (fp, line) => {
+    if (!dbgState.breakpoints.has(fp)) dbgState.breakpoints.set(fp, new Set());
+    const lines = dbgState.breakpoints.get(fp);
+    if (lines.has(line)) lines.delete(line); else lines.add(line);
+    if (dbgState.sessionId) sendBreakpoints(fp);
+  }, state: dbgState };
+})();

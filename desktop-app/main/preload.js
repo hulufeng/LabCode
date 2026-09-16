@@ -146,6 +146,19 @@ contextBridge.exposeInMainWorld('LabCode', {
     discard: (cwd, paths) => ipcRenderer.invoke('git:discard', cwd, paths)
   },
 
+  // DAP 调试器
+  dap: {
+    start: (opts) => ipcRenderer.invoke('dap:start', opts),
+    request: (opts) => ipcRenderer.invoke('dap:request', opts),
+    stop: (sessionId) => ipcRenderer.invoke('dap:stop', { sessionId }),
+    ensureDebugpy: () => ipcRenderer.invoke('dap:ensureDebugpy'),
+    onEvent: (cb) => {
+      const handler = (_e, data) => cb(data);
+      ipcRenderer.on('dap:event', handler);
+      return () => ipcRenderer.removeListener('dap:event', handler);
+    }
+  },
+
   // 工具自动下载
   tools: {
     ensureClangd: () => ipcRenderer.invoke('tools:ensure-clangd')
