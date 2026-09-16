@@ -222,9 +222,9 @@ function createMenu() {
         { label: '鎵撳紑椤圭洰', accelerator: 'CmdOrCtrl+O', click: () => mainWindow?.webContents.send('menu:open-project') },
         { type: 'separator' },
         { label: '淇濆瓨', accelerator: 'CmdOrCtrl+S', click: () => mainWindow?.webContents.send('menu:save') },
-        { label: '鍙﹀瓨涓?, accelerator: 'CmdOrCtrl+Shift+S', click: () => mainWindow?.webContents.send('menu:save-as') },
+        { label: '另存为', accelerator: 'CmdOrCtrl+Shift+S', click: () => mainWindow?.webContents.send('menu:save-as') },
         { type: 'separator' },
-        { role: 'quit', label: '閫€鍑? }
+        { role: 'quit', label: '退出' }
       ]
     },
     {
@@ -236,7 +236,7 @@ function createMenu() {
         { role: 'cut', label: '鍓垏' },
         { role: 'copy', label: '澶嶅埗' },
         { role: 'paste', label: '绮樿创' },
-        { role: 'selectAll', label: '鍏ㄩ€? }
+        { role: 'selectAll', label: '全选' }
       ]
     },
     {
@@ -244,7 +244,7 @@ function createMenu() {
       submenu: [
         { role: 'reload', label: '閲嶆柊鍔犺浇' },
         { role: 'forceReload', label: '寮哄埗閲嶆柊鍔犺浇' },
-        { role: 'toggleDevTools', label: '寮€鍙戣€呭伐鍏? },
+        { role: 'toggleDevTools', label: '开发者工具' },
         { type: 'separator' },
         { role: 'resetZoom', label: '閲嶇疆缂╂斁' },
         { role: 'zoomIn', label: '鏀惧ぇ' },
@@ -397,13 +397,13 @@ function setupIPC() {
   });
   ipcMain.handle('lsp:request', async (_, { language, method, params }) => {
     const client = lspClients.get(language);
-    if (!client) return { success: false, error: 'LSP 鏈惎鍔? };
+    if (!client) return { success: false, error: 'LSP not started' };
     const r = await lspSend(client, { jsonrpc: '2.0', method, params: params || {} });
     return { success: true, result: r.result, error: r.error };
   });
   ipcMain.handle('lsp:notify', async (_, { language, method, params }) => {
     const client = lspClients.get(language);
-    if (!client) return { success: false, error: 'LSP 鏈惎鍔? };
+    if (!client) return { success: false, error: 'LSP not started' };
     const body = JSON.stringify({ jsonrpc: '2.0', method, params: params || {} });
     client.proc.stdin.write(`Content-Length: ${Buffer.byteLength(body)}\r\n\r\n${body}`);
     return { success: true };
@@ -653,7 +653,7 @@ function setupIPC() {
         console.log('[clangd] trying', url);
         await downloadFile(url, zipPath);
         const sz = fs.statSync(zipPath).size;
-        if (sz < 1000000) throw new Error('涓嬭浇鏂囦欢澶皬 (' + sz + ' bytes)锛屽彲鑳芥槸閿欒椤?);
+        if (sz < 1000000) throw new Error('download too small (' + sz + ' bytes), likely error page');
         await extractZip(zipPath, CLANGD_DIR);
         // clangd zip 瑙ｅ帇鍚庢槸 clangd_18.1.8/bin/clangd.exe锛岄渶瑕侀摵骞?
         const subDir = fs.readdirSync(CLANGD_DIR).find(f => f.startsWith('clangd'));
@@ -742,7 +742,7 @@ function setupIPC() {
       // ===== 缃戝叧妯″紡锛堢櫥褰曡处鍙?鈫?鍐呯疆妯″瀷姹?鈫?鎵ｇН鍒嗭級=====
       if (aiCfg.provider === 'gateway') {
         const gwToken = aiCfg.gatewayToken || '';
-        if (!gwToken) return { success: false, error: '鏈櫥褰曠綉鍏宠处鍙凤紝璇峰湪璁剧疆涓櫥褰? };
+    if (!gwToken) return { success: false, error: 'not logged in, please login in settings' };
         const gwUrl = baseURL.replace(/\/$/, '') + '/api/chat';
         const gwResp = await net.fetch(gwUrl, {
           method: 'POST',
@@ -848,7 +848,7 @@ function setupIPC() {
     // 鏍瑰洜锛歲wen3.5:9b 鍦?ollama 涓嬫湁 ~4096 token 鐢熸垚纭檺鍒?+ 闀夸笂涓嬫枃涓嬭緭鍑虹┖锛坱hink=true/false 鍧囩┖锛夛紝
     // 鏃犳硶鑷剤缂栬瘧閿欒銆俼wen2.5-coder:7b 鏄笓鐢ㄧ紪鐮佹ā鍨嬶紝宸查獙璇佽兘杈撳嚭瀹屾暣浠ｇ爜骞剁紪璇戦€氳繃銆?
     const _lastUserMsg = messages.filter(m => m.role === 'user').pop();
-    const _isFixTurn = !!(aiCfg.provider === 'ollama' && _lastUserMsg && /缂栬瘧澶辫触|淇浠ｇ爜|浠嶇劧澶辫触|缂栬瘧閿欒|浠ｇ爜涓嶅畬鏁磡琚埅鏂?.test(_lastUserMsg.content || ''));
+    const _isFixTurn = !!(aiCfg.provider === 'ollama' && _lastUserMsg && /翻译失败|修复代码|仍然失败|编译错误|代码不完整|被截断/.test(_lastUserMsg.content || ''));
     if (_isFixTurn) {
       useModel = 'qwen2.5-coder:7b';
       console.warn('[chatStream] 淇杞嚜鍔ㄥ垏鎹㈠埌 qwen2.5-coder:7b锛?b 闀夸笂涓嬫枃杈撳嚭绌猴級');
@@ -864,7 +864,7 @@ function setupIPC() {
     const headers = { 'Content-Type': 'application/json' };
     if (isGateway) {
       const gwToken = aiCfg.gatewayToken || '';
-      if (!gwToken) throw new Error('鏈櫥褰曠綉鍏宠处鍙凤紝璇峰湪璁剧疆涓櫥褰?);
+    if (!gwToken) throw new Error('not logged in, please login in settings');
       headers['Authorization'] = 'Bearer ' + gwToken;
     } else if (apiKey) {
       headers['Authorization'] = 'Bearer ' + apiKey;
@@ -932,7 +932,7 @@ function setupIPC() {
           continue;
         }
         if (evt._event === 'error') {
-          send('error', { error: evt.error || '缃戝叧娴侀敊璇? });
+          send('error', { error: evt.error || '网关错误' });
           continue;
         }
         if (evt.usage) lastUsage = evt.usage;
@@ -971,7 +971,7 @@ function setupIPC() {
       // ===== 鏈湴鎬濊€冩祦闄嶇骇锛氭€濊€冭繃闀垮崰婊?max_tokens 鈫?姝ｆ枃涓虹┖ 鈫?鍏抽棴鎬濊€冮噸璇曚竴娆?=====
       // 2026-09-14锛氭墿灞曞埌 ollama锛圦wen3.5-9B 绛夋€濊€冩ā鍨嬪悓鏍蜂細鎬濊€冨崰婊￠绠楀鑷存鏂囨埅鏂?绌鸿緭鍑猴級
       if ((aiCfg.provider === 'local' || aiCfg.provider === 'ollama') && enableThinking !== false && !String(fullText || '').trim()) {
-        console.warn('[streamChat] 鏈湴鎬濊€冩祦鏈骇鍑烘鏂囷紙鎬濊€冨崰婊￠绠楋級锛屽叧闂€濊€冮噸璇?);
+      console.warn('[streamChat] local thinking stream produced no text, retry without thinking');
         return doStreamOnce(false);
       }
 
@@ -995,7 +995,7 @@ function setupIPC() {
       const continueMessages = [
         ...messages,
         { role: 'assistant', content: prevContent },
-        { role: 'user', content: '璇风洿鎺ョ户缁緭鍑哄墿浣欎唬鐮侊紝缁濆涓嶈杈撳嚭 ``` 闂悎鏍囪锛屼笉瑕侀噸澶嶅凡杈撳嚭鍐呭锛屼笉瑕佸啓瑙ｉ噴鏂囧瓧锛岀洿鍒版墍鏈夊嚱鏁板拰閫昏緫瀹屾暣銆佽姳鎷彿鍏ㄩ儴闂悎銆? }
+      { role: 'user', content: 'continue outputting remaining code directly, do not output ``` closing markers, do not repeat output, do not write explanations, until all functions and logic are complete and all braces are closed' }
       ];
       const b = Object.assign({}, bodyObj, { messages: continueMessages });
       if (aiCfg.provider === 'local') b.chat_template_kwargs = { enable_thinking: false };
@@ -1032,7 +1032,7 @@ function setupIPC() {
             _log(`缁啓绗?${i + 1} 娆″畬鎴? 缁帴 len=${cont.content.length}, finish=${cont.finishReason}`);
             result.content += cont.content;
             result.finishReason = cont.finishReason;
-            if (!hasUnclosedCodeBlock(result.content)) { _log('浠ｇ爜鍧楀凡闂悎锛屽仠姝㈢画鍐?); break; }
+      if (!hasUnclosedCodeBlock(result.content)) { _log('code block closed, stop continuing'); break; }
           } catch (ce) {
             _log(`缁啓澶辫触: ${ce.message}`);
             console.warn('[streamChat] 缁啓澶辫触:', ce.message);
@@ -1189,7 +1189,7 @@ function setupIPC() {
       }
       if (action === 'me') {
         const token = (config.ai || {}).gatewayToken || '';
-        if (!token) return { success: false, error: '鏈櫥褰? };
+    if (!token) return { success: false, error: 'not logged in' };
         const res = await net.fetch(`${gwBase}/api/me`, { headers: { Authorization: 'Bearer ' + token } });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) return { success: false, error: data.error || `缃戝叧杩斿洖 ${res.status}` };
@@ -1220,7 +1220,7 @@ function setupIPC() {
     const result = await dialog.showOpenDialog(mainWindow, {
       properties: ['openFile'],
       filters: [
-        { name: '鎵€鏈夋枃浠?, extensions: ['*'] },
+        { name: '所有文件', extensions: ['*'] },
         { name: '浠ｇ爜鏂囦欢', extensions: ['js', 'ts', 'py', 'cpp', 'c', 'ino', 'rs', 'go', 'java'] }
       ]
     });
@@ -1516,7 +1516,7 @@ function setupIPC() {
       cliExists,
       version,
       platforms,
-      error: cliExists ? (platforms.length ? '' : '鏃犲凡瀹夎骞冲彴') : 'arduino-cli 鏈畨瑁?
+    error: cliExists ? (platforms.length ? '' : 'no platforms installed') : 'arduino-cli not installed'
     };
   });
 
@@ -1659,7 +1659,7 @@ function setupIPC() {
   ipcMain.handle('compile:arduino', async (_, options) => {
     const { sketchPath, fqbn, outputDir } = options || {};
     if (!sketchPath) return { success: false, error: '缂哄皯 sketchPath' };
-    if (!fqbn) return { success: false, error: '缂哄皯 fqbn锛堝紑鍙戞澘鍨嬪彿锛? };
+    if (!fqbn) return { success: false, error: '缺少 fqbn（开发板型号）' };
     const norm = normalizeSketchDir(sketchPath);
     const args = ['compile', '--fqbn', fqbn];
     if (outputDir) args.push('--output-dir', outputDir);
@@ -1673,7 +1673,7 @@ function setupIPC() {
     const { sketchPath, fqbn, port } = options || {};
     if (!sketchPath) return { success: false, error: '缂哄皯 sketchPath' };
     if (!fqbn) return { success: false, error: '缂哄皯 fqbn' };
-    if (!port) return { success: false, error: '缂哄皯涓插彛锛坧ort锛? };
+    if (!port) return { success: false, error: '缺少端口（port）' };
     const norm = normalizeSketchDir(sketchPath);
     const args = ['upload', '--fqbn', fqbn, '--port', port, norm.target];
     const result = await runArduinoCli(args, path.dirname(norm.target));
@@ -1727,7 +1727,7 @@ function setupIPC() {
   ipcMain.handle('serial:open', async (_, options) => {
     const { port, baud } = options || {};
     if (!port) return { success: false, error: '缂哄皯涓插彛' };
-    if (!fs.existsSync(ARDUINO_CLI)) return { success: false, error: 'arduino-cli 鏈畨瑁? };
+    if (!fs.existsSync(ARDUINO_CLI)) return { success: false, error: 'arduino-cli not installed' };
     // 鍏抽棴鏃т覆鍙?
     if (serialMonitorProc) {
       try { serialMonitorProc.kill(); } catch (e) {}
@@ -1816,7 +1816,7 @@ function setupIPC() {
     ];
     const matches = serialLogBuffer.filter(e => patterns.some(p => p instanceof RegExp ? p.test(e.line) : new RegExp(p).test(e.line)));
     if (!matches.length) return { success: true, diagnosis: '鏈娴嬪埌宕╂簝绛惧悕' };
-    return { success: true, lines: matches.map(m => m.line), diagnosis: '妫€娴嬪埌 ' + matches.length + ' 琛屽穿婧冪浉鍏虫棩蹇? };
+    return { success: true, lines: matches.map(m => m.line), diagnosis: '检测到 ' + matches.length + ' 行崩溃相关日志' };
   });
 
   // 澶栭儴閾炬帴
@@ -2073,7 +2073,7 @@ function setupIPC() {
           const verFile = path.join(engineDir, '..', '..', 'llama-version.txt');
           if (fs.existsSync(verFile)) result.engineVersion = fs.readFileSync(verFile, 'utf8').trim();
         } catch (e) {}
-        if (!result.engineVersion) result.engineVersion = '鍐呯疆寮曟搸锛坙lama.cpp锛?;
+        if (!result.engineVersion) result.engineVersion = '内置引擎（llama.cpp）';
       }
       result.engineRunning = await isEngineRunning();
       result.models = scanLocalModels();
@@ -2130,7 +2130,7 @@ function setupIPC() {
           return { success: true, model: path.basename(modelPath), url: 'http://127.0.0.1:8080/v1' };
         }
       }
-      return { success: false, error: '寮曟搸鍚姩瓒呮椂锛堟ā鍨嬪姞杞界紦鎱㈡垨鏄惧瓨涓嶈冻锛? };
+    return { success: false, error: 'engine start timeout (model loading slow or out of memory)' };
     } catch (e) {
       return { success: false, error: '鍚姩寮曟搸澶辫触: ' + (e.message || String(e)) };
     }
@@ -2257,7 +2257,7 @@ app.whenReady().then(() => {
   // 鍚姩宸查厤缃殑 MCP 鏈嶅姟鍣紙stdio锛?
   try {
     require('./mcp').getMcpService().startAll();
-    console.log('馃З MCP 鏈嶅姟鍣ㄦ鏌ュ畬鎴?);
+    console.log('[MCP] server check complete');
   } catch (e) {
     console.error('MCP 鍚姩澶辫触:', e.message);
   }

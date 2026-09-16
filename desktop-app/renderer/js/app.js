@@ -3266,14 +3266,14 @@ class SkillManager {
       { id: 'port', label: '端口', value: state.arduinoPort || '未选择', kind: 'select' },
       { id: 'sketch', label: '当前 Sketch', value: state.activeTab || '无', kind: 'readonly' }
     ];
-  },
+  }
   async loadDeviceOptions(itemId) {
     if (itemId === 'port') {
       const r = await getToolDef('plugin_arduino-cli-toolchain_list_ports')?.execute({});
       return r || '无端口';
     }
     return '';
-  },
+  }
   async setDeviceOption(itemId, value) {
     if (itemId === 'board') state.arduinoFqbn = value;
     if (itemId === 'port') state.arduinoPort = value;
@@ -3542,15 +3542,24 @@ class RealAIClient {
     }
     // 自学习技能注入（借鉴 Hermes Agent）
     try {
-      const cfg = await window.LabCode.config.get();
-      const cs = (cfg && cfg.customSkills) || {};
+      const cs = (typeof _customSkillsCache !== 'undefined' && _customSkillsCache) || {};
       const csKeys = Object.keys(cs);
       if (csKeys.length) {
         skillsSection += '\n## 我的自定义技能（用户保存的经验）\n' + csKeys.map(k =>
-          `### ${cs[k].name}\n${cs[k].description || ''}\n${cs[k].prompt}`
+          '### ' + cs[k].name + '\n' + (cs[k].description || '') + '\n' + (cs[k].prompt || '')
         ).join('\n\n') + '\n';
       }
     } catch (e) {}
+
+
+
+
+
+
+
+
+
+
 
     // 长期记忆注入（跨会话）
     let memorySection = '';
