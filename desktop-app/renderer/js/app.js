@@ -3540,6 +3540,17 @@ class RealAIClient {
         ).join('\n\n') + '\n';
       }
     }
+    // 自学习技能注入（借鉴 Hermes Agent）
+    try {
+      const cfg = await window.LabCode.config.get();
+      const cs = (cfg && cfg.customSkills) || {};
+      const csKeys = Object.keys(cs);
+      if (csKeys.length) {
+        skillsSection += '\n## 我的自定义技能（用户保存的经验）\n' + csKeys.map(k =>
+          `### ${cs[k].name}\n${cs[k].description || ''}\n${cs[k].prompt}`
+        ).join('\n\n') + '\n';
+      }
+    } catch (e) {}
 
     // 长期记忆注入（跨会话）
     let memorySection = '';
@@ -11745,4 +11756,66 @@ if (document.readyState === 'loading') {
       });
     } catch (e) { console.warn('welcome check failed', e); }
   });
+})();
+
+
+// ============ Hermes 借鉴：检查点回滚 + 自学习技能 + 增强记忆 ============
+(function() {
+  // ---- /rollback 命令 ----
+  async function handleRollback() {
+    const list = await window.LabCode.checkpoint.list();
+    if (!list.length) { showToast('没有可用的检查点', 'warn'); return; }
+    // 显示最近 10 个
+    const msg = list.slice(0, 10).map((cp, i) =>
+      (i + 1) + '. ' + new Date(cp.timestamp).toLocaleString() + ' ' + cp.filePath
+    ).join('\n');
+    const choice = prompt('回滚到哪个检查点？输入序号：\n' + msg);
+    if (!choice) return;
+    const idx = parseInt(choice) - 1;
+    if (idx < 0 || idx >= list.length) { showToast('无效选择', 'error'); return; }
+    const r = await window.LabCode.checkpoint.rollback(list[idx].file);
+    if (r.success) showToast('已回滚: ' + r.filePath, 'success');
+    else showToast('回滚失败: ' + r.error, 'error');
+  }
+
+  // ---- 自学习技能 ----
+  // agent 完成复杂任务后，自动问用户要不要保存为 skill
+  async function maybeLearnSkill(userMessage, toolCalls) {
+    // 只有完成了多步工具调用的任务才考虑保存
+    if (!toolCalls || toolCalls.length < 3) return;
+    // 问用户
+    const save = confirm('这个任务用了 ' + toolCalls.length + ' 步工具调用。\n要保存为可复用技能吗？（下次类似任务自动使用）');
+    if (!save) return;
+    const name = prompt('技能名称（简短英文，如 build_esp32）：');
+    if (!name) return;
+    const desc = prompt('技能描述：') || userMessage.slice(0, 100);
+    // 保存到本地 skills 目录
+    try {
+      await window.LabCode.config.set({
+        customSkills: {
+          [name]: { name, description: desc, prompt: userMessage, tools: toolCalls.map(t => t.name), createdAt: Date.now() }
+        }
+      });
+      showToast('技能已保存: ' + name, 'success');
+    } catch (e) { showToast('保存失败: ' + e.message, 'error'); }
+  }
+
+  // 拦截聊天输入，检查 /rollback
+  const origSend = window.__sendChat;
+  // 不拦截，而是在输入框加监听
+  document.addEventListener('DOMContentLoaded', () => {
+    const input = document.getElementById('chat-input') || document.querySelector('input[placeholder*="问"]');
+    if (input) {
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && input.value.trim() === '/rollback') {
+          e.preventDefault();
+          input.value = '';
+          handleRollback();
+        }
+      });
+    }
+  });
+
+  // 暴露给 agent loop
+  window.__hermes = { maybeLearnSkill };
 })();

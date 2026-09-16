@@ -146,6 +146,13 @@ contextBridge.exposeInMainWorld('LabCode', {
     discard: (cwd, paths) => ipcRenderer.invoke('git:discard', cwd, paths)
   },
 
+  // 文件检查点 + 回滚
+  checkpoint: {
+    list: () => ipcRenderer.invoke('checkpoint:list'),
+    rollback: (cpFile) => ipcRenderer.invoke('checkpoint:rollback', cpFile),
+    clearOld: (keep) => ipcRenderer.invoke('checkpoint:clearOld', keep)
+  },
+
   // Ollama 管理
   ollama: {
     status: () => ipcRenderer.invoke('ollama:status'),

@@ -671,6 +671,49 @@ function setupIPC() {
   });
 
   // ============ AI 瀵硅瘽锛圤penAI 鍏煎 API锛欴eepSeek / 鏈湴 llama 寮曟搸 / Ollama / 鑷畾涔夛級============
+
+  // ============ 文件系统检查点 + 回滚（借鉴 Hermes Agent）============
+  const CHECKPOINT_DIR = path.join(USER_DATA_PATH, 'checkpoints');
+  function ensureCheckpointDir() { fs.mkdirSync(CHECKPOINT_DIR, { recursive: true }); }
+  function snapshotFile(filePath) {
+    if (!fs.existsSync(filePath)) return null;
+    ensureCheckpointDir();
+    const ts = Date.now();
+    const hash = require('crypto').createHash('md5').update(filePath).digest('hex').slice(0, 8);
+    const cpPath = path.join(CHECKPOINT_DIR, ts + '_' + hash + '.json');
+    const content = fs.readFileSync(filePath, 'utf8');
+    fs.writeFileSync(cpPath, JSON.stringify({ filePath, content, timestamp: ts }), 'utf8');
+    return cpPath;
+  }
+  ipcMain.handle('checkpoint:list', () => {
+    if (!fs.existsSync(CHECKPOINT_DIR)) return [];
+    return fs.readdirSync(CHECKPOINT_DIR).filter(f => f.endsWith('.json')).map(f => {
+      try {
+        const d = JSON.parse(fs.readFileSync(path.join(CHECKPOINT_DIR, f), 'utf8'));
+        return { file: f, filePath: d.filePath, timestamp: d.timestamp };
+      } catch (e) { return null; }
+    }).filter(Boolean).sort((a, b) => b.timestamp - a.timestamp).slice(0, 50);
+  });
+  ipcMain.handle('checkpoint:rollback', (_, cpFile) => {
+    try {
+      const p = path.join(CHECKPOINT_DIR, cpFile);
+      if (!fs.existsSync(p)) return { success: false, error: '检查点不存在' };
+      const d = JSON.parse(fs.readFileSync(p, 'utf8'));
+      if (!fs.existsSync(path.dirname(d.filePath))) fs.mkdirSync(path.dirname(d.filePath), { recursive: true });
+      fs.writeFileSync(d.filePath, d.content, 'utf8');
+      return { success: true, filePath: d.filePath, timestamp: d.timestamp };
+    } catch (e) { return { success: false, error: e.message }; }
+  });
+  ipcMain.handle('checkpoint:clearOld', (_, keep) => {
+    keep = keep || 50;
+    if (!fs.existsSync(CHECKPOINT_DIR)) return { success: true };
+    const files = fs.readdirSync(CHECKPOINT_DIR).filter(f => f.endsWith('.json'));
+    files.sort();
+    const toDelete = files.slice(0, Math.max(0, files.length - keep));
+    toDelete.forEach(f => { try { fs.unlinkSync(path.join(CHECKPOINT_DIR, f)); } catch (e) {} });
+    return { success: true, deleted: toDelete.length };
+  });
+
   const AI_PROVIDERS = {
     deepseek: { baseURL: 'https://api.deepseek.com/v1', defaultModel: 'deepseek-chat' },
     gateway:  { baseURL: process.env.GATEWAY_URL || 'https://bluebubai.work', defaultModel: 'deepseek-flash' },
@@ -1231,6 +1274,8 @@ function setupIPC() {
   ipcMain.handle('fs:writeFile', (_, filePath, content) => {
     try {
       ensureDir(path.dirname(filePath));
+      // 自动快照（agent 修改前备份）
+      try { snapshotFile(filePath); } catch (e) {}
       fs.writeFileSync(filePath, content, 'utf-8');
       return { success: true };
     } catch (e) {
