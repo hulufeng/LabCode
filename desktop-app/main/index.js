@@ -461,6 +461,43 @@ function setupIPC() {
     const r = await runGit(cwd, ['pull']);
     return { success: r.ok, stdout: r.stdout, error: r.stderr };
   });
+  // ===== Git 图形面板：diff / branch（对齐 TrieCode 路线图第一项）=====
+  ipcMain.handle('git:diff', async (_, cwd, filePath) => {
+    const args = ['diff', '--unified=3'];
+    if (filePath) args.push('--', filePath);
+    const r = await runGit(cwd, args);
+    return { success: r.ok, diff: r.stdout || '(无变更)', error: r.stderr };
+  });
+  ipcMain.handle('git:branches', async (_, cwd) => {
+    const r = await runGit(cwd, ['branch', '--list', '--format=%(refname:short)|%(objectname:short)|%(subject)|%(committerdate:relative)']);
+    if (!r.ok) return { success: false, branches: [], error: r.stderr };
+    const branches = r.stdout.split('\n').filter(Boolean).map(l => {
+      const [name, hash, ...rest] = l.split('|');
+      return { name, hash, subject: rest.slice(0, -1).join('|'), lastCommit: rest[rest.length - 1] || '' };
+    });
+    // 当前分支
+    const cur = await runGit(cwd, ['branch', '--show-current']);
+    const current = cur.stdout.trim();
+    return { success: true, branches, current };
+  });
+  ipcMain.handle('git:checkout', async (_, cwd, branchName) => {
+    const r = await runGit(cwd, ['checkout', branchName]);
+    return { success: r.ok, error: r.stderr };
+  });
+  ipcMain.handle('git:createBranch', async (_, cwd, branchName) => {
+    const r = await runGit(cwd, ['checkout', '-b', branchName]);
+    return { success: r.ok, error: r.stderr };
+  });
+  ipcMain.handle('git:unstage', async (_, cwd, paths) => {
+    const args = ['reset', 'HEAD', ...(Array.isArray(paths) ? paths : [paths])];
+    const r = await runGit(cwd, args);
+    return { success: r.ok, error: r.stderr };
+  });
+  ipcMain.handle('git:discard', async (_, cwd, paths) => {
+    const args = ['checkout', '--', ...(Array.isArray(paths) ? paths : [paths])];
+    const r = await runGit(cwd, args);
+    return { success: r.ok, error: r.stderr };
+  });
 
   // ============ 宸ュ叿鑷姩涓嬭浇锛坈langd 绛夛紝涓嶆墦鍖呰繘瀹夎鍖咃紝棣栨鐢ㄦ椂鎷夛級============
   const TOOLS_DIR = path.join(app.getPath('userData'), 'tools');
@@ -498,9 +535,9 @@ function setupIPC() {
   ipcMain.handle('tools:ensure-clangd', async () => {
     if (fs.existsSync(CLANGD_EXE)) return { success: true, path: CLANGD_EXE, cached: true };
     const mirrors = [
-      'https://github.com/llvm/llvm-project/releases/download/llvmorg-18.1.8/clangd-18.1.8-windows-x86_64.zip',
-      'https://ghproxy.net/https://github.com/llvm/llvm-project/releases/download/llvmorg-18.1.8/clangd-18.1.8-windows-x86_64.zip',
-      'https://mirror.ghproxy.com/https://github.com/llvm/llvm-project/releases/download/llvmorg-18.1.8/clangd-18.1.8-windows-x86_64.zip'
+      'https://github.com/clangd/clangd/releases/download/22.1.6/clangd-windows-22.1.6.zip',
+      'https://ghproxy.net/https://github.com/clangd/clangd/releases/download/22.1.6/clangd-windows-22.1.6.zip',
+      'https://mirror.ghproxy.com/https://github.com/clangd/clangd/releases/download/22.1.6/clangd-windows-22.1.6.zip'
     ];
     const zipPath = path.join(TOOLS_DIR, 'clangd.zip');
     let lastErr = null;

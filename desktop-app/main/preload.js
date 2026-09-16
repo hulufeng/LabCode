@@ -137,7 +137,13 @@ contextBridge.exposeInMainWorld('LabCode', {
     commit: (cwd, msg) => ipcRenderer.invoke('git:commit', cwd, msg),
     log: (cwd, n) => ipcRenderer.invoke('git:log', cwd, n),
     push: (cwd) => ipcRenderer.invoke('git:push', cwd),
-    pull: (cwd) => ipcRenderer.invoke('git:pull', cwd)
+    pull: (cwd) => ipcRenderer.invoke('git:pull', cwd),
+    diff: (cwd, filePath) => ipcRenderer.invoke('git:diff', cwd, filePath),
+    branches: (cwd) => ipcRenderer.invoke('git:branches', cwd),
+    checkout: (cwd, branch) => ipcRenderer.invoke('git:checkout', cwd, branch),
+    createBranch: (cwd, branch) => ipcRenderer.invoke('git:createBranch', cwd, branch),
+    unstage: (cwd, paths) => ipcRenderer.invoke('git:unstage', cwd, paths),
+    discard: (cwd, paths) => ipcRenderer.invoke('git:discard', cwd, paths)
   },
 
   // 工具自动下载

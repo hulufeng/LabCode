@@ -10069,21 +10069,82 @@ function bindEvents() {
     if (!cwd || !window.LabCode.git) { if (statusEl) statusEl.textContent = '未选择项目'; return; }
     const r = await window.LabCode.git.status(cwd);
     if (!r.success) { if (statusEl) statusEl.textContent = '不是 git 仓库'; if (filesEl) filesEl.innerHTML = ''; return; }
-    if (statusEl) statusEl.textContent = '分支: ' + r.branch;
+
+    // 分支选择器
+    let branchHtml = '';
+    try {
+      const br = await window.LabCode.git.branches(cwd);
+      if (br.success) {
+        branchHtml = '<div style="padding:4px 8px;margin:4px 0;background:#2d2d2d;border-radius:4px;">' +
+          '<select id="git-branch-select" style="width:100%;background:#1e1e1e;border:1px solid #3c3c3c;color:#ccc;padding:4px;border-radius:3px;font-size:12px;">' +
+          br.branches.map(b => '<option value="' + b.name + '"' + (b.name === br.current ? ' selected' : '') + '>' + (b.name === br.current ? '● ' : '') + b.name + '</option>').join('') +
+          '</select></div>';
+      }
+    } catch (e) {}
+
+    if (statusEl) statusEl.innerHTML = '分支: <b>' + r.branch + '</b>';
     if (filesEl) {
-      if (!r.files.length) { filesEl.innerHTML = '<p style="color:#4caf50;font-size:12px;padding:8px;">无变更</p>'; }
-      else {
-        filesEl.innerHTML = r.files.map(f => {
-          const color = f.status === 'M' ? '#ff9800' : f.status === 'A' ? '#4caf50' : f.status === 'D' ? '#f44' : '#ccc';
-          return `<div style="padding:3px 8px;font-size:12px;cursor:pointer;" onclick="gitStageFile('${f.path.replace(/'/g, "\\'")}')" title="点击暂存"><span style="color:${color};font-weight:bold;">${f.status}</span> ${f.path}</div>`;
-        }).join('');
+      if (!r.files.length) {
+        filesEl.innerHTML = branchHtml + '<p style="color:#4caf50;font-size:12px;padding:8px;">无变更</p>';
+      } else {
+        const staged = r.files.filter(f => f.status[0] !== ' ' && f.status[0] !== '?');
+        const unstaged = r.files.filter(f => f.status[0] === ' ' || f.status[0] === '?');
+        let html = branchHtml;
+        if (staged.length) {
+          html += '<div style="padding:4px 8px;font-size:11px;color:#888;">已暂存</div>';
+          html += staged.map(f => {
+            const color = f.status[0] === 'M' ? '#ff9800' : f.status[0] === 'A' ? '#4caf50' : f.status[0] === 'D' ? '#f44' : '#ccc';
+            return '<div style="padding:3px 8px;font-size:12px;display:flex;justify-content:space-between;cursor:pointer;" onmouseover="this.style.background=\'#3c3c3c\'" onmouseout="this.style.background=\'transparent\'">' +
+              '<span><span style="color:' + color + ';font-weight:bold;">' + f.status[0] + '</span> ' + f.path + '</span>' +
+              '<span style="color:#666;" onclick="event.stopPropagation();gitUnstageFile(\'' + f.path.replace(/\\/g, '\\\\').replace(/'/g, "\\'") + '\')" title="取消暂存">↩</span></div>';
+          }).join('');
+        }
+        if (unstaged.length) {
+          html += '<div style="padding:4px 8px;font-size:11px;color:#888;">未暂存</div>';
+          html += unstaged.map(f => {
+            const color = f.status[1] === 'M' ? '#ff9800' : f.status[1] === 'A' ? '#4caf50' : f.status[1] === 'D' ? '#f44' : '#ccc';
+            return '<div style="padding:3px 8px;font-size:12px;display:flex;justify-content:space-between;cursor:pointer;" onclick="gitShowDiff(\'' + f.path.replace(/\\/g, '\\\\').replace(/'/g, "\\'") + '\')" onmouseover="this.style.background=\'#3c3c3c\'" onmouseout="this.style.background=\'transparent\'" title="点击查看 diff">' +
+              '<span><span style="color:' + color + ';font-weight:bold;">' + f.status[1] + '</span> ' + f.path + '</span>' +
+              '<span style="color:#666;" onclick="event.stopPropagation();gitStageFile(\'' + f.path.replace(/\\/g, '\\\\').replace(/'/g, "\\'") + '\')" title="暂存">+</span></div>';
+          }).join('');
+        }
+        filesEl.innerHTML = html;
       }
     }
+    setTimeout(() => {
+      const sel = document.getElementById('git-branch-select');
+      if (sel) sel.onchange = async () => {
+        const r2 = await window.LabCode.git.checkout(cwd, sel.value);
+        if (r2.success) { showToast('切换到 ' + sel.value, 'success'); refreshGitStatus(); }
+        else showToast('切换失败: ' + (r2.error || ''), 'error');
+      };
+    }, 50);
   }
   window.gitStageFile = async (path) => {
     await window.LabCode.git.add(state.projectPath, [path]);
     refreshGitStatus();
   };
+  window.gitUnstageFile = async (path) => {
+    await window.LabCode.git.unstage(state.projectPath, [path]);
+    refreshGitStatus();
+  };
+  window.gitShowDiff = async (path) => {
+    const r = await window.LabCode.git.diff(state.projectPath, path);
+    if (!r.success) { showToast('diff 获取失败', 'error'); return; }
+    const out = document.getElementById('output-content') || document.querySelector('.bottom-panel-content.active');
+    if (out) {
+      const lines = (r.diff || '').split('\n');
+      const html = lines.map(l => {
+        if (l.startsWith('+') && !l.startsWith('+++')) return '<div style="color:#4caf50;background:#1a3a1a;">' + escapeHtml(l) + '</div>';
+        if (l.startsWith('-') && !l.startsWith('---')) return '<div style="color:#f44;background:#3a1a1a;">' + escapeHtml(l) + '</div>';
+        if (l.startsWith('@@')) return '<div style="color:#888;">' + escapeHtml(l) + '</div>';
+        return '<div>' + escapeHtml(l) + '</div>';
+      }).join('');
+      out.innerHTML = '<div style="font-family:monospace;font-size:11px;line-height:1.4;">' + html + '</div>';
+    }
+    showToast('已显示 ' + path + ' 的 diff', 'info');
+  };
+  function escapeHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
   const gitRefreshBtn = document.getElementById('git-refresh');
   if (gitRefreshBtn) gitRefreshBtn.addEventListener('click', refreshGitStatus);
   const gitCommitBtn = document.getElementById('git-commit-btn');
