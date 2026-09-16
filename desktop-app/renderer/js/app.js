@@ -11716,3 +11716,33 @@ if (document.readyState === 'loading') {
     });
   });
 })();
+
+
+// ============ 首次启动引导 ============
+(function() {
+  document.addEventListener('DOMContentLoaded', async () => {
+    try {
+      const cfg = await window.LabCode.config.get();
+      const shown = (cfg && cfg.ui && cfg.ui.welcomeShown);
+      if (shown) return; // 已经看过了
+      const modal = document.getElementById('welcome-modal');
+      if (!modal) return;
+      modal.style.display = 'flex';
+      // 选云端
+      document.getElementById('welcome-cloud').addEventListener('click', async () => {
+        await window.LabCode.config.set({ ai: { provider: 'gateway' }, ui: { welcomeShown: true } });
+        modal.style.display = 'none';
+        showToast('已切换到云端 AI，可以开始提问了', 'success');
+      });
+      // 选本地
+      document.getElementById('welcome-local').addEventListener('click', async () => {
+        await window.LabCode.config.set({ ui: { welcomeShown: true } });
+        modal.style.display = 'none';
+        // 打开设置到 AI 引擎
+        const settingsTab = document.querySelector('[data-tab="settings"]');
+        if (settingsTab) settingsTab.click();
+        showToast('请在下方选择本地 Ollama 并按引导安装', 'info');
+      });
+    } catch (e) { console.warn('welcome check failed', e); }
+  });
+})();
