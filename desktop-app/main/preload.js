@@ -146,6 +146,23 @@ contextBridge.exposeInMainWorld('LabCode', {
     discard: (cwd, paths) => ipcRenderer.invoke('git:discard', cwd, paths)
   },
 
+  // Hermes: 记忆搜索 + Webhook + SSH
+  memory: {
+    search: (q) => ipcRenderer.invoke('memory:search', q)
+  },
+  webhook: {
+    start: (port) => ipcRenderer.invoke('webhook:start', port),
+    stop: () => ipcRenderer.invoke('webhook:stop'),
+    onMessage: (cb) => {
+      const h = (_e, data) => cb(data);
+      ipcRenderer.on('webhook:message', h);
+      return () => ipcRenderer.removeListener('webhook:message', h);
+    }
+  },
+  ssh: {
+    exec: (opts) => ipcRenderer.invoke('ssh:exec', opts)
+  },
+
   // 文件检查点 + 回滚
   checkpoint: {
     list: () => ipcRenderer.invoke('checkpoint:list'),

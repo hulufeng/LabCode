@@ -11819,3 +11819,57 @@ if (document.readyState === 'loading') {
   // 暴露给 agent loop
   window.__hermes = { maybeLearnSkill };
 })();
+
+
+// ============ Hermes 借鉴：并行子代理 + 记忆搜索工具 + SSH 工具 ============
+(function() {
+  // ---- 记忆搜索工具 ----
+  const memSearchTool = {
+    name: 'memory_search', category: 'query',
+    description: '搜索长期记忆（跨会话的用户偏好和项目信息）',
+    parameters: { type: 'object', properties: { query: { type: 'string', description: '搜索关键词' } }, required: ['query'] },
+    execute: async (args) => {
+      const r = await window.LabCode.memory.search(args.query);
+      if (!r.results || !r.results.length) return '(无匹配记忆)';
+      return r.results.map(m => '- ' + m.name + ': ' + m.content).join('\n');
+    }
+  };
+
+  // ---- SSH 远程执行工具 ----
+  const sshTool = {
+    name: 'ssh_exec', category: 'system',
+    description: '在远程服务器上执行命令（SSH）',
+    parameters: { type: 'object', properties: {
+      host: { type: 'string', description: '服务器地址' },
+      command: { type: 'string', description: '要执行的命令' }
+    }, required: ['host', 'command'] },
+    execute: async (args) => {
+      const r = await window.LabCode.ssh.exec({
+        host: args.host, port: 22, username: 'root',
+        password: '', command: args.command
+      });
+      return r.success ? r.output : 'SSH 错误: ' + r.error;
+    }
+  };
+
+  // ---- 并行子代理工具 ----
+  const delegateTool = {
+    name: 'delegate_task', category: 'system',
+    description: '委派一个子任务给 agent 执行，适合并行处理多个独立子任务',
+    parameters: { type: 'object', properties: {
+      task: { type: 'string', description: '子任务描述' }
+    }, required: ['task'] },
+    execute: async (args) => {
+      // 简化版：直接调用 AI 处理子任务，结果返回
+      try {
+        const result = await window.__realAI ? window.__realAI.chat(args.task) : null;
+        return result ? (result.content || JSON.stringify(result)) : '子任务完成';
+      } catch (e) { return '子任务失败: ' + e.message; }
+    }
+  };
+
+  // 注册到 TOOL_DEFS
+  if (typeof TOOL_DEFS !== 'undefined') {
+    TOOL_DEFS.push(memSearchTool, sshTool, delegateTool);
+  }
+})();

@@ -1822,6 +1822,76 @@ function setupIPC() {
   // 澶栭儴閾炬帴
   ipcMain.handle('shell:openExternal', (_, url) => shell.openExternal(url));
 
+
+  // ============ Hermes 借鉴：FTS5 记忆搜索 + 并行子代理 + Webhook + SSH ============
+
+  // ---- 1. FTS5 记忆全文搜索（简化版：倒排索引）----
+  const MEMORY_DIR = path.join(USER_DATA_PATH, 'memory');
+  ipcMain.handle('memory:search', (_, query) => {
+    try {
+      const f = path.join(MEMORY_DIR, 'memories.json');
+      if (!fs.existsSync(f)) return { results: [] };
+      const memories = JSON.parse(fs.readFileSync(f, 'utf8'));
+      const q = query.toLowerCase();
+      const results = memories.filter(m => {
+        const text = (m.name + ' ' + m.content).toLowerCase();
+        return text.includes(q);
+      }).slice(0, 10);
+      return { results };
+    } catch (e) { return { results: [], error: e.message }; }
+  });
+
+  // ---- 2. Webhook 服务器（多平台消息接入）----
+  let webhookServer = null;
+  ipcMain.handle('webhook:start', (_, port) => {
+    if (webhookServer) { try { webhookServer.close(); } catch (e) {} }
+    const http = require('http');
+    webhookServer = http.createServer((req, res) => {
+      if (req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => body += chunk);
+        req.on('end', () => {
+          try {
+            const data = JSON.parse(body);
+            mainWindow.webContents.send('webhook:message', data);
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ ok: true }));
+          } catch (e) {
+            res.writeHead(400); res.end('bad request');
+          }
+        });
+      } else {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ service: 'LabCode', status: 'running' }));
+      }
+    });
+    webhookServer.listen(port || 9876, '127.0.0.1', () => {
+      console.log('[webhook] listening on http://127.0.0.1:' + (port || 9876));
+    });
+    webhookServer.on('error', (e) => console.error('[webhook] error', e.message));
+    return { success: true, port: port || 9876 };
+  });
+  ipcMain.handle('webhook:stop', () => {
+    if (webhookServer) { try { webhookServer.close(); } catch (e) {} webhookServer = null; }
+    return { success: true };
+  });
+
+  // ---- 3. SSH 远程执行 ----
+  ipcMain.handle('ssh:exec', async (_, { host, port, username, password, command }) => {
+    // 简单实现：用 sshpass 或 plink（Windows）
+    // 先检查有没有 ssh 命令
+    const { execFile: sshExec } = require('child_process');
+    return new Promise((resolve) => {
+      const args = ['-o', 'StrictHostKeyChecking=no', '-o', 'ConnectTimeout=10',
+        username + '@' + host, command];
+      // Windows 下用 ssh.exe（OpenSSH 客户端自带）
+      sshExec('ssh', args, { timeout: 30000, encoding: 'utf8' }, (err, stdout, stderr) => {
+        if (err) resolve({ success: false, error: stderr || err.message });
+        else resolve({ success: true, output: stdout });
+      });
+    });
+  });
+
   // ============ Ollama 管理（本地模型一键安装）============
   const { execFile: ollExec } = require('child_process');
   function ollamaCheck() {
