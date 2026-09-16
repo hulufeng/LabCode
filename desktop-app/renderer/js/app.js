@@ -1655,6 +1655,50 @@ const TOOL_DEFS = [
       }
       return '插件系统不支持本地安装，请手动放到插件目录';
     }
+  },
+  // ===== 对齐 TrieCode pdf.js：读取 PDF =====
+  {
+    name: 'read_pdf', category: 'query',
+    description: '读取 PDF 文件并提取文本内容。支持工作区内相对路径。大文件自动分页截断。',
+    parameters: { type: 'object', properties: {
+      file_path: { type: 'string', description: 'PDF 文件路径（工作区内相对路径）' },
+      max_pages: { type: 'number', description: '最多读取页数（默认20）' }
+    }, required: ['file_path'] },
+    execute: async (args) => {
+      const fp = (args.file_path || '').trim();
+      if (!fp) return 'Error: 请提供文件路径';
+      if (!/\.pdf$/i.test(fp)) return 'Error: 文件须为 .pdf';
+      const memFile = state.files[fp];
+      if (memFile && memFile.content) return memFile.content;
+      try {
+        const fullPath = state.projectPath + '\\' + fp.replace(/\//g, '\\');
+        const result = await window.LabCode.fs.readPdf(fullPath, args.max_pages || 20);
+        if (!result || result.success === false) return 'Error: 读取 PDF 失败: ' + ((result && result.error) || '文件不存在');
+        const text = result.text || '';
+        const truncated = result.truncated ? '\n\n... [PDF 共 ' + (result.totalPages || '?') + ' 页，已截断] ...' : '';
+        return 'PDF 内容（' + (result.pages || 0) + ' 页）：\n\n' + text.slice(0, 20000) + truncated;
+      } catch (e) { return 'Error: 读取 PDF 失败: ' + e.message; }
+    }
+  },
+  // ===== 对齐 TrieCode vision.js：分析图片 =====
+  {
+    name: 'analyze_image', category: 'query',
+    description: '分析图片文件内容（截图、电路图、照片等）。需要当前模型支持视觉输入。',
+    parameters: { type: 'object', properties: {
+      file_path: { type: 'string', description: '图片文件路径（png/jpg/gif/webp/bmp）' },
+      prompt: { type: 'string', description: '分析指令' }
+    }, required: ['file_path'] },
+    execute: async (args) => {
+      const fp = (args.file_path || '').trim();
+      if (!fp) return 'Error: 请提供图片路径';
+      if (!/\.(png|jpe?g|gif|webp|bmp)$/i.test(fp)) return 'Error: 不支持的图片格式';
+      try {
+        const fullPath = state.projectPath + '\\' + fp.replace(/\//g, '\\');
+        const result = await window.LabCode.fs.analyzeImage(fullPath, args.prompt || '请描述这张图片的内容');
+        if (!result || result.success === false) return 'Error: 图片分析失败: ' + ((result && result.error) || '当前模型不支持视觉或文件不存在');
+        return result.description || '（模型未返回描述）';
+      } catch (e) { return 'Error: 图片分析失败: ' + e.message; }
+    }
   }
 ];
 

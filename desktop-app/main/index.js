@@ -1122,6 +1122,66 @@ function setupIPC() {
     }
   });
 
+  // ===== 读取 PDF 文件（对齐 TrieCode pdf.js）=====
+  ipcMain.handle('fs:readPdf', async (_, filePath, maxPages = 20) => {
+    try {
+      if (!fs.existsSync(filePath)) return { success: false, error: '文件不存在' };
+      try {
+        const pdf = require('pdf-parse');
+        const buf = fs.readFileSync(filePath);
+        const data = await pdf(buf);
+        const pages = data.numpages || 1;
+        const text = data.text || '';
+        const pageTexts = text.split('\f');
+        const limited = pageTexts.slice(0, maxPages);
+        return { success: true, text: limited.join('\n---\n').slice(0, 30000), pages: limited.length, totalPages: pages, truncated: pageTexts.length > maxPages };
+      } catch (pdfErr) {
+        // pdf-parse 未安装，降级为简单字符串提取
+        const buf = fs.readFileSync(filePath);
+        const latin1 = buf.toString('latin1');
+        const strings = latin1.match(/\((?:[^()\\]|\\.)*\)/g) || [];
+        const extracted = strings.map(s => s.slice(1, -1)).filter(s => s.length > 10).join('\n');
+        return { success: true, text: extracted.slice(0, 20000), pages: 1, totalPages: 1, truncated: extracted.length > 20000, note: 'pdf-parse未安装，降级提取' };
+      }
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
+  });
+
+  // ===== 图片分析（对齐 TrieCode vision.js，需视觉模型）=====
+  ipcMain.handle('fs:analyzeImage', async (_, filePath, prompt) => {
+    try {
+      if (!fs.existsSync(filePath)) return { success: false, error: '文件不存在' };
+      const buf = fs.readFileSync(filePath);
+      const ext = filePath.split('.').pop().toLowerCase();
+      const mime = ext === 'jpg' ? 'image/jpeg' : 'image/' + ext;
+      const b64 = buf.toString('base64');
+      const dataUrl = 'data:' + mime + ';base64,' + b64;
+      const aiCfg = config.ai || {};
+      const provider = AI_PROVIDERS[aiCfg.provider] || AI_PROVIDERS.deepseek;
+      const baseURL = aiCfg.baseURL || provider.baseURL;
+      const apiKey = aiCfg.apiKey || '';
+      const url = baseURL.replace(/\/$/, '') + '/chat/completions';
+      const resp = await net.fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
+        body: JSON.stringify({
+          model: aiCfg.model || provider.defaultModel,
+          messages: [{ role: 'user', content: [
+            { type: 'text', text: prompt || '请描述这张图片的内容' },
+            { type: 'image_url', image_url: { url: dataUrl } }
+          ]}],
+          max_tokens: 1000
+        })
+      });
+      if (!resp.ok) return { success: false, error: 'API ' + resp.status + '（当前模型可能不支持视觉）' };
+      const data = await resp.json();
+      return { success: true, description: (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '（无描述）' };
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
+  });
+
   // ============ 缁堢 IPC ============
   
   // 鍒涘缓缁堢

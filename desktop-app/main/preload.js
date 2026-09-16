@@ -44,7 +44,9 @@ contextBridge.exposeInMainWorld('LabCode', {
     listDir: (dirPath) => ipcRenderer.invoke('fs:listDir', dirPath),
     copyFile: (srcPath, destPath) => ipcRenderer.invoke('fs:copyFile', srcPath, destPath),
     deleteFile: (filePath) => ipcRenderer.invoke('fs:deleteFile', filePath),
-    mkdir: (dirPath) => ipcRenderer.invoke('fs:mkdir', dirPath)
+    mkdir: (dirPath) => ipcRenderer.invoke('fs:mkdir', dirPath),
+    readPdf: (filePath, maxPages) => ipcRenderer.invoke('fs:readPdf', filePath, maxPages),
+    analyzeImage: (filePath, prompt) => ipcRenderer.invoke('fs:analyzeImage', filePath, prompt)
   },
 
   // 外部链接
