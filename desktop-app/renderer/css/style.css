@@ -4805,3 +4805,38 @@ button:disabled,
 .disabled {
   cursor: not-allowed !important;
 }
+
+/* ===== 豆包风格布局：左侧技能+对话，右侧编辑器 ===== */
+.left-column {
+  width: 380px;
+  min-width: 320px;
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border-light);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.left-column .sidebar {
+  width: 100% !important;
+  border-right: none !important;
+  flex: 0 1 auto;
+  max-height: 45%;
+  min-height: 120px;
+  border-bottom: 1px solid var(--border-light);
+}
+.left-column .ai-panel {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  border-left: none !important;
+  border-right: none !important;
+}
+.editor-container {
+  flex: 1 !important;
+  min-width: 0;
+}
+body.no-open-file .editor-container,
+body.no-open-file .ai-panel {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+}

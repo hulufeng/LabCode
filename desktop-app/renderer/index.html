@@ -312,6 +312,8 @@
       <button class="activity-btn" data-panel="device" title="设备"><svg class="icon"><use href="#icon-infinity"></use></svg></button>
     </div>
 
+    <!-- 左侧列：技能/插件 + 对话 -->
+    <div class="left-column">
     <!-- 侧边栏 -->
     <div class="sidebar" id="sidebar">
       <div class="sidebar-header">
@@ -643,56 +645,7 @@
     </div>
 
     <!-- 编辑器区域 -->
-    <div class="editor-container">
-      <!-- 编辑器顶部工具栏 -->
-      <div class="editor-toolbar">
-        <div class="editor-toolbar-left">
-          <button class="editor-toolbar-btn active" id="ai-mode-btn" title="AI 模式"><svg class="icon icon-sm"><use href="#icon-sparkles"></use></svg></button>
-        </div>
-        <div class="editor-toolbar-right">
-          <button class="editor-toolbar-btn" id="editor-undo-btn" title="撤销"><svg class="icon"><use href="#icon-arrow-back-up"></use></svg></button>
-          <button class="editor-toolbar-btn" id="editor-redo-btn" title="重做"><svg class="icon"><use href="#icon-arrow-forward-up"></use></svg></button>
-          <button class="editor-toolbar-btn" id="editor-save-btn" title="保存"><svg class="icon"><use href="#icon-device-floppy"></use></svg></button>
-          <button class="editor-toolbar-btn" id="editor-history-btn" title="历史"><svg class="icon"><use href="#icon-history"></use></svg></button>
-        </div>
-      </div>
-
-      <!-- 标签页 -->
-      <div class="editor-tabs" id="tabs-bar">
-        <!-- 标签动态生成 -->
-      </div>
-      <!-- 编辑器 -->
-      <div class="editor-wrapper" id="editor-wrapper">
-        <!-- 空状态提示（无文件时显示，对齐 TrieCode：提示新建文件或 AI 辅助新建） -->
-        <div class="welcome-screen" id="welcome-screen">
-          <div class="welcome-content">
-            <div class="welcome-empty-icon">
-              <svg class="icon"><use href="#icon-file"></use></svg>
-            </div>
-            <h2 class="welcome-empty-title">暂无打开的文件</h2>
-            <p class="welcome-empty-desc">新建文件开始编码，或让 AI 辅助你创建项目</p>
-            <div class="welcome-actions">
-              <button class="welcome-action-btn primary" id="welcome-new-file">
-                <svg class="icon"><use href="#icon-file-plus"></use></svg>
-                <span>新建文件</span>
-              </button>
-              <button class="welcome-action-btn" id="welcome-ai-new-project">
-                <svg class="icon"><use href="#icon-sparkles"></use></svg>
-                <span>AI 辅助新建项目</span>
-              </button>
-              <button class="welcome-action-btn" id="welcome-open-folder">
-                <svg class="icon"><use href="#icon-folder-open"></use></svg>
-                <span>打开文件夹</span>
-              </button>
-            </div>
-          </div>
-        </div>
-        <div id="monaco-editor" style="display:none;"></div>
-      </div>
-    </div>
-
-    <!-- AI 助手面板（1:1 对齐 TrieCode 主区域布局） -->
-    <div class="ai-panel" id="ai-panel">
+          <div class="ai-panel" id="ai-panel">
       <!-- AI 面板顶部操作栏（1:1 对齐 TrieCode） -->
       <div class="ai-top-bar">
         <div class="ai-top-left">
@@ -833,7 +786,58 @@
   </div>
 
   <!-- 底部面板（默认隐藏，编译/终端操作后自动显示） -->
-  <div class="bottom-panel" id="bottom-panel" style="display:none;">
+    </div><!-- /left-column -->
+
+    <div class="editor-container">
+      <!-- 编辑器顶部工具栏 -->
+      <div class="editor-toolbar">
+        <div class="editor-toolbar-left">
+          <button class="editor-toolbar-btn active" id="ai-mode-btn" title="AI 模式"><svg class="icon icon-sm"><use href="#icon-sparkles"></use></svg></button>
+        </div>
+        <div class="editor-toolbar-right">
+          <button class="editor-toolbar-btn" id="editor-undo-btn" title="撤销"><svg class="icon"><use href="#icon-arrow-back-up"></use></svg></button>
+          <button class="editor-toolbar-btn" id="editor-redo-btn" title="重做"><svg class="icon"><use href="#icon-arrow-forward-up"></use></svg></button>
+          <button class="editor-toolbar-btn" id="editor-save-btn" title="保存"><svg class="icon"><use href="#icon-device-floppy"></use></svg></button>
+          <button class="editor-toolbar-btn" id="editor-history-btn" title="历史"><svg class="icon"><use href="#icon-history"></use></svg></button>
+        </div>
+      </div>
+
+      <!-- 标签页 -->
+      <div class="editor-tabs" id="tabs-bar">
+        <!-- 标签动态生成 -->
+      </div>
+      <!-- 编辑器 -->
+      <div class="editor-wrapper" id="editor-wrapper">
+        <!-- 空状态提示（无文件时显示，对齐 TrieCode：提示新建文件或 AI 辅助新建） -->
+        <div class="welcome-screen" id="welcome-screen">
+          <div class="welcome-content">
+            <div class="welcome-empty-icon">
+              <svg class="icon"><use href="#icon-file"></use></svg>
+            </div>
+            <h2 class="welcome-empty-title">暂无打开的文件</h2>
+            <p class="welcome-empty-desc">新建文件开始编码，或让 AI 辅助你创建项目</p>
+            <div class="welcome-actions">
+              <button class="welcome-action-btn primary" id="welcome-new-file">
+                <svg class="icon"><use href="#icon-file-plus"></use></svg>
+                <span>新建文件</span>
+              </button>
+              <button class="welcome-action-btn" id="welcome-ai-new-project">
+                <svg class="icon"><use href="#icon-sparkles"></use></svg>
+                <span>AI 辅助新建项目</span>
+              </button>
+              <button class="welcome-action-btn" id="welcome-open-folder">
+                <svg class="icon"><use href="#icon-folder-open"></use></svg>
+                <span>打开文件夹</span>
+              </button>
+            </div>
+          </div>
+        </div>
+        <div id="monaco-editor" style="display:none;"></div>
+      </div>
+    </div>
+
+    <!-- AI 助手面板（1:1 对齐 TrieCode 主区域布局） -->
+    <div class="bottom-panel" id="bottom-panel" style="display:none;">
     <div class="bottom-tabs">
       <button class="bottom-tab active" data-panel="output">输出</button>
       <button class="bottom-tab" data-panel="problems">问题 <span class="badge" id="problem-count">0</span></button>
