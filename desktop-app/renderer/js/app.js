@@ -11654,3 +11654,65 @@ if (document.readyState === 'loading') {
     if (btn) btn.addEventListener('click', saveAIConfig);
   });
 })();
+
+
+// ============ Ollama 一键安装流程 ============
+(function() {
+  async function refreshOllamaStatus() {
+    const el = document.getElementById('ollama-status');
+    const actions = document.getElementById('ollama-actions');
+    if (!el) return;
+    try {
+      const s = await window.LabCode.ollama.status();
+      if (!s.installed) {
+        el.innerHTML = '<span style="color:#ef4444;">● 未安装</span> <button id="ollama-install-btn" style="font-size:11px;padding:2px 8px;background:#4caf50;color:#fff;border:none;border-radius:3px;cursor:pointer;margin-left:4px;">一键下载 Ollama</button>';
+        if (actions) actions.style.display = 'none';
+        document.getElementById('ollama-install-btn').addEventListener('click', () => {
+          window.LabCode.ollama.openDownload();
+          el.innerHTML = '<span style="color:#ff9800;">○ 请在浏览器下载安装后，重新打开本页面</span>';
+        });
+      } else if (!s.running) {
+        el.innerHTML = '<span style="color:#ff9800;">○ 已安装但未运行</span> <button id="ollama-start-btn" style="font-size:11px;padding:2px 8px;background:#4caf50;color:#fff;border:none;border-radius:3px;cursor:pointer;margin-left:4px;">启动 Ollama</button>';
+        if (actions) actions.style.display = 'none';
+        document.getElementById('ollama-start-btn').addEventListener('click', async () => {
+          await window.LabCode.ollama.startServer();
+          setTimeout(refreshOllamaStatus, 2000);
+        });
+      } else {
+        const models = s.models || [];
+        el.innerHTML = '<span style="color:#4caf50;">● 已连接</span> 已安装模型: ' + (models.length ? models.join(', ') : '<span style="color:#888;">无，请下载一个</span>');
+        if (actions) actions.style.display = 'block';
+      }
+    } catch (e) {
+      el.innerHTML = '<span style="color:#888;">○ 检测失败</span>';
+    }
+  }
+
+  async function pullModel(model) {
+    const prog = document.getElementById('ollama-pull-progress');
+    prog.style.display = 'block';
+    prog.textContent = '正在下载 ' + model + ' ...';
+    prog.style.color = '#ff9800';
+    try {
+      const r = await window.LabCode.ollama.pull(model);
+      if (r.success) {
+        prog.textContent = '✓ ' + model + ' 下载完成！';
+        prog.style.color = '#4caf50';
+        refreshOllamaStatus();
+      } else {
+        prog.textContent = '✗ 下载失败: ' + r.error;
+        prog.style.color = '#ef4444';
+      }
+    } catch (e) {
+      prog.textContent = '✗ 错误: ' + e.message;
+      prog.style.color = '#ef4444';
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    refreshOllamaStatus();
+    document.querySelectorAll('.ollama-model-btn').forEach(btn => {
+      btn.addEventListener('click', () => pullModel(btn.dataset.model));
+    });
+  });
+})();

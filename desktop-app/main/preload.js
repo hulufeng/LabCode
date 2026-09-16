@@ -146,6 +146,14 @@ contextBridge.exposeInMainWorld('LabCode', {
     discard: (cwd, paths) => ipcRenderer.invoke('git:discard', cwd, paths)
   },
 
+  // Ollama 管理
+  ollama: {
+    status: () => ipcRenderer.invoke('ollama:status'),
+    pull: (model) => ipcRenderer.invoke('ollama:pull', model),
+    startServer: () => ipcRenderer.invoke('ollama:startServer'),
+    openDownload: () => ipcRenderer.invoke('ollama:openDownload')
+  },
+
   // DAP 调试器
   dap: {
     start: (opts) => ipcRenderer.invoke('dap:start', opts),

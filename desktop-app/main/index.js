@@ -1777,6 +1777,47 @@ function setupIPC() {
   // 澶栭儴閾炬帴
   ipcMain.handle('shell:openExternal', (_, url) => shell.openExternal(url));
 
+  // ============ Ollama 管理（本地模型一键安装）============
+  const { execFile: ollExec } = require('child_process');
+  function ollamaCheck() {
+    return new Promise((resolve) => {
+      ollExec('ollama', ['--version'], { timeout: 5000 }, (err, stdout) => {
+        if (err) return resolve({ installed: false });
+        resolve({ installed: true, version: (stdout || '').trim() });
+      });
+    });
+  }
+  ipcMain.handle('ollama:status', async () => {
+    const status = await ollamaCheck();
+    try {
+      const r = await fetch('http://localhost:11434/api/tags', { signal: AbortSignal.timeout(2000) });
+      if (r.ok) {
+        const data = await r.json();
+        return { ...status, running: true, models: (data.models || []).map(m => m.name) };
+      }
+    } catch (e) {}
+    return { ...status, running: false, models: [] };
+  });
+  ipcMain.handle('ollama:pull', (_, model) => {
+    return new Promise((resolve) => {
+      ollExec('ollama', ['pull', model], { timeout: 600000, maxBuffer: 1024 * 1024 * 100 }, (err, stdout, stderr) => {
+        if (err) return resolve({ success: false, error: stderr || err.message });
+        resolve({ success: true, output: (stdout || '').slice(-500) });
+      });
+    });
+  });
+  ipcMain.handle('ollama:startServer', () => {
+    return new Promise((resolve) => {
+      const p = spawn('ollama', ['serve'], { detached: true, stdio: 'ignore' });
+      p.unref();
+      setTimeout(() => resolve({ success: true }), 2000);
+    });
+  });
+  ipcMain.handle('ollama:openDownload', () => {
+    shell.openExternal('https://ollama.com/download/windows');
+    return { success: true };
+  });
+
   // 搴旂敤淇℃伅
   ipcMain.handle('app:getVersion', () => app.getVersion());
   ipcMain.handle('app:getPath', (_, name) => app.getPath(name));

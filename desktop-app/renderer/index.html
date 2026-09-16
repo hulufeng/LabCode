@@ -588,10 +588,19 @@
             <div style="background:#1e1e1e;border:1px solid #3c3c3c;border-radius:6px;padding:12px;margin-bottom:8px;">
               <div style="display:flex;align-items:flex-start;gap:8px;">
                 <input type="radio" name="ai-provider" value="ollama" id="ai-prov-ollama">
-                <div>
-                  <div style="font-size:13px;font-weight:600;color:#e0e0e0;">本地 Ollama</div>
-                  <div style="font-size:11px;color:#888;margin-top:2px;">需要安装 Ollama 并运行模型。</div>
-                  <div id="ollama-status" style="font-size:11px;margin-top:4px;"></div>
+                <div style="flex:1;">
+                  <div style="font-size:13px;font-weight:600;color:#e0e0e0;">本地 Ollama（推荐本地方案）</div>
+                  <div style="font-size:11px;color:#888;margin-top:2px;">一键安装，数据不出本机。首次需下载模型（约 4-5GB）。</div>
+                  <div id="ollama-status" style="font-size:11px;margin-top:6px;"></div>
+                  <div id="ollama-actions" style="margin-top:6px;display:none;">
+                    <div style="font-size:11px;color:#888;margin-bottom:4px;">推荐模型（点击自动下载）：</div>
+                    <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                      <button class="ollama-model-btn" data-model="qwen2.5-coder:7b" style="font-size:11px;padding:3px 10px;background:#2d2d2d;border:1px solid #4caf50;color:#4caf50;border-radius:4px;cursor:pointer;">Qwen2.5 Coder 7B</button>
+                      <button class="ollama-model-btn" data-model="deepseek-coder:6.7b" style="font-size:11px;padding:3px 10px;background:#2d2d2d;border:1px solid #4caf50;color:#4caf50;border-radius:4px;cursor:pointer;">DeepSeek Coder 6.7B</button>
+                      <button class="ollama-model-btn" data-model="qwen2.5:7b" style="font-size:11px;padding:3px 10px;background:#2d2d2d;border:1px solid #4caf50;color:#4caf50;border-radius:4px;cursor:pointer;">Qwen2.5 7B</button>
+                    </div>
+                    <div id="ollama-pull-progress" style="font-size:11px;color:#888;margin-top:4px;display:none;"></div>
+                  </div>
                 </div>
               </div>
             </div>
