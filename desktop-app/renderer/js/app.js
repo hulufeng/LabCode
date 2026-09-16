@@ -11588,3 +11588,69 @@ if (document.readyState === 'loading') {
     if (dbgState.sessionId) sendBreakpoints(fp);
   }, state: dbgState };
 })();
+
+
+// ============ AI 引擎设置（简化用户配置）============
+(function() {
+  function loadAIConfig() {
+    if (!window.LabCode || !window.LabCode.config) return;
+    window.LabCode.config.get().then(cfg => {
+      const ai = (cfg && cfg.ai) || {};
+      const prov = ai.provider || 'gateway';
+      const radio = document.getElementById('ai-prov-' + prov);
+      if (radio) radio.checked = true;
+      if (prov === 'custom') {
+        document.getElementById('custom-api-fields').style.display = 'block';
+        document.getElementById('custom-baseurl').value = ai.baseURL || '';
+        document.getElementById('custom-apikey').value = ai.apiKey || '';
+        document.getElementById('custom-model').value = ai.defaultModel || '';
+      }
+      // 自动检测 Ollama
+      checkOllama();
+    });
+  }
+
+  async function checkOllama() {
+    const el = document.getElementById('ollama-status');
+    if (!el) return;
+    try {
+      const r = await fetch('http://localhost:11434/api/tags', { signal: AbortSignal.timeout(2000) });
+      if (r.ok) {
+        const data = await r.json();
+        const models = (data.models || []).map(m => m.name);
+        el.innerHTML = '<span style="color:#4caf50;">● 已连接</span> 可用模型: ' + (models.join(', ') || '无');
+      }
+    } catch (e) {
+      el.innerHTML = '<span style="color:#888;">○ 未检测到 Ollama</span>';
+    }
+  }
+
+  function saveAIConfig() {
+    const prov = document.querySelector('input[name="ai-provider"]:checked');
+    if (!prov) return;
+    const provider = prov.value;
+    const update = { ai: { provider } };
+    if (provider === 'custom') {
+      update.ai.baseURL = document.getElementById('custom-baseurl').value;
+      update.ai.apiKey = document.getElementById('custom-apikey').value;
+      update.ai.defaultModel = document.getElementById('custom-model').value;
+    }
+    window.LabCode.config.set(update).then(() => {
+      showToast('AI 设置已保存，重启后生效', 'success');
+      setTimeout(() => location.reload(), 1000);
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    loadAIConfig();
+    // 显示自定义 API 字段
+    document.querySelectorAll('input[name="ai-provider"]').forEach(r => {
+      r.addEventListener('change', () => {
+        const custom = document.getElementById('custom-api-fields');
+        custom.style.display = (r.value === 'custom' && r.checked) ? 'block' : 'none';
+      });
+    });
+    const btn = document.getElementById('save-ai-config');
+    if (btn) btn.addEventListener('click', saveAIConfig);
+  });
+})();

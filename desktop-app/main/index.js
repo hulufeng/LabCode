@@ -65,8 +65,8 @@ function loadConfig() {
 function getDefaultConfig() {
   return {
     ai: {
-      provider: 'deepseek',
-      model: 'deepseek-v4',
+      provider: 'gateway',
+      model: 'deepseek-flash',
       apiKey: '',
       thinkingLevel: 'standard',
       agentMode: 'default'

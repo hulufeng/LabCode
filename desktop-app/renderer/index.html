@@ -574,6 +574,61 @@
               </label>
             </div>
           </div>
+          <div class="device-section" style="margin-top:16px;">
+            <div class="device-section-title">AI 引擎</div>
+            <div style="background:#1e1e1e;border:1px solid #3c3c3c;border-radius:6px;padding:12px;margin-bottom:8px;">
+              <div style="display:flex;align-items:flex-start;gap:8px;">
+                <input type="radio" name="ai-provider" value="gateway" id="ai-prov-gateway" checked>
+                <div>
+                  <div style="font-size:13px;font-weight:600;color:#e0e0e0;">LabCode 云端（推荐）</div>
+                  <div style="font-size:11px;color:#888;margin-top:2px;">开箱即用，无需安装任何东西。使用云端算力，响应快。</div>
+                </div>
+              </div>
+            </div>
+            <div style="background:#1e1e1e;border:1px solid #3c3c3c;border-radius:6px;padding:12px;margin-bottom:8px;">
+              <div style="display:flex;align-items:flex-start;gap:8px;">
+                <input type="radio" name="ai-provider" value="ollama" id="ai-prov-ollama">
+                <div>
+                  <div style="font-size:13px;font-weight:600;color:#e0e0e0;">本地 Ollama</div>
+                  <div style="font-size:11px;color:#888;margin-top:2px;">需要安装 Ollama 并运行模型。</div>
+                  <div id="ollama-status" style="font-size:11px;margin-top:4px;"></div>
+                </div>
+              </div>
+            </div>
+            <div style="background:#1e1e1e;border:1px solid #3c3c3c;border-radius:6px;padding:12px;margin-bottom:8px;">
+              <div style="display:flex;align-items:flex-start;gap:8px;">
+                <input type="radio" name="ai-provider" value="local" id="ai-prov-local">
+                <div>
+                  <div style="font-size:13px;font-weight:600;color:#e0e0e0;">本地 llama.cpp</div>
+                  <div style="font-size:11px;color:#888;margin-top:2px;">需要 llama-server 引擎和 GGUF 模型（高级用户）。</div>
+                </div>
+              </div>
+            </div>
+            <div style="background:#1e1e1e;border:1px solid #3c3c3c;border-radius:6px;padding:12px;margin-bottom:8px;">
+              <div style="display:flex;align-items:flex-start;gap:8px;">
+                <input type="radio" name="ai-provider" value="custom" id="ai-prov-custom">
+                <div>
+                  <div style="font-size:13px;font-weight:600;color:#e0e0e0;">自定义 API</div>
+                  <div style="font-size:11px;color:#888;margin-top:2px;">兼容 OpenAI 格式的 API（DeepSeek 等）。</div>
+                </div>
+              </div>
+              <div id="custom-api-fields" style="display:none;margin-top:8px;padding-left:24px;">
+                <div class="device-form-group">
+                  <label class="device-label">API 地址</label>
+                  <input class="device-input" id="custom-baseurl" placeholder="https://api.deepseek.com/v1" style="width:100%;background:#2d2d2d;border:1px solid #3c3c3c;color:#ccc;padding:6px 8px;border-radius:4px;font-size:12px;">
+                </div>
+                <div class="device-form-group">
+                  <label class="device-label">API Key</label>
+                  <input class="device-input" id="custom-apikey" type="password" placeholder="sk-..." style="width:100%;background:#2d2d2d;border:1px solid #3c3c3c;color:#ccc;padding:6px 8px;border-radius:4px;font-size:12px;">
+                </div>
+                <div class="device-form-group">
+                  <label class="device-label">模型名</label>
+                  <input class="device-input" id="custom-model" placeholder="deepseek-chat" style="width:100%;background:#2d2d2d;border:1px solid #3c3c3c;color:#ccc;padding:6px 8px;border-radius:4px;font-size:12px;">
+                </div>
+              </div>
+            </div>
+            <button id="save-ai-config" class="btn btn-primary" style="width:100%;margin-top:8px;font-size:12px;padding:6px;">保存设置</button>
+          </div>
         </div>
       </div>
     </div>
