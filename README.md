@@ -1,28 +1,31 @@
-# LabCode
+# LabCode — ESP32 教学 IDE
 
-本地优先的 AI 编码桌面端。说需求，AI 读你的项目、改文件、跑编译烧录。
+面向 ESP32 开发的商业化桌面 IDE，内置 AI 编程助手、真实烧录、板级仿真、课程体系。
 
-## 下载
+## 功能
 
-[Windows v1.0.0](https://www.bluebubai.work/updates/LabCode-Setup-1.0.0.exe)（约 146 MB）
+- **ESP32 真实烧录**：Arduino CLI 工具链，一键编译/烧录/串口监视
+- **板级仿真**：OLED/ADC/DHT22/示波器等外设可视化，不接板子也能跑
+- **内置 AI 助手**：
+  - 本地模型（Qwen2.5 Coder 3B，gguf，4GB 内存可跑）
+  - 云端模型（DeepSeek/通义千问，邮箱验证码登录）
+  - 40+ 工具：文件读写/终端/Git/网页搜索/编译/烧录/SVD 调试
+- **课程体系**：28+ 个 ESP32 教学示例（LED/Wi-Fi/传感器/FreeRTOS/BLE）
+- **插件系统**：MCP 外部工具 + GitHub 插件市场
 
-## 特性
+## 技术栈
 
-- 直接读写项目文件，编辑器实时刷新
-- 跑命令、跑测试，报错自动回读修复
-- 内置 Arduino / ESP32 工具链：选板、装库、编译、烧录、串口监视
-- 插件系统：任何 CLI 工具写个 manifest 即可被 AI 调用
-- 本地 Qwen3.5-9B 模型推理，数据不出本机
-- 支持接云端 OpenAI 兼容 API
+Electron 44 + React 19 + TypeScript 5.9 + electron-vite 5
 
 ## 开发
 
-```
-cd desktop-app
+```bash
 npm install
-npm start
+npm run dev
 ```
 
-## 许可证
+## 打包
 
-个人免费使用。
+```bash
+npm run build
+```
