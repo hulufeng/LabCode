@@ -1,0 +1,275 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>插件市场 · LabCode</title>
+<meta name="description" content="LabCode 插件市场：Arduino、ESP-IDF、STM32、浏览器自动化等官方工具链插件，一键安装，AI 智能体自动获得对应技能与工具。">
+<link rel="stylesheet" href="https://miaoda.feishu.cn/fonts/css2?family=Noto+Sans+SC:wght@400;500;600;700;800&display=swap">
+<style>
+  :root{
+    --ink:#1d1d1f; --ink-2:#424245; --gray:#86868b;
+    --border:rgba(0,0,0,.08); --accent:#059669; --accent-deep:#047857;
+    --bg:#fff; --card:#f5f5f7; --font:'Noto Sans SC','PingFang SC','Microsoft YaHei',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:var(--font);background:var(--bg);color:var(--ink);line-height:1.6;-webkit-font-smoothing:antialiased}
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+
+  .nav{position:sticky;top:0;z-index:100;background:rgba(255,255,255,.72);backdrop-filter:saturate(180%) blur(20px);border-bottom:1px solid var(--border)}
+  .nav-in{max-width:1100px;margin:0 auto;padding:0 24px;height:54px;display:flex;align-items:center;gap:20px}
+  .brand{display:flex;align-items:center;gap:8px;font-weight:700;font-size:16px;color:var(--ink)}
+  .brand .mark{width:26px;height:26px;border-radius:7px;background:linear-gradient(135deg,#059669,#047857);color:#fff;font-size:14px;font-weight:800;display:flex;align-items:center;justify-content:center}
+  .nav-back{margin-left:auto;font-size:13px;font-weight:600;color:var(--accent);padding:6px 16px;border:1px solid rgba(5,150,105,.35);border-radius:999px}
+  .nav-back:hover{background:var(--accent);color:#fff;text-decoration:none}
+
+  .page-header{max-width:1100px;margin:0 auto;padding:56px 24px 28px;text-align:center}
+  .kicker{font-size:13px;font-weight:700;letter-spacing:.14em;color:var(--accent);text-transform:uppercase}
+  .page-header h1{font-size:38px;font-weight:800;letter-spacing:-.015em;margin-top:10px}
+  .page-header p{font-size:16px;color:var(--gray);max-width:640px;margin:12px auto 0}
+
+  .oss-banner{max-width:1100px;margin:0 auto 24px;padding:0 24px}
+  .oss-inner{background:rgba(5,150,105,.06);border:1px solid rgba(5,150,105,.2);border-radius:14px;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px}
+  .oss-text{font-size:14px;color:var(--ink)}
+  .oss-text strong{color:var(--accent)}
+
+  .filter-bar{max-width:1100px;margin:0 auto 24px;padding:0 24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px}
+  .filter-tabs{display:flex;gap:8px;flex-wrap:wrap}
+  .filter-tab{padding:8px 18px;border-radius:999px;font-size:13px;font-weight:500;background:var(--card);color:var(--ink-2);border:1px solid var(--border);cursor:pointer;transition:all .2s}
+  .filter-tab:hover{color:var(--ink)}
+  .filter-tab.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .search-box{position:relative;width:260px}
+  .search-box input{width:100%;padding:9px 14px 9px 36px;border:1px solid var(--border);border-radius:10px;font-size:13px;background:#fff;color:var(--ink);font-family:var(--font)}
+  .search-box input:focus{outline:none;border-color:var(--accent)}
+  .search-box::before{content:'🔍';position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:13px;opacity:.5}
+
+  .plugin-grid{max-width:1100px;margin:0 auto;padding:0 24px 48px;display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:20px}
+  .plugin-card{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:24px;transition:all .2s;display:flex;flex-direction:column}
+  .plugin-card:hover{border-color:rgba(5,150,105,.5);transform:translateY(-3px)}
+  .plugin-head{display:flex;align-items:flex-start;gap:14px;margin-bottom:12px}
+  .plugin-ic{width:48px;height:48px;border-radius:12px;background:rgba(5,150,105,.1);display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0}
+  .plugin-name{font-size:17px;font-weight:700;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .official-badge{font-size:11px;font-weight:600;padding:2px 8px;border-radius:6px;background:rgba(5,150,105,.12);color:var(--accent-deep)}
+  .plugin-meta{font-size:12px;color:var(--gray);margin-top:2px}
+  .plugin-desc{font-size:13px;color:var(--gray);line-height:1.6;margin-bottom:14px;flex:1}
+  .plugin-tags{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px}
+  .plugin-tag{font-size:11px;padding:3px 10px;border-radius:6px;background:#fff;color:var(--ink-2);border:1px solid var(--border)}
+  .plugin-footer{display:flex;align-items:center;justify-content:space-between;padding-top:14px;border-top:1px solid var(--border)}
+  .install-btn{font-size:13px;font-weight:600;color:var(--accent);display:flex;align-items:center;gap:6px;cursor:pointer}
+  .install-btn::before{content:'●';font-size:8px}
+  .source-link{font-size:12px;color:var(--gray);display:inline-flex;align-items:center;gap:4px}
+  .source-link:hover{color:var(--accent)}
+
+  .community{background:var(--card);padding:56px 24px;border-top:1px solid var(--border)}
+  .community-inner{max-width:1100px;margin:0 auto;text-align:center}
+  .community-inner h2{font-size:26px;font-weight:800;margin:10px 0 12px}
+  .community-inner > p{font-size:14px;color:var(--gray);margin:0 auto 28px;max-width:640px;line-height:1.7}
+  .community-inner code{background:rgba(5,150,105,.1);color:var(--accent-deep);padding:2px 8px;border-radius:6px;font-size:13px}
+  .publish-card{background:#fff;border:1px solid var(--border);border-radius:14px;padding:24px 28px;text-align:left;display:flex;align-items:center;gap:20px;flex-wrap:wrap;margin-bottom:20px}
+  .publish-ic{width:48px;height:48px;border-radius:12px;background:rgba(5,150,105,.1);display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0}
+  .publish-content{flex:1;min-width:200px}
+  .publish-content h4{font-size:16px;font-weight:700;margin-bottom:6px}
+  .publish-content p{font-size:13px;color:var(--gray);line-height:1.6;margin-bottom:10px}
+  .publish-steps{display:flex;gap:8px;flex-wrap:wrap}
+  .publish-step{font-size:11px;padding:3px 10px;border-radius:999px;background:var(--card);color:var(--ink-2);border:1px solid var(--border)}
+  .publish-guide{font-size:13px;font-weight:600;color:var(--accent);white-space:nowrap;flex-shrink:0}
+  .gh-link{font-size:13px;color:var(--gray);margin-bottom:36px}
+  .gh-link a{font-weight:600}
+  .install-guide{background:#fff;border:1px solid var(--border);border-radius:14px;padding:28px;text-align:left;max-width:800px;margin:0 auto}
+  .install-guide h3{font-size:17px;font-weight:700;margin-bottom:18px}
+  .install-guide ol{list-style:none;padding:0;counter-reset:step}
+  .install-guide li{font-size:13.5px;color:var(--ink-2);margin-bottom:12px;line-height:1.7;counter-increment:step;padding-left:28px;position:relative}
+  .install-guide li::before{content:counter(step);position:absolute;left:0;top:0;color:var(--accent);font-weight:700;font-size:14px}
+  .install-guide li strong{color:var(--ink)}
+
+  .footer{border-top:1px solid var(--border);padding:32px 24px;text-align:center;font-size:13px;color:var(--gray)}
+
+  @media (max-width:640px){
+    .page-header h1{font-size:28px}
+    .plugin-grid{grid-template-columns:1fr}
+    .filter-bar{flex-direction:column;align-items:stretch}
+    .search-box{width:100%}
+  }
+</style>
+<link rel="icon" type="image/png" href="/codelab/favicon.png">
+<script>var SITE_BASE=(function(){var f=location.pathname.split('/').filter(Boolean)[0];return f==='codelab'?'/codelab':'';})();</script>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-in">
+    <a href="/codelab/" class="brand"><span class="mark">L</span> LabCode 插件</a>
+    <a href="/codelab/" class="nav-back">← 返回首页</a>
+  </div>
+</nav>
+
+<div class="page-header">
+  <div class="kicker">插件市场</div>
+  <h1>插件无限扩展，<span style="color:var(--accent)">要什么装什么。</span></h1>
+  <p>任何工具链或能力都能封装为插件——安装后，AI 智能体自动获得对应的技能与工具。</p>
+</div>
+
+<div class="oss-banner">
+  <div class="oss-inner">
+    <div class="oss-text">🌐 <strong>全部插件已开源</strong>（Apache-2.0）· 源码可审计、可自由集成</div>
+    <a href="https://github.com/hulufeng/codelab-plugins" target="_blank">GitHub 仓库 →</a>
+  </div>
+</div>
+
+<div class="filter-bar">
+  <div class="filter-tabs" id="filterTabs">
+    <div class="filter-tab active" data-cat="all">全部</div>
+    <div class="filter-tab" data-cat="embedded">嵌入式工具链</div>
+    <div class="filter-tab" data-cat="ai">AI 与开发辅助</div>
+  </div>
+  <div class="search-box">
+    <input type="text" id="searchInput" placeholder="搜索插件…">
+  </div>
+</div>
+
+<div class="plugin-grid" id="pluginGrid"></div>
+
+<div class="community">
+  <div class="community-inner">
+    <div class="kicker">社区插件</div>
+    <h2>第三方插件，<span style="color:var(--accent)">去中心化生态。</span></h2>
+    <p>官方市场仅收录可审计代码；社区插件由作者自行维护，通过 GitHub <code>LabCode-plugin</code> topic 发现，不进官方市场。</p>
+
+    <div class="publish-card">
+      <div class="publish-ic">🧩</div>
+      <div class="publish-content">
+        <h4>发布你的插件</h4>
+        <p>Fork 官方仓库或自建仓库，按插件规范写 <code>plugin.json</code>，给仓库打 <code>LabCode-plugin</code> topic 即可被社区发现。</p>
+        <div class="publish-steps">
+          <span class="publish-step">1. 建仓库</span>
+          <span class="publish-step">2. 打 topic</span>
+          <span class="publish-step">3. 可选提 PR</span>
+        </div>
+      </div>
+      <a href="https://github.com/hulufeng/codelab-plugins" target="_blank" class="publish-guide">贡献指南 →</a>
+    </div>
+
+    <div class="gh-link">
+      🔍 在 GitHub 发现社区插件：<a href="https://github.com/topics/LabCode-plugin" target="_blank">topic:LabCode-plugin →</a>
+    </div>
+
+    <div class="install-guide">
+      <h3>如何安装插件</h3>
+      <ol>
+        <li>打开 LabCode，进入「设置」（顶部工具栏 ⚙ 或 AI 面板设置）。</li>
+        <li>选择左侧「插件」标签页。</li>
+        <li>在「市场 · 官方插件」区点击目标插件的「安装」，或点「从文件夹 / ZIP 安装」加载本地插件包。</li>
+        <li>安装完成后，插件贡献的能力 / 命令 / 视图 / 项目类型自动接入：工具栏与侧栏出现对应按钮与插件入口，AI 智能体获得插件工具与技能（输入框输入 / 查看技能）。</li>
+      </ol>
+    </div>
+  </div>
+</div>
+
+<footer class="footer">
+  © 2026 LabCode · 本地优先的 AI 编码桌面端
+</footer>
+
+<script>
+const PLUGIN_BASE = 'https://github.com/hulufeng/codelab-plugins/tree/main';
+let plugins = [
+  { name:'Arduino CLI 工具链', icon:'🔌', official:true, version:'v0.4.0', category:'embedded', categoryName:'嵌入式工具链',
+    desc:'编译 / 烧录 / 库管理 / 板卡 / 串口日志 / 平台安装卸载，直连 arduino-cli，完整 AI 工具。设备面板支持开发板搜索与端口选择。',
+    tags:['编译','上传','板卡','库管理','串口日志','设备面板'], github:`${PLUGIN_BASE}/arduino-cli-toolchain` },
+  { name:'ESP-IDF 工具链', icon:'📡', official:true, version:'v0.1.11', category:'embedded', categoryName:'嵌入式工具链',
+    desc:'图形化 Kconfig、编译 / 烧录 / 目标芯片 / 串口日志，复用本机已装 ESP-IDF。支持 ESP32 / ESP32-C3 / ESP32-S3 全系列。',
+    tags:['编译','烧录','目标芯片','Kconfig','串口日志'], github:`${PLUGIN_BASE}/esp-idf-toolchain` },
+  { name:'STM32Cube 工具链', icon:'🔧', official:true, version:'v0.1.2', category:'embedded', categoryName:'嵌入式工具链',
+    desc:'CMake + GCC 编译，SWD 一键烧录，裸机脚手架（F103 / F401 / F411）。CubeMX 工程导入与 HAL 库支持。',
+    tags:['编译','烧录','裸机脚手架','串口日志','SWD'], github:`${PLUGIN_BASE}/stm32-cube-toolchain` },
+  { name:'插件开发工具链', icon:'🧩', official:true, version:'v0.1.1', category:'ai', categoryName:'AI 与开发辅助',
+    desc:'让 AI 帮你创建 LabCode 插件：AI 完全主导（问需求 → 生成骨架 → 校验 manifest → 问是否安装 → 问是否启用）。',
+    tags:['AI 创建插件','校验','安装','启用'], github:`${PLUGIN_BASE}/plugin-dev-toolchain` },
+  { name:'浏览器自动化', icon:'🌐', official:true, version:'v0.1.5', category:'ai', categoryName:'AI 与开发辅助',
+    desc:'给 AI 一个可控的真实浏览器：打开网页、点击、填表、抓取、截图——经 Playwright MCP 接入，直接驱动系统已装的 Edge。',
+    tags:['MCP','网页抓取','自动化','截图'], github:`${PLUGIN_BASE}/browser-toolchain` },
+  { name:'51 单片机工具链', icon:'💾', official:true, version:'v0.3.3', category:'embedded', categoryName:'嵌入式工具链',
+    desc:'51 系列单片机（8051）通用开发工具链：SDCC 开源编译器编译，stcgal 串口 ISP 烧录 STC 系列。内置 10 款常用 STC 芯片支持。',
+    tags:['SDCC 编译','STC 烧录','裸机模板','串口日志'], github:`${PLUGIN_BASE}/mcs51-toolchain` },
+  { name:'OpenSCAD 工具链', icon:'📐', official:true, version:'v0.1.1', category:'embedded', categoryName:'嵌入式工具链',
+    desc:'OpenSCAD 程序化建模：机械外壳 / 结构件 / 3D 打印件建模交给 AI——写 .scad → 三视角 PNG 预览 → 导出 STL / 3MF。内置 BOSL2 库。',
+    tags:['程序化建模','三视角预览','STL 导出','BOSL2'], github:`${PLUGIN_BASE}/openscad-toolchain` },
+  { name:'Wokwi 模拟器', icon:'🎛️', official:true, version:'v0.1.4', category:'embedded', categoryName:'嵌入式工具链',
+    desc:'Wokwi 电路模拟器：编译固件后在 Wokwi 仿真引擎上运行，串口输出实时可测、自动化场景断言、部件截图、电路图校验。',
+    tags:['模拟运行','串口断言','自动化','电路图校验'], github:`${PLUGIN_BASE}/wokwi-simulator` },
+  { name:'立创EDA', icon:'🔌', official:true, version:'v0.2.3', category:'ai', categoryName:'AI 与开发辅助',
+    desc:'把立创EDA(EasyEDA)接入 AI：工程 / 原理图 / PCB / 器件库 / DRC 自动化设计。一键重排（主IC居中/VCC上/GND下/外围贴脚/留通道 + 自动布线验证）。',
+    tags:['原理图','PCB','器件库','DRC','AI 工具','一键重排'], github:`${PLUGIN_BASE}/easyeda-toolchain` },
+];
+
+const CATEGORY_NAMES = { embedded:'嵌入式工具链', ai:'AI 与开发辅助', hardware:'硬件' };
+async function loadPlugins() {
+  try {
+    const res = await fetch(SITE_BASE + '/api/plugins');
+    if (!res.ok) throw new Error('bad status');
+    const data = await res.json();
+    const list = (data.plugins || []).map(p => ({
+      name:p.name, icon:p.icon||'🔧', official:true, version:'v'+(p.version||''),
+      category:p.category||'embedded', categoryName:CATEGORY_NAMES[p.category]||p.category||'工具链',
+      desc:p.description||'', tags:p.tags||[], github:p.github||''
+    }));
+    if (list.length) { plugins = list; render(); }
+  } catch (e) { /* 后台未起 / 离线：保持静态兜底数据 */ }
+}
+loadPlugins();
+
+const grid = document.getElementById('pluginGrid');
+const searchInput = document.getElementById('searchInput');
+const filterTabs = document.getElementById('filterTabs');
+let activeCat = 'all';
+let searchQuery = '';
+
+function render() {
+  const filtered = plugins.filter(p => {
+    const catMatch = activeCat === 'all' || p.category === activeCat;
+    const q = searchQuery.toLowerCase();
+    const searchMatch = !q || p.name.toLowerCase().includes(q) || p.desc.toLowerCase().includes(q) || p.tags.some(t => t.toLowerCase().includes(q));
+    return catMatch && searchMatch;
+  });
+  if (filtered.length === 0) {
+    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:48px;color:var(--gray);">无匹配插件</div>';
+    return;
+  }
+  grid.innerHTML = filtered.map(p => `
+    <div class="plugin-card">
+      <div class="plugin-head">
+        <div class="plugin-ic">${p.icon}</div>
+        <div>
+          <div class="plugin-name">${p.name}${p.official ? '<span class="official-badge">官方</span>' : ''}</div>
+          <div class="plugin-meta">${p.version} · ${p.categoryName}</div>
+        </div>
+      </div>
+      <div class="plugin-desc">${p.desc}</div>
+      <div class="plugin-tags">${p.tags.map(t => `<span class="plugin-tag">${t}</span>`).join('')}</div>
+      <div class="plugin-footer">
+        <span class="install-btn" onclick="trackInstall('${p.name}')">软件内一键安装</span>
+        <a href="${p.github}" target="_blank" class="source-link">查看源码 →</a>
+      </div>
+    </div>
+  `).join('');
+}
+
+function trackInstall(name) {
+  if (!name) return;
+  try { fetch(SITE_BASE + '/api/plugins/install', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ name }) }).catch(()=>{}); } catch (e) {}
+}
+
+filterTabs.addEventListener('click', (e) => {
+  const tab = e.target.closest('.filter-tab');
+  if (!tab) return;
+  document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+  tab.classList.add('active');
+  activeCat = tab.dataset.cat;
+  render();
+});
+searchInput.addEventListener('input', (e) => { searchQuery = e.target.value; render(); });
+render();
+</script>
+
+</body>
+</html>

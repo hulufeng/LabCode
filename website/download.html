@@ -1,0 +1,227 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>下载 - LabCode</title>
+<meta name="description" content="下载 LabCode：本地优先的 AI 编码桌面端，Windows 10/11 x64，双击安装，不用配环境。">
+<link rel="stylesheet" href="https://miaoda.feishu.cn/fonts/css2?family=Noto+Sans+SC:wght@400;500;600;700;800&display=swap">
+<style>
+  :root{
+    --ink:#1d1d1f; --ink-2:#424245; --gray:#86868b;
+    --border:rgba(0,0,0,.08); --accent:#059669; --accent-deep:#047857;
+    --bg:#fff; --card:#f5f5f7; --font:'Noto Sans SC','PingFang SC','Microsoft YaHei',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:var(--font);background:var(--bg);color:var(--ink);line-height:1.6;-webkit-font-smoothing:antialiased}
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+
+  .nav{position:sticky;top:0;z-index:100;background:rgba(255,255,255,.72);backdrop-filter:saturate(180%) blur(20px);border-bottom:1px solid var(--border)}
+  .nav-in{max-width:1100px;margin:0 auto;padding:0 24px;height:54px;display:flex;align-items:center;gap:24px}
+  .brand{display:flex;align-items:center;gap:8px;font-weight:700;font-size:16px;color:var(--ink)}
+  .brand .mark{width:26px;height:26px;border-radius:7px;background:linear-gradient(135deg,#059669,#047857);color:#fff;font-size:14px;font-weight:800;display:flex;align-items:center;justify-content:center}
+  .nav-links{display:flex;gap:24px;align-items:center;margin-left:auto;font-size:13px;color:var(--ink-2)}
+  .nav-links a:hover{color:var(--ink);text-decoration:none}
+  .nav-cta{background:var(--accent);color:#fff!important;padding:7px 18px;border-radius:999px;font-size:13px;font-weight:600}
+  .nav-cta:hover{background:var(--accent-deep);text-decoration:none}
+
+  .hero{text-align:center;padding:80px 24px 50px;background:linear-gradient(180deg,#ecfdf5 0%,#fff 100%)}
+  .kicker{font-size:13px;font-weight:700;letter-spacing:.14em;color:var(--accent);text-transform:uppercase}
+  .hero h1{font-size:42px;font-weight:800;letter-spacing:-.02em;margin-top:10px}
+  .hero .sub{font-size:17px;color:var(--ink-2);margin-top:12px;max-width:560px;margin-left:auto;margin-right:auto}
+  .ver-badge{display:inline-block;background:rgba(5,150,105,.1);color:var(--accent-deep);padding:5px 14px;border-radius:999px;font-size:13px;font-weight:600;margin-bottom:18px}
+
+  .download-cards{max-width:900px;margin:32px auto 0;display:flex;gap:24px;justify-content:center;flex-wrap:wrap}
+  .dl-card{background:#fff;border:1px solid var(--border);border-radius:18px;padding:32px 28px;width:280px;text-align:center;transition:all .2s}
+  .dl-card:hover{border-color:rgba(5,150,105,.5);transform:translateY(-2px);box-shadow:0 10px 30px rgba(5,150,105,.1)}
+  .dl-card .os-ic{font-size:42px;margin-bottom:12px}
+  .dl-card h3{font-size:18px;font-weight:700;margin-bottom:6px}
+  .dl-card .os-desc{font-size:13px;color:var(--gray);margin-bottom:20px}
+  .dl-btn{display:inline-block;background:var(--accent);color:#fff;padding:10px 28px;border-radius:10px;font-size:14px;font-weight:600;transition:background .2s;cursor:pointer}
+  .dl-btn:hover{background:var(--accent-deep);text-decoration:none}
+  .dl-btn.secondary{background:var(--card);color:var(--ink-2);cursor:default}
+  .dl-card .file-info{font-size:11px;color:#aaa;margin-top:12px}
+
+  .section{max-width:900px;margin:0 auto;padding:56px 24px}
+  .section h2{font-size:24px;font-weight:700;margin-bottom:24px}
+  .req-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px}
+  .req-item{background:var(--card);border-radius:12px;padding:18px}
+  .req-item .label{font-size:12px;color:var(--gray);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px}
+  .req-item .value{font-size:15px;font-weight:600}
+
+  .steps{display:flex;gap:20px;flex-wrap:wrap}
+  .step{flex:1;min-width:180px;background:#fff;border:1px solid var(--border);border-radius:12px;padding:22px;position:relative}
+  .step-num{width:28px;height:28px;background:var(--accent);color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;margin-bottom:12px}
+  .step h4{font-size:15px;font-weight:600;margin-bottom:6px}
+  .step p{font-size:13px;color:var(--ink-2)}
+
+  .changelog{background:var(--card)}
+  .changelog-inner{max-width:900px;margin:0 auto;padding:56px 24px}
+  .changelog h2{font-size:24px;font-weight:700;margin-bottom:28px}
+  .cl-item{background:#fff;border-radius:12px;padding:22px 26px;margin-bottom:14px;border-left:3px solid var(--accent)}
+  .cl-item .v{font-size:15px;font-weight:700;margin-bottom:4px}
+  .cl-item .d{font-size:12px;color:#aaa;margin-bottom:10px}
+  .cl-item ul{padding-left:18px}
+  .cl-item li{font-size:13px;color:var(--ink-2);margin-bottom:4px}
+
+  .footer{border-top:1px solid var(--border);padding:32px 24px;text-align:center;color:var(--gray);font-size:13px}
+
+  @media (max-width:640px){
+    .hero h1{font-size:30px}
+    .nav-links{display:none}
+  }
+</style>
+<link rel="icon" type="image/png" href="/codelab/favicon.png">
+<script>var SITE_BASE=(function(){var f=location.pathname.split('/').filter(Boolean)[0];return f==='codelab'?'/codelab':'';})();</script>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-in">
+    <a href="/codelab/" class="brand"><span class="mark">L</span> LabCode</a>
+    <div class="nav-links">
+      <a href="/codelab/">首页</a>
+      <a href="/codelab/plugins.html">插件市场</a>
+      <a href="/codelab/docs/quick-start.html">文档</a>
+      <a href="/codelab/download.html" style="color:var(--ink)">下载</a>
+      <a href="/admin/" target="_blank">管理后台</a>
+      <a href="https://github.com/hulufeng/LabCode-plugins" target="_blank">GitHub</a>
+      <a href="/codelab/download.html" class="nav-cta">免费下载</a>
+    </div>
+  </div>
+</nav>
+
+<section class="hero">
+  <div class="ver-badge" id="verBadge">最新版本 v0.1.9</div>
+  <div class="kicker">DOWNLOAD</div>
+  <h1>装上就用，不用配环境</h1>
+  <p class="sub">本地优先的 AI 编码桌面端 · 插件系统 · 嵌入式烧录 · Windows 10/11 x64 双击安装。</p>
+
+  <div class="download-cards">
+    <div class="dl-card">
+      <div class="os-ic">🪟</div>
+      <h3>Windows</h3>
+      <p class="os-desc">Windows 10 / 11 (x64)</p>
+      <a href="/d/windows" class="dl-btn">下载安装包</a>
+      <p class="file-info">.exe · 约 129 MB</p>
+    </div>
+    <div class="dl-card">
+      <div class="os-ic">🍎</div>
+      <h3>macOS</h3>
+      <p class="os-desc">即将推出</p>
+      <a class="dl-btn secondary">敬请期待</a>
+      <p class="file-info">—</p>
+    </div>
+    <div class="dl-card">
+      <div class="os-ic">🐧</div>
+      <h3>Linux</h3>
+      <p class="os-desc">即将推出</p>
+      <a class="dl-btn secondary">敬请期待</a>
+      <p class="file-info">—</p>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <h2>系统要求</h2>
+  <div class="req-grid">
+    <div class="req-item"><div class="label">操作系统</div><div class="value">Windows 10 / 11</div></div>
+    <div class="req-item"><div class="label">架构</div><div class="value">x64 (64位)</div></div>
+    <div class="req-item"><div class="label">内存</div><div class="value">≥ 4 GB RAM</div></div>
+    <div class="req-item"><div class="label">磁盘空间</div><div class="value">≥ 500 MB</div></div>
+    <div class="req-item"><div class="label">网络</div><div class="value">需联网（AI 功能）</div></div>
+    <div class="req-item"><div class="label">可选</div><div class="value">Arduino CLI / ESP-IDF</div></div>
+  </div>
+</section>
+
+<section class="section">
+  <h2>安装步骤</h2>
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">1</div>
+      <h4>下载安装包</h4>
+      <p>点击上方 Windows 下载按钮，获取 LabCode-Setup 安装包。</p>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <h4>运行安装</h4>
+      <p>双击安装包，按向导完成安装（支持自定义安装路径）。</p>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <h4>启动客户端</h4>
+      <p>桌面或开始菜单找到 LabCode，启动后自动检查更新。</p>
+    </div>
+    <div class="step">
+      <div class="step-num">4</div>
+      <h4>开始使用</h4>
+      <p>代码和模型都在本机，开箱即用；想接云端模型随时在设置里配置。</p>
+    </div>
+  </div>
+</section>
+
+<section class="changelog">
+  <div class="changelog-inner">
+    <h2>更新日志</h2>
+    <div class="cl-item">
+      <div class="v">v0.1.9</div>
+      <div class="d">2026-09-04</div>
+      <ul>
+        <li>品牌统一为 LabCode：窗口标题、AI 智能体、安装包、官网全面更名</li>
+        <li>导航栏统一：功能特性 / 插件生态 / 文档 / 下载 / 管理后台 / GitHub</li>
+        <li>修复下载页「文档」死链，Arduino 插件版本号同步为 v0.4.0</li>
+        <li>TitleBar 状态标签优化为「v0.1.9 · 本地优先的 AI 编码桌面端」</li>
+      </ul>
+    </div>
+    <div class="cl-item">
+      <div class="v">v0.1.8</div>
+      <div class="d">2026-09-04</div>
+      <ul>
+        <li>Arduino CLI 工具链插件完整落地：板卡搜索/库管理/平台安装/编译烧录/串口监视</li>
+        <li>独立串口监视窗口：可拖拽、Hex 显示、自动滚动、命令发送</li>
+        <li>设备面板：开发板实时搜索 + 端口选择 + 串口监视器入口</li>
+        <li>自动更新 UI 横幅，支持一键更新到最新版</li>
+      </ul>
+    </div>
+    <div class="cl-item">
+      <div class="v">v0.1.5</div>
+      <div class="d">2026-09-03</div>
+      <ul>
+        <li>修复顶部菜单栏（文件/编辑/视图/工具/帮助）点击无响应问题</li>
+        <li>AI 面板完整版：账号登录、积分体系、模型选择、BYOK 自带 Key</li>
+        <li>命令面板 Ctrl+Shift+P，支持插件命令调用</li>
+      </ul>
+    </div>
+    <div class="cl-item">
+      <div class="v">v0.1.0</div>
+      <div class="d">2026-09-02</div>
+      <ul>
+        <li>LabCode 桌面客户端首次发布</li>
+        <li>类 VS Code 四栏布局：活动栏/文件树/编辑器/AI 面板</li>
+        <li>多语言代码编辑器、集成终端、插件市场</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<footer class="footer">
+  © 2026 LabCode · 本地优先的 AI 编码桌面端
+</footer>
+
+<script>
+(async () => {
+  try {
+    const res = await fetch(SITE_BASE + '/api/version');
+    if (!res.ok) return;
+    const d = await res.json();
+    if (d && d.latest) {
+      const badge = document.getElementById('verBadge');
+      if (badge) badge.textContent = '最新版本 v' + d.latest;
+    }
+  } catch (e) {}
+})();
+</script>
+
+</body>
+</html>

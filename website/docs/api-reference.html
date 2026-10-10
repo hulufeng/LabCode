@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>接口参考 · LabCode 代码实验室</title>
+<meta name="description" content="LabCode 官网后端 REST 接口：插件市场、联系表单、内容块、版本、下载计数与管理后台。">
+<link rel="icon" href="/favicon.ico">
+<link rel="stylesheet" href="https://miaoda.feishu.cn/fonts/css2?family=Noto+Sans+SC:wght@400;500;600;700;800&display=swap">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --bg: #ffffff; --bg2: #f5f7fb; --card: #ffffff; --border: #e2e6ef;
+    --text: #1a1d2e; --text2: #5a5f73; --accent: #059669; --accent2: #047857;
+  }
+  body { font-family: 'Noto Sans SC','PingFang SC','Microsoft YaHei',system-ui,sans-serif; background: var(--bg); color: var(--text); line-height: 1.7; }
+  a { color: var(--accent); text-decoration: none; } a:hover { color: var(--accent2); }
+  .nav { position: sticky; top: 0; z-index: 100; background: rgba(255,255,255,0.9); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); padding: 0 32px; height: 60px; display: flex; align-items: center; justify-content: space-between; }
+  .nav-brand { font-size: 18px; font-weight: 700; color: var(--accent); display: flex; align-items: center; gap: 8px; }
+  .nav-brand .logo { width: 28px; height: 28px; border-radius: 7px; background: linear-gradient(180deg, #ffffff 0%, #e8e8e8 100%); border: 2px solid #111111; display: inline-flex; align-items: center; justify-content: center; color: #111111; font-size: 13px; font-weight: 900; text-shadow: 0 1.5px 2px rgba(0,0,0,0.45); box-shadow: 0 2px 5px rgba(0,0,0,0.18); }
+  .nav-links { display: flex; gap: 28px; align-items: center; } .nav-links a { color: var(--text2); font-size: 14px; } .nav-links a:hover, .nav-links a.active { color: var(--text); }
+  .nav-cta { background: var(--accent); color: #fff !important; padding: 8px 18px; border-radius: 6px; font-weight: 600; font-size: 13px !important; }
+  .layout { max-width: 1150px; margin: 0 auto; padding: 40px 24px; display: flex; gap: 40px; }
+  .sidebar { width: 220px; flex-shrink: 0; position: sticky; top: 80px; align-self: flex-start; }
+  .sidebar h4 { font-size: 12px; color: var(--text2); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; }
+  .sidebar a { display: block; font-size: 14px; color: var(--text2); padding: 6px 10px; border-radius: 6px; margin-bottom: 2px; } .sidebar a:hover { color: var(--text); background: var(--bg2); } .sidebar a.active { color: var(--accent); font-weight: 600; background: rgba(5,150,105,0.08); }
+  .content { flex: 1; min-width: 0; max-width: 820px; }
+  .content h1 { font-size: 32px; font-weight: 800; margin-bottom: 8px; } .content .lead { font-size: 16px; color: var(--text2); margin-bottom: 36px; }
+  .content h2 { font-size: 22px; font-weight: 700; margin: 40px 0 12px; padding-top: 8px; } .content h3 { font-size: 17px; font-weight: 600; margin: 24px 0 8px; }
+  .content p { font-size: 14.5px; color: var(--text); margin-bottom: 12px; } .content ul, .content ol { padding-left: 22px; margin-bottom: 14px; } .content li { font-size: 14.5px; color: var(--text); margin-bottom: 6px; }
+  .content code { background: var(--bg2); border: 1px solid var(--border); padding: 1px 6px; border-radius: 4px; font-size: 13px; font-family: 'Cascadia Code', Consolas, monospace; }
+  .content pre { background: #0f172a; color: #e2e8f0; border-radius: 10px; padding: 18px 20px; overflow-x: auto; margin: 12px 0 18px; font-size: 13px; line-height: 1.6; font-family: 'Cascadia Code', Consolas, monospace; } .content pre code { background: none; border: none; padding: 0; color: inherit; }
+  .endpoint { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px 24px; margin-bottom: 16px; }
+  .endpoint .head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .method { font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 5px; color: #fff; }
+  .m-get { background: #22a06b; } .m-post { background: #059669; } .endpoint .path { font-family: 'Cascadia Code', Consolas, monospace; font-size: 14px; font-weight: 600; }
+  .endpoint p { margin: 6px 0; }
+  .callout { border-radius: 10px; padding: 14px 18px; margin: 16px 0; font-size: 14px; } .callout.info { background: rgba(5,150,105,0.06); border: 1px solid rgba(5,150,105,0.2); } .callout.tip { background: rgba(34,160,107,0.06); border: 1px solid rgba(34,160,107,0.2); } .callout strong { color: var(--text); }
+  .footer { border-top: 1px solid var(--border); padding: 32px 24px; text-align: center; } .footer p { font-size: 13px; color: var(--text2); }
+  @media (max-width: 768px) { .layout { flex-direction: column; padding: 24px 16px; gap: 20px; } .sidebar { width: 100%; position: static; display: flex; flex-wrap: wrap; gap: 4px; } .sidebar h4 { width: 100%; margin-bottom: 4px; } .nav-links { display: none; } .content h1 { font-size: 26px; } }
+</style>
+</head>
+<body>
+<nav class="nav">
+  <div class="nav-brand"><span class="logo">LC</span> LabCode</div>
+  <div class="nav-links">
+    <a href="/codelab/">首页</a><a href="/codelab/plugins.html">插件生态</a><a href="/codelab/download.html">下载</a>
+    <a href="/codelab/docs/quick-start.html" class="active">文档</a>
+    <a href="https://github.com/hulufeng/LabCode-plugins" target="_blank">GitHub</a>
+    <a href="/codelab/download.html" class="nav-cta">免费下载</a>
+  </div>
+</nav>
+<div class="layout">
+  <aside class="sidebar">
+    <h4>文档</h4>
+    <a href="quick-start.html">快速开始</a><a href="plugin-dev.html">插件开发指南</a>
+    <a href="flash-hardware.html">烧录与硬件连接</a><a href="faq.html">常见问题</a>
+    <a href="api-reference.html" class="active">接口参考</a><a href="changelog.html">更新日志</a>
+  </aside>
+  <div class="content">
+    <h1>接口参考</h1>
+    <p class="lead">官网后端 <code>server.mjs</code> 是零依赖 Node ESM 服务（默认端口 8788），经 nginx 反代到 <code>/codelab/api/</code>。以下为公开接口；管理后台在 <code>/admin/</code>（需登录）。</p>
+
+    <div class="callout info"><strong>Base URL：</strong>浏览器侧访问 <code>https://bluebubai.work/codelab/api</code>；本地直连后端为 <code>http://localhost:8788/api</code>。</div>
+
+    <h2>插件市场</h2>
+    <div class="endpoint">
+      <div class="head"><span class="method m-get">GET</span><span class="path">/api/plugins</span></div>
+      <p>返回插件市场列表。可选查询 <code>?category=&amp;q=</code> 过滤。</p>
+      <pre><code>[
+  {
+    "id": "arduino-cli-toolchain",
+    "name": "Arduino 工具链",
+    "version": "1.2.0",
+    "category": "toolchain",
+    "summary": "编译 / 烧录 Arduino 工程",
+    "downloads": 1820
+  }
+]</code></pre>
+    </div>
+
+    <h2>内容块</h2>
+    <div class="endpoint">
+      <div class="head"><span class="method m-get">GET</span><span class="path">/api/content?key=homepage_banner</span></div>
+      <p>按 key 取可编辑的内容块（首页横幅、特性等）。</p>
+      <pre><code>{ "key": "homepage_banner", "title": "...", "body": "..." }</code></pre>
+    </div>
+
+    <h2>版本</h2>
+    <div class="endpoint">
+      <div class="head"><span class="method m-get">GET</span><span class="path">/api/version</span></div>
+      <p>返回当前客户端最新版本与下载地址，供更新检测使用。</p>
+      <pre><code>{ "version": "1.4.2", "notes": "...", "url": "https://.../LabCode-Setup.exe" }</code></pre>
+    </div>
+
+    <h2>联系表单</h2>
+    <div class="endpoint">
+      <div class="head"><span class="method m-post">POST</span><span class="path">/api/contact</span></div>
+      <p>提交联系 / 反馈表单。Body 为 JSON：</p>
+      <pre><code>{ "name": "张三", "email": "a@b.com", "message": "..." }</code></pre>
+      <p>成功返回 <code>200 { "ok": true }</code>。</p>
+    </div>
+
+    <h2>下载计数</h2>
+    <div class="endpoint">
+      <div class="head"><span class="method m-get">GET</span><span class="path">/api/downloads?file=LabCode-Setup.exe</span></div>
+      <p>返回指定安装包的累计下载次数。</p>
+      <pre><code>{ "file": "LabCode-Setup.exe", "count": 5821 }</code></pre>
+    </div>
+
+    <h2>管理后台</h2>
+    <div class="endpoint">
+      <div class="head"><span class="method m-get">GET</span><span class="path">/admin/</span></div>
+      <p>管理后台入口，需管理员登录（邮箱 + 密码）。登录态用 token 校验，跨重启稳定（密码盐已固定为字面量，详见 <a href="changelog.html">更新日志</a>）。</p>
+    </div>
+
+    <h2>三通道 AI 网关</h2>
+    <p>AI 调用支持 function calling，三通道由配置切换，不在本 REST 接口范畴：</p>
+    <ul>
+      <li><strong>本地 llama：</strong>本机部署模型，数据完全不出机</li>
+      <li><strong>BYOK：</strong>填入自有 API Key 直连你的模型服务</li>
+      <li><strong>官方登录 + 积分：</strong>注册送积分，免费起步</li>
+    </ul>
+    <div class="callout tip">插件市场接入规范见 <a href="plugin-dev.html">插件开发指南</a>；部署与后端结构见 <a href="faq.html">常见问题</a>。</div>
+  </div>
+</div>
+<footer class="footer"><p>© 2026 LabCode 代码实验室 · 通用软件开发智能体</p></footer>
+</body>
+</html>

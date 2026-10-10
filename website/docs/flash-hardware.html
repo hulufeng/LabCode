@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>烧录与硬件连接 · LabCode 代码实验室</title>
+<meta name="description" content="ESP32 / STM32 开发板的 USB 连接、驱动、选板选口、编译与烧录全流程教程。">
+<link rel="icon" href="/favicon.ico">
+<link rel="stylesheet" href="https://miaoda.feishu.cn/fonts/css2?family=Noto+Sans+SC:wght@400;500;600;700;800&display=swap">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --bg: #ffffff;
+    --bg2: #f5f7fb;
+    --card: #ffffff;
+    --border: #e2e6ef;
+    --text: #1a1d2e;
+    --text2: #5a5f73;
+    --accent: #059669;
+    --accent2: #047857;
+  }
+  body {
+    font-family: 'Noto Sans SC','PingFang SC','Microsoft YaHei',system-ui,sans-serif;
+    background: var(--bg); color: var(--text); line-height: 1.7;
+  }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { color: var(--accent2); }
+
+  .nav {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(255,255,255,0.9); backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 32px; height: 60px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .nav-brand { font-size: 18px; font-weight: 700; color: var(--accent); display: flex; align-items: center; gap: 8px; }
+  .nav-brand .logo {
+    width: 28px; height: 28px; border-radius: 7px;
+    background: linear-gradient(180deg, #ffffff 0%, #e8e8e8 100%);
+    border: 2px solid #111111; display: inline-flex; align-items: center; justify-content: center;
+    color: #111111; font-size: 13px; font-weight: 900;
+    text-shadow: 0 1.5px 2px rgba(0,0,0,0.45); box-shadow: 0 2px 5px rgba(0,0,0,0.18);
+  }
+  .nav-links { display: flex; gap: 28px; align-items: center; }
+  .nav-links a { color: var(--text2); font-size: 14px; }
+  .nav-links a:hover, .nav-links a.active { color: var(--text); }
+  .nav-cta { background: var(--accent); color: #fff !important; padding: 8px 18px; border-radius: 6px; font-weight: 600; font-size: 13px !important; }
+
+  .layout { max-width: 1150px; margin: 0 auto; padding: 40px 24px; display: flex; gap: 40px; }
+  .sidebar { width: 220px; flex-shrink: 0; position: sticky; top: 80px; align-self: flex-start; }
+  .sidebar h4 { font-size: 12px; color: var(--text2); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; }
+  .sidebar a { display: block; font-size: 14px; color: var(--text2); padding: 6px 10px; border-radius: 6px; margin-bottom: 2px; }
+  .sidebar a:hover { color: var(--text); background: var(--bg2); }
+  .sidebar a.active { color: var(--accent); font-weight: 600; background: rgba(5,150,105,0.08); }
+  .content { flex: 1; min-width: 0; max-width: 820px; }
+  .content h1 { font-size: 32px; font-weight: 800; margin-bottom: 8px; }
+  .content .lead { font-size: 16px; color: var(--text2); margin-bottom: 36px; }
+  .content h2 { font-size: 22px; font-weight: 700; margin: 40px 0 16px; padding-top: 8px; }
+  .content h3 { font-size: 17px; font-weight: 600; margin: 28px 0 10px; }
+  .content p { font-size: 14.5px; color: var(--text); margin-bottom: 12px; }
+  .content ul, .content ol { padding-left: 22px; margin-bottom: 14px; }
+  .content li { font-size: 14.5px; color: var(--text); margin-bottom: 6px; }
+  .content code { background: var(--bg2); border: 1px solid var(--border); padding: 1px 6px; border-radius: 4px; font-size: 13px; font-family: 'Cascadia Code', Consolas, monospace; }
+  .content pre { background: #0f172a; color: #e2e8f0; border-radius: 10px; padding: 18px 20px; overflow-x: auto; margin: 14px 0 20px; font-size: 13px; line-height: 1.6; font-family: 'Cascadia Code', Consolas, monospace; }
+  .content pre code { background: none; border: none; padding: 0; color: inherit; }
+  .step-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-bottom: 16px; }
+  .step-card .step-head { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+  .step-num { width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0; background: var(--accent); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; }
+  .step-card h3 { font-size: 17px; font-weight: 700; margin: 0; }
+  .callout { border-radius: 10px; padding: 14px 18px; margin: 16px 0; font-size: 14px; }
+  .callout.info { background: rgba(5,150,105,0.06); border: 1px solid rgba(5,150,105,0.2); }
+  .callout.tip { background: rgba(34,160,107,0.06); border: 1px solid rgba(34,160,107,0.2); }
+  .callout.warn { background: rgba(240,140,40,0.07); border: 1px solid rgba(240,140,40,0.25); }
+  .callout strong { color: var(--text); }
+
+  .footer { border-top: 1px solid var(--border); padding: 32px 24px; text-align: center; }
+  .footer p { font-size: 13px; color: var(--text2); }
+
+  @media (max-width: 768px) {
+    .layout { flex-direction: column; padding: 24px 16px; gap: 20px; }
+    .sidebar { width: 100%; position: static; display: flex; flex-wrap: wrap; gap: 4px; }
+    .sidebar h4 { width: 100%; margin-bottom: 4px; }
+    .nav-links { display: none; }
+    .content h1 { font-size: 26px; }
+  }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-brand"><span class="logo">LC</span> LabCode</div>
+  <div class="nav-links">
+    <a href="/codelab/">首页</a>
+    <a href="/codelab/plugins.html">插件生态</a>
+    <a href="/codelab/download.html">下载</a>
+    <a href="/codelab/docs/quick-start.html" class="active">文档</a>
+    <a href="https://github.com/hulufeng/LabCode-plugins" target="_blank">GitHub</a>
+    <a href="/codelab/download.html" class="nav-cta">免费下载</a>
+  </div>
+</nav>
+
+<div class="layout">
+  <aside class="sidebar">
+    <h4>文档</h4>
+    <a href="quick-start.html">快速开始</a>
+    <a href="plugin-dev.html">插件开发指南</a>
+    <a href="flash-hardware.html" class="active">烧录与硬件连接</a>
+    <a href="faq.html">常见问题</a>
+    <a href="api-reference.html">接口参考</a>
+    <a href="changelog.html">更新日志</a>
+  </aside>
+
+  <div class="content">
+    <h1>烧录与硬件连接</h1>
+    <p class="lead">从一根 USB 线到板子跑起程序：驱动、选板选口、编译、烧录、串口，全流程一次讲清。</p>
+
+    <p>LabCode 的硬链路是 <strong>写码 → 编译 → 烧录 → 串口</strong>。板卡信息统一来自 <code>boardRegistry.ts</code>（单一数据源），当前收录 <strong>10 款开发板（5 款 ESP32 + 5 款 STM32）</strong>。ESP32 走 Arduino / ESP-IDF 工具链，STM32 走 PlatformIO + OpenOCD（ST-Link SWD）。</p>
+
+    <h2>1. 安装驱动</h2>
+    <div class="step-card">
+      <div class="step-head"><div class="step-num">1</div><h3>按芯片选驱动</h3></div>
+      <ul>
+        <li><strong>USB 转串口（ESP32 多数板）：</strong>CP210x（Silicon Labs）或 CH340（WCH）。设备管理器里出现「USB-SERIAL CH340 / CP210x」即正常。</li>
+        <li><strong>ESP32-S3 / C3 / P4 原生 USB：</strong>部分板用芯片自带 USB（VID:PID 共享 <code>303a:1001</code>），免串口驱动，插上即出「USB JTAG/serial」端口。</li>
+        <li><strong>STM32（ST-Link）：</strong>装 STSW-LINK009 驱动，连接后出现「ST-Link Debug」。</li>
+      </ul>
+      <div class="callout warn"><strong>驱动没装好</strong>是最常见的「找不到端口」原因。换根线、换 USB 口、重装驱动后再试。</div>
+    </div>
+
+    <h2>2. 连接开发板</h2>
+    <div class="step-card">
+      <div class="step-head"><div class="step-num">2</div><h3>物理连接</h3></div>
+      <ul>
+        <li>用<strong>数据线</strong>（不是仅充电线）连接电脑与开发板</li>
+        <li>ESP32：接 <code>UART0</code> 对应的 USB（或原生 USB 口）；STM32：接 ST-Link 的 SWD 口（四线：SWCLK / SWDIO / GND / 3.3V）</li>
+        <li>板载 LED / 电源灯亮起说明供电正常</li>
+      </ul>
+    </div>
+
+    <h2>3. 在「设备」面板选板选口</h2>
+    <div class="step-card">
+      <div class="step-head"><div class="step-num">3</div><h3>板卡与端口</h3></div>
+      <ul>
+        <li>左侧「设备」面板列出自动检测到的串口；下拉选择开发板（FQBN，如 <code>esp32:esp32:esp32s3</code>）</li>
+        <li>端口下拉选择刚才出现的 COM 口（Windows）或 <code>/dev/ttyUSB*</code>（Linux）/ <code>/dev/cu.usbserial*</code>（macOS）</li>
+        <li>板卡与端口是<strong>唯一可编辑来源</strong>（设备面板订阅 <code>serial.onPortsChanged</code>）</li>
+      </ul>
+      <div class="callout info"><strong>板卡认错是头号坑：</strong>若板子被识别成别的型号，编译烧录会白等约 142 秒后被拒。务必在设备面板确认板型与端口后再点上传。</div>
+    </div>
+
+    <h2>4. 编译</h2>
+    <div class="step-card">
+      <div class="step-head"><div class="step-num">4</div><h3>选工具链</h3></div>
+      <ul>
+        <li><strong>ESP32（Arduino）：</strong><code>arduino-cli-toolchain</code> 插件，首次编译自动装核心</li>
+        <li><strong>ESP32（ESP-IDF）：</strong><code>esp-idf-toolchain</code> 插件，目标芯片随设备面板自动 <code>set_target</code></li>
+        <li><strong>STM32：</strong>PlatformIO + OpenOCD，仅支持 SWD 烧录</li>
+        <li>工具栏「编译」一键构建；<code>.ino</code> 编译前会自动落盘到工程目录</li>
+      </ul>
+    </div>
+
+    <h2>5. 烧录（上传）</h2>
+    <div class="step-card">
+      <div class="step-head"><div class="step-num">5</div><h3>一键上传</h3></div>
+      <ul>
+        <li>工具栏「上传」会<strong>先关串口 → 编译 → 失败即止 → 烧录 → 恢复串口</strong></li>
+        <li>烧录前请关闭串口监视器，避免端口被占用导致失败</li>
+        <li>失败会显式置错误态并清残留，不会卡死</li>
+      </ul>
+      <div class="callout tip">ESP32 原生 USB 烧录偶尔需要按住 <code>BOOT</code> 再点上传，进入下载模式。</div>
+    </div>
+
+    <h2>6. 串口监视</h2>
+    <div class="step-card">
+      <div class="step-head"><div class="step-num">6</div><h3>看输出</h3></div>
+      <ul>
+        <li>「串口监视器」独立窗口，实时查看 <code>Serial.print</code> 输出、发送命令</li>
+        <li>波特率默认 115200，可按板子调整</li>
+        <li>监视时烧录会被拦（端口占用），先停监视再上传</li>
+      </ul>
+    </div>
+
+    <h2>7. 常见硬件坑</h2>
+    <ul>
+      <li><strong>白等 142 秒后被拒：</strong>板卡认错，回设备面板重选正确板型 / 端口</li>
+      <li><strong>端口打不开：</strong>串口监视器或其他软件（Arduino IDE、串口助手）占用了端口，全部关闭后重试</li>
+      <li><strong>ESP32-S3/C3/P4 识别成同一设备：</strong>它们原生 USB 共享 <code>303a:1001</code>，靠板型选择区分，不是故障</li>
+      <li><strong>烧录中途断电 / 变砖：</strong>多数 ESP32 可进入下载模式重烧；STM32 走 ST-Link 不易砖</li>
+    </ul>
+
+    <div class="callout info">更多排错见 <a href="faq.html">常见问题</a>；接口与插件市场见 <a href="api-reference.html">接口参考</a>。</div>
+  </div>
+</div>
+
+<footer class="footer">
+  <p>© 2026 LabCode 代码实验室 · 通用软件开发智能体</p>
+</footer>
+
+</body>
+</html>

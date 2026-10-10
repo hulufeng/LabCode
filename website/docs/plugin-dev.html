@@ -1,101 +1,450 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>插件开发 · LabCode 文档</title>
+<title>插件开发指南 · LabCode 代码实验室</title>
+<meta name="description" content="开发自有插件接入 LabCode：七类通用通道（cli/http/grpc/mcp/mqtt/internal/backend）、工具链检测、类型化能力、命令/视图/项目类型声明、manifest 契约与示例。">
+<link rel="icon" href="/favicon.ico">
 <link rel="stylesheet" href="https://miaoda.feishu.cn/fonts/css2?family=Noto+Sans+SC:wght@400;500;600;700;800&display=swap">
 <style>
-  :root{--ink:#1d1d1f;--ink-2:#424245;--gray:#86868b;--gray-2:#f5f5f7;--border:rgba(0,0,0,.08);--accent:#059669;--bg:#fff;--card:#f5f5f7;--font:'Noto Sans SC','PingFang SC','Microsoft YaHei',system-ui,sans-serif}
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:var(--font);background:var(--bg);color:var(--ink);line-height:1.75}
-  a{color:var(--accent);text-decoration:none}
-  .layout{display:flex;max-width:1200px;margin:0 auto;gap:40px;padding:24px}
-  .sidebar{width:240px;flex:none;position:sticky;top:24px;max-height:calc(100vh - 48px);overflow-y:auto}
-  .sidebar h4{font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--gray);margin:20px 0 8px}
-  .sidebar a{display:block;padding:6px 12px;color:var(--ink-2);font-size:14px;border-radius:6px;margin-bottom:2px}
-  .sidebar a.active{background:rgba(5,150,105,.1);color:var(--accent);font-weight:600}
-  .content{flex:1;min-width:0;padding-bottom:80px}
-  .content h1{font-size:32px;font-weight:800;margin-bottom:8px}
-  .content h2{font-size:22px;font-weight:700;margin:36px 0 12px;padding-top:16px;border-top:1px solid var(--border)}
-  .content p{margin:10px 0;color:var(--ink-2)}
-  .content ul{margin:10px 0 10px 22px;color:var(--ink-2)}
-  .content li{margin:6px 0}
-  .content code{background:var(--gray-2);padding:2px 6px;border-radius:4px;font-family:Consolas,monospace;font-size:13px;color:#d63384}
-  .content pre{background:#1e1e2e;color:#cdd6f4;padding:16px;border-radius:12px;overflow-x:auto;margin:12px 0;font-family:Consolas,monospace;font-size:13px}
-  .topbar{background:var(--card);padding:12px 24px;font-size:14px;border-bottom:1px solid var(--border)}
-  .breadcrumb{max-width:1200px;margin:0 auto;font-size:13px;color:var(--gray)}
-  .topbar a{color:var(--ink-2)}
-  .nav-bot{display:flex;justify-content:space-between;margin-top:60px;padding-top:20px;border-top:1px solid var(--border);font-size:14px}
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --bg: #ffffff;
+    --bg2: #f5f7fb;
+    --card: #ffffff;
+    --border: #e2e6ef;
+    --text: #1a1d2e;
+    --text2: #5a5f73;
+    --accent: #059669;
+    --accent2: #047857;
+  }
+  body {
+    font-family: 'Noto Sans SC','PingFang SC','Microsoft YaHei',system-ui,sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+  }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { color: var(--accent2); }
+
+  .nav {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(255,255,255,0.9); backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 32px; height: 60px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .nav-brand { font-size: 18px; font-weight: 700; color: var(--accent); display: flex; align-items: center; gap: 8px; }
+  .nav-brand .logo {
+    width: 28px; height: 28px; border-radius: 7px;
+    background: linear-gradient(180deg, #ffffff 0%, #e8e8e8 100%);
+    border: 2px solid #111111;
+    display: inline-flex; align-items: center; justify-content: center;
+    color: #111111; font-size: 13px; font-weight: 900;
+    text-shadow: 0 1.5px 2px rgba(0,0,0,0.45);
+    box-shadow: 0 2px 5px rgba(0,0,0,0.18);
+  }
+  .nav-links { display: flex; gap: 28px; align-items: center; }
+  .nav-links a { color: var(--text2); font-size: 14px; }
+  .nav-links a:hover, .nav-links a.active { color: var(--text); }
+  .nav-cta {
+    background: var(--accent); color: #fff !important;
+    padding: 8px 18px; border-radius: 6px; font-weight: 600; font-size: 13px !important;
+  }
+
+  .layout { max-width: 1150px; margin: 0 auto; padding: 40px 24px; display: flex; gap: 40px; }
+  .sidebar { width: 220px; flex-shrink: 0; position: sticky; top: 80px; align-self: flex-start; }
+  .sidebar h4 { font-size: 12px; color: var(--text2); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; }
+  .sidebar a { display: block; font-size: 14px; color: var(--text2); padding: 6px 10px; border-radius: 6px; margin-bottom: 2px; }
+  .sidebar a:hover { color: var(--text); background: var(--bg2); }
+  .sidebar a.active { color: var(--accent); font-weight: 600; background: rgba(5,150,105,0.08); }
+  .content { flex: 1; min-width: 0; max-width: 820px; }
+  .content h1 { font-size: 32px; font-weight: 800; margin-bottom: 8px; }
+  .content .lead { font-size: 16px; color: var(--text2); margin-bottom: 36px; }
+  .content h2 { font-size: 22px; font-weight: 700; margin: 40px 0 16px; padding-top: 8px; }
+  .content h3 { font-size: 17px; font-weight: 600; margin: 28px 0 10px; }
+  .content p { font-size: 14.5px; color: var(--text); margin-bottom: 12px; }
+  .content ul, .content ol { padding-left: 22px; margin-bottom: 14px; }
+  .content li { font-size: 14.5px; color: var(--text); margin-bottom: 6px; }
+  .content code {
+    background: var(--bg2); border: 1px solid var(--border);
+    padding: 1px 6px; border-radius: 4px; font-size: 13px;
+    font-family: 'Cascadia Code', Consolas, monospace;
+  }
+  .content pre {
+    background: #0f172a; color: #e2e8f0; border-radius: 10px;
+    padding: 18px 20px; overflow-x: auto; margin: 14px 0 20px; font-size: 13px;
+    line-height: 1.6; font-family: 'Cascadia Code', Consolas, monospace;
+  }
+  .content pre code { background: none; border: none; padding: 0; color: inherit; }
+  .content table { width: 100%; border-collapse: collapse; margin: 14px 0 20px; font-size: 13.5px; }
+  .content th { text-align: left; font-weight: 600; color: var(--text); padding: 10px 12px; border-bottom: 2px solid var(--border); }
+  .content td { padding: 10px 12px; border-bottom: 1px solid var(--border); color: var(--text2); vertical-align: top; }
+  .callout {
+    border-radius: 10px; padding: 14px 18px; margin: 16px 0;
+    font-size: 14px;
+  }
+  .callout.info { background: rgba(5,150,105,0.06); border: 1px solid rgba(5,150,105,0.2); }
+  .callout.warn { background: rgba(232,131,58,0.06); border: 1px solid rgba(232,131,58,0.25); }
+  .callout strong { color: var(--text); }
+
+  .footer { border-top: 1px solid var(--border); padding: 32px 24px; text-align: center; }
+  .footer p { font-size: 13px; color: var(--text2); }
+
+  @media (max-width: 768px) {
+    .layout { flex-direction: column; padding: 24px 16px; gap: 20px; }
+    .sidebar { width: 100%; position: static; display: flex; flex-wrap: wrap; gap: 4px; }
+    .sidebar h4 { width: 100%; margin-bottom: 4px; }
+    .nav-links { display: none; }
+    .content h1 { font-size: 26px; }
+  }
 </style>
+<link rel="icon" type="image/png" href="/codelab/favicon.png">
 </head>
 <body>
-<div class="topbar"><div class="breadcrumb"><a href="/">LabCode 官网</a> · 文档 · 插件开发</div></div>
+
+<nav class="nav">
+  <div class="nav-brand"><span class="logo">LC</span> LabCode</div>
+  <div class="nav-links">
+    <a href="/codelab/">首页</a>
+    <a href="/codelab/plugins.html">插件生态</a>
+    <a href="/codelab/download.html">下载</a>
+    <a href="/codelab/docs/quick-start.html" class="active">文档</a>
+    <a href="https://github.com/hulufeng/LabCode-plugins" target="_blank">GitHub</a>
+    <a href="/codelab/download.html" class="nav-cta">免费下载</a>
+  </div>
+</nav>
+
 <div class="layout">
   <aside class="sidebar">
-    <h4>开始</h4>
-    <a href="/docs/">快速开始</a>
-    <a href="/docs/install/">下载与安装</a>
-    <h4>使用</h4>
-    <a href="/docs/interface/">界面介绍</a>
-    <a href="/docs/ai-agent/">AI 助手使用</a>
-    <a href="/docs/arduino/">Arduino / ESP32</a>
-    <a href="/docs/faq/">常见问题</a>
-    <h4>开发者</h4>
-    <a href="/docs/plugin-dev/" class="active">插件开发</a>
-    <a href="/docs/changelog/">更新日志</a>
+    <h4>文档</h4>
+    <a href="quick-start.html">快速开始</a>
+    <a href="plugin-dev.html" class="active">插件开发指南</a>
+    <a href="flash-hardware.html">烧录与硬件连接</a>
+    <a href="faq.html">常见问题</a>
+    <a href="api-reference.html">接口参考</a>
+    <a href="changelog.html">更新日志</a>
   </aside>
-  <main class="content">
-    <h1>插件开发</h1>
-    <p>插件就是一个文件夹，里面有个 <code>plugin.json</code> 清单。LabCode 读这个清单就知道要给 AI 注册哪些工具。</p>
 
-    <h2>最小插件</h2>
-    <pre><code>my-plugin/
-├── plugin.json
-└── README.md</code></pre>
+  <div class="content">
+    <h1>插件开发指南</h1>
+    <p class="lead">开发自有插件接入 LabCode：七类通用通道、工具链检测、类型化能力、命令 / 视图 / 项目类型声明、manifest 契约与示例。</p>
 
-    <h2>plugin.json 示例</h2>
+    <p>LabCode 的插件系统面向第三方开放：任何开发者都可以编写插件，把自定义工具链接入 AI 智能体与 UI，无需修改 LabCode 本体。插件通过 <code>manifest.json</code> 声明工具、类型化能力、命令、视图与项目类型，宿主统一分发渲染——UI 与 AI 同源获得插件能力。</p>
+
+    <h2>插件结构</h2>
+    <p>一个插件就是一个目录（安装后位于 <code>%APPDATA%\LabCode\plugins\{id}</code>）。目录按需存在，只有 <code>manifest.json</code> 是必填的：</p>
+    <pre><code>my-toolchain/
+├── manifest.json          # manifest（必填）
+├── ui/                    # Web 视图页面（views.webview 的 entry，可选）
+├── tools/                 # cli 插件的可执行脚本 / 二进制（可选）
+├── proto/                 # gRPC 插件自带的 .proto（可选，复用宿主服务则不需要）
+└── assets/                # 插件自带资源（如 lib/ 库文件；可选）</code></pre>
+    <div class="callout info"><strong>说明：</strong>运行时宿主还会创建 <code>bin/</code>（dependencies 下载的二进制），不属于插件打包内容。</div>
+
+    <h2>manifest.json 最小结构</h2>
     <pre><code>{
-  "id": "my-git-tools",
-  "name": "Git 小工具",
-  "version": "0.1.0",
+  "id": "my-toolchain",          // kebab-case，全局唯一
+  "name": "我的工具链",
+  "version": "1.0.0",
+  "developer": "你的名字",
+  "icon": "🔧",
+  "capabilities": {
+    "compile": { "transport": "internal", "service": "arduinoCli", "method": "compile", "output": "avr-gcc" },
+    "board-manage": { "transport": "internal", "service": "arduinoCli", "method": "board.search" }
+  }
+}</code></pre>
+    <p>安装时宿主 <code>validateManifest</code> 校验结构：能力 keys、工具 transport、命令 kind/placement、项目类型 scaffold 路径安全（拒绝绝对路径 / <code>..</code> 穿越）、视图 entry 等，非法 manifest 拒绝安装。</p>
+
+    <h2>插件图标</h2>
+    <p><code>manifest.json</code> 的 <code>icon</code> 字段声明插件图标，出现在活动栏、插件管理列表、市场卡片、新建项目页。支持三种形式：</p>
+    <table>
+      <tr><th>形式</th><th>说明</th><th>示例</th></tr>
+      <tr><td>emoji</td><td>直接写 emoji 字符</td><td><code>"icon": "🔧"</code></td></tr>
+      <tr><td>lucide 图标名</td><td>宿主渲染层映射 lucide 线条图标（小写 kebab）</td><td><code>"icon": "box"</code></td></tr>
+      <tr><td>品牌标识</td><td>品牌 LOGO：在宿主渲染层注册 React 组件，icon 写标识字符串</td><td><code>"icon": "wokwi"</code></td></tr>
+    </table>
+
+    <h2>七类通用通道</h2>
+    <p>每个工具通过 <code>transport</code> 声明走哪类通道。所有通道都是宿主通用驱动，插件只需声明，无需宿主预注册。</p>
+    <table>
+      <tr><th>transport</th><th>含义</th></tr>
+      <tr><td><code>cli</code></td><td>一次性命令行（spawn 数组参数防注入）</td></tr>
+      <tr><td><code>http</code></td><td>REST API（全局 fetch，尊重代理）</td></tr>
+      <tr><td><code>grpc</code></td><td>插件自带 .proto，宿主动态加载连接插件 daemon</td></tr>
+      <tr><td><code>mcp</code></td><td>调用插件声明的 MCP 服务器工具</td></tr>
+      <tr><td><code>mqtt</code></td><td>通用 MQTT 设备通道（连接 broker / 订阅 / 发布 / 请求-响应）</td></tr>
+      <tr><td><code>internal</code></td><td>宿主标准能力（串口 / 日志 / 状态 / Arduino / toolchain）</td></tr>
+      <tr><td><code>backend</code></td><td>调用插件自声明的 stdio 后端（JSON-RPC over stdin/stdout）</td></tr>
+    </table>
+
+    <h3>1. cli — 命令行工具（最常用）</h3>
+    <p>一次性命令行工具。宿主用 <code>spawn</code>（数组参数，不经 shell，防注入）执行：</p>
+    <pre><code>{
+  "name": "flash",
+  "description": "烧录固件到设备",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "hexPath": { "type": "string", "description": "固件文件路径" }
+    },
+    "required": ["hexPath"]
+  },
+  "transport": "cli",
+  "category": "execute",
+  "cli": {
+    "command": ["esptool.py", "--port", "{port}", "write_flash", "0x0", "{hexPath}"],
+    "parse": { "type": "json", "pick": "result" },
+    "successCodes": [0],
+    "timeoutMs": 30000
+  }
+}</code></pre>
+    <ul>
+      <li><code>command[0]</code> 为可执行文件，其余为参数模板；<code>{参数名}</code> 占位符被工具参数替换（值永远作为单个 argv，天然防 shell 注入）</li>
+      <li><code>{defaultPort}</code> / <code>{defaultFQBN}</code> = 当前选中的串口 / 开发板；工具链插件还有 <code>{settings.toolchain.active.*}</code>、<code>{projectPath}</code>、<code>{env.PATH}</code> 等占位符</li>
+      <li><strong>必须声明 <code>timeoutMs</code></strong>：cli 驱动默认 30s，长编译 / 烧录会误判超时</li>
+      <li><code>stream: true</code> + <code>streamChannel</code>：逐行实时输出；<code>pty: true</code> 在真终端打开交互命令；<code>pauseSerialPort: true</code> 烧录前暂停同端口后台串口日志</li>
+    </ul>
+
+    <h3>2. http — REST API</h3>
+    <pre><code>{
+  "name": "query_sensor",
+  "description": "查询传感器数据",
+  "transport": "http",
+  "category": "query",
+  "http": {
+    "url": "https://api.example.com/sensors/{id}/data",
+    "method": "GET",
+    "query": { "key": "{apiKey}" },
+    "headers": { "Authorization": "Bearer {token}" },
+    "parse": { "type": "json", "pick": "data.value" },
+    "timeoutMs": 10000
+  }
+}</code></pre>
+
+    <h3>3. grpc — 动态 proto（自带 .proto）</h3>
+    <pre><code>{
+  "name": "compile",
+  "description": "编译工程",
+  "transport": "grpc",
+  "category": "execute",
+  "grpc": {
+    "service": "mypkg.ToolService",
+    "method": "Compile",
+    "proto": "proto/tool.proto",
+    "backendId": "default"
+  },
+  "backends": [
+    {
+      "type": "grpc",
+      "command": "mytool-daemon",
+      "port": 0,
+      "args": ["daemon", "--port", "0"],
+      "readiness": { "kind": "grpc", "timeoutMs": 20000 }
+    }
+  ]
+}</code></pre>
+    <p><code>service</code> 用 proto 内全限定名，<code>proto</code> 为插件目录内 .proto 相对路径；宿主只连接该插件自己声明的 backend 端口（安全边界）。</p>
+
+    <h3>4. mcp — 调用 MCP 服务器工具</h3>
+    <pre><code>{
+  "mcpServers": [
+    { "name": "browser", "command": "npx", "args": ["-y", "@playwright/mcp"], "autoApprove": false }
+  ],
   "tools": [
     {
-      "name": "git_status",
-      "description": "查看 git 工作区状态",
-      "command": "git status --short"
-    },
-    {
-      "name": "git_commit",
-      "description": "提交当前改动",
-      "args": [
-        {"name": "message", "type": "string", "description": "提交信息"}
-      ],
-      "command": "git commit -m {{message}}"
+      "name": "browser_navigate",
+      "description": "打开网页",
+      "transport": "mcp",
+      "category": "query",
+      "mcp": { "server": "browser", "tool": "navigate" }
     }
   ]
 }</code></pre>
 
-    <h2>安装插件</h2>
+    <h3>5. internal — 宿主标准能力</h3>
+    <pre><code>{
+  "name": "list_ports",
+  "description": "列出串口",
+  "transport": "internal",
+  "category": "query",
+  "internal": { "service": "serialport", "method": "list" }
+}</code></pre>
+    <p>可用 internal 服务：<code>serialport</code>（串口列表/选择）、<code>serialLog</code>（后台串口日志）、<code>state</code>（板卡选项）、<code>arduinoCli</code>（Arduino 编译/烧录/库/板卡）、<code>toolchain</code>（工具链检测状态）。</p>
+
+    <h3>6. backend — 调用插件自声明的 stdio 后端</h3>
+    <pre><code>{
+  "name": "config_get",
+  "description": "读取 Kconfig 符号当前值",
+  "transport": "backend",
+  "category": "query",
+  "backend": { "backendId": "confserver", "method": "get_values", "timeoutMs": 20000 }
+}</code></pre>
+    <p>backend transport 调用插件 <code>backends</code> 里声明的 stdio 长驻后端（JSON-RPC over stdin/stdout），适合「有状态」的工具。</p>
+
+    <h3>7. mqtt — 通用 MQTT 设备通道</h3>
+    <pre><code>{
+  "mqttServers": [
+    {
+      "name": "printer",
+      "url": "mqtts://{settings.printer.ip}:8883",
+      "username": "bblp",
+      "password": "{settings.printer.accessCode}",
+      "tls": { "rejectUnauthorized": false },
+      "topics": ["device/{settings.printer.serial}/report"],
+      "allowedPublishTopics": ["device/{settings.printer.serial}/request"]
+    }
+  ],
+  "tools": [
+    {
+      "name": "query_state",
+      "description": "读取设备最新状态",
+      "transport": "mqtt",
+      "category": "query",
+      "mqtt": { "server": "printer", "op": "read_state", "topic": "device/{settings.printer.serial}/report", "format": "json" }
+    }
+  ]
+}</code></pre>
+    <p><code>op</code> 五种：<code>publish</code>（发命令）、<code>request</code>（发命令+等响应）、<code>collect</code>（读消息/等事件）、<code>read_state</code>（最新快照）、<code>status</code>（连接状态）。</p>
+    <div class="callout warn"><strong>安全：</strong>非回环 broker 强制 TLS；LAN/回环明文放行（状态带警告）；<code>allowedPublishTopics</code> 发布白名单 fail-closed；密码用 <code>{settings.*}</code> 占位符存插件设置，永不进日志。</div>
+
+    <h2>能力声明（UI 主按钮）</h2>
+    <p>UI 主按钮（编译 / 上传 / 板卡 / 库管理 / 平台安装）按主动工具链路由到启用插件的类型化能力绑定。能力 id 枚举：</p>
+    <table>
+      <tr><th>能力</th><th>含义</th></tr>
+      <tr><td><code>compile</code></td><td>编译（绑定可声明 <code>output</code>，宿主据此显示编译仪表）</td></tr>
+      <tr><td><code>upload</code></td><td>烧录</td></tr>
+      <tr><td><code>flash</code></td><td>刷写</td></tr>
+      <tr><td><code>debug</code></td><td>调试</td></tr>
+      <tr><td><code>board-manage</code></td><td>板卡管理</td></tr>
+      <tr><td><code>board-select</code></td><td>选择开发板</td></tr>
+      <tr><td><code>library-manage</code></td><td>库管理</td></tr>
+      <tr><td><code>platform-install</code></td><td>平台安装</td></tr>
+    </table>
+    <pre><code>{
+  "capabilities": {
+    "compile": { "transport": "internal", "service": "arduinoCli", "method": "compile", "output": "avr-gcc" },
+    "upload": { "transport": "internal", "service": "arduinoCli", "method": "upload" }
+  }
+}</code></pre>
+    <p>每个能力绑定一个工具后端调用（transport + service + method），UI 编译/上传按钮与 AI 工具经同一条能力路由执行。</p>
+
+    <h2>命令 / 视图 / 项目类型（UI 入口）</h2>
+    <p>插件除工具外，还可声明三种 UI 入口：</p>
+
+    <h3>命令（commands）</h3>
+    <pre><code>{
+  "id": "open-about",
+  "title": "工具链信息",
+  "icon": "🧛",
+  "kind": "open-view",
+  "view": "about",
+  "placement": "sidebar.board.header"
+}</code></pre>
     <ul>
-      <li>把插件文件夹丢到 <code>%APPDATA%\LabCode\plugins\</code> 下</li>
-      <li>或在 AI 对话里说"装这个插件：&lt;GitHub 地址&gt;"，它会自动下载</li>
-      <li>重启或在插件面板点"刷新"</li>
+      <li><code>kind</code>：<code>action</code>（触发工具调用，需 transport 绑定）或 <code>open-view</code>（打开插件视图）</li>
+      <li><code>placement</code>：<code>toolbar.action</code> / <code>sidebar.*.header</code> 等槽位；同一槽位多个命令聚合为「更多 ▾」溢出菜单</li>
+      <li><code>when</code> 最小 DSL：<code>projectType=arduino</code>、<code>activeToolchain!=x</code>，支持 <code>&& / || / !</code>；未知 key 一律隐藏按钮（fail-safe）</li>
+      <li>命令 id 由宿主加插件前缀：<code>{pluginId}.{commandId}</code></li>
     </ul>
 
-    <h2>通道类型</h2>
-    <p>目前支持：</p>
+    <h3>项目类型（projectTypes）</h3>
+    <pre><code>{
+  "id": "my-firmware",
+  "title": "我的固件项目",
+  "icon": "🔧",
+  "scaffold": [
+    { "file": "main.cpp", "content": "// {name} 项目骨架" }
+  ]
+}</code></pre>
+    <p>新建项目页展示插件贡献的项目类型卡片，选中后按 scaffold 模板生成骨架（<code>{name}</code> 占位符替换为项目名，宿主做路径安全清洗）。</p>
+
+    <h3>视图（views，Web 视图）</h3>
+    <pre><code>{
+  "id": "about",
+  "title": "工具链信息",
+  "icon": "🧛",
+  "slot": "sidebar",
+  "type": "webview",
+  "entry": "ui/index.html"
+}</code></pre>
     <ul>
-      <li><code>cli</code>：执行命令行（最常用）</li>
-      <li><code>http</code>：调 HTTP 接口</li>
-      <li><code>mcp</code>：接 MCP 服务器</li>
+      <li><code>slot</code>：<code>sidebar</code> / <code>activitybar</code> / <code>panel</code>；加载插件打包的 HTML（位于 <code>ui/</code> 目录），走 <code>codelab-plugin://{pluginId}/ui/...</code> 协议</li>
+      <li>iframe 沙箱无 same-origin；与宿主通信走 postMessage（宿主校验消息来源与 schema）</li>
+      <li>webview 双向通信：<code>ready</code> / <code>host.ready</code>、<code>host.invoke</code>（调用宿主白名单能力）、<code>state.subscribe</code>（订阅设备上下文）、<code>events</code>（接收宿主事件推送）</li>
     </ul>
 
-    <div class="nav-bot">
-      <a href="/docs/faq/">← 常见问题</a>
-      <a href="/docs/changelog/">更新日志 →</a>
-    </div>
-  </main>
+    <h2>设备面板（devicePanel）</h2>
+    <p>活动栏「设备」标签是数据驱动的通用设备壳：插件声明设备面板（选择器 + 配置选项 + 动作 + 可选 webview），宿主渲染通用控件。</p>
+    <pre><code>{
+  "devicePanel": {
+    "id": "arduino-board",
+    "title": "Arduino 设备",
+    "selectors": [
+      {
+        "id": "board", "title": "开发板",
+        "source": { "transport": "internal", "service": "arduinoCli", "method": "board.search" },
+        "searchable": true, "key": "fqbn", "placeholder": "搜索开发板…"
+      },
+      {
+        "id": "port", "title": "端口",
+        "source": { "transport": "internal", "service": "serialport", "method": "list" },
+        "key": "port"
+      }
+    ],
+    "actions": [
+      {
+        "id": "open-monitor", "title": "串口监视器", "kind": "action",
+        "placement": "device-panel.action",
+        "transport": "internal", "internal": { "service": "serialLog", "method": "open" }
+      }
+    ]
+  }
+}</code></pre>
+    <ul>
+      <li><strong>selectors：</strong>设备维度选择器，source 复用工具后端绑定；<code>searchable</code> 开启搜索式下拉；选中结果按 key 写入设备上下文</li>
+      <li><strong>actions：</strong>设备动作（复用命令机制，placement 限定 <code>device-panel.action</code>），触发时自动携带设备上下文（port / fqbn / device）</li>
+      <li>宿主按 selectors 的 key 派生编译/上传前置门控 <code>needsBoard</code> / <code>needsPort</code>：Arduino 有 fqbn+port → 都要先选；ESP-IDF 只有 target+port → 只需端口</li>
+    </ul>
+
+    <h2>工具链检测与一键安装</h2>
+    <p>工具链插件可声明 <code>detection</code>（宿主通用检测引擎）与 <code>installer</code>（一键下载运行官方安装器）。检测结果存 <code>pluginSettings.&lt;pluginId&gt;.toolchain</code>，供 <code>{settings.toolchain.active.*}</code> 占位符使用：</p>
+    <pre><code>{
+  "detection": {
+    "envVars": ["IDF_PATH"],
+    "installerJson": {
+      "paths": ["C:/Espressif/idf-env.json", "D:/Espressif/idf-env.json"],
+      "selectedKey": "idfSelectedId",
+      "entriesKey": "idfInstalled",
+      "pathField": "path"
+    },
+    "pathGlobs": ["C:/Espressif/frameworks/esp-idf-v*"],
+    "validateFile": "tools/idf.py"
+  },
+  "installer": {
+    "url": "https://dl.espressif.com/dl/esp-idf/idf-installer.exe",
+    "fileName": "idf-installer.exe"
+  }
+}</code></pre>
+    <p>检测源按序：手动路径 → 环境变量（envVars）→ 官方安装器 JSON（installerJson）→ 路径 glob（pathGlobs）→ 校验文件（validateFile）。</p>
+
+    <h2>依赖与后端</h2>
+    <ul>
+      <li><strong>依赖下载：</strong><code>dependencies</code> 数组声明（URL 或本地路径，支持 zip 解压），安装时自动下载到 <code>plugins/bin/</code></li>
+      <li><strong>长驻后端：</strong><code>backends</code> 声明随插件启停的服务进程（grpc / process / http / stdio 四型）。grpc/process/http 由宿主 BackendProcessManager 管理生命周期；stdio 由 stdioBridge 惰性管理</li>
+    </ul>
+
+    <h2>打包与发布</h2>
+    <p>插件打包为 zip 上传到市场。zip 内可直接是 <code>manifest.json</code> 或包在一个子目录里。安装方式：插件市场一键安装，或「设置 → 插件 → 从文件夹安装」。</p>
+    <div class="callout warn"><strong>安全提示：</strong>插件拥有执行命令的能力，请只从可信来源安装。LabCode 对工具的参数注入有防护（cli 用数组参数、grpc 只连自身 backend），但插件作者声明的内容本身是受信任的。</div>
+
+  </div>
 </div>
+
+<footer class="footer">
+  <p>© 2026 LabCode 代码实验室 · 通用软件开发智能体</p>
+</footer>
+
 </body>
 </html>
