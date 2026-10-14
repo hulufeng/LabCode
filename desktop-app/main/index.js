@@ -714,6 +714,18 @@ function setupIPC() {
     return { success: true, deleted: toDelete.length };
   });
 
+  // 2026-10-14 错误信息脱敏：抹除 API Key / sk- 令牌 / Bearer 凭证 / 长令牌 / 邮箱，并截断到 500 字，
+  // 防止敏感信息进入前端 UI 或日志（最小暴露原则）。
+  function redactError(msg) {
+    if (msg == null) return msg;
+    let s = String(msg);
+    s = s.replace(/sk-[A-Za-z0-9_-]{8,}/g, 'sk-***');
+    s = s.replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/gi, 'Bearer ***');
+    s = s.replace(/\b[A-Za-z0-9_-]{24,}\b/g, (m) => m.slice(0, 4) + '***' + m.slice(-2));
+    s = s.replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, '***@***');
+    return s.slice(0, 500);
+  }
+
   const AI_PROVIDERS = {
     deepseek: { baseURL: 'https://api.deepseek.com/v1', defaultModel: 'deepseek-chat' },
     gateway:  { baseURL: process.env.GATEWAY_URL || 'https://bluebubai.work', defaultModel: 'deepseek-flash' },
@@ -760,12 +772,15 @@ function setupIPC() {
       }
 
       const url = baseURL.replace(/\/$/, '') + '/chat/completions';
+      // 云推理模型思考档位：仅当显式配置 thinkingParams 才附加，默认空 → 零回归
+      const thinkingExtra = (aiCfg.thinkingParams && typeof aiCfg.thinkingParams === 'object' && Object.keys(aiCfg.thinkingParams).length) ? aiCfg.thinkingParams : {};
       const body = JSON.stringify({
         model: useModel,
         messages,
         temperature,
         max_tokens: maxTokens,
-        stream: false
+        stream: false,
+        ...thinkingExtra
       });
 
       const headers = { 'Content-Type': 'application/json' };
@@ -779,7 +794,7 @@ function setupIPC() {
 
       if (!response.ok) {
         const errText = await response.text().catch(() => '');
-        return { success: false, error: `API 杩斿洖 ${response.status}: ${errText.slice(0, 500)}` };
+        return { success: false, error: `API 杩斿洖 ${response.status}: ${redactError(errText)}` };
       }
 
       const data = await response.json();
@@ -787,7 +802,7 @@ function setupIPC() {
       const usage = data?.usage || {};
       return { success: true, content, usage, model: useModel };
     } catch (e) {
-      return { success: false, error: 'AI 璇锋眰澶辫触: ' + (e.message || String(e)) };
+      return { success: false, error: 'AI 璇锋眰澶辫触: ' + redactError(e.message || String(e)) };
     }
   });
 
@@ -912,11 +927,18 @@ function setupIPC() {
       const b = Object.assign({}, bodyObj);
       if (aiCfg.provider === 'local') b.chat_template_kwargs = { enable_thinking: enableThinking !== false };
       else if (aiCfg.provider === 'ollama') b.think = enableThinking !== false;
+      // 2026-10-14 云推理模型思考档位（BYOK reasoning 强度）：
+      // 仅当 renderer 显式传了 thinkingParams（按厂商预设展开后的字段，如
+      // {reasoning_effort:'high'} / {thinking:{type:'enabled'}} / {reasoning_split:true}）才附加。
+      // 本地/ollama/gateway 已各自用 think 控制，跳过；默认空 → 不附加任何字段，零回归。
+      if (aiCfg.thinkingParams && typeof aiCfg.thinkingParams === 'object' && Object.keys(aiCfg.thinkingParams).length) {
+        Object.assign(b, aiCfg.thinkingParams);
+      }
       const toolCalls = [];
       const response = await net.fetch(url, { method: 'POST', headers, body: JSON.stringify(b), signal: acSignal });
       if (!response.ok) {
         const errText = await response.text().catch(() => '');
-        const err = new Error(`API 杩斿洖 ${response.status}: ${errText.slice(0, 300)}`);
+        const err = new Error(`API 杩斿洖 ${response.status}: ${redactError(errText)}`);
         if (response.status === 402) err.creditsInsufficient = true;
         throw Object.assign(err, { status: response.status, errText });
       }
@@ -932,7 +954,7 @@ function setupIPC() {
           continue;
         }
         if (evt._event === 'error') {
-          send('error', { error: evt.error || '网关错误' });
+          send('error', { error: redactError(evt.error) || '网关错误' });
           continue;
         }
         if (evt.usage) lastUsage = evt.usage;
@@ -1070,6 +1092,8 @@ function setupIPC() {
             : { model: useModel, messages, temperature, max_tokens: maxTokens, stream: false };
           if (aiCfg.provider === 'local') fbBody.chat_template_kwargs = { enable_thinking: false };
           else if (aiCfg.provider === 'ollama') fbBody.think = false;
+          // 云推理模型思考档位：降级重试也保持与原请求一致的思考参数
+          else if (aiCfg.thinkingParams && typeof aiCfg.thinkingParams === 'object' && Object.keys(aiCfg.thinkingParams).length) Object.assign(fbBody, aiCfg.thinkingParams);
           const fbResp = await net.fetch(fbUrl, { method: 'POST', headers, body: JSON.stringify(fbBody), signal: acSignal });
           if (fbResp.ok) {
             const data = await fbResp.json();
@@ -1206,7 +1230,7 @@ function setupIPC() {
       }
       return { success: false, error: '鏈煡鎿嶄綔: ' + action };
     } catch (e) {
-      return { success: false, error: '缃戝叧璇锋眰澶辫触: ' + (e.message || String(e)) };
+      return { success: false, error: '缃戝叧璇锋眰澶辫触: ' + redactError(e.message || String(e)) };
     }
   });
 
@@ -2132,7 +2156,7 @@ function setupIPC() {
       }
     return { success: false, error: 'engine start timeout (model loading slow or out of memory)' };
     } catch (e) {
-      return { success: false, error: '鍚姩寮曟搸澶辫触: ' + (e.message || String(e)) };
+      return { success: false, error: '鍚姩寮曟搸澶辫触: ' + redactError(e.message || String(e)) };
     }
   }
   ipcMain.handle('system:startLLMEngine', async (_, opts) => startEngineInternal((opts || {}).modelFile));

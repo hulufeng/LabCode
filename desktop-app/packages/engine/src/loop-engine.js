@@ -117,6 +117,21 @@ class LoopEngine {
         }
 
         // 权限检查
+        // 2026-10-14 残缺工具调用重发提示：参数解析失败（含 _raw）或非合法对象时，
+        // 注入引导消息让模型补全/重发，避免无意义执行与死循环。
+        if (!call.args || typeof call.args !== 'object' || Array.isArray(call.args) || '_raw' in call.args) {
+          const raw = (call.args && call.args._raw !== undefined)
+            ? String(call.args._raw).slice(0, 200)
+            : JSON.stringify(call.args).slice(0, 200);
+          messages.push({
+            role: 'tool',
+            tool_call_id: call.id,
+            content: `Error: 工具 ${call.name} 的调用参数解析失败或不完整（${raw}）。请将其修正为合法的 JSON 对象并重新调用该工具。`
+          });
+          this.circleDetector.recordTool(call.name, call.args, false);
+          continue;
+        }
+
         if (this.permissionPolicy.requiresApproval(call.name, call.args)) {
           const approved = await this.askUser.ask(`允许执行 ${call.name}?`, ['yes', 'no']);
           if (approved !== 'yes') {
