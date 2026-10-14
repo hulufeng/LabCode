@@ -10471,6 +10471,7 @@ function bindEvents() {
     document.getElementById('ai-apikey').value = ai.apiKey || '';
     document.getElementById('ai-baseurl').value = ai.baseURL || '';
     document.getElementById('ai-model').value = ai.model || '';
+    document.getElementById('ai-thinking').value = ai.thinkingLevel || 'standard';
     document.getElementById('ai-test-result').textContent = '';
     updateAiSettingsVisibility();
     // 刷新网关账号状态（登录态 + 余额）
@@ -10612,6 +10613,7 @@ function bindEvents() {
         if (provider !== 'ollama' && provider !== 'local') await window.LabCode.config.set('ai.apiKey', apiKey);
         if (provider === 'custom') await window.LabCode.config.set('ai.baseURL', baseURL);
         if (model) await window.LabCode.config.set('ai.model', model);
+      await window.LabCode.config.set('ai.thinkingLevel', document.getElementById('ai-thinking').value || 'standard');
         // 刷新 RealAIClient 配置，使新设置立即生效
         if (state.agent && state.agent.ai && typeof state.agent.ai._loadConfig === 'function') {
           await state.agent.ai._loadConfig();
