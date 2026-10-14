@@ -1079,6 +1079,15 @@
               <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">模型名称</label>
               <input type="text" id="ai-model" placeholder="deepseek-chat" style="width:100%;padding:8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size:13px;box-sizing:border-box;">
             </div>
+            <div>
+              <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">思考档位（云推理模型推理强度）</label>
+              <select id="ai-thinking" style="width:100%;padding:8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size:13px;box-sizing:border-box;">
+                <option value="fast">快速（极窄思考，仅纯事实检索）</option>
+                <option value="light">轻度（简单任务）</option>
+                <option value="standard">标准（一般任务）</option>
+                <option value="deep">深度（复杂任务，消耗更多 token）</option>
+              </select>
+            </div>
             <div style="display:flex;gap:8px;align-items:center;">
               <button class="btn btn-secondary" id="ai-test-btn" style="flex:0 0 auto;">测试连接</button>
               <span id="ai-test-result" style="font-size:12px;color:var(--text-secondary);"></span>

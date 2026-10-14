@@ -726,6 +726,20 @@ function setupIPC() {
     return s.slice(0, 500);
   }
 
+  // 2026-10-14 思考档位 → 厂商 reasoning 参数映射（云推理模型）。
+  // renderer 存 ai.thinkingLevel（fast/light/standard/deep，对应 effort: disabled/low/high/max），
+  // 按 provider 归一化为对应厂商字段。默认 standard 对非特殊厂商返回 {reasoning_effort:'high'}。
+  const THINKING_LEVEL_EFFORT = { fast: 'disabled', light: 'low', standard: 'high', deep: 'max' };
+  function buildThinkingParams(provider, level) {
+    const effort = THINKING_LEVEL_EFFORT[level];
+    if (!effort || effort === 'disabled') return {};
+    const p = String(provider || '').toLowerCase();
+    if (p.includes('claude') || p.includes('anthropic')) return { thinking: { type: 'enabled' } };
+    if (p.includes('doubao')) return { reasoning_split: true };
+    // OpenAI 系 / deepseek / qwen / minimax / kimi / zhipu / openai / custom：reasoning_effort
+    return { reasoning_effort: effort === 'max' ? 'high' : effort };
+  }
+
   const AI_PROVIDERS = {
     deepseek: { baseURL: 'https://api.deepseek.com/v1', defaultModel: 'deepseek-chat' },
     gateway:  { baseURL: process.env.GATEWAY_URL || 'https://bluebubai.work', defaultModel: 'deepseek-flash' },
@@ -773,14 +787,16 @@ function setupIPC() {
 
       const url = baseURL.replace(/\/$/, '') + '/chat/completions';
       // 云推理模型思考档位：仅当显式配置 thinkingParams 才附加，默认空 → 零回归
-      const thinkingExtra = (aiCfg.thinkingParams && typeof aiCfg.thinkingParams === 'object' && Object.keys(aiCfg.thinkingParams).length) ? aiCfg.thinkingParams : {};
+      const thinkingExtra = (aiCfg.thinkingParams && typeof aiCfg.thinkingParams === 'object' && Object.keys(aiCfg.thinkingParams).length)
+        ? aiCfg.thinkingParams
+        : buildThinkingParams(aiCfg.provider, aiCfg.thinkingLevel);
       const body = JSON.stringify({
         model: useModel,
         messages,
         temperature,
         max_tokens: maxTokens,
         stream: false,
-        ...thinkingExtra
+        ...(thinkingExtra && Object.keys(thinkingExtra).length ? thinkingExtra : {})
       });
 
       const headers = { 'Content-Type': 'application/json' };
@@ -931,8 +947,13 @@ function setupIPC() {
       // 仅当 renderer 显式传了 thinkingParams（按厂商预设展开后的字段，如
       // {reasoning_effort:'high'} / {thinking:{type:'enabled'}} / {reasoning_split:true}）才附加。
       // 本地/ollama/gateway 已各自用 think 控制，跳过；默认空 → 不附加任何字段，零回归。
-      if (aiCfg.thinkingParams && typeof aiCfg.thinkingParams === 'object' && Object.keys(aiCfg.thinkingParams).length) {
-        Object.assign(b, aiCfg.thinkingParams);
+      else {
+        // 云推理模型思考档位：renderer 存 ai.thinkingLevel（fast/light/standard/deep），按厂商映射；
+        // 显式 thinkingParams（已展开对象）优先。本地/ollama 已各自用 think 控制，走上面分支。
+        const tp = (aiCfg.thinkingParams && typeof aiCfg.thinkingParams === 'object' && Object.keys(aiCfg.thinkingParams).length)
+          ? aiCfg.thinkingParams
+          : buildThinkingParams(aiCfg.provider, aiCfg.thinkingLevel);
+        if (tp && Object.keys(tp).length) Object.assign(b, tp);
       }
       const toolCalls = [];
       const response = await net.fetch(url, { method: 'POST', headers, body: JSON.stringify(b), signal: acSignal });
@@ -1093,7 +1114,13 @@ function setupIPC() {
           if (aiCfg.provider === 'local') fbBody.chat_template_kwargs = { enable_thinking: false };
           else if (aiCfg.provider === 'ollama') fbBody.think = false;
           // 云推理模型思考档位：降级重试也保持与原请求一致的思考参数
-          else if (aiCfg.thinkingParams && typeof aiCfg.thinkingParams === 'object' && Object.keys(aiCfg.thinkingParams).length) Object.assign(fbBody, aiCfg.thinkingParams);
+          else {
+            // 云推理模型思考档位：降级重试也保持与原请求一致的思考参数（thinkingLevel 映射或显式 thinkingParams）
+            const fbTp = (aiCfg.thinkingParams && typeof aiCfg.thinkingParams === 'object' && Object.keys(aiCfg.thinkingParams).length)
+              ? aiCfg.thinkingParams
+              : buildThinkingParams(aiCfg.provider, aiCfg.thinkingLevel);
+            if (fbTp && Object.keys(fbTp).length) Object.assign(fbBody, fbTp);
+          }
           const fbResp = await net.fetch(fbUrl, { method: 'POST', headers, body: JSON.stringify(fbBody), signal: acSignal });
           if (fbResp.ok) {
             const data = await fbResp.json();
