@@ -1,0 +1,73 @@
+/* panels.css — 上下文用量 / 定时任务 面板（复用 style.css 变量） */
+.context-panel, .schedule-panel {
+  display: flex; flex-direction: column; flex: 1; overflow: hidden;
+  background: var(--bg-secondary);
+}
+.ctx-body, .sched-list { flex: 1; overflow-y: auto; padding: 8px 10px; }
+
+.ctx-card {
+  background: var(--bg-tertiary); border: 1px solid var(--border-color);
+  border-radius: 8px; padding: 12px; margin-bottom: 10px;
+}
+.ctx-stat { display: flex; align-items: baseline; justify-content: space-between; }
+.ctx-stat-label { font-size: 12px; color: var(--text-secondary); }
+.ctx-stat-value { font-size: 22px; font-weight: 700; color: var(--text-primary); }
+.ctx-stat-sub { font-size: 11px; color: var(--text-tertiary); margin-top: 2px; }
+.ctx-bar { height: 6px; background: var(--bg-hover); border-radius: 4px; margin-top: 10px; overflow: hidden; }
+.ctx-bar-fill { height: 100%; width: 0%; background: var(--primary); transition: width .2s; }
+.ctx-bar-fill.warn { background: var(--warning); }
+.ctx-bar-fill.danger { background: var(--error); }
+.ctx-note { font-size: 11px; color: var(--text-tertiary); margin-top: 8px; }
+.ctx-flag { display:inline-block; padding: 1px 6px; border-radius: 4px; background: var(--primary-light); color: var(--primary); font-size: 10px; }
+
+.ctx-section { margin-top: 4px; }
+.ctx-hint { font-size: 11px; color: var(--text-tertiary); margin-top: 8px; line-height: 1.5; }
+.ctx-preview { margin-top: 12px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-primary); overflow: hidden; }
+.ctx-preview-header { font-size: 12px; font-weight: 600; color: var(--text-secondary); padding: 8px 10px; border-bottom: 1px solid var(--border-light); }
+.ctx-preview-body { padding: 8px 10px; max-height: 280px; overflow-y: auto; }
+.ctx-empty { font-size: 12px; color: var(--text-tertiary); padding: 8px 0; }
+.ctx-error { color: var(--error); }
+.ctx-summary { font-size: 12px; color: var(--text-secondary); margin-bottom: 6px; }
+.ctx-group-title { font-size: 11px; color: var(--text-tertiary); margin: 8px 0 4px; }
+.ctx-dropped-title { color: var(--warning); }
+.ctx-line { font-size: 12px; color: var(--text-primary); padding: 2px 0; white-space: pre-wrap; word-break: break-all; }
+.ctx-line.ctx-dropped { color: var(--text-tertiary); text-decoration: line-through; }
+.ctx-pre { font-size: 12px; white-space: pre-wrap; word-break: break-all; color: var(--text-primary); margin: 0; }
+
+/* 表单控件（复用现有配色变量） */
+.sched-status { font-size: 11px; color: var(--text-secondary); padding: 6px 10px; border-bottom: 1px solid var(--border-light); }
+.sched-form { padding: 8px 10px; border-bottom: 1px solid var(--border-light); display: flex; flex-direction: column; gap: 8px; background: var(--bg-tertiary); }
+.sched-field { display: flex; flex-direction: column; gap: 3px; }
+.sched-field label { font-size: 11px; color: var(--text-secondary); }
+.sched-field input, .sched-field select, .sched-field textarea {
+  background: var(--bg-secondary); color: var(--text-primary);
+  border: 1px solid var(--border-color); border-radius: 6px; padding: 6px 8px;
+  font-size: 12px; font-family: inherit; outline: none;
+}
+.sched-field input:focus, .sched-field select:focus, .sched-field textarea:focus { border-color: var(--primary); }
+.sched-form-actions { display: flex; gap: 6px; }
+
+.sched-item { border: 1px solid var(--border-color); border-radius: 8px; padding: 8px 10px; margin-bottom: 8px; background: var(--bg-primary); }
+.sched-item-top { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.sched-item-title { font-size: 12px; font-weight: 600; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sched-item-meta { font-size: 11px; color: var(--text-tertiary); margin: 4px 0 8px; word-break: break-all; }
+.sched-item-actions { display: flex; gap: 6px; }
+.sched-group-title { font-size: 11px; color: var(--text-tertiary); margin: 6px 0 4px; }
+.sched-run { background: var(--bg-tertiary); }
+
+.badge-info { background: var(--primary-light); color: var(--primary); }
+.badge-success { background: rgba(74,222,128,0.16); color: var(--success); }
+.badge-error { background: rgba(248,113,113,0.16); color: var(--error); }
+.badge-muted { background: var(--bg-hover); color: var(--text-tertiary); }
+
+.sched-detail { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+.sched-detail-header { display: flex; align-items: center; gap: 6px; padding: 8px 10px; border-bottom: 1px solid var(--border-light); font-size: 12px; color: var(--text-secondary); }
+.sched-detail-body { flex: 1; overflow-y: auto; padding: 8px 10px; }
+.sched-detail-actions { display: flex; gap: 6px; padding: 8px 10px; border-top: 1px solid var(--border-light); }
+.sched-summary { font-size: 12px; color: var(--text-secondary); margin-bottom: 6px; }
+.patch-file { margin-bottom: 8px; }
+.patch-file-name { font-size: 11px; color: var(--text-secondary); margin-bottom: 2px; }
+.patch-diff { background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 6px; padding: 8px; font-size: 11px; white-space: pre-wrap; word-break: break-all; color: var(--text-primary); margin: 0; }
+
+/* 内联补全（ghost）样式钩子（主要由 Monaco 自身渲染） */
+.monaco-editor .inline-completion-text { color: var(--text-tertiary); opacity: 0.7; }

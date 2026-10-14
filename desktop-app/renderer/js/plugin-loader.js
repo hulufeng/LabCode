@@ -120,7 +120,7 @@ function loadPluginManifest(manifest) {
                 } catch (e) { /* 解析失败就用原命令 */ }
               }
               // 模板替换：{argName} 来自参数，{projectPath} 来自当前工程
-              const projectPath = (window.LabCode && window.LabCode.state && window.LabCode.state.projectPath) || '';
+              const projectPath = (window.LabCodeUI && window.LabCodeUI.state && window.LabCodeUI.state.projectPath) || '';
               const ctx = Object.assign({}, a, { projectPath });
               const cmd = cmdTpl.replace(/\{(\w+)\}/g, (m, k) => (ctx[k] != null ? String(ctx[k]) : m));
               if (!cmd) return 'Error: cli.command 未配置';
@@ -145,7 +145,7 @@ function loadPluginManifest(manifest) {
             if (transport === 'http') {
               const http = t.http || {};
               const urlTpl = http.url || '';
-              const projectPath = (window.LabCode && window.LabCode.state && window.LabCode.state.projectPath) || '';
+              const projectPath = (window.LabCodeUI && window.LabCodeUI.state && window.LabCodeUI.state.projectPath) || '';
               const ctx = Object.assign({}, a, { projectPath });
               const url = urlTpl.replace(/\{(\w+)\}/g, (m, k) => (ctx[k] != null ? encodeURIComponent(ctx[k]) : m));
               const method = (http.method || 'POST').toUpperCase();

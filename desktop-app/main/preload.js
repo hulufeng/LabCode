@@ -45,6 +45,7 @@ contextBridge.exposeInMainWorld('LabCode', {
     copyFile: (srcPath, destPath) => ipcRenderer.invoke('fs:copyFile', srcPath, destPath),
     deleteFile: (filePath) => ipcRenderer.invoke('fs:deleteFile', filePath),
     mkdir: (dirPath) => ipcRenderer.invoke('fs:mkdir', dirPath),
+    readDir: (dirPath) => ipcRenderer.invoke('fs:readDir', dirPath),
     readPdf: (filePath, maxPages) => ipcRenderer.invoke('fs:readPdf', filePath, maxPages),
     analyzeImage: (filePath, prompt) => ipcRenderer.invoke('fs:analyzeImage', filePath, prompt)
   },
@@ -119,7 +120,9 @@ contextBridge.exposeInMainWorld('LabCode', {
     listTools: (name) => ipcRenderer.invoke('mcp:list-tools', name),
     callTool: (serverName, toolName, args) => ipcRenderer.invoke('mcp:call-tool', serverName, toolName, args),
     startAll: () => ipcRenderer.invoke('mcp:start-all'),
-    stopAll: () => ipcRenderer.invoke('mcp:stop-all')
+    stopAll: () => ipcRenderer.invoke('mcp:stop-all'),
+    testConnection: (name) => ipcRenderer.invoke('mcp:testConnection', name),
+    authorize: (name) => ipcRenderer.invoke('mcp:authorize', name)
   },
 
   // LSP 客户端（clangd 等）
@@ -250,6 +253,26 @@ contextBridge.exposeInMainWorld('LabCode', {
   },
 
   // 事件监听
+  // Generic IPC invoke used by renderer panels (schedule / context / ghost completion).
+  // Without it, LabCodeUI.ipcInvoke falls back to require('electron'), which is NOT
+  // available under contextIsolation -> every panel IPC call would reject.
+  ipc: {
+    invoke: (channel, payload) => ipcRenderer.invoke(channel, payload)
+  },
+
+  // Scheduled tasks (mirrors the schedule:* handlers registered in main)
+  schedule: {
+    createTask: (opts) => ipcRenderer.invoke('schedule:createTask', opts),
+    listInbox: () => ipcRenderer.invoke('schedule:listInbox'),
+    listRuns: (opts) => ipcRenderer.invoke('schedule:listRuns', opts),
+    runNow: (opts) => ipcRenderer.invoke('schedule:runNow', opts),
+    status: () => ipcRenderer.invoke('schedule:status'),
+    getPatch: (opts) => ipcRenderer.invoke('schedule:getPatch', opts),
+    previewSlots: (opts) => ipcRenderer.invoke('schedule:previewSlots', opts),
+    applyPatch: (opts) => ipcRenderer.invoke('schedule:applyPatch', opts),
+    discardPatch: (opts) => ipcRenderer.invoke('schedule:discardPatch', opts)
+  },
+
   on: (channel, callback) => {
     const allowedChannels = [
       'update:available', 'update:not-available', 'update:progress', 'update:downloaded',

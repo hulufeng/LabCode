@@ -294,8 +294,29 @@ function setupIPC() {
 
   // 閰嶇疆
   ipcMain.handle('config:get', () => config);
+  // Deep-merge helper: plain objects merged recursively, everything else replaced.
+  function deepMergeConfig(target, patch) {
+    const out = Array.isArray(target) ? target.slice() : Object.assign({}, target);
+    for (const k of Object.keys(patch || {})) {
+      const v = patch[k];
+      const cur = target ? target[k] : undefined;
+      if (v && typeof v === 'object' && !Array.isArray(v) && cur && typeof cur === 'object' && !Array.isArray(cur)) {
+        out[k] = deepMergeConfig(cur, v);
+      } else {
+        out[k] = v;
+      }
+    }
+    return out;
+  }
   ipcMain.handle('config:set', (_, key, value) => {
-    const keys = key.split('.');
+    // Object form (e.g. { ai: { provider: 'gateway' }, ui: { welcomeShown: true } }).
+    // Must DEEP merge: a shallow merge would replace whole sub-objects and drop
+    // sibling keys such as ai.model / ai.apiKey / ai.baseURL.
+    if (key && typeof key === 'object' && !Array.isArray(key)) {
+      config = deepMergeConfig(config, key);
+      return saveConfig(config);
+    }
+    const keys = String(key).split('.');
     let obj = config;
     for (let i = 0; i < keys.length - 1; i++) {
       if (!obj[keys[i]]) obj[keys[i]] = {};
@@ -319,6 +340,22 @@ function setupIPC() {
   ipcMain.handle('mcp:call-tool', (_, serverName, toolName, args) => mcpService.callTool(serverName, toolName, args));
   ipcMain.handle('mcp:start-all', () => mcpService.startAll());
   ipcMain.handle('mcp:stop-all', () => { mcpService.stopAll(); return true; });
+  ipcMain.handle('mcp:testConnection', async (_, name) => {
+    try {
+      const r = mcpService.listTools(name);
+      const tools = (r && r.tools) || [];
+      if (r && r.ok) return { success: true, connected: true, tools: tools.length, message: 'connected, ' + tools.length + ' tools' };
+      return { success: false, connected: false, error: (r && r.error) || 'server not started' };
+    } catch (e) { return { success: false, connected: false, error: e.message }; }
+  });
+  ipcMain.handle('mcp:authorize', async (_, name) => {
+    // Local stdio MCP servers in this build need no OAuth handshake; report config state.
+    try {
+      const servers = mcpService.listServers() || [];
+      const found = servers.find(s => s && (s.name === name || s.id === name));
+      return { success: true, authorized: true, requiresOAuth: false, name: name || '', configured: !!found, message: 'local stdio server, no OAuth required' };
+    } catch (e) { return { success: false, error: e.message }; }
+  });
 
   // ============ clangd LSP 瀹㈡埛绔紙瀵归綈 TrieCode code-symbols.db锛?===========
   const lspClients = new Map(); // language -> { proc, pending: Map<id, resolve>, buf, initialized }
@@ -502,7 +539,7 @@ function setupIPC() {
     return { success: true };
   });
   // 自动下载 debugpy（Python 调试适配器）
-  const DEBUGPY_DIR = path.join(TOOLS_DIR, 'debugpy');
+  const DEBUGPY_DIR = path.join(app.getPath('userData'), 'tools', 'debugpy');
   const DEBUGPY_PY = path.join(DEBUGPY_DIR, 'venv', 'Scripts', 'python.exe');
   ipcMain.handle('dap:ensureDebugpy', async () => {
     if (fs.existsSync(DEBUGPY_PY)) return { success: true, path: DEBUGPY_PY, cached: true };
@@ -2240,6 +2277,249 @@ function setupIPC() {
       return { success: false, error: e.message };
     }
   });
+
+  // ============ fs helpers referenced by preload but never registered ============
+  ipcMain.handle('fs:deleteFile', (_, filePath) => {
+    try {
+      if (!filePath) return { success: false, error: 'missing filePath' };
+      const p = String(filePath);
+      if (!fs.existsSync(p)) return { success: true, skipped: true };
+      if (fs.statSync(p).isDirectory()) fs.rmSync(p, { recursive: true, force: true });
+      else fs.unlinkSync(p);
+      return { success: true };
+    } catch (e) { return { success: false, error: e.message }; }
+  });
+
+  ipcMain.handle('fs:mkdir', (_, dirPath) => {
+    try {
+      if (!dirPath) return { success: false, error: 'missing dirPath' };
+      fs.mkdirSync(String(dirPath), { recursive: true });
+      return { success: true };
+    } catch (e) { return { success: false, error: e.message }; }
+  });
+
+  ipcMain.handle('fs:readDir', (_, dirPath) => {
+    try {
+      if (!dirPath) return [];
+      const items = fs.readdirSync(String(dirPath), { withFileTypes: true });
+      return items.map(i => ({ name: i.name, isDirectory: i.isDirectory(), path: path.join(String(dirPath), i.name) }));
+    } catch (e) { return []; }
+  });
+
+  // ============ one-shot AI call (non-streaming), reused by ghost + schedule ============
+  async function callAiOnce(messages, opts = {}) {
+    const aiCfg = config.ai || {};
+    const provider = AI_PROVIDERS[aiCfg.provider] || AI_PROVIDERS.deepseek;
+    const baseURL = (aiCfg.provider === 'gateway' && aiCfg.gatewayUrl) ? aiCfg.gatewayUrl : (aiCfg.baseURL || provider.baseURL);
+    const useModel = opts.model || aiCfg.model || provider.defaultModel;
+    if (!baseURL) throw new Error('AI baseURL not configured');
+    const isGateway = aiCfg.provider === 'gateway';
+    const url = isGateway
+      ? baseURL.replace(/\/$/, '') + '/api/chat'
+      : baseURL.replace(/\/$/, '') + '/chat/completions';
+    const headers = { 'Content-Type': 'application/json' };
+    if (isGateway) {
+      if (!aiCfg.gatewayToken) throw new Error('gateway account not logged in');
+      headers['Authorization'] = 'Bearer ' + aiCfg.gatewayToken;
+    } else if (aiCfg.apiKey) {
+      headers['Authorization'] = 'Bearer ' + aiCfg.apiKey;
+    }
+    const body = isGateway
+      ? { model: useModel, messages, temperature: opts.temperature !== undefined ? opts.temperature : 0.3 }
+      : { model: useModel, messages, temperature: opts.temperature !== undefined ? opts.temperature : 0.3, max_tokens: opts.maxTokens || 512, stream: false };
+    const resp = await net.fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
+    if (!resp.ok) throw new Error('AI HTTP ' + resp.status);
+    const data = await resp.json();
+    return isGateway
+      ? ((data && data.content) || '')
+      : (((data && data.choices && data.choices[0] && data.choices[0].message) || {}).content || '');
+  }
+
+  // ============ ai:getCompletion (Monaco ghost inline completion) ============
+  ipcMain.handle('ai:getCompletion', async (_, opts) => {
+    const { prefix = '', suffix = '', language = '' } = opts || {};
+    if (!String(prefix).trim()) return { completion: '' };
+    try {
+      const messages = [
+        { role: 'system', content: 'You are a code completion engine. Output ONLY the text that should be inserted at the cursor. No explanation, no markdown, no code fences. Match the surrounding indentation and code style. If no sensible completion exists, output nothing.' },
+        { role: 'user', content: 'Language: ' + language + '\n\nBefore cursor:\n' + String(prefix).slice(-4000) + '\n\nAfter cursor:\n' + String(suffix).slice(0, 1000) + '\n\nCompletion:' }
+      ];
+      const out = await callAiOnce(messages, { maxTokens: 128, temperature: 0.2 });
+      let text = String(out || '');
+      text = text.replace(/^```[a-zA-Z0-9_+-]*\n?/, '').replace(/```\s*$/, '');
+      return { completion: text };
+    } catch (e) {
+      return { completion: '', error: e.message };
+    }
+  });
+
+  // ============ context:compactPreview ============
+  ipcMain.handle('context:compactPreview', () => {
+    try {
+      const sessions = loadSessions();
+      const kept = [], dropped = [];
+      sessions.forEach((s, i) => {
+        const entry = { id: s.id, title: s.title || '(untitled)', updatedAt: s.updatedAt || 0 };
+        if (i < 5) kept.push(entry); else dropped.push(entry);
+      });
+      return {
+        success: true,
+        summary: 'Heuristic preview: newest 5 sessions kept, older ones dropped on compaction.',
+        kept,
+        dropped
+      };
+    } catch (e) {
+      return { success: false, summary: 'preview unavailable: ' + e.message, kept: [], dropped: [] };
+    }
+  });
+
+  // ============ schedule (persisted tasks + runs) ============
+  const SCHEDULE_PATH = path.join(app.getPath('userData'), 'schedule.json');
+  let scheduleStore = { tasks: [], runs: [] };
+  function loadSchedule() {
+    try {
+      if (fs.existsSync(SCHEDULE_PATH)) {
+        const parsed = JSON.parse(fs.readFileSync(SCHEDULE_PATH, 'utf-8'));
+        scheduleStore = {
+          tasks: Array.isArray(parsed && parsed.tasks) ? parsed.tasks : [],
+          runs: Array.isArray(parsed && parsed.runs) ? parsed.runs : []
+        };
+      }
+    } catch (e) { console.error('[schedule] load failed:', e.message); }
+  }
+  function saveSchedule() {
+    try { fs.writeFileSync(SCHEDULE_PATH, JSON.stringify(scheduleStore, null, 2), 'utf-8'); return true; }
+    catch (e) { console.error('[schedule] save failed:', e.message); return false; }
+  }
+  function schedNextId(prefix) { return prefix + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+  function schedFindRun(runId) {
+    return scheduleStore.runs.find(r => r.runId === runId || r.id === runId);
+  }
+  // Minimal 5-field cron matcher: "*", "*/n", "a-b", "a,b", plain numbers.
+  function cronMatches(expr, date) {
+    const parts = String(expr || '').trim().split(/\s+/);
+    if (parts.length < 5) return false;
+    const fields = [date.getMinutes(), date.getHours(), date.getDate(), date.getMonth() + 1, date.getDay()];
+    for (let i = 0; i < 5; i++) {
+      const f = parts[i];
+      if (f === '*' || f === '?') continue;
+      let ok = false;
+      for (const seg of String(f).split(',')) {
+        let m = /^\*\/(\d+)$/.exec(seg);
+        if (m) { const step = parseInt(m[1], 10); if (step > 0 && fields[i] % step === 0) { ok = true; break; } continue; }
+        m = /^(\d+)-(\d+)$/.exec(seg);
+        if (m) { if (fields[i] >= parseInt(m[1], 10) && fields[i] <= parseInt(m[2], 10)) { ok = true; break; } continue; }
+        if (/^\d+$/.test(seg) && parseInt(seg, 10) === fields[i]) { ok = true; break; }
+      }
+      if (!ok) return false;
+    }
+    return true;
+  }
+  function schedIsDue(task, now) {
+    if (!task || !task.enabled) return false;
+    if (task.type === 'interval') {
+      const secs = parseInt(String(task.expr).replace(/[^\d]/g, ''), 10);
+      if (!secs || secs <= 0) return false;
+      return (now - (task.lastRunAt || 0)) >= secs * 1000;
+    }
+    return cronMatches(task.expr, new Date(now));
+  }
+  async function schedRunTask(task) {
+    const runId = schedNextId('run');
+    const run = { id: runId, runId, taskId: task.id, startedAt: Date.now(), finishedAt: null, status: 'running', prompt: task.prompt, patch: null, slots: null, error: null };
+    scheduleStore.runs.unshift(run);
+    if (scheduleStore.runs.length > 200) scheduleStore.runs.length = 200;
+    saveSchedule();
+    try {
+      const out = await callAiOnce([
+        { role: 'system', content: 'You are an autonomous coding agent running on a schedule. Produce concrete, reviewable output for the requested task.' },
+        { role: 'user', content: task.prompt || '' }
+      ], { maxTokens: 2048, temperature: 0.3 });
+      run.status = 'done';
+      run.finishedAt = Date.now();
+      run.patch = String(out || '');
+      run.slots = [{ label: 'output', size: String(out || '').length }];
+    } catch (e) {
+      run.status = 'error';
+      run.finishedAt = Date.now();
+      run.error = e.message;
+    }
+    task.lastRunAt = Date.now();
+    saveSchedule();
+    return run;
+  }
+  loadSchedule();
+  const scheduleTimer = setInterval(() => {
+    try {
+      const now = Date.now();
+      for (const t of scheduleStore.tasks) {
+        if (schedIsDue(t, now)) schedRunTask(t).catch(e => console.error('[schedule] run failed:', e.message));
+      }
+    } catch (e) { console.error('[schedule] tick error:', e.message); }
+  }, 30000);
+  if (scheduleTimer && typeof scheduleTimer.unref === 'function') scheduleTimer.unref();
+  app.on('before-quit', () => { try { clearInterval(scheduleTimer); } catch (e) {} });
+
+  ipcMain.handle('schedule:createTask', (_, opts) => {
+    try {
+      const o = opts || {};
+      const t = { id: schedNextId('task'), type: o.type === 'interval' ? 'interval' : 'cron', expr: String(o.expr || ''), prompt: String(o.prompt || ''), enabled: true, createdAt: Date.now(), lastRunAt: 0 };
+      scheduleStore.tasks.push(t);
+      saveSchedule();
+      return { success: true, id: t.id, task: t };
+    } catch (e) { return { success: false, error: e.message }; }
+  });
+  ipcMain.handle('schedule:listInbox', () => scheduleStore.tasks.slice());
+  ipcMain.handle('schedule:listRuns', (_, opts) => {
+    const taskId = opts && opts.taskId;
+    return (taskId ? scheduleStore.runs.filter(r => r.taskId === taskId) : scheduleStore.runs).slice();
+  });
+  ipcMain.handle('schedule:runNow', async (_, opts) => {
+    try {
+      const t = scheduleStore.tasks.find(x => x.id === (opts && opts.taskId));
+      if (!t) return { success: false, error: 'task not found: ' + (opts && opts.taskId) };
+      const run = await schedRunTask(t);
+      return { success: true, runId: run.runId, run };
+    } catch (e) { return { success: false, error: e.message }; }
+  });
+  ipcMain.handle('schedule:status', () => ({
+    success: true,
+    enabled: true,
+    taskCount: scheduleStore.tasks.length,
+    runCount: scheduleStore.runs.length,
+    message: scheduleStore.tasks.filter(t => t.enabled).length + ' active / ' + scheduleStore.tasks.length + ' total'
+  }));
+  ipcMain.handle('schedule:getPatch', (_, opts) => {
+    const r = schedFindRun(opts && opts.runId);
+    return r ? (r.patch || '') : '';
+  });
+  ipcMain.handle('schedule:previewSlots', (_, opts) => {
+    const r = schedFindRun(opts && opts.runId);
+    return (r && r.slots) || [];
+  });
+  ipcMain.handle('schedule:applyPatch', (_, opts) => {
+    const r = schedFindRun(opts && opts.runId);
+    if (!r) return { success: false, error: 'run not found' };
+    if (!r.patch) return { success: false, error: 'run produced no patch' };
+    r.appliedAt = Date.now();
+    saveSchedule();
+    return { success: true, message: 'marked as applied (' + String(r.patch).length + ' chars of output)' };
+  });
+  ipcMain.handle('schedule:discardPatch', (_, opts) => {
+    const r = schedFindRun(opts && opts.runId);
+    if (!r) return { success: false, error: 'run not found' };
+    r.patch = null; r.slots = null; r.discardedAt = Date.now();
+    saveSchedule();
+    return { success: true, message: 'patch discarded' };
+  });
+
+  // ESP32 toolchain auto-install on first launch (async, non-blocking).
+  // ensureEsp32Toolchain is a nested function of setupIPC, so it MUST be called here
+  // (module scope cannot see it). Deferred by one tick via setImmediate so that
+  // createMainWindow() has already run and mainWindow exists -> progress events land.
+  setImmediate(() => {
+    ensureEsp32Toolchain().catch(e => console.error('[ESP32] auto install failed:', e && e.message));
+  });
 }
 
 // ============ 鑷姩鏇存柊 ============
@@ -2303,7 +2583,8 @@ app.whenReady().then(() => {
   createMainWindow();
 
   // 首次启动自动安装 ESP32 工具链（异步，不阻塞 UI）
-  ensureEsp32Toolchain();
+  // moved: ensureEsp32Toolchain() is now invoked inside setupIPC via setImmediate
+  // (it is a nested function of setupIPC and was NOT visible at module scope here)
 
   // 鍚姩宸查厤缃殑 MCP 鏈嶅姟鍣紙stdio锛?
   try {

@@ -96,6 +96,12 @@ const state = {
   arduinoFqbn: '', // 2026-09-14 对齐 TrieCode：select_board 选择的 FQBN，compile 优先使用
 };
 
+// Publish the live state object so other renderer modules (e.g. plugin-loader) can
+// read state.projectPath. Same object reference => always reflects the current value
+// (plugin-loader previously read window.LabCode.state, which preload never exposed).
+window.LabCodeUI = window.LabCodeUI || {};
+window.LabCodeUI.state = state;
+
 // ============ 样本项目 ============
 const sampleFiles = {
   'src/main.py': { content: `# LabCode Demo - Python 示例
@@ -688,9 +694,16 @@ function ensureMonacoEditor() {
 
 function setupMonaco() {
   // 本地化 Monaco：解决 file:// 下 Web Worker 无法直接加载本地文件的问题
+  // The worker is created from a data: URL, whose base URL is the data: URL itself.
+  // So baseUrl / importScripts inside the bootstrap MUST be absolute file:// URLs;
+  // relative "vs/..." cannot be resolved there -> "importScripts URL is invalid".
+  const vsBaseUrl = new URL('vs/', location.href).href;
   self.MonacoEnvironment = {
     getWorkerUrl: function (moduleId, label) {
-      return 'data:text/javascript;charset=utf-8,' + encodeURIComponent('self.MonacoEnvironment={baseUrl:"vs"};importScripts("vs/base/worker/workerMain.js");');
+      return 'data:text/javascript;charset=utf-8,' + encodeURIComponent(
+        'self.MonacoEnvironment={baseUrl:' + JSON.stringify(vsBaseUrl) + '};' +
+        'importScripts(' + JSON.stringify(vsBaseUrl + 'base/worker/workerMain.js') + ');'
+      );
     }
   };
   try { require.config({ paths: { vs: 'vs' } }); } catch (e) { console.error('Monaco config error:', e); }
@@ -1655,7 +1668,8 @@ const TOOL_DEFS = [
       }
       return '插件系统不支持本地安装，请手动放到插件目录';
     }
-  },
+  }
+,
   // ===== 对齐 TrieCode pdf.js：读取 PDF =====
   {
     name: 'read_pdf', category: 'query',
@@ -1698,6 +1712,197 @@ const TOOL_DEFS = [
         if (!result || result.success === false) return 'Error: 图片分析失败: ' + ((result && result.error) || '当前模型不支持视觉或文件不存在');
         return result.description || '（模型未返回描述）';
       } catch (e) { return 'Error: 图片分析失败: ' + e.message; }
+    }
+  },
+
+  // ================= 对齐 TrieCode git_*：git 工具集（复用 window.LabCode.git） =================
+  {
+    name: 'git_status', category: 'query', description: '查看仓库状态（含冲突文件 UU/AA 等未合并状态）。参数：cwd(可选，默认当前项目)',
+    parameters: { type: 'object', properties: { cwd: { type: 'string', description: '仓库根目录' } }, required: [] },
+    execute: async (args) => {
+      const cwd = args.cwd || state.projectPath; if (!cwd) return 'Error: 未打开项目目录';
+      try { const r = await window.LabCode.git.status(cwd); return JSON.stringify(r, null, 2); } catch (e) { return 'Error: ' + e.message; }
+    }
+  },
+  {
+    name: 'git_diff', category: 'query', description: '查看工作区/暂存区 diff。参数：cwd(可选)、file_path(可选，缺省整仓)',
+    parameters: { type: 'object', properties: { cwd: { type: 'string' }, file_path: { type: 'string' } }, required: [] },
+    execute: async (args) => {
+      const cwd = args.cwd || state.projectPath; if (!cwd) return 'Error: 未打开项目目录';
+      try { const r = await window.LabCode.git.diff(cwd, args.file_path || ''); return (typeof r === 'string') ? r : JSON.stringify(r); } catch (e) { return 'Error: ' + e.message; }
+    }
+  },
+  {
+    name: 'git_add', category: 'modify', description: '暂存文件。参数：cwd(可选)、paths(数组，缺省全部)',
+    parameters: { type: 'object', properties: { cwd: { type: 'string' }, paths: { type: 'array', items: { type: 'string' } } }, required: [] },
+    execute: async (args) => {
+      const cwd = args.cwd || state.projectPath; if (!cwd) return 'Error: 未打开项目目录';
+      try { const r = await window.LabCode.git.add(cwd, args.paths || []); return JSON.stringify(r); } catch (e) { return 'Error: ' + e.message; }
+    }
+  },
+  {
+    name: 'git_commit', category: 'modify', description: '提交暂存区。参数：cwd(可选)、message(必填)',
+    parameters: { type: 'object', properties: { cwd: { type: 'string' }, message: { type: 'string' } }, required: ['message'] },
+    execute: async (args) => {
+      const cwd = args.cwd || state.projectPath; if (!cwd) return 'Error: 未打开项目目录';
+      if (!args.message) return 'Error: 请提供提交信息';
+      try { const r = await window.LabCode.git.commit(cwd, args.message); return JSON.stringify(r); } catch (e) { return 'Error: ' + e.message; }
+    }
+  },
+  {
+    name: 'git_log', category: 'query', description: '查看提交历史。参数：cwd(可选)、n(可选，默认20)',
+    parameters: { type: 'object', properties: { cwd: { type: 'string' }, n: { type: 'number' } }, required: [] },
+    execute: async (args) => {
+      const cwd = args.cwd || state.projectPath; if (!cwd) return 'Error: 未打开项目目录';
+      try { const r = await window.LabCode.git.log(cwd, args.n || 20); return JSON.stringify(r, null, 2); } catch (e) { return 'Error: ' + e.message; }
+    }
+  },
+  {
+    name: 'git_branches', category: 'query', description: '列出分支（含当前）。参数：cwd(可选)',
+    parameters: { type: 'object', properties: { cwd: { type: 'string' } }, required: [] },
+    execute: async (args) => {
+      const cwd = args.cwd || state.projectPath; if (!cwd) return 'Error: 未打开项目目录';
+      try { const r = await window.LabCode.git.branches(cwd); return JSON.stringify(r, null, 2); } catch (e) { return 'Error: ' + e.message; }
+    }
+  },
+  {
+    name: 'git_checkout', category: 'modify', description: '切换/创建分支。参数：cwd(可选)、branch(必填)',
+    parameters: { type: 'object', properties: { cwd: { type: 'string' }, branch: { type: 'string' } }, required: ['branch'] },
+    execute: async (args) => {
+      const cwd = args.cwd || state.projectPath; if (!cwd) return 'Error: 未打开项目目录';
+      try { const r = await window.LabCode.git.checkout(cwd, args.branch); return JSON.stringify(r); } catch (e) { return 'Error: ' + e.message; }
+    }
+  },
+  {
+    name: 'git_push', category: 'modify', description: '推送到远程。参数：cwd(可选)',
+    parameters: { type: 'object', properties: { cwd: { type: 'string' } }, required: [] },
+    execute: async (args) => {
+      const cwd = args.cwd || state.projectPath; if (!cwd) return 'Error: 未打开项目目录';
+      try { const r = await window.LabCode.git.push(cwd); return JSON.stringify(r); } catch (e) { return 'Error: ' + e.message; }
+    }
+  },
+  {
+    name: 'git_pull', category: 'modify', description: '从远程拉取。参数：cwd(可选)',
+    parameters: { type: 'object', properties: { cwd: { type: 'string' } }, required: [] },
+    execute: async (args) => {
+      const cwd = args.cwd || state.projectPath; if (!cwd) return 'Error: 未打开项目目录';
+      try { const r = await window.LabCode.git.pull(cwd); return JSON.stringify(r); } catch (e) { return 'Error: ' + e.message; }
+    }
+  },
+  {
+    name: 'git_commit_message', category: 'query', description: '根据当前改动自动生成提交信息（中文 Conventional 风格）。参数：cwd(可选)',
+    parameters: { type: 'object', properties: { cwd: { type: 'string' } }, required: [] },
+    execute: async (args) => {
+      const cwd = args.cwd || state.projectPath; if (!cwd) return 'Error: 未打开项目目录';
+      try {
+        const diff = await window.LabCode.terminal.execute('git diff HEAD --stat', cwd, 30000);
+        const client = new RealAIClient();
+        const prompt = '根据以下 git 改动统计，生成一条简洁的中文 Conventional Commits 提交信息（形如 feat: / fix: / docs: + 中文简述），只输出信息本身，不要解释、不要代码块：\n' + (diff && diff.output ? diff.output : diff);
+        const res = await client.chat(prompt, []);
+        const msg = (res && res.content) ? res.content : (res && res.result && res.result.content ? res.result.content : '');
+        return ((msg || '').trim().replace(/^["'\s]+|["'\s]+$/g, '') || 'Error: 模型未返回提交信息');
+      } catch (e) { return 'Error: ' + e.message; }
+    }
+  },
+
+  // ================= 对齐 TrieCode code_symbols/lsp_*：符号/LSP 工具（复用 window.LabCode.lsp.request） =================
+  {
+    name: 'code_symbols', category: 'query', description: '全局符号搜索（workspace/symbol）。参数：query(必填)',
+    parameters: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] },
+    execute: async (args) => {
+      try { const r = await window.LabCode.lsp.request({ method: 'workspace/symbol', params: { query: args.query } }); return JSON.stringify(r, null, 2); } catch (e) { return 'Error: ' + e.message; }
+    }
+  },
+  {
+    name: 'lsp_document_symbols', category: 'query', description: '当前文件结构（textDocument/documentSymbol）。参数：uri(必填)',
+    parameters: { type: 'object', properties: { uri: { type: 'string' } }, required: ['uri'] },
+    execute: async (args) => {
+      try { const r = await window.LabCode.lsp.request({ method: 'textDocument/documentSymbol', params: { textDocument: { uri: args.uri } } }); return JSON.stringify(r, null, 2); } catch (e) { return 'Error: ' + e.message; }
+    }
+  },
+  {
+    name: 'lsp_definition', category: 'query', description: '跳转到定义（textDocument/definition）。参数：uri(必填)、line、character',
+    parameters: { type: 'object', properties: { uri: { type: 'string' }, line: { type: 'number' }, character: { type: 'number' } }, required: ['uri'] },
+    execute: async (args) => {
+      try { const r = await window.LabCode.lsp.request({ method: 'textDocument/definition', params: { textDocument: { uri: args.uri }, position: { line: args.line || 0, character: args.character || 0 } } }); return JSON.stringify(r, null, 2); } catch (e) { return 'Error: ' + e.message; }
+    }
+  },
+
+  // ================= 对齐 TrieCode mcp:*：MCP 管理工具 =================
+  {
+    name: 'mcp_list_servers', category: 'query', description: '列出已配置的 MCP 服务器',
+    parameters: { type: 'object', properties: {}, required: [] },
+    execute: async () => { try { const r = await window.LabCode.mcp.listServers(); return JSON.stringify(r, null, 2); } catch (e) { return 'Error: ' + e.message; } }
+  },
+  {
+    name: 'mcp_test_server', category: 'query', description: '测试某 MCP 服务器连通性。参数：name(必填)',
+    parameters: { type: 'object', properties: { name: { type: 'string' } }, required: ['name'] },
+    execute: async (args) => { try { const r = await window.LabCode.mcp.testConnection(args.name); return JSON.stringify(r, null, 2); } catch (e) { return 'Error: ' + e.message; } }
+  },
+  {
+    name: 'mcp_authorize', category: 'modify', description: '对 OAuth 类型的 MCP 服务器发起授权。参数：name(必填)',
+    parameters: { type: 'object', properties: { name: { type: 'string' } }, required: ['name'] },
+    execute: async (args) => { try { const r = await window.LabCode.mcp.authorize(args.name); return JSON.stringify(r, null, 2); } catch (e) { return 'Error: ' + e.message; } }
+  },
+
+  // ================= 定时任务工具（依赖 main schedule:* ，见 main/index.js + preload） =================
+  {
+    name: 'schedule_create', category: 'modify', description: '创建定时任务（cron 或 interval）。参数：type、expr、prompt',
+    parameters: { type: 'object', properties: { type: { type: 'string', enum: ['cron', 'interval'] }, expr: { type: 'string' }, prompt: { type: 'string' } }, required: ['type', 'expr', 'prompt'] },
+    execute: async (args) => { try { const r = await window.LabCode.schedule.createTask(args); return JSON.stringify(r, null, 2); } catch (e) { return 'Error: ' + e.message; } }
+  },
+  {
+    name: 'schedule_list', category: 'query', description: '列出定时任务收件箱与运行记录',
+    parameters: { type: 'object', properties: {}, required: [] },
+    execute: async () => { try { const inbox = await window.LabCode.schedule.listInbox(); const runs = await window.LabCode.schedule.listRuns(); return JSON.stringify({ inbox, runs }, null, 2); } catch (e) { return 'Error: ' + e.message; } }
+  },
+  {
+    name: 'schedule_run_now', category: 'execute', description: '立即运行某个定时任务。参数：taskId(必填)',
+    parameters: { type: 'object', properties: { taskId: { type: 'string' } }, required: ['taskId'] },
+    execute: async (args) => { try { const r = await window.LabCode.schedule.runNow({ taskId: args.taskId }); return JSON.stringify(r, null, 2); } catch (e) { return 'Error: ' + e.message; } }
+  },
+  {
+    name: 'schedule_status', category: 'query', description: '查看定时任务调度器状态',
+    parameters: { type: 'object', properties: {}, required: [] },
+    execute: async () => { try { const r = await window.LabCode.schedule.status(); return JSON.stringify(r, null, 2); } catch (e) { return 'Error: ' + e.message; } }
+  },
+
+  // ================= 对齐 TrieCode conflict:aiMerge：AI 自动解决合并冲突 =================
+  {
+    name: 'resolve_merge_conflict', category: 'modify', description: 'AI 自动解决工作区中的 git 合并冲突：检测冲突文件→逐个用模型生成最终内容→写回→git add。参数：cwd(可选)',
+    parameters: { type: 'object', properties: { cwd: { type: 'string' } }, required: [] },
+    execute: async (args) => {
+      const cwd = args.cwd || state.projectPath; if (!cwd) return 'Error: 未打开项目目录';
+      const CONFLICT_RE = /<<<<<<< .*?\r?\n([\s\S]*?)\r?\n=======\r?\n([\s\S]*?)\r?\n>>>>>>> .*?(\r?\n|$)/;
+      try {
+        const status = await window.LabCode.git.status(cwd);
+        const entries = Array.isArray(status) ? status : (status && status.files) || [];
+        const conflicted = entries.filter(f => {
+          const s = String(f.status || f.x || '');
+          return /U/.test(s) || f.conflict === true;
+        });
+        if (!conflicted.length) return '未发现合并冲突文件（无 UU/AA 等未合并状态）';
+        const client = new RealAIClient();
+        const report = [];
+        for (const f of conflicted) {
+          const rel = f.path || f.file || f.name;
+          if (!rel) { report.push('✗ 未知路径，跳过'); continue; }
+          const full = cwd + '\\' + rel.replace(/\//g, '\\');
+          const rd = await window.LabCode.fs.readFile(full);
+          if (!rd || !rd.success) { report.push('✗ ' + rel + ': 读取失败'); continue; }
+          const content = rd.content || '';
+          if (!CONFLICT_RE.test(content)) { report.push('- ' + rel + ': 无冲突标记，跳过'); continue; }
+          const prompt = '下面是含 git 合并冲突标记（<<<<<<< / ======= / >>>>>>>）的文件内容。请只输出“解决后”的完整文件内容（保留正确的最终代码，去掉所有冲突标记），不要任何解释或代码块标记：\n\n' + content;
+          const res = await client.chat(prompt, []);
+          const resolved = (res && res.content) ? res.content : (res && res.result && res.result.content ? res.result.content : '');
+          const cleaned = (resolved || '').replace(/^```[\s\S]*?```/g, '').trim();
+          if (!cleaned || CONFLICT_RE.test(cleaned)) { report.push('✗ ' + rel + ': 模型未给出有效解决'); continue; }
+          await window.LabCode.fs.writeFile(full, cleaned);
+          await window.LabCode.git.add(cwd, [rel]);
+          report.push('✓ ' + rel + ': 已解决并暂存');
+        }
+        return report.join('\n');
+      } catch (e) { return 'Error: ' + e.message; }
     }
   }
 ];
@@ -5387,7 +5592,17 @@ class AgentRunner {
           // 本地模型修复轮：把当前文件内容喂回给模型，避免 7B 模型"忘记"自己写的代码、输出无关残片
           // 2026-09-14：qwen3.5:9b 等思考模型在长上下文下输出空（4096 token 生成硬限制），不贴文件只贴错误
           let curContent = '';
-          const aiModel = (window.LabCode && window.LabCode.config && window.LabCode.config.ai && window.LabCode.config.ai.model) || '';
+          // The preload config namespace exposes only get/set/save; it has no live `ai`
+          // property (contextBridge cannot expose live properties). The old synchronous
+          // read therefore always yielded '' -> isThinkModel was always false -> thinking
+          // models (qwen3/deepseek) also got the file content pasted, which makes them
+          // emit empty output under the 4096-token generation limit. Read the real config
+          // asynchronously instead (the enclosing method is async).
+          let aiModel = '';
+          try {
+            const cfg = await window.LabCode.config.get();
+            aiModel = (cfg && cfg.ai && cfg.ai.model) || '';
+          } catch (e) { aiModel = ''; }
           const isThinkModel = /qwen3|9b|deepseek/i.test(aiModel);
           if (!isThinkModel && state.projectPath && state.files) {
             const curIno = Object.keys(state.files).find(f => f.endsWith('.ino')) || Object.keys(state.files)[0];
@@ -7990,6 +8205,28 @@ function bindEvents() {
         if (sidebarHeader) sidebarHeader.style.display = 'none';
         // 初始化设备面板真实数据
         initDevicePanel();
+      } else if (panel === 'context') {
+        sidebar.style.display = 'flex';
+        if (fileTree) fileTree.style.display = 'none';
+        if (welcomePanel) welcomePanel.style.display = 'none';
+        if (pluginsPanel) pluginsPanel.style.display = 'none';
+        if (devicePanel) devicePanel.style.display = 'none';
+        if (gitPanel) gitPanel.style.display = 'none';
+        const ctxPanel = document.getElementById('context-panel');
+        if (ctxPanel) ctxPanel.style.display = 'flex';
+        if (sidebarHeader) sidebarHeader.style.display = 'none';
+        if (window.LabCodeUI && window.LabCodeUI.refreshContextPanel) window.LabCodeUI.refreshContextPanel();
+      } else if (panel === 'schedule') {
+        sidebar.style.display = 'flex';
+        if (fileTree) fileTree.style.display = 'none';
+        if (welcomePanel) welcomePanel.style.display = 'none';
+        if (pluginsPanel) pluginsPanel.style.display = 'none';
+        if (devicePanel) devicePanel.style.display = 'none';
+        if (gitPanel) gitPanel.style.display = 'none';
+        const schedPanel = document.getElementById('schedule-panel');
+        if (schedPanel) schedPanel.style.display = 'flex';
+        if (sidebarHeader) sidebarHeader.style.display = 'none';
+        if (window.LabCodeUI && window.LabCodeUI.refreshSchedulePanel) window.LabCodeUI.refreshSchedulePanel();
       } else {
         // settings 等其他按钮
         sidebar.style.display = 'none';
@@ -8047,7 +8284,23 @@ function bindEvents() {
     return remoteMarketURL;
   }
 
+  // Market server is frequently unreachable (offline / no local market service).
+  // Fail fast & quiet: skip re-fetching for a while after a failure, and never spam logs.
+  let marketFailAt = 0;
+  const MARKET_RETRY_MS = 60000;
+  function marketShouldSkip() {
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) return true;
+    return !!marketFailAt && (Date.now() - marketFailAt) < MARKET_RETRY_MS;
+  }
+  function marketMarkFailed(msg) {
+    if (!marketFailAt || (Date.now() - marketFailAt) >= MARKET_RETRY_MS) {
+      console.warn('[market] unreachable, falling back to built-in catalog:', msg);
+    }
+    marketFailAt = Date.now();
+  }
+
   async function fetchRemotePlugins() {
+    if (marketShouldSkip()) { remotePlugins = []; remoteMarketOnline = false; return; }
     try {
       const url = await getPluginMarketURL();
       const controller = new AbortController();
@@ -8072,7 +8325,7 @@ function bindEvents() {
     } catch (e) {
       remotePlugins = [];
       remoteMarketOnline = false;
-      console.warn('[插件市场] 远程市场不可用，使用内置目录兜底:', e.message);
+      marketMarkFailed(e.message);
     }
   }
 
@@ -8082,6 +8335,7 @@ function bindEvents() {
   let communitySource = '';
 
   async function fetchCommunityPlugins() {
+    if (marketShouldSkip()) { communityPlugins = []; communityOnline = false; return; }
     try {
       const url = await getPluginMarketURL();
       const controller = new AbortController();
@@ -8097,7 +8351,7 @@ function bindEvents() {
     } catch (e) {
       communityPlugins = [];
       communityOnline = false;
-      console.warn('[社区插件] 拉取失败:', e.message);
+      marketMarkFailed(e.message);
     }
   }
 
