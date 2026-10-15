@@ -55,12 +55,30 @@ jobs:
         working-directory: desktop-app
         run: npm install --no-audit --no-fund
 
-      # package.json 里 "npmRebuild": false，electron-builder 不会自动重编原生模块。
+      # package.json 里 "npmRebuild": false，electron-builder 不会自动重编原生模块
+      # （日志会显示 skipped dependencies rebuild）。
       # node-pty 默认按 Node 运行时编译，与 electron 28（ABI 116）不匹配，
       # 不重编的话打包产物启动即崩（NODE_MODULE_VERSION 不一致）。
-      - name: 为 electron 重编原生模块（node-pty）
+      #
+      # 这里不用 @electron/rebuild：它会走 node-gyp 默认参数，而 gyp 生成的 vcxproj
+      # 带 <SpectreMitigation>Spectre</SpectreMitigation>，在没装 Spectre 缓解库的
+      # 机器上会报 MSB8040 导致构建失败。故手动调用 MSBuild 并传入
+      # /p:SpectreMitigation=false 覆盖（已在本机验证通过）。
+      - name: 为 electron 重编 node-pty
         working-directory: desktop-app
-        run: npx --yes @electron/rebuild
+        shell: pwsh
+        run: |
+          $env:npm_config_runtime = 'electron'
+          $env:npm_config_target = '28.3.3'
+          $env:npm_config_arch = 'x64'
+          Push-Location node_modules/node-pty
+          npx --yes node-gyp configure
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $msb = & $vswhere -latest -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\MSBuild.exe' | Select-Object -First 1
+          if (-not $msb) { throw 'MSBuild not found' }
+          & $msb build/binding.sln /p:Configuration=Release /p:Platform=x64 /p:SpectreMitigation=false
+          if ($LASTEXITCODE -ne 0) { throw "node-pty rebuild failed (exit $LASTEXITCODE)" }
+          Pop-Location
 
       - name: 打包（NSIS x64）
         working-directory: desktop-app
