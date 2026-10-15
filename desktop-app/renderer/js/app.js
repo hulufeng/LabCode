@@ -11027,6 +11027,79 @@ function bindEvents() {
     });
   }
 
+  // ============ 首屏登录遮罩（对齐 TrieCode 显眼登录入口）============
+  document.addEventListener('DOMContentLoaded', () => {
+    const ov = document.getElementById('gw-login-overlay');
+    if (!ov) return;
+    const showLoginOverlay = () => { ov.style.display = 'flex'; };
+    const hideLoginOverlay = () => { ov.style.display = 'none'; };
+    const switchGwOvTab = (tab) => {
+      const lt = document.getElementById('gw-ov-tab-login'), rt = document.getElementById('gw-ov-tab-register');
+      const lp = document.getElementById('gw-ov-login-panel'), rp = document.getElementById('gw-ov-register-panel');
+      if (!lt || !rt) return;
+      if (tab === 'login') {
+        lt.style.background = 'var(--accent)'; lt.style.color = '#fff';
+        rt.style.background = 'var(--card-color)'; rt.style.color = 'var(--text-color)';
+        if (lp) lp.style.display = 'flex'; if (rp) rp.style.display = 'none';
+      } else {
+        rt.style.background = 'var(--accent)'; rt.style.color = '#fff';
+        lt.style.background = 'var(--card-color)'; lt.style.color = 'var(--text-color)';
+        if (rp) rp.style.display = 'flex'; if (lp) lp.style.display = 'none';
+      }
+      const m = document.getElementById('gw-ov-msg'); if (m) m.textContent = '';
+    };
+    const gatewayAuthOverlay = async (action) => {
+      const msg = document.getElementById('gw-ov-msg');
+      let email, password, inviteCode = '';
+      if (action === 'login') {
+        email = document.getElementById('gw-ov-login-account').value.trim();
+        password = document.getElementById('gw-ov-login-password').value.trim();
+      } else {
+        email = document.getElementById('gw-ov-register-email').value.trim();
+        password = document.getElementById('gw-ov-register-password').value.trim();
+        inviteCode = document.getElementById('gw-ov-register-invite').value.trim();
+      }
+      if (!email || !password) { msg.textContent = '请输入邮箱和密码'; msg.style.color = '#EA6668'; return; }
+      if (password.length < 6) { msg.textContent = '密码至少 6 位'; msg.style.color = '#EA6668'; return; }
+      msg.textContent = action === 'login' ? '登录中...' : '注册中...';
+      msg.style.color = 'var(--text-secondary)';
+      if (window.LabCode && window.LabCode.ai && window.LabCode.ai.gatewayAuth) {
+        const r = await window.LabCode.ai.gatewayAuth({ action, email, password, inviteCode });
+        if (r && r.success) {
+          msg.textContent = action === 'login' ? '✓ 登录成功' : '✓ 注册成功（已自动登录）';
+          msg.style.color = '#52C41A';
+          if (action === 'login') document.getElementById('gw-ov-login-password').value = '';
+          else { document.getElementById('gw-ov-register-password').value = ''; document.getElementById('gw-ov-register-invite').value = ''; }
+          hideLoginOverlay();
+          await refreshGatewayUI(); await refreshCreditsBadge();
+          showToast('已登录网关账号', 'success');
+        } else {
+          msg.textContent = (r && r.error) || '操作失败'; msg.style.color = '#EA6668';
+        }
+      }
+    };
+    const gwForgotOverlay = async () => {
+      if (window.LabCode && window.LabCode.shell && window.LabCode.shell.openExternal) {
+        await window.LabCode.shell.openExternal('https://bluebubai.work/forgot-password');
+      } else {
+        showToast('请前往 bluebubai.work 找回密码', 'info');
+      }
+    };
+    const t1 = document.getElementById('gw-ov-tab-login'); if (t1) t1.addEventListener('click', () => switchGwOvTab('login'));
+    const t2 = document.getElementById('gw-ov-tab-register'); if (t2) t2.addEventListener('click', () => switchGwOvTab('register'));
+    const lb = document.getElementById('gw-ov-login-btn'); if (lb) lb.addEventListener('click', () => gatewayAuthOverlay('login'));
+    const rb = document.getElementById('gw-ov-register-btn'); if (rb) rb.addEventListener('click', () => gatewayAuthOverlay('register'));
+    const fo = document.getElementById('gw-ov-forgot'); if (fo) fo.addEventListener('click', gwForgotOverlay);
+    const sk = document.getElementById('gw-ov-skip'); if (sk) sk.addEventListener('click', hideLoginOverlay);
+    // 启动检查：未登录则显示首屏登录遮罩
+    (async () => {
+      try {
+        const cfg = await window.LabCode.config.get();
+        if (!(cfg && cfg.ai && cfg.ai.gatewayToken)) showLoginOverlay();
+      } catch (e) { showLoginOverlay(); }
+    })();
+  });
+
   // ============ 窗口控制按钮 ============
   const minimizeBtn = document.getElementById('minimize-btn');
   if (minimizeBtn) {
