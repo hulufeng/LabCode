@@ -2530,6 +2530,8 @@ function setupAutoUpdate() {
     autoUpdater.autoDownload = true;
     autoUpdater.autoInstallOnAppQuit = true;
 
+    const autoUpdateDisabled = process.env.AUTO_UPDATE_DISABLED === '1' || process.env.AUTO_UPDATE_DISABLED === 'true';
+
     autoUpdater.on('update-available', (info) => {
       mainWindow?.webContents.send('update:available', info);
     });
