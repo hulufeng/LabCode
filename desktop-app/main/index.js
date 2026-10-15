@@ -1246,7 +1246,7 @@ function setupIPC() {
   });
 
   // ============ 缃戝叧璐﹀彿锛堢櫥褰?/ 娉ㄥ唽 / 浣欓 / 鐧诲嚭锛?===========
-  ipcMain.handle('ai:gatewayAuth', async (_, { action, email, password, gatewayUrl } = {}) => {
+  ipcMain.handle('ai:gatewayAuth', async (_, { action, email, password, gatewayUrl, inviteCode } = {}) => {
     // 浼樺厛绾э細鏄惧紡浼犲叆 > 宸蹭繚瀛?config.ai.gatewayUrl > 鐜鍙橀噺 > 榛樿鐢熶骇鍩熷悕
     const savedGw = (config.ai || {}).gatewayUrl || '';
     const gwBase = (gatewayUrl || savedGw || process.env.GATEWAY_URL || AI_PROVIDERS.gateway.baseURL || 'https://bluebubai.work').replace(/\/$/, '');
@@ -1256,7 +1256,7 @@ function setupIPC() {
         const res = await net.fetch(`${gwBase}/api/auth/${action}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password })
+          body: JSON.stringify((action === 'register' && inviteCode) ? { email, password, inviteCode } : { email, password })
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) return { success: false, error: data.error || `缃戝叧杩斿洖 ${res.status}` };

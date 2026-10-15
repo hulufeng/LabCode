@@ -10843,7 +10843,7 @@ function bindEvents() {
         if (window.LabCode && window.LabCode.ai && window.LabCode.ai.gatewayAuth) {
           const r = await window.LabCode.ai.gatewayAuth({ action: 'me' });
           if (r && r.success && r.user) {
-            document.getElementById('gw-credits-show').textContent = '积分 ' + (r.user.totalCredits ?? '?');
+            document.getElementById('gw-credits-show').textContent = '剩余额度 ' + (r.user.totalCredits ?? '?');
           } else {
             document.getElementById('gw-credits-show').textContent = '登录已失效';
           }
@@ -10857,21 +10857,29 @@ function bindEvents() {
     }
   }
 
-  // 网关登录 / 注册公共处理
+  // 网关登录 / 注册（对齐 TrieCode：tab 切换 + 邀请码选填 + 忘记密码）
   async function gatewayAuth(action) {
     const msg = document.getElementById('gw-msg');
-    const email = document.getElementById('gw-email').value.trim();
-    const password = document.getElementById('gw-password').value.trim();
+    let email, password, inviteCode = '';
+    if (action === 'login') {
+      email = document.getElementById('gw-login-account').value.trim();
+      password = document.getElementById('gw-login-password').value.trim();
+    } else {
+      email = document.getElementById('gw-register-email').value.trim();
+      password = document.getElementById('gw-register-password').value.trim();
+      inviteCode = document.getElementById('gw-register-invite').value.trim();
+    }
     if (!email || !password) { msg.textContent = '请输入邮箱和密码'; msg.style.color = '#EA6668'; return; }
     if (password.length < 6) { msg.textContent = '密码至少 6 位'; msg.style.color = '#EA6668'; return; }
     msg.textContent = action === 'login' ? '登录中...' : '注册中...';
     msg.style.color = 'var(--text-secondary)';
     if (window.LabCode && window.LabCode.ai && window.LabCode.ai.gatewayAuth) {
-      const r = await window.LabCode.ai.gatewayAuth({ action, email, password });
+      const r = await window.LabCode.ai.gatewayAuth({ action, email, password, inviteCode });
       if (r && r.success) {
         msg.textContent = action === 'login' ? '✓ 登录成功' : '✓ 注册成功（已自动登录）';
         msg.style.color = '#52C41A';
-        document.getElementById('gw-password').value = '';
+        if (action === 'login') document.getElementById('gw-login-password').value = '';
+        else { document.getElementById('gw-register-password').value = ''; document.getElementById('gw-register-invite').value = ''; }
         await refreshGatewayUI();
         await refreshCreditsBadge();
         // 若当前模型是云端模型，提示切换为积分通道
@@ -10887,6 +10895,37 @@ function bindEvents() {
         msg.textContent = (r && r.error) || '操作失败';
         msg.style.color = '#EA6668';
       }
+    }
+  }
+
+  // 登录 / 注册 tab 切换
+  function switchGwTab(tab) {
+    const loginTab = document.getElementById('gw-tab-login');
+    const regTab = document.getElementById('gw-tab-register');
+    const loginPanel = document.getElementById('gw-login-panel');
+    const regPanel = document.getElementById('gw-register-panel');
+    const msg = document.getElementById('gw-msg');
+    if (!loginTab || !regTab) return;
+    if (tab === 'login') {
+      loginTab.style.background = 'var(--accent)'; loginTab.style.color = '#fff';
+      regTab.style.background = 'var(--card-color)'; regTab.style.color = 'var(--text-color)';
+      if (loginPanel) loginPanel.style.display = 'flex';
+      if (regPanel) regPanel.style.display = 'none';
+    } else {
+      regTab.style.background = 'var(--accent)'; regTab.style.color = '#fff';
+      loginTab.style.background = 'var(--card-color)'; loginTab.style.color = 'var(--text-color)';
+      if (regPanel) regPanel.style.display = 'flex';
+      if (loginPanel) loginPanel.style.display = 'none';
+    }
+    if (msg) msg.textContent = '';
+  }
+
+  // 忘记密码（网关暂未提供找回接口，引导至官网）
+  async function gwForgot() {
+    if (window.LabCode && window.LabCode.shell && window.LabCode.shell.openExternal) {
+      await window.LabCode.shell.openExternal('https://bluebubai.work/forgot-password');
+    } else {
+      showToast('请前往 bluebubai.work 找回密码', 'info');
     }
   }
 
@@ -10959,11 +10998,17 @@ function bindEvents() {
         resultEl.style.color = '#EA6668';
       }
     });
-    // 网关账号按钮
+    // 网关账号：tab 切换 + 登录/注册 + 忘记密码 + 刷新/登出
+    const gwTabLogin = document.getElementById('gw-tab-login');
+    if (gwTabLogin) gwTabLogin.addEventListener('click', () => switchGwTab('login'));
+    const gwTabRegister = document.getElementById('gw-tab-register');
+    if (gwTabRegister) gwTabRegister.addEventListener('click', () => switchGwTab('register'));
     const gwLoginBtn = document.getElementById('gw-login-btn');
     if (gwLoginBtn) gwLoginBtn.addEventListener('click', () => gatewayAuth('login'));
     const gwRegisterBtn = document.getElementById('gw-register-btn');
     if (gwRegisterBtn) gwRegisterBtn.addEventListener('click', () => gatewayAuth('register'));
+    const gwForgot = document.getElementById('gw-forgot');
+    if (gwForgot) gwForgot.addEventListener('click', gwForgot);
     const gwRefreshBtn = document.getElementById('gw-refresh-btn');
     if (gwRefreshBtn) gwRefreshBtn.addEventListener('click', () => { refreshGatewayUI(); });
     const gwLogoutBtn = document.getElementById('gw-logout-btn');
