@@ -102,6 +102,49 @@ const state = {
 window.LabCodeUI = window.LabCodeUI || {};
 window.LabCodeUI.state = state;
 
+// ============ Auto-update UI (user-confirmed install) ============
+// Main process no longer force-restarts on download; it notifies the renderer
+// and we surface a toast. The user clicks "Restart & Install" to actually apply.
+(function setupUpdateUI() {
+  if (!isElectron || !window.LabCode || !window.LabCode.on) return;
+  let toast = null;
+  function ensureToast() {
+    if (toast) return toast;
+    const el = document.createElement('div');
+    el.id = 'labcode-update-toast';
+    el.style.cssText = 'position:fixed;right:16px;bottom:16px;z-index:99999;display:none;background:#1e1e2e;color:#e6e6e6;border:1px solid #3b82f6;border-radius:8px;padding:12px 16px;box-shadow:0 4px 18px rgba(0,0,0,.45);font:13px/1.5 system-ui,sans-serif;max-width:340px;';
+    (document.body || document.documentElement).appendChild(el);
+    toast = el;
+    return toast;
+  }
+  function showToast(message, withInstall) {
+    const el = ensureToast();
+    el.innerHTML = '';
+    const span = document.createElement('span');
+    span.textContent = message;
+    el.appendChild(span);
+    if (withInstall) {
+      const btn = document.createElement('button');
+      btn.textContent = 'Restart & Install';
+      btn.style.cssText = 'margin-left:12px;background:#3b82f6;color:#fff;border:none;border-radius:4px;padding:5px 12px;cursor:pointer;font:12px system-ui;';
+      btn.onclick = () => { try { window.LabCode.update.install(); } catch (e) {} };
+      el.appendChild(btn);
+    }
+    el.style.display = 'block';
+  }
+  function run() {
+    window.LabCode.on('update:available', (info) => {
+      const v = info && info.version ? ' ' + info.version : '';
+      showToast('New version' + v + ' found, downloading...', false);
+    });
+    window.LabCode.on('update:downloaded', () => {
+      showToast('Update downloaded. Restart to install.', true);
+    });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', run);
+  else run();
+})();
+
 // ============ 样本项目 ============
 const sampleFiles = {
   'src/main.py': { content: `# LabCode Demo - Python 示例

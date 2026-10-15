@@ -2545,25 +2545,28 @@ function setupAutoUpdate() {
     autoUpdater.on('update-downloaded', (info) => {
       mainWindow?.webContents.send('update:downloaded', info);
       // 强制更新：下载完 3 秒后自动重启安装
-      setTimeout(() => autoUpdater.quitAndInstall(), 3000);
+      // Hand off to UI: install only after the user confirms (renderer invokes update:install).
     });
 
     autoUpdater.on('error', (error) => {
       console.error('鑷姩鏇存柊閿欒:', error.message);
     });
 
-    ipcMain.handle('update:check', () => autoUpdater.checkForUpdates());
+    ipcMain.handle('update:check', () => {
+      if (autoUpdateDisabled) return { disabled: true };
+      return autoUpdater.checkForUpdates();
+    });
     ipcMain.handle('update:download', () => autoUpdater.downloadUpdate());
     ipcMain.handle('update:install', () => autoUpdater.quitAndInstall());
 
         // 启动后 5 秒检查更新
     setTimeout(() => {
-      if (!isDev) autoUpdater.checkForUpdates().catch(() => {});
+      if (!isDev && !autoUpdateDisabled) autoUpdater.checkForUpdates().catch(() => {});
     }, 5000);
 
     // 每 1 小时定时检查
     setInterval(() => {
-      if (!isDev) autoUpdater.checkForUpdates().catch(() => {});
+      if (!isDev && !autoUpdateDisabled) autoUpdater.checkForUpdates().catch(() => {});
     }, 60 * 60 * 1000);
 
   } catch (e) {
