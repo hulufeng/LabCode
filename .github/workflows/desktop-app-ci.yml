@@ -1,0 +1,40 @@
+# LabCode 桌面端（JS 版 / desktop-app）主线 CI
+#
+# 说明：
+# - 本仓库主线是 JS 版，入口为 desktop-app/main/index.js，纯 JS 无编译步骤
+#   （运行 = electron .，打包 = electron-builder），因此 CI 不做 tsc / electron-vite。
+# - 两个校验脚本只读取源码文件，不依赖 node_modules，故 CI 无需 npm install，
+#   可以在秒级完成，也避开了 node-pty / electron 的原生二进制编译问题。
+# - 这两项校验覆盖的正是静态检查与启动日志都抓不到的「契约缺口」：
+#   渲染层调用了但主进程没实现的 IPC channel、渲染层用了但 preload 没暴露的 API、
+#   以及 handler 重复注册。
+
+name: desktop-app CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  verify:
+    name: 契约与主题校验
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 准备 Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: IPC 契约校验（channel 缺口 / preload API 缺口 / handler 重复注册）
+        working-directory: desktop-app
+        run: node scripts/verify-ipc-contract.cjs
+
+      - name: 主题 token 校验（对齐 TrieCode v1.3.1）
+        working-directory: desktop-app
+        run: node scripts/theme-probe.mjs
