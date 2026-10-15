@@ -3,11 +3,9 @@
 # 说明：
 # - 本仓库主线是 JS 版，入口为 desktop-app/main/index.js，纯 JS 无编译步骤
 #   （运行 = electron .，打包 = electron-builder），因此 CI 不做 tsc / electron-vite。
-# - 两个校验脚本只读取源码文件，不依赖 node_modules，故 CI 无需 npm install，
-#   可以在秒级完成，也避开了 node-pty / electron 的原生二进制编译问题。
-# - 这两项校验覆盖的正是静态检查与启动日志都抓不到的「契约缺口」：
-#   渲染层调用了但主进程没实现的 IPC channel、渲染层用了但 preload 没暴露的 API、
-#   以及 handler 重复注册。
+# - verify 任务的两个校验脚本只读取源码、不依赖 node_modules，
+#   故无需 npm install，可秒级完成。
+# - package 任务会真正产出 Windows 安装包（NSIS x64）。
 
 name: desktop-app CI
 
@@ -38,3 +36,39 @@ jobs:
       - name: 主题 token 校验（对齐 TrieCode v1.3.1）
         working-directory: desktop-app
         run: node scripts/theme-probe.mjs
+
+  package:
+    name: 打包 Windows 安装包
+    runs-on: windows-latest
+    needs: verify
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 准备 Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 安装依赖
+        working-directory: desktop-app
+        run: npm install --no-audit --no-fund
+
+      # package.json 里 "npmRebuild": false，electron-builder 不会自动重编原生模块。
+      # node-pty 默认按 Node 运行时编译，与 electron 28（ABI 116）不匹配，
+      # 不重编的话打包产物启动即崩（NODE_MODULE_VERSION 不一致）。
+      - name: 为 electron 重编原生模块（node-pty）
+        working-directory: desktop-app
+        run: npx --yes @electron/rebuild
+
+      - name: 打包（NSIS x64）
+        working-directory: desktop-app
+        run: npx electron-builder --win --x64
+
+      - name: 上传安装包
+        uses: actions/upload-artifact@v4
+        with:
+          name: LabCode-win-x64
+          path: desktop-app/dist/*.exe
+          if-no-files-found: error

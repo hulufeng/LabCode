@@ -1,0 +1,12 @@
+# 本地 LLM 引擎（llama.cpp）放置目录。
+#
+# 本目录用于 electron-builder 的 extraResources（见 package.json），
+# 打包时会原样释放到应用 resources/llama，供 main/index.js 的 getEngineDir() 查找
+# llama-server.exe。
+#
+# 引擎体积约 86MB 且未纳入 git 跟踪，仓库里只保留本占位文件，
+# 以保证「目录一定存在」——否则 electron-builder 会因源目录缺失而失败。
+#
+# 需要随安装包一起发布引擎时：把 llama.cpp 运行时的文件拷贝到本目录即可
+# （例如从 D:\LabCode\runtime\llama-cpp-vulkan 复制）。
+# 不放置也不影响启动：getEngineDir() 会回退到其它候选路径。
