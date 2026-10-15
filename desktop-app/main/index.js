@@ -2557,7 +2557,9 @@ function setupAutoUpdate() {
       return autoUpdater.checkForUpdates();
     });
     ipcMain.handle('update:download', () => autoUpdater.downloadUpdate());
-    ipcMain.handle('update:install', () => autoUpdater.quitAndInstall());
+    ipcMain.handle('update:install', () => {
+      try { autoUpdater.quitAndInstall(true, true); } catch (e) { console.error('[autoUpdate] quitAndInstall failed', e); }
+    });
 
         // 启动后 5 秒检查更新
     setTimeout(() => {
