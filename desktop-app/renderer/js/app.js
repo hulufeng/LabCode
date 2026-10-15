@@ -127,9 +127,9 @@ window.LabCodeUI.state = state;
       const btn = document.createElement('button');
       btn.textContent = 'Restart & Install';
       btn.style.cssText = 'margin-left:12px;background:#3b82f6;color:#fff;border:none;border-radius:4px;padding:5px 12px;cursor:pointer;font:12px system-ui;';
-      btn.onclick = () => {
+      btn.onclick = async () => {
         try {
-          window.LabCode.update.install();
+          await window.LabCode.update.install();
         } catch (e) {
           showToast('Install failed: ' + e.message, 'error');
         }

@@ -2559,8 +2559,13 @@ function setupAutoUpdate() {
       return autoUpdater.checkForUpdates();
     });
     ipcMain.handle('update:download', () => autoUpdater.downloadUpdate());
-    ipcMain.handle('update:install', () => {
-      try { autoUpdater.quitAndInstall(true, true); } catch (e) { console.error('[autoUpdate] quitAndInstall failed', e); }
+    ipcMain.handle('update:install', async () => {
+      try {
+        await autoUpdater.downloadUpdate();
+        autoUpdater.quitAndInstall(true, true);
+      } catch (e) {
+        dialog.showErrorBox('Update install failed', e.stack || String(e));
+      }
     });
 
         // 启动后 5 秒检查更新
