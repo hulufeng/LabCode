@@ -10,3 +10,7 @@ cloud-server/*.err
 *.exe
 *.bin
 *.gguf
+
+# Local LLM runtime (llama.cpp, ~86MB, must never be committed).
+# Scoped to the repo root only, so desktop-app/resources stays tracked.
+/resources/

@@ -47,11 +47,12 @@
       "main/**/*",
       "renderer/**/*",
       "resources/**/*",
+      "!resources/llama/**",
       "package.json"
     ],
     "extraResources": [
       {
-        "from": "D:\\LabCode\\runtime\\llama-cpp-vulkan",
+        "from": "resources/llama",
         "to": "llama",
         "filter": [
           "**/*"
