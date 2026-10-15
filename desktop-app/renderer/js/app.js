@@ -11018,6 +11018,7 @@ function bindEvents() {
         if (r && r.success) {
           showToast('已登出网关账号', 'info');
           refreshGatewayUI();
+          if (window.__showGwLoginOverlay) window.__showGwLoginOverlay();
         }
       }
     });
@@ -11091,6 +11092,7 @@ function bindEvents() {
     const rb = document.getElementById('gw-ov-register-btn'); if (rb) rb.addEventListener('click', () => gatewayAuthOverlay('register'));
     const fo = document.getElementById('gw-ov-forgot'); if (fo) fo.addEventListener('click', gwForgotOverlay);
     const sk = document.getElementById('gw-ov-skip'); if (sk) sk.addEventListener('click', hideLoginOverlay);
+    window.__showGwLoginOverlay = showLoginOverlay;
     // 启动检查：未登录则显示首屏登录遮罩
     (async () => {
       try {
