@@ -11281,11 +11281,11 @@ function bindEvents() {
       if (!lt || !rt) return;
       if (tab === 'login') {
         lt.style.background = 'var(--accent)'; lt.style.color = '#fff';
-        rt.style.background = 'var(--card-color)'; rt.style.color = 'var(--text-color)';
+        rt.style.background = 'transparent'; rt.style.color = 'var(--text-2)';
         if (lp) lp.style.display = 'flex'; if (rp) rp.style.display = 'none';
       } else {
         rt.style.background = 'var(--accent)'; rt.style.color = '#fff';
-        lt.style.background = 'var(--card-color)'; lt.style.color = 'var(--text-color)';
+        lt.style.background = 'transparent'; lt.style.color = 'var(--text-2)';
         if (rp) rp.style.display = 'flex'; if (lp) lp.style.display = 'none';
       }
       const m = document.getElementById('gw-ov-msg'); if (m) m.textContent = '';
