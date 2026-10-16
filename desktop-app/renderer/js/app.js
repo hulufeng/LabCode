@@ -2248,6 +2248,7 @@ async function refreshMcpToolDefs() {
     if (!window.LabCode || !window.LabCode.mcp) return;
     const servers = await window.LabCode.mcp.listServers();
     const defs = [];
+    const seenNames = {};
     for (const s of (servers || [])) {
       if (s.status !== 'running') continue;
       try {
@@ -2255,8 +2256,10 @@ async function refreshMcpToolDefs() {
         const tools = (r && r.tools) || [];
         for (const t of tools) {
           const schema = t.inputSchema || { type: 'object', properties: {} };
+          let vname = ('mcp_' + s.name + '_' + t.name).toLowerCase().replace(/[^a-z0-9_]+/g, '_').replace(/^_+|_+$/g, '');
+          if (seenNames[vname]) { vname = vname + '_' + (seenNames[vname]++); } else { seenNames[vname] = 1; }
           defs.push({
-            name: 'mcp_' + s.name + '_' + t.name,
+            name: vname,
             description: '[MCP:' + s.name + '] ' + (t.description || t.name),
             category: 'mcp',
             _mcpServer: s.name,
@@ -10699,11 +10702,13 @@ function bindEvents() {
   if (gitPushBtn) gitPushBtn.addEventListener('click', async () => {
     const r = await window.LabCode.git.push(state.projectPath);
     showToast(r.success ? (r.setUpstream ? '已推送并设置 upstream' : '已推送') : '推送失败: ' + (r.error || ''), r.success ? 'success' : 'error');
+    if (r.success) refreshGitStatus();
   });
   const gitPullBtn = document.getElementById('git-pull-btn');
   if (gitPullBtn) gitPullBtn.addEventListener('click', async () => {
     const r = await window.LabCode.git.pull(state.projectPath);
     showToast(r.success ? '已拉取' : '拉取失败: ' + (r.error || ''), r.success ? 'success' : 'error');
+    if (r.success) refreshGitStatus();
   });
   const gitStageAllBtn = document.getElementById('git-stage-all-btn');
   if (gitStageAllBtn) gitStageAllBtn.addEventListener('click', async () => {
@@ -12269,6 +12274,15 @@ if (document.readyState === 'loading') {
     bind('dbg-step-out', () => dapCommand('stepOut'));
     bind('dbg-clear-bp', () => { dbgState.breakpoints.clear(); refreshGlyphs(); renderBreakpointList(); });
     renderBreakpointList();
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'F5') return;
+      const tag = (e.target && e.target.tagName) || '';
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      if (e.target && e.target.closest && e.target.closest('.monaco-editor')) return;
+      e.preventDefault();
+      if (e.shiftKey) { if (dbgState.sessionId) stopDebug(); }
+      else { if (!dbgState.sessionId) startDebug(); }
+    });
   });
   let _bpDecos = [];
   function refreshGlyphs() {
