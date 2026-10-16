@@ -3504,6 +3504,8 @@ const BUILTIN_SKILLS = [
     id: 'arduino-development',
     name: 'Arduino 开发',
     description: 'REQUIRED for Arduino/ESP32/STM32 embedded development. Triggers: .ino files, setup()/loop(), digitalWrite, Serial, board selection, compilation, uploading, serial monitor.',
+    metadata: { keywords: ['arduino', 'esp32', 'stm32', 'embedded', '固件', '烧录', '上传', '串口', '单片机', 'led', '闪烁'] },
+    references: ['Arduino 官方参考: https://www.arduino.cc/reference/'],
     whenToUse: [
       '编辑任何 .ino 或 .pde 文件',
       '涉及 setup()/loop() 结构的代码',
@@ -3526,6 +3528,8 @@ const BUILTIN_SKILLS = [
     id: 'python-development',
     name: 'Python 开发',
     description: 'REQUIRED for Python development. Triggers: .py files, pip/venv, pytest, virtualenv, requirements.txt, pyproject.toml.',
+    metadata: { keywords: ['python', 'pip', 'venv', 'pytest', '虚拟环境', '脚本', 'debugpy', 'pdb'] },
+    references: ['Python 官方文档: https://docs.python.org/3/'],
     whenToUse: [
       '编辑 .py 文件',
       '运行 pytest / unittest',
@@ -3548,6 +3552,8 @@ const BUILTIN_SKILLS = [
     id: 'web-development',
     name: 'Web 开发',
     description: 'REQUIRED for web development. Triggers: .html/.css/.js/.ts/.jsx/.tsx files, npm, package.json, React, Vue, Node.js server.',
+    metadata: { keywords: ['web', 'html', 'css', 'javascript', '前端', 'react', 'vue', 'node', 'npm'] },
+    references: ['MDN Web 文档: https://developer.mozilla.org/'],
     whenToUse: [
       '编辑 HTML/CSS/JavaScript/TypeScript 文件',
       '处理 package.json',
@@ -3571,6 +3577,7 @@ const BUILTIN_SKILLS = [
     id: 'burn-precheck',
     name: '烧录前检查',
     description: '编译 + 检查板卡/端口选择，确认无误再烧录。当用户要求烧录/上传/上传固件时触发。',
+    metadata: { keywords: ['烧录', '上传', 'flash', 'upload', '固件', 'esp32', '端口'] },
     whenToUse: ['用户要求烧录/上传固件', '编译通过后准备 upload 前'],
     safetyRules: ['上传前确认板卡和端口', '编译通过后先问用户再 upload', '烧录后打开串口确认'],
     examples: [{ request: '烧录到 ESP32', action: 'read_file → select_board → select_port → compile → 确认 → upload → serial_log_open' }],
@@ -3580,6 +3587,7 @@ const BUILTIN_SKILLS = [
     id: 'serial-log-analysis',
     name: '串口日志分析',
     description: '打开串口后台日志，读取并分析运行输出。当用户说看串口/输出/打印/调试时触发。',
+    metadata: { keywords: ['串口', '日志', '调试', '输出', 'serial', '打印'] },
     whenToUse: ['程序运行异常需要看串口输出', '调试传感器/通信问题'],
     safetyRules: ['用 serial_log_open 打开后台日志', '分析完 serial_log_close 释放串口'],
     examples: [{ request: '为什么传感器读不到数据', action: 'serial_log_open → serial_log → 分析异常 → 定位根因' }],
@@ -3618,7 +3626,8 @@ class SkillManager {
       this.pluginSkills.push({
         id: pluginId + ':' + s.name,
         name: s.name, description: s.description || '',
-        prompt: s.prompt || '', source: 'plugin', enabled: true
+        prompt: s.prompt || '', source: 'plugin', enabled: true,
+        metadata: s.metadata || {}
       });
     });
   }
@@ -3650,6 +3659,10 @@ class SkillManager {
           if (msg.includes(w)) score += 0.5;
         });
       });
+      // SKILL.md 规范：metadata.keywords 作为精确匹配，权重更高
+      (skill.metadata?.keywords || []).forEach(kw => {
+        if (msg.includes(String(kw).toLowerCase())) score += 2;
+      });
       return { skill, score };
     });
     scores.sort((a, b) => b.score - a.score);
@@ -3670,7 +3683,9 @@ class SkillManager {
     };
     let body = skill.prompt || '';
     if (!body) {
-      body = `## SKILL: ${skill.name}\n${skill.description}\n\n### 何时使用\n${(skill.whenToUse || []).map(u => '- ' + u).join('\n')}\n\n### 安全规则\n${(skill.safetyRules || []).map(r => '- ' + r).join('\n')}`;
+      const refs = (skill.references || []).length ? '\n\n### 参考\n' + skill.references.map(r => '- ' + r).join('\n') : '';
+      const kws = (skill.metadata?.keywords || []).length ? '\n\n关键词：' + skill.metadata.keywords.join('、') : '';
+      body = `## SKILL: ${skill.name}\n${skill.description}\n\n### 何时使用\n${(skill.whenToUse || []).map(u => '- ' + u).join('\n')}\n\n### 安全规则\n${(skill.safetyRules || []).map(r => '- ' + r).join('\n')}${refs}${kws}`;
     }
     body = body.replace(/\{(\w+)\}/g, (m, k) => vars[k] || m);
     return `## SKILL: ${skill.name}\n${body}`;
@@ -7330,6 +7345,7 @@ function showInlinePermission(tool, command, detail, callback) {
         <div class="inline-permission-buttons">
           <button class="inline-permission-btn primary" data-choice="once">✓ 允许一次</button>
           <button class="inline-permission-btn secondary" data-choice="session">本会话允许</button>
+          <button class="inline-permission-btn secondary" data-choice="always">始终允许</button>
           <button class="inline-permission-btn modify" data-choice="modify">✎ 按此修改</button>
           <button class="inline-permission-btn reject" data-choice="reject">✕ 拒绝</button>
         </div>
@@ -7337,28 +7353,31 @@ function showInlinePermission(tool, command, detail, callback) {
     </div>`;
   area.appendChild(card);
   area.scrollTop = area.scrollHeight;
-  
+
   inlinePermissionCallback = callback;
-  
-  // 绑定按钮事件
+  let _permResolved = false;
+  const _resolvePerm = (choice) => {
+    if (_permResolved) return;
+    _permResolved = true;
+    if (choice === 'always') {
+      // 对齐 Ekko Write Gate：把审批选择记忆为持久 allow 规则（上游 permissionRuleEngine.evaluate 会自动放行后续同工具）
+      try { permissionRuleEngine.addRule(tool, '*', 'allow', 'session', 'always'); } catch (e) {}
+      choice = 'session';
+    }
+    if (inlinePermissionCallback) { inlinePermissionCallback(choice); inlinePermissionCallback = null; }
+    const header = card.querySelector('.inline-permission-header');
+    const resultText = { once: '已允许执行', session: '本会话已允许', always: '已永久允许', modify: '已修改权限规则', reject: '已拒绝执行' };
+    if (header) header.innerHTML = `<span class="inline-permission-dot" style="background:${choice === 'reject' ? '#ef4444' : '#10b981'}"></span><span>${resultText[choice] || choice}</span>`;
+    const btns = card.querySelector('.inline-permission-buttons'); if (btns) btns.remove();
+    const input = card.querySelector('.inline-permission-input'); if (input) input.remove();
+  };
   card.querySelectorAll('.inline-permission-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const choice = btn.dataset.choice;
-      if (inlinePermissionCallback) {
-        inlinePermissionCallback(choice);
-        inlinePermissionCallback = null;
-      }
-      // 替换卡片为结果状态
-      const header = card.querySelector('.inline-permission-header');
-      const resultText = { once: '已允许执行', session: '本会话已允许', modify: '已修改权限规则', reject: '已拒绝执行' };
-      if (header) {
-        header.innerHTML = `<span class="inline-permission-dot" style="background:${choice === 'reject' ? '#ef4444' : '#10b981'}"></span><span>${resultText[choice] || choice}</span>`;
-      }
-      card.querySelector('.inline-permission-buttons').remove();
-      const input = card.querySelector('.inline-permission-input');
-      if (input) input.remove();
-    });
+    btn.addEventListener('click', () => _resolvePerm(btn.dataset.choice));
   });
+  // 审批超时（对齐 Ekko APPROVAL_TIMEOUT_MS）：默认失败关闭，60s 无操作自动拒绝
+  setTimeout(() => {
+    if (!_permResolved) { showToast('权限确认超时，已自动拒绝', 'warning'); _resolvePerm('reject'); }
+  }, 60000);
 }
 
 // ============ AI 询问用户 - 选项卡片（对齐 TrieCode 截图1「AI 需要你的选择」）============
@@ -11211,25 +11230,39 @@ function bindEvents() {
 
     // ============ Agent 市场：从市面上的 AI 智能体里挑选并切换 ============
     // 数据来源：前期调研（Hermes / DeepSeek 系 / 本地引擎 / 开源编码 agent）
+    // 数据来源：前期调研（Hermes / DeepSeek 系 / 本地引擎 / 开源编码 agent）
+    // 以及 Ekko 反编译得到的 coding-agent 注册表（dsh/opencode/cursor/claude-code/qwen）。
+    // tier: 'model' = 选一个模型/provider；'runtime' = 选一个编码 Agent 运行时（映射到其底层 provider/model）
     const MARKET_AGENTS = [
-      { name: 'DeepSeek Chat', typeLabel: '云端 API', desc: 'DeepSeek 通用对话模型，性价比高，代码与中文能力强', link: 'https://platform.deepseek.com/',
+      { tier: 'model', name: 'DeepSeek Chat', typeLabel: '云端 API', desc: 'DeepSeek 通用对话模型，性价比高，代码与中文能力强', link: 'https://platform.deepseek.com/',
         config: { provider: 'deepseek', model: 'deepseek-chat', apiKey: '', baseURL: '', thinking: 'standard' }, selectable: true },
-      { name: 'DeepSeek Reasoner', typeLabel: '云端 API', desc: 'DeepSeek-R1 推理模型，复杂多步任务 / 数学 / 调试更稳', link: 'https://platform.deepseek.com/',
+      { tier: 'model', name: 'DeepSeek Reasoner', typeLabel: '云端 API', desc: 'DeepSeek-R1 推理模型，复杂多步任务 / 数学 / 调试更稳', link: 'https://platform.deepseek.com/',
         config: { provider: 'deepseek', model: 'deepseek-reasoner', apiKey: '', baseURL: '', thinking: 'deep' }, selectable: true },
-      { name: 'LabCode 本地 AI 引擎', typeLabel: '内置引擎', desc: '内置 llama.cpp，安装模型即离线可用，无需 API Key', link: '',
+      { tier: 'model', name: 'LabCode 本地 AI 引擎', typeLabel: '内置引擎', desc: '内置 llama.cpp，安装模型即离线可用，无需 API Key', link: '',
         config: { provider: 'local', model: '', apiKey: '', baseURL: '', thinking: 'standard' }, selectable: true },
-      { name: 'Ollama 本地模型', typeLabel: '本地运行', desc: '连接本机 Ollama，运行 Qwen / Codellama / DeepHermes 等 GGUF', link: 'https://ollama.com/',
+      { tier: 'model', name: 'Ollama 本地模型', typeLabel: '本地运行', desc: '连接本机 Ollama，运行 Qwen / Codellama / DeepHermes 等 GGUF', link: 'https://ollama.com/',
         config: { provider: 'ollama', model: '', apiKey: '', baseURL: '', thinking: 'standard' }, selectable: true },
-      { name: 'OpenAI GPT-4o', typeLabel: '云端 API', desc: 'OpenAI 官方模型，通用能力强（需自有 API Key）', link: 'https://platform.openai.com/',
+      { tier: 'model', name: 'OpenAI GPT-4o', typeLabel: '云端 API', desc: 'OpenAI 官方模型，通用能力强（需自有 API Key）', link: 'https://platform.openai.com/',
         config: { provider: 'openai', model: 'gpt-4o', apiKey: '', baseURL: '', thinking: 'standard' }, selectable: true },
-      { name: 'Hermes（NousResearch 开源）', typeLabel: '开源', desc: 'NousResearch 开放模型家族，指令遵循 / 工具调用友好，走 OpenRouter', link: 'https://github.com/NousResearch/hermes-agent',
+      { tier: 'model', name: 'Hermes（NousResearch 开源）', typeLabel: '开源', desc: 'NousResearch 开放模型家族，指令遵循 / 工具调用友好，走 OpenRouter', link: 'https://github.com/NousResearch/hermes-agent',
         config: { provider: 'custom', model: 'nousresearch/hermes-3-llama-3.1-405b', apiKey: '', baseURL: 'https://openrouter.ai/api/v1', thinking: 'standard' }, selectable: true },
-      { name: 'DeepHermes（DeepSeek 推理 + Hermes）', typeLabel: '开源/本地', desc: '把 DeepSeek-R1 推理蒸馏进 Hermes 的推理模型，本地 Ollama 运行', link: 'https://ollama.com/library/deephermes',
+      { tier: 'model', name: 'DeepHermes（DeepSeek 推理 + Hermes）', typeLabel: '开源/本地', desc: '把 DeepSeek-R1 推理蒸馏进 Hermes 的推理模型，本地 Ollama 运行', link: 'https://ollama.com/library/deephermes',
         config: { provider: 'ollama', model: 'deephermes', apiKey: '', baseURL: '', thinking: 'standard' }, selectable: true },
-      { name: 'dscode（DeepSeek 编码 agent）', typeLabel: '开源参考', desc: '996★ 的 DeepSeek 编码 agent harness，可作自建参考', link: 'https://github.com/qiz029/dscode',
+      { tier: 'model', name: 'dscode（DeepSeek 编码 agent）', typeLabel: '开源参考', desc: '996★ 的 DeepSeek 编码 agent harness，可作自建参考', link: 'https://github.com/qiz029/dscode',
         config: null, selectable: false },
-      { name: 'WEIPING_WHALE（终端编码 agent）', typeLabel: '开源参考', desc: '131★ 终端原生 DeepSeek agent：子代理 / LSP / MCP / session 回溯', link: 'https://github.com/appleweiping/WEIPING_WHALE',
-        config: null, selectable: false }
+      { tier: 'model', name: 'WEIPING_WHALE（终端编码 agent）', typeLabel: '开源参考', desc: '131★ 终端原生 DeepSeek agent：子代理 / LSP / MCP / session 回溯', link: 'https://github.com/appleweiping/WEIPING_WHALE',
+        config: null, selectable: false },
+      // ===== 编码 Agent 运行时（对齐 Ekko dsh/opencode/cursor/claude-code 注册表）=====
+      { tier: 'runtime', name: 'DeepSeek Harness (dsh)', typeLabel: '编码运行时', runtime: 'DeepSeek Harness', desc: 'Ekko 内建 DeepSeek 编码 agent：多步编辑 / 子代理 / 工具闭环', link: 'https://github.com/qiz029/dscode',
+        config: { provider: 'deepseek', model: 'deepseek-reasoner', apiKey: '', baseURL: '', thinking: 'deep' }, selectable: true, mcpPreset: ['filesystem', 'github', 'terminal'] },
+      { tier: 'runtime', name: 'OpenCode', typeLabel: '编码运行时', runtime: 'OpenCode', desc: '可换模型的开源编码 agent（默认 OpenAI）', link: 'https://github.com/opencode-ai/opencode',
+        config: { provider: 'openai', model: 'gpt-4o', apiKey: '', baseURL: '', thinking: 'standard' }, selectable: true, mcpPreset: ['filesystem', 'github'] },
+      { tier: 'runtime', name: 'Cursor', typeLabel: '编码运行时', runtime: 'Cursor', desc: '商用编码 agent，强上下文检索（底层 OpenAI）', link: 'https://cursor.com',
+        config: { provider: 'openai', model: 'gpt-4o', apiKey: '', baseURL: '', thinking: 'standard' }, selectable: true, mcpPreset: ['codebase'] },
+      { tier: 'runtime', name: 'Claude Code', typeLabel: '编码运行时', runtime: 'Claude Code', desc: 'Anthropic 官方编码 agent，工具调用成熟（底层 Anthropic）', link: 'https://docs.anthropic.com/claude-code',
+        config: { provider: 'custom', model: 'claude-sonnet-4', apiKey: '', baseURL: 'https://api.anthropic.com/v1', thinking: 'standard' }, selectable: true, mcpPreset: ['filesystem', 'github'] },
+      { tier: 'runtime', name: 'Qwen Code', typeLabel: '编码运行时', runtime: 'Qwen Code', desc: '阿里通义千问编码 agent，中文友好（底层 DashScope）', link: 'https://github.com/QwenLM/qwen-code',
+        config: { provider: 'custom', model: 'qwen-max', apiKey: '', baseURL: 'https://dashscope.aliyuncs.com/compatible-mode/v1', thinking: 'standard' }, selectable: true, mcpPreset: ['filesystem'] }
     ];
 
     function applyMarketAgent(a) {
@@ -11240,15 +11273,29 @@ function bindEvents() {
       document.getElementById('ai-model').value = c.model || '';
       document.getElementById('ai-thinking').value = c.thinking || 'standard';
       updateAiSettingsVisibility();
+      if (a.runtime) { try { window.LabCode?.config?.set?.('ai.codingAgent', a.runtime); } catch (e) {} }
       // 复用既有保存管线：写配置 + 刷新 RealAIClient + 提示 + 关闭弹窗
       document.getElementById('settings-save').click();
+      if (a.runtime) {
+        const preset = (a.mcpPreset || []).join('、');
+        showToast('已切换编码 Agent 运行时：' + a.runtime + (preset ? '（建议接入 MCP：' + preset + '）' : ''), 'info');
+      }
     }
 
     function renderAgentMarket() {
       const list = document.getElementById('agent-market-list');
       if (!list) return;
       list.innerHTML = '';
+      const tierTitle = { model: 'AI 模型', runtime: '编码 Agent 运行时（映射到其底层模型）' };
+      let lastTier = null;
       MARKET_AGENTS.forEach((a) => {
+        if (a.tier !== lastTier) {
+          lastTier = a.tier;
+          const h = document.createElement('div');
+          h.style.cssText = 'grid-column:1/-1;font-size:11px;font-weight:600;color:var(--text-secondary);margin:4px 0 2px;';
+          h.textContent = tierTitle[a.tier] || a.tier;
+          list.appendChild(h);
+        }
         const card = document.createElement('div');
         card.style.cssText = 'border:1px solid var(--border-color);border-radius:8px;padding:10px;display:flex;flex-direction:column;gap:6px;background:var(--card-color);';
         const top = document.createElement('div');

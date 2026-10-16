@@ -17,7 +17,8 @@
 //         "internal": { "service":"demo", "method":"greet" }
 //       }
 //     ],
-//     "skills": [ { "name":"...", "description":"...", "prompt":"..." } ],
+//     "skills": [ { "name":"...", "description":"...", "prompt":"...", "metadata": { "keywords": ["..."] }, "references": ["..."] } ],
+    // 技能遵循 Hermes SKILL.md 规范：frontmatter(name/description/metadata.keywords) + 可选 references（懒加载参考文档）
 //     "projectTypes": [ ... ],
 //     "views": [ ... ],
 //     "dependencies": [ ... ]
@@ -189,7 +190,7 @@ function loadPluginManifest(manifest) {
   const skills = Array.isArray(manifest.skills) ? manifest.skills : [];
   for (const s of skills) {
     if (s && s.name && s.prompt) {
-      PLUGIN_SKILLS.push({ name: s.name, description: s.description || '', prompt: s.prompt, pluginId: id });
+      PLUGIN_SKILLS.push({ name: s.name, description: s.description || '', prompt: s.prompt, pluginId: id, metadata: s.metadata || {} });
       skillCount++;
     }
   }
