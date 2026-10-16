@@ -918,7 +918,14 @@
             <span style="flex:1;"></span>
             <select id="dbg-config" style="background:#1e1e1e;border:1px solid #3c3c3c;color:#ccc;padding:3px 6px;font-size:11px;">
               <option value="python">Python (debugpy)</option>
+              <option value="cpp">C/C++ (GDB+OpenOCD)</option>
             </select>
+          </div>
+          <div id="dbg-breakpoints" style="border-bottom:1px solid var(--border-color);padding:4px 8px;font-size:11px;">
+            <div style="color:var(--text-secondary);margin-bottom:2px;display:flex;justify-content:space-between;align-items:center;">
+              <span>断点</span><span id="dbg-clear-bp" style="cursor:pointer;color:#f44;">清除全部</span>
+            </div>
+            <div id="dbg-bp-list"></div>
           </div>
           <div style="display:flex;flex:1;overflow:hidden;">
             <div style="flex:1;overflow:auto;border-right:1px solid var(--border-color);padding:4px 8px;">
@@ -936,6 +943,10 @@
           </div>
         </div>
       </div>
+      <style>
+        .labcode-bp::before { content:'●'; color:#f44; font-size:12px; line-height:16px; }
+        .monaco-editor .glyph-margin { cursor:pointer; }
+      </style>
       <!-- 串口监视器面板 -->
       <div class="bottom-panel-content" id="serial-panel">
         <div class="serial-panel" style="display:flex;flex-direction:column;height:100%;">

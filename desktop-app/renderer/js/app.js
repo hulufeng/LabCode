@@ -649,6 +649,7 @@ function openFile(path) {
     } catch (e) { /* 语言切换失败不影响打开 */ }
     updateLanguageMode(state.files[lookupPath].language);
     state.editor.layout();
+    if (window.__dbg && window.__dbg.refreshGlyphs) window.__dbg.refreshGlyphs();
   } else {
     const retry = setInterval(() => {
       ensureMonacoEditor();
@@ -660,6 +661,7 @@ function openFile(path) {
         } catch (e) { /* ignore */ }
         updateLanguageMode(state.files[lookupPath].language);
         state.editor.layout();
+        if (window.__dbg && window.__dbg.refreshGlyphs) window.__dbg.refreshGlyphs();
       }
     }, 300);
     setTimeout(() => clearInterval(retry), 10000);
@@ -707,7 +709,7 @@ function ensureMonacoEditor() {
     state.editor = monaco.editor.create(document.getElementById('monaco-editor'), {
       value: '', language: 'plaintext', theme: 'vs', fontSize: 13,
       fontFamily: "'Cascadia Code','Fira Code','Consolas',monospace",
-      minimap: { enabled: true }, scrollBeyondLastLine: false, automaticLayout: true, padding: { top: 8 },
+      minimap: { enabled: true }, scrollBeyondLastLine: false, automaticLayout: true, padding: { top: 8 }, glyphMargin: true,
     });
     monaco.editor.defineTheme('labcode-dark', {
       base: 'vs-dark', inherit: true,
@@ -728,11 +730,18 @@ function ensureMonacoEditor() {
         state.files[state.activeTab].dirty = true;
       }
     });
+    editor.onMouseDown((e) => {
+      if (e && e.target && e.target.type === monaco.editor.MouseTargetType.GLYPH_MARGIN && state.activeTab) {
+        const ln = e.target.position ? e.target.position.lineNumber : 0;
+        if (ln > 0 && window.__dbg && window.__dbg.toggleBreakpoint) window.__dbg.toggleBreakpoint(state.activeTab, ln);
+      }
+    });
     // 若已有待打开文件则补渲染（覆盖"Monaco 加载晚于 AI 写文件"的竞态）
     if (state.activeTab && state.files[state.activeTab]) {
       state.editor.setValue(state.files[state.activeTab].content);
       monaco.editor.setModelLanguage(state.editor.getModel(), state.files[state.activeTab].language);
       updateLanguageMode(state.files[state.activeTab].language);
+      if (window.__dbg && window.__dbg.refreshGlyphs) window.__dbg.refreshGlyphs();
     }
     return true;
   } catch (e) {
@@ -12171,6 +12180,16 @@ if (document.readyState === 'loading') {
         log('调试已启动: ' + currentFile);
         const tab = document.querySelector('.bottom-tab[data-panel="debug"]');
         if (tab) tab.click();
+      } else if (type === 'cpp') {
+        log('C/C++ 嵌入式调试：检测工具链...');
+        const gdb = await window.LabCode.dap.toolPath('arm-none-eabi-gdb');
+        const ocd = await window.LabCode.dap.toolPath('openocd');
+        if (!gdb.found) { log('未找到 arm-none-eabi-gdb（需安装 GNU Arm Embedded 工具链）'); showToast('缺少 arm-none-eabi-gdb', 'error'); return; }
+        if (!ocd.found) { log('未找到 openocd（需安装 OpenOCD 以驱动调试探针 CMSIS-DAP/ST-Link）'); showToast('缺少 openocd', 'error'); return; }
+        log('已检测到 GDB: ' + gdb.path);
+        log('已检测到 OpenOCD: ' + ocd.path);
+        log('完整 launch 需 cortex-debug/cppdbg 适配器二进制（当前环境网络受限未内置），将在工具链就位后启用');
+        showToast('C/C++ 调试：工具链已就绪，适配器待接入', 'info');
       }
     } catch (e) { log('启动错误: ' + e.message); }
   }
@@ -12248,13 +12267,44 @@ if (document.readyState === 'loading') {
     bind('dbg-next', () => dapCommand('next'));
     bind('dbg-step-in', () => dapCommand('stepIn'));
     bind('dbg-step-out', () => dapCommand('stepOut'));
+    bind('dbg-clear-bp', () => { dbgState.breakpoints.clear(); refreshGlyphs(); renderBreakpointList(); });
+    renderBreakpointList();
   });
-  window.__dbg = { toggleBreakpoint: (fp, line) => {
-    if (!dbgState.breakpoints.has(fp)) dbgState.breakpoints.set(fp, new Set());
-    const lines = dbgState.breakpoints.get(fp);
-    if (lines.has(line)) lines.delete(line); else lines.add(line);
-    if (dbgState.sessionId) sendBreakpoints(fp);
-  }, state: dbgState };
+  let _bpDecos = [];
+  function refreshGlyphs() {
+    const ed = state.editor, m = state.monaco;
+    if (!ed || !m) return;
+    const fp = state.activeTab;
+    const lines = (fp && dbgState.breakpoints.get(fp)) ? Array.from(dbgState.breakpoints.get(fp)) : [];
+    const decos = lines.map(l => ({ range: new m.Range(l, 1, l, 1), options: { glyphMarginClassName: 'labcode-bp', glyphMarginHoverMessage: { value: '断点 (点击删除)' } } }));
+    _bpDecos = ed.deltaDecorations(_bpDecos, decos);
+  }
+  function renderBreakpointList() {
+    const list = document.getElementById('dbg-bp-list');
+    if (!list) return;
+    const rows = [];
+    for (const [fp, ls] of dbgState.breakpoints) for (const l of ls) rows.push({ fp, l });
+    if (!rows.length) { list.innerHTML = '<div style="color:var(--text-muted);">（无断点）点击编辑器行号左侧红点添加</div>'; return; }
+    list.innerHTML = rows.map(r => {
+      const name = r.fp.split('/').pop();
+      const esc = String(r.fp).replace(/'/g, "\\'");
+      return '<div style="display:flex;justify-content:space-between;padding:1px 0;cursor:pointer;" onclick="window.__dbg.toggleBreakpoint(\'' + esc + '\',' + r.l + ')">' +
+        '<span>' + name + ':' + r.l + '</span><span style="color:#f44;">✕</span></div>';
+    }).join('');
+  }
+  window.__dbg = {
+    state: dbgState,
+    toggleBreakpoint: (fp, line) => {
+      if (!dbgState.breakpoints.has(fp)) dbgState.breakpoints.set(fp, new Set());
+      const lines = dbgState.breakpoints.get(fp);
+      if (lines.has(line)) lines.delete(line); else lines.add(line);
+      if (dbgState.sessionId) sendBreakpoints(fp);
+      refreshGlyphs();
+      renderBreakpointList();
+    },
+    refreshGlyphs: refreshGlyphs,
+    renderBreakpointList: renderBreakpointList
+  };
 })();
 
 

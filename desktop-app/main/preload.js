@@ -189,6 +189,7 @@ contextBridge.exposeInMainWorld('LabCode', {
     request: (opts) => ipcRenderer.invoke('dap:request', opts),
     stop: (sessionId) => ipcRenderer.invoke('dap:stop', { sessionId }),
     ensureDebugpy: () => ipcRenderer.invoke('dap:ensureDebugpy'),
+    toolPath: (name) => ipcRenderer.invoke('dap:toolPath', name),
     onEvent: (cb) => {
       const handler = (_e, data) => cb(data);
       ipcRenderer.on('dap:event', handler);

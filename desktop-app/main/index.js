@@ -545,6 +545,15 @@ function setupIPC() {
     dapClients.delete(sessionId);
     return { success: true };
   });
+  ipcMain.handle('dap:toolPath', (_, name) => {
+    const cmd = process.platform === 'win32' ? 'where' : 'which';
+    return new Promise((resolve) => {
+      execFile(cmd, [name], { timeout: 5000 }, (err, stdout) => {
+        if (err) resolve({ found: false, path: '' });
+        else resolve({ found: true, path: (stdout || '').toString().split(/\r?\n/)[0].trim() });
+      });
+    });
+  });
   // 自动下载 debugpy（Python 调试适配器）
   const DEBUGPY_DIR = path.join(app.getPath('userData'), 'tools', 'debugpy');
   const DEBUGPY_PY = path.join(DEBUGPY_DIR, 'venv', 'Scripts', 'python.exe');
