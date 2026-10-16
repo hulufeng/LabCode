@@ -8209,6 +8209,7 @@ function bindEvents() {
       document.querySelectorAll('.activity-btn').forEach(i => i.classList.remove('active'));
       item.classList.add('active');
       const panel = item.dataset.panel;
+      stopDeviceRefresh();
       const sidebar = document.getElementById('sidebar');
       const fileTree = document.getElementById('file-tree');
       const welcomePanel = document.getElementById('welcome-panel');
@@ -8254,6 +8255,7 @@ function bindEvents() {
         if (sidebarHeader) sidebarHeader.style.display = 'none';
         // 初始化设备面板真实数据
         initDevicePanel();
+        startDeviceRefresh();
       } else if (panel === 'context') {
         sidebar.style.display = 'flex';
         if (fileTree) fileTree.style.display = 'none';
@@ -9480,6 +9482,22 @@ function bindEvents() {
     });
   }
 
+  // ============ 设备面板端口/开发板自动刷新（修复陈旧端口显示）============
+  // arduino-cli board list 在 Windows 偶发漏报，且面板常开时插拔不会刷新。
+  // 设备面板可见时每 5s 重新枚举端口；切走其它面板即停止。
+  let deviceRefreshTimer = null;
+  function stopDeviceRefresh() {
+    if (deviceRefreshTimer) { clearInterval(deviceRefreshTimer); deviceRefreshTimer = null; }
+  }
+  function startDeviceRefresh() {
+    stopDeviceRefresh();
+    deviceRefreshTimer = setInterval(() => {
+      const dp = document.getElementById('device-panel');
+      if (!dp || dp.style.display === 'none') { stopDeviceRefresh(); return; }
+      refreshPorts();
+    }, 5000);
+  }
+
   // ============ 设备面板真实数据（对齐 TrieCode）============
   async function initDevicePanel() {
     if (!window.LabCode?.compile) {
@@ -9513,6 +9531,8 @@ function bindEvents() {
   async function refreshBoards() {
     const sel = document.getElementById('board-select');
     if (!sel) return;
+    const prev = sel.value; // 保留用户已选开发板，避免刷新冲掉选择
+    const restore = () => { if (prev && Array.from(sel.options).some(o => o.value === prev)) sel.value = prev; };
     try {
       const result = await window.LabCode.compile.listBoards();
       if (result.success && result.output) {
@@ -9532,16 +9552,19 @@ function bindEvents() {
             opt.textContent = b.name;
             sel.appendChild(opt);
           });
+          restore();
           return;
         }
       }
       populateDefaultBoards();
-    } catch (e) { populateDefaultBoards(); }
+      restore();
+    } catch (e) { populateDefaultBoards(); restore(); }
   }
 
   async function refreshPorts() {
     const sel = document.getElementById('port-select');
     if (!sel) return;
+    const prev = sel.value; // 保留用户已选端口，避免自动刷新冲掉选择
     const ports = [];
     try {
       if (window.LabCode?.compile) {
@@ -9567,6 +9590,7 @@ function bindEvents() {
         sel.appendChild(opt);
       });
     }
+    if (prev && Array.from(sel.options).some(o => o.value === prev)) sel.value = prev;
   }
 
   function populateSystemPorts() {
@@ -9632,6 +9656,13 @@ function bindEvents() {
   if (portSel) portSel.addEventListener('change', () => {
     state.compilePort = portSel.value;
     if (portSel.value) showToast('端口: ' + portSel.value, 'info');
+  });
+
+  // 设备面板"刷新"按钮：手动重新枚举端口/开发板/已装平台
+  const devRefreshBtn = document.getElementById('device-refresh');
+  if (devRefreshBtn) devRefreshBtn.addEventListener('click', () => {
+    showToast('正在刷新设备与端口...', 'info');
+    Promise.all([refreshPorts(), refreshBoards(), refreshCores()]).catch(() => {});
   });
 
   // ============ 编译按钮（真实 arduino-cli）============

@@ -1701,13 +1701,33 @@ function setupIPC() {
     return await ensureEsp32Toolchain();
   });
 
+  // Windows: arduino-cli / CMake / python subprocesses fail silently on
+  // non-ASCII project paths (e.g. a Chinese project folder name) because the
+  // spawned tools resolve scripts/paths with the system codepage. Map such a
+  // cwd to an ASCII directory junction (mklink /J, no admin needed) so the
+  // child runs from an ASCII path while all writes land in the real project
+  // directory. The junction is keyed by a hash of the real path and reused.
+  function asciiCwd(realCwd) {
+    if (!realCwd || process.platform !== 'win32') return { cwd: realCwd, link: null };
+    if (/^[\x00-\x7F]*$/.test(realCwd)) return { cwd: realCwd, link: null };
+    try {
+      const key = require('crypto').createHash('md5').update(realCwd).digest('hex').slice(0, 12);
+      const link = path.join(os.tmpdir(), 'labcode-ac-' + key);
+      if (!fs.existsSync(link)) {
+        try { fs.symlinkSync(realCwd, link, 'junction'); } catch (e) { return { cwd: realCwd, link: null }; }
+      }
+      return { cwd: link, link };
+    } catch (e) { return { cwd: realCwd, link: null }; }
+  }
+
   function runArduinoCli(args, cwd) {
     return new Promise((resolve) => {
       if (!fs.existsSync(ARDUINO_CLI)) {
         resolve({ success: false, error: 'arduino-cli 鏈壘鍒帮紝璇峰厛瀹夎 Arduino 缂栬瘧鎻掍欢', code: -1 });
         return;
       }
-      const child = execFile(ARDUINO_CLI, args, { cwd: cwd || process.cwd(), maxBuffer: 10 * 1024 * 1024 }, (err, stdout, stderr) => {
+      const ac = asciiCwd(cwd || process.cwd());
+      const child = execFile(ARDUINO_CLI, args, { cwd: ac.cwd, maxBuffer: 10 * 1024 * 1024 }, (err, stdout, stderr) => {
         const output = (stdout || '') + (stderr || '');
         resolve({ success: !err, error: err ? err.message : '', output, code: err ? (err.code || 1) : 0 });
       });
