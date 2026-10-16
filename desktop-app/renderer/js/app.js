@@ -270,6 +270,7 @@ async function loadProjectFromDisk(projectPath) {
     showToast(`已加载项目: ${projectPath}`, 'success');
     addOutputLog(`项目已加载: ${projectPath}`, 'success');
     addOutputLog(`共 ${Object.keys(state.files).length} 个文件`, 'info');
+    recordRecentProject(projectPath);
   } catch (e) {
     console.error('加载项目失败:', e);
     showToast('加载项目失败: ' + e.message, 'error');
@@ -11669,31 +11670,69 @@ function bindEvents() {
     });
   }
 
-  // 加载最近项目列表
-  function loadRecentProjects() {
-    const recentList = document.getElementById('welcome-recent-list');
-    if (!recentList) return;
-    const defaultProjects = [
-      { name: 'untitled', path: 'C:\\Users\\Administrator\\LabCodeProjects\\untitled' },
-      { name: 'robot', path: 'C:\\Users\\Administrator\\Documents\\robot' }
-    ];
-    recentList.innerHTML = '';
-    defaultProjects.forEach(project => {
-      const item = document.createElement('div');
-      item.className = 'welcome-recent-item';
-      item.innerHTML = `<svg class="icon"><use href="#icon-folder"></use></svg><span class="welcome-recent-path">${project.name} - ${project.path}</span>`;
-      item.addEventListener('click', async () => {
-        try {
-          await loadProjectFromDisk(project.path);
-          showToast('已打开项目: ' + project.name, 'success');
-        } catch (e) {
-          showToast('打开项目失败', 'error');
+  // 欢迎面板：克隆项目（对齐 TrieCode 的「克隆项目」入口）
+  const welcomeCloneProject = document.getElementById('welcome-clone-project');
+  if (welcomeCloneProject) {
+    welcomeCloneProject.addEventListener('click', async () => {
+      const url = window.prompt('请输入 Git 仓库地址（https 或 ssh）：');
+      if (!url) return;
+      showToast('正在克隆仓库...', 'info');
+      try {
+        const r = await window.LabCode.git.clone(url);
+        if (r && r.success) {
+          await loadProjectFromDisk(r.path);
+          const ws = document.getElementById('welcome-screen'); if (ws) ws.style.display = 'none';
+          const me = document.getElementById('monaco-editor'); if (me) me.style.display = 'flex';
+          showToast('已克隆并打开: ' + r.path, 'success');
+        } else {
+          showToast('克隆失败: ' + (r && r.error || ''), 'error');
         }
+      } catch (e) {
+        showToast('克隆失败: ' + e.message, 'error');
+      }
+    });
+  }
+
+  // 最近打开：从配置持久化读取并渲染（对齐 TrieCode 真实历史，替换原写死列表）
+  async function renderRecentProjects() {
+    const recentList = document.getElementById('recent-list');
+    if (!recentList) return;
+    let recents = [];
+    try {
+      const cfg = (window.LabCode && window.LabCode.config) ? await window.LabCode.config.get() : null;
+      recents = (cfg && Array.isArray(cfg.recentProjects)) ? cfg.recentProjects : [];
+    } catch (e) { recents = []; }
+    recentList.innerHTML = '';
+    if (!recents.length) {
+      recentList.innerHTML = '<div class="recent-item" style="color:var(--text-muted);">（暂无最近打开）</div>';
+      return;
+    }
+    recents.forEach(p => {
+      const item = document.createElement('div');
+      item.className = 'recent-item';
+      const name = String(p.path || '').split(/[\\/]/).pop() || p.path || '未命名';
+      item.innerHTML = '<svg class="icon icon-xs"><use href="#icon-folder"></use></svg><span>' + name + '</span>';
+      item.title = p.path || '';
+      item.style.cursor = 'pointer';
+      item.addEventListener('click', async () => {
+        try { await loadProjectFromDisk(p.path); showToast('已打开项目: ' + name, 'success'); }
+        catch (e) { showToast('打开项目失败: ' + e.message, 'error'); }
       });
       recentList.appendChild(item);
     });
   }
-  loadRecentProjects();
+  async function recordRecentProject(projectPath) {
+    try {
+      if (!window.LabCode || !window.LabCode.config) return;
+      const cfg = await window.LabCode.config.get();
+      const list = Array.isArray(cfg.recentProjects) ? cfg.recentProjects : [];
+      const filtered = list.filter(r => r.path !== projectPath);
+      filtered.unshift({ name: String(projectPath).split(/[\\/]/).pop(), path: projectPath });
+      await window.LabCode.config.set('recentProjects', filtered.slice(0, 8));
+      renderRecentProjects();
+    } catch (e) { console.warn('记录最近项目失败:', e); }
+  }
+  renderRecentProjects();
 
   // ============ 菜单栏按钮 ============
   document.querySelectorAll('.menu-item').forEach(menuItem => {

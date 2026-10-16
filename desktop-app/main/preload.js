@@ -148,7 +148,8 @@ contextBridge.exposeInMainWorld('LabCode', {
     checkout: (cwd, branch) => ipcRenderer.invoke('git:checkout', cwd, branch),
     createBranch: (cwd, branch) => ipcRenderer.invoke('git:createBranch', cwd, branch),
     unstage: (cwd, paths) => ipcRenderer.invoke('git:unstage', cwd, paths),
-    discard: (cwd, paths) => ipcRenderer.invoke('git:discard', cwd, paths)
+    discard: (cwd, paths) => ipcRenderer.invoke('git:discard', cwd, paths),
+    clone: (url, destDir) => ipcRenderer.invoke('git:clone', url, destDir)
   },
 
   // Hermes: 记忆搜索 + Webhook + SSH

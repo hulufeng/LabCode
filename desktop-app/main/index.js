@@ -636,6 +636,14 @@ function setupIPC() {
     const r = await runGit(cwd, ['pull']);
     return { success: r.ok, stdout: r.stdout, error: r.stderr };
   });
+  ipcMain.handle('git:clone', async (_, url, destDir) => {
+    if (!url) return { success: false, error: '缺少仓库地址' };
+    const repoName = (String(url).split('/').pop() || 'repo').replace(/\.git$/i, '').replace(/[^\w.-]/g, '_');
+    const dest = destDir || path.join(os.homedir(), 'LabCodeProjects', repoName);
+    const r = await runGit('', ['clone', '--depth', '1', url, dest]);
+    if (!r.ok) return { success: false, error: r.stderr || r.stdout || 'clone 失败' };
+    return { success: true, path: dest };
+  });
   // ===== Git 图形面板：diff / branch（对齐 TrieCode 路线图第一项）=====
   ipcMain.handle('git:diff', async (_, cwd, filePath) => {
     const args = ['diff', '--unified=3'];

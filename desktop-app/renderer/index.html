@@ -337,7 +337,10 @@
         <p class="welcome-panel-desc">打开或创建一个项目，AI 智能体将在这里读写代码、执行命令、运行测试。</p>
         <div class="welcome-panel-actions">
           <button class="btn btn-primary btn-full" id="welcome-new-project"><svg class="icon icon-xs"><use href="#icon-plus"></use></svg> 新建项目</button>
-          <button class="btn btn-secondary btn-full" id="welcome-open-project"><svg class="icon icon-xs"><use href="#icon-folder-open"></use></svg> 打开项目</button>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-secondary" style="flex:1;" id="welcome-open-project"><svg class="icon icon-xs"><use href="#icon-folder-open"></use></svg> 打开项目</button>
+            <button class="btn btn-secondary" style="flex:1;" id="welcome-clone-project"><svg class="icon icon-xs"><use href="#icon-git-branch"></use></svg> 克隆项目</button>
+          </div>
         </div>
         <!-- 最近打开（1:1 对齐 TrieCode：欢迎组件的一部分） -->
         <div class="recent-panel" id="recent-panel">
