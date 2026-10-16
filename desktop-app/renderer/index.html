@@ -311,6 +311,7 @@
       <button class="activity-btn" data-panel="git" title="Git"><svg class="icon"><use href="#icon-git-branch"></use></svg></button>
       <button class="activity-btn" data-panel="plugins" title="插件市场"><svg class="icon"><use href="#icon-puzzle"></use></svg></button>
       <button class="activity-btn" data-panel="device" title="设备"><svg class="icon"><use href="#icon-infinity"></use></svg></button>
+      <button class="activity-btn" data-panel="mcp" title="MCP 服务"><svg class="icon"><use href="#icon-bolt"></use></svg></button>
       <button class="activity-btn" data-panel="context" title="上下文用量"><svg class="icon"><use href="#icon-chart-bar"></use></svg></button>
       <button class="activity-btn" data-panel="schedule" title="定时任务"><svg class="icon"><use href="#icon-clock"></use></svg></button>
     </div>
@@ -384,6 +385,30 @@
             <button class="btn btn-primary" id="git-commit-btn" style="flex:1;font-size:12px;">提交</button>
             <button class="btn btn-secondary" id="git-push-btn" style="flex:1;font-size:12px;">推送</button>
             <button class="btn btn-secondary" id="git-pull-btn" style="flex:1;font-size:12px;">拉取</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- MCP 服务面板 -->
+      <div class="mcp-panel" id="mcp-panel" style="display:none;flex:1;flex-direction:column;overflow:hidden;">
+        <div class="sidebar-header">
+          <span>MCP 服务</span>
+          <div class="sidebar-actions">
+            <button class="icon-btn" id="mcp-refresh" title="刷新"><svg class="icon"><use href="#icon-refresh"></use></svg></button>
+          </div>
+        </div>
+        <div style="flex:1;overflow:auto;padding:8px;">
+          <div id="mcp-server-list" style="display:flex;flex-direction:column;gap:8px;"></div>
+          <div style="margin-top:14px;border-top:1px solid var(--border-color);padding-top:10px;">
+            <div style="font-weight:600;margin-bottom:8px;font-size:13px;">添加 MCP 服务器</div>
+            <div style="display:flex;flex-direction:column;gap:6px;">
+              <input id="mcp-add-name" placeholder="名称 (如 filesystem)" style="background:var(--bg-secondary);border:1px solid var(--border-color);color:var(--text);padding:6px 8px;border-radius:4px;font-size:12px;">
+              <input id="mcp-add-command" placeholder="命令 (如 npx)" style="background:var(--bg-secondary);border:1px solid var(--border-color);color:var(--text);padding:6px 8px;border-radius:4px;font-size:12px;">
+              <input id="mcp-add-args" placeholder="参数 (空格分隔, 如 -y @modelcontextprotocol/server-filesystem C:\\)" style="background:var(--bg-secondary);border:1px solid var(--border-color);color:var(--text);padding:6px 8px;border-radius:4px;font-size:12px;">
+              <input id="mcp-add-cwd" placeholder="工作目录 (可选)" style="background:var(--bg-secondary);border:1px solid var(--border-color);color:var(--text);padding:6px 8px;border-radius:4px;font-size:12px;">
+              <button class="btn btn-primary btn-sm" id="mcp-add-btn">添加并启动</button>
+            </div>
+            <div id="mcp-add-msg" style="margin-top:6px;font-size:12px;color:var(--text-muted);"></div>
           </div>
         </div>
       </div>

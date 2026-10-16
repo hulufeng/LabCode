@@ -121,6 +121,8 @@ contextBridge.exposeInMainWorld('LabCode', {
     callTool: (serverName, toolName, args) => ipcRenderer.invoke('mcp:call-tool', serverName, toolName, args),
     startAll: () => ipcRenderer.invoke('mcp:start-all'),
     stopAll: () => ipcRenderer.invoke('mcp:stop-all'),
+    startServer: (name) => ipcRenderer.invoke('mcp:start-server', name),
+    stopServer: (name) => ipcRenderer.invoke('mcp:stop-server', name),
     testConnection: (name) => ipcRenderer.invoke('mcp:testConnection', name),
     authorize: (name) => ipcRenderer.invoke('mcp:authorize', name)
   },

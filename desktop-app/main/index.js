@@ -340,6 +340,13 @@ function setupIPC() {
   ipcMain.handle('mcp:call-tool', (_, serverName, toolName, args) => mcpService.callTool(serverName, toolName, args));
   ipcMain.handle('mcp:start-all', () => mcpService.startAll());
   ipcMain.handle('mcp:stop-all', () => { mcpService.stopAll(); return true; });
+  ipcMain.handle('mcp:start-server', (_, name) => {
+    const cfgs = (config.extra && config.extra.mcpServers) || [];
+    const cfg = cfgs.find(s => s.name === name);
+    if (!cfg) return { ok: false, error: '未找到服务器配置: ' + name };
+    return mcpService.startServer(cfg);
+  });
+  ipcMain.handle('mcp:stop-server', (_, name) => { mcpService.stopServer(name); return true; });
   ipcMain.handle('mcp:testConnection', async (_, name) => {
     try {
       const r = mcpService.listTools(name);

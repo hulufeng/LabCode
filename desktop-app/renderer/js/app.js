@@ -2217,11 +2217,161 @@ const ARDUINO_TOOL_IMPLS = {
   }
 };
 function getToolDef(name) {
-  // 先找内置，再找插件 manifest 注册的工具
+  // 先找内置，再找插件 manifest 注册的工具，最后找 MCP 桥接工具
   return TOOL_DEFS.find(t => t.name === name)
     || (window.PluginSystem && window.PluginSystem.getToolDef(name))
+    || MCP_TOOL_DEFS.find(t => t.name === name)
     || null;
 }
+
+// ============ MCP 工具桥接：把已连接的 MCP 服务器工具暴露给 AI Agent ============
+// MCP 服务器由主进程 mcpService 管理（stdio JSON-RPC）。这里将"运行中服务器"的
+// tools 转成与 TOOL_DEFS 同构的虚拟工具，命名 mcp_<server>_<tool>，execute 调
+// window.LabCode.mcp.callTool。Agent 的 getToolDef / _buildToolDefs / _buildSystemPrompt
+// 都会纳入它们，从而 AI 可直接调用任意已配置 MCP 工具。
+let MCP_TOOL_DEFS = [];
+let _mcpRefreshing = false;
+async function refreshMcpToolDefs() {
+  if (_mcpRefreshing) return;
+  _mcpRefreshing = true;
+  try {
+    MCP_TOOL_DEFS = [];
+    if (!window.LabCode || !window.LabCode.mcp) return;
+    const servers = await window.LabCode.mcp.listServers();
+    const defs = [];
+    for (const s of (servers || [])) {
+      if (s.status !== 'running') continue;
+      try {
+        const r = await window.LabCode.mcp.listTools(s.name);
+        const tools = (r && r.tools) || [];
+        for (const t of tools) {
+          const schema = t.inputSchema || { type: 'object', properties: {} };
+          defs.push({
+            name: 'mcp_' + s.name + '_' + t.name,
+            description: '[MCP:' + s.name + '] ' + (t.description || t.name),
+            category: 'mcp',
+            _mcpServer: s.name,
+            _mcpTool: t.name,
+            parameters: { type: 'object', properties: schema.properties || {}, required: schema.required || [] },
+            execute: async (args) => {
+              const res = await window.LabCode.mcp.callTool(s.name, t.name, args || {});
+              if (res && res.ok) return res.text || '';
+              return 'Error: ' + ((res && res.error) || 'MCP tool failed');
+            }
+          });
+        }
+      } catch (e) { /* 忽略单个异常服务器 */ }
+    }
+    MCP_TOOL_DEFS = defs;
+  } catch (e) {
+    console.warn('[MCP] refreshMcpToolDefs failed:', e);
+  } finally {
+    _mcpRefreshing = false;
+  }
+}
+
+// ===== MCP 面板 UI =====
+function mcpEscapeHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+function mcpEscapeAttr(s) { return mcpEscapeHtml(s).replace(/ /g, '&#32;'); }
+function mcpCssEscape(s) {
+  if (window.CSS && CSS.escape) return CSS.escape(s);
+  return String(s).replace(/["\\]/g, '\\$&');
+}
+
+async function initMcpPanel() {
+  const listEl = document.getElementById('mcp-server-list');
+  if (!listEl) return;
+  bindMcpPanelControls();
+  try {
+    const servers = await window.LabCode.mcp.listServers();
+    listEl.innerHTML = '';
+    if (!servers || servers.length === 0) {
+      listEl.innerHTML = '<div style="color:var(--text-muted);font-size:12px;line-height:1.6;">暂无 MCP 服务器。<br>在下方添加，例如：<br>名称 <code>filesystem</code> · 命令 <code>npx</code> · 参数 <code>-y @modelcontextprotocol/server-filesystem C:\\</code></div>';
+    } else {
+      for (const s of servers) {
+        const card = document.createElement('div');
+        card.style.cssText = 'border:1px solid var(--border-color);border-radius:6px;padding:8px;background:var(--bg-secondary);';
+        const dot = s.status === 'running' ? '🟢' : (s.status === 'error' ? '🔴' : '⚪');
+        const toolsN = s.tools || 0;
+        const isRun = s.status === 'running';
+        card.innerHTML =
+          '<div style="display:flex;align-items:center;gap:6px;">' +
+            '<span>' + dot + '</span>' +
+            '<strong style="flex:1;font-size:13px;">' + mcpEscapeHtml(s.name) + '</strong>' +
+            '<span style="font-size:11px;color:var(--text-muted);">' + mcpEscapeHtml(s.status) + '</span>' +
+          '</div>' +
+          '<div style="font-size:11px;color:var(--text-muted);margin:4px 0;word-break:break-all;">' + mcpEscapeHtml(s.command + ' ' + (s.args || []).join(' ')) + '</div>' +
+          '<div style="font-size:11px;color:var(--text-muted);">工具数: ' + toolsN + '</div>' +
+          '<div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;">' +
+            '<button class="btn btn-secondary btn-sm" data-mcp-act="tools" data-name="' + mcpEscapeAttr(s.name) + '">查看工具</button>' +
+            '<button class="btn btn-secondary btn-sm" data-mcp-act="toggle" data-name="' + mcpEscapeAttr(s.name) + '" data-status="' + mcpEscapeAttr(s.status) + '">' + (isRun ? '停止' : '启动') + '</button>' +
+            '<button class="btn btn-secondary btn-sm" data-mcp-act="test" data-name="' + mcpEscapeAttr(s.name) + '">测试连接</button>' +
+            '<button class="btn btn-secondary btn-sm" data-mcp-act="remove" data-name="' + mcpEscapeAttr(s.name) + '">删除</button>' +
+          '</div>' +
+          '<div data-mcp-tools="' + mcpEscapeAttr(s.name) + '" style="margin-top:6px;font-size:11px;color:var(--text-muted);white-space:pre-wrap;"></div>' +
+          (s.stderr ? '<div style="margin-top:6px;font-size:10px;color:var(--danger);white-space:pre-wrap;">' + mcpEscapeHtml(s.stderr.slice(-300)) + '</div>' : '');
+        listEl.appendChild(card);
+      }
+    }
+  } catch (e) {
+    listEl.innerHTML = '<div style="color:var(--danger);font-size:12px;">加载失败: ' + mcpEscapeHtml(e.message) + '</div>';
+  }
+}
+
+let _mcpControlsBound = false;
+function bindMcpPanelControls() {
+  if (_mcpControlsBound) return;
+  _mcpControlsBound = true;
+  const g = (id) => ((document.getElementById(id) || {}).value || '').trim();
+  const addBtn = document.getElementById('mcp-add-btn');
+  if (addBtn) addBtn.addEventListener('click', async () => {
+    const name = g('mcp-add-name');
+    const command = g('mcp-add-command');
+    const argsRaw = g('mcp-add-args');
+    const cwd = g('mcp-add-cwd');
+    const msg = document.getElementById('mcp-add-msg');
+    if (!name || !command) { msg.textContent = '名称和命令为必填'; msg.style.color = 'var(--danger)'; return; }
+    const args = argsRaw ? argsRaw.split(/\s+/) : [];
+    const r = await window.LabCode.mcp.addServer({ name: name, command: command, args: args, cwd: cwd, env: {} });
+    if (r && r.ok) { msg.textContent = '已添加并启动: ' + name; msg.style.color = 'var(--success)'; refreshMcpToolDefs(); initMcpPanel(); }
+    else { msg.textContent = '失败: ' + ((r && r.error) || '未知'); msg.style.color = 'var(--danger)'; }
+  });
+  const refreshBtn = document.getElementById('mcp-refresh');
+  if (refreshBtn) refreshBtn.addEventListener('click', () => { initMcpPanel(); });
+  const listEl = document.getElementById('mcp-server-list');
+  if (listEl) listEl.addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-mcp-act]');
+    if (!btn) return;
+    const act = btn.getAttribute('data-mcp-act');
+    const name = btn.getAttribute('data-name');
+    const box = listEl.querySelector('[data-mcp-tools="' + mcpCssEscape(name) + '"]');
+    if (act === 'remove') {
+      await window.LabCode.mcp.removeServer(name); refreshMcpToolDefs(); initMcpPanel();
+    } else if (act === 'toggle') {
+      const st = btn.getAttribute('data-status');
+      if (st === 'running') await window.LabCode.mcp.stopServer(name);
+      else await window.LabCode.mcp.startServer(name);
+      refreshMcpToolDefs(); initMcpPanel();
+    } else if (act === 'test') {
+      const r = await window.LabCode.mcp.testConnection(name);
+      if (box) box.textContent = (r && r.success) ? ('连接正常，工具数: ' + (r.tools || 0)) : ('连接失败: ' + ((r && r.error) || 'unknown'));
+    } else if (act === 'tools') {
+      try {
+        const r = await window.LabCode.mcp.listTools(name);
+        const ts = (r && r.tools) || [];
+        if (box) box.textContent = ts.length ? ('工具:\n' + ts.map(t => '• ' + t.name + (t.description ? ' — ' + t.description : '')).join('\n')) : '无工具';
+      } catch (err) { if (box) box.textContent = '获取工具失败: ' + err.message; }
+    }
+  });
+}
+
+// 启动时拉取一次 MCP 工具（用户未打开面板也能让 Agent 用到）
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => setTimeout(refreshMcpToolDefs, 2500));
+else setTimeout(refreshMcpToolDefs, 2500);
 function getToolCategory(name) { const t = getToolDef(name); return t ? t.category : 'query'; }
 
 // ---------- 2. 权限策略（PermissionPolicy）----------
@@ -3776,7 +3926,7 @@ class RealAIClient {
   }
 
   _buildSystemPrompt(useNativeTools = false) {
-    const allDefs = TOOL_DEFS.concat(window.PluginSystem ? window.PluginSystem.allTools() : []);
+    const allDefs = TOOL_DEFS.concat(window.PluginSystem ? window.PluginSystem.allTools() : [], MCP_TOOL_DEFS);
     const toolList = allDefs.map(t => {
       const params = t.parameters?.properties ? Object.entries(t.parameters.properties).map(([k, v]) =>
         `  - ${k}: ${v.type}${v.description ? ' - ' + v.description : ''}`
@@ -4188,7 +4338,15 @@ void loop() {
         parameters: t.parameters || { type: 'object', properties: {} }
       }
     }));
-    return builtin.concat(pluginTools);
+    const mcpTools = MCP_TOOL_DEFS.map(t => ({
+      type: 'function',
+      function: {
+        name: t.name,
+        description: t.description || '',
+        parameters: t.parameters || { type: 'object', properties: {} }
+      }
+    }));
+    return builtin.concat(pluginTools, mcpTools);
   }
 
   async generateResponse(userInput, messages) {
@@ -4794,7 +4952,7 @@ ${toolListText}
         messages.push({ role: 'assistant', content: raw });
         const toolResults = [];
         for (const tc of parsed.toolCalls) {
-          if (!READONLY.includes(tc.name)) {
+          if (!READONLY.includes(tc.name) && !tc.name.startsWith('mcp_')) {
             toolResults.push(`工具 ${tc.name} 不在只读白名单，已拒绝`);
             continue;
           }
@@ -4845,7 +5003,7 @@ ${toolListText}
   // 运行时只读硬门（不依赖模型自觉）
   async guardedExecute(toolName, args) {
     // 硬门：只允许只读工具
-    if (!SUBAGENT_READONLY_TOOLS.includes(toolName)) {
+    if (!SUBAGENT_READONLY_TOOLS.includes(toolName) && !toolName.startsWith('mcp_')) {
       return { success: false, error: `子智能体安全门：工具「${toolName}」不在只读白名单中，已拒绝执行` };
     }
     // ===== 2026-09-14 修复：接入真实只读工具执行（复用 TOOL_DEFS 的 execute）=====
@@ -8210,12 +8368,14 @@ function bindEvents() {
       item.classList.add('active');
       const panel = item.dataset.panel;
       stopDeviceRefresh();
+      if (mcpPanel) mcpPanel.style.display = 'none';
       const sidebar = document.getElementById('sidebar');
       const fileTree = document.getElementById('file-tree');
       const welcomePanel = document.getElementById('welcome-panel');
       const pluginsPanel = document.getElementById('plugins-panel');
       const devicePanel = document.getElementById('device-panel');
       const gitPanel = document.getElementById('git-panel');
+      const mcpPanel = document.getElementById('mcp-panel');
       const sidebarHeader = sidebar ? sidebar.querySelector('.sidebar-header') : null;
 
       if (panel === 'explorer') {
@@ -8256,6 +8416,16 @@ function bindEvents() {
         // 初始化设备面板真实数据
         initDevicePanel();
         startDeviceRefresh();
+      } else if (panel === 'mcp') {
+        sidebar.style.display = 'flex';
+        if (fileTree) fileTree.style.display = 'none';
+        if (welcomePanel) welcomePanel.style.display = 'none';
+        if (pluginsPanel) pluginsPanel.style.display = 'none';
+        if (devicePanel) devicePanel.style.display = 'none';
+        if (gitPanel) gitPanel.style.display = 'none';
+        if (mcpPanel) mcpPanel.style.display = 'flex';
+        if (sidebarHeader) sidebarHeader.style.display = 'none';
+        initMcpPanel();
       } else if (panel === 'context') {
         sidebar.style.display = 'flex';
         if (fileTree) fileTree.style.display = 'none';
