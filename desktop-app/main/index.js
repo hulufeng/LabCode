@@ -578,16 +578,20 @@ function setupIPC() {
     const r = await runGit(cwd, ['status', '--porcelain', '-b']);
     if (!r.ok) return { success: false, error: r.stderr };
     const lines = r.stdout.split('\n').filter(Boolean);
-    const branch = lines[0] && lines[0].startsWith('##') ? lines[0].slice(3).split('...')[0] : '(unknown)';
+    const head = lines[0] || '';
+    let ahead = 0, behind = 0;
+    const am = head.match(/ahead (\d+)/); if (am) ahead = parseInt(am[1], 10);
+    const bm = head.match(/behind (\d+)/); if (bm) behind = parseInt(bm[1], 10);
+    const branch = head.startsWith('##') ? head.slice(3).split('...')[0] : '(unknown)';
     const files = lines.slice(1).map(l => {
       const status = l.slice(0, 2);
       const path = l.slice(3);
       return { status: status.trim(), path };
     });
-    return { success: true, branch, files };
+    return { success: true, branch, ahead, behind, files };
   });
   ipcMain.handle('git:add', async (_, cwd, paths) => {
-    const args = ['add', ...(Array.isArray(paths) ? paths : [paths])];
+    const args = (Array.isArray(paths) && paths.length) ? ['add', ...paths] : ['add', '-A'];
     const r = await runGit(cwd, args);
     return { success: r.ok, error: r.stderr };
   });
@@ -606,7 +610,18 @@ function setupIPC() {
   });
   ipcMain.handle('git:push', async (_, cwd) => {
     const r = await runGit(cwd, ['push']);
-    return { success: r.ok, stdout: r.stdout, error: r.stderr };
+    if (r.ok) return { success: true, stdout: r.stdout, error: r.stderr };
+    // no upstream -> set upstream automatically
+    const br = await runGit(cwd, ['branch', '--show-current']);
+    const branch = br.stdout.trim();
+    if (branch) {
+      const up = await runGit(cwd, ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}']);
+      if (!up.ok) {
+        const r2 = await runGit(cwd, ['push', '--set-upstream', 'origin', branch]);
+        return { success: r2.ok, stdout: r2.stdout, error: r2.stderr, setUpstream: true };
+      }
+    }
+    return { success: false, stdout: r.stdout, error: r.stderr };
   });
   ipcMain.handle('git:pull', async (_, cwd) => {
     const r = await runGit(cwd, ['pull']);

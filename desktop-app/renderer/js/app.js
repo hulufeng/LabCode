@@ -10606,7 +10606,7 @@ function bindEvents() {
       }
     } catch (e) {}
 
-    if (statusEl) statusEl.innerHTML = '分支: <b>' + r.branch + '</b>';
+    if (statusEl) statusEl.innerHTML = '分支: <b>' + escapeHtml(r.branch) + '</b>' + (r.ahead ? ' <span style="color:#4caf50;">↑' + r.ahead + '</span>' : '') + (r.behind ? ' <span style="color:#ff9800;">↓' + r.behind + '</span>' : '');
     if (filesEl) {
       if (!r.files.length) {
         filesEl.innerHTML = branchHtml + '<p style="color:#4caf50;font-size:12px;padding:8px;">无变更</p>';
@@ -10627,9 +10627,11 @@ function bindEvents() {
           html += '<div style="padding:4px 8px;font-size:11px;color:#888;">未暂存</div>';
           html += unstaged.map(f => {
             const color = f.status[1] === 'M' ? '#ff9800' : f.status[1] === 'A' ? '#4caf50' : f.status[1] === 'D' ? '#f44' : '#ccc';
-            return '<div style="padding:3px 8px;font-size:12px;display:flex;justify-content:space-between;cursor:pointer;" onclick="gitShowDiff(\'' + f.path.replace(/\\/g, '\\\\').replace(/'/g, "\\'") + '\')" onmouseover="this.style.background=\'#3c3c3c\'" onmouseout="this.style.background=\'transparent\'" title="点击查看 diff">' +
+            const ep = f.path.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+            const discardBtn = f.status[1] !== '?' ? '<span style="color:#f44;margin-left:8px;" onclick="event.stopPropagation();gitDiscardFile(\'' + ep + '\')" title="丢弃修改">✕</span>' : '';
+            return '<div style="padding:3px 8px;font-size:12px;display:flex;justify-content:space-between;cursor:pointer;" onclick="gitShowDiff(\'' + ep + '\')" onmouseover="this.style.background=\'#3c3c3c\'" onmouseout="this.style.background=\'transparent\'" title="点击查看 diff">' +
               '<span><span style="color:' + color + ';font-weight:bold;">' + f.status[1] + '</span> ' + f.path + '</span>' +
-              '<span style="color:#666;" onclick="event.stopPropagation();gitStageFile(\'' + f.path.replace(/\\/g, '\\\\').replace(/'/g, "\\'") + '\')" title="暂存">+</span></div>';
+              '<span style="color:#666;"><span onclick="event.stopPropagation();gitStageFile(\'' + ep + '\')" title="暂存">+</span>' + discardBtn + '</span></div>';
           }).join('');
         }
         filesEl.innerHTML = html;
@@ -10651,6 +10653,11 @@ function bindEvents() {
   window.gitUnstageFile = async (path) => {
     await window.LabCode.git.unstage(state.projectPath, [path]);
     refreshGitStatus();
+  };
+  window.gitDiscardFile = async (path) => {
+    const r = await window.LabCode.git.discard(state.projectPath, [path]);
+    if (r.success) { showToast('已丢弃 ' + path, 'success'); refreshGitStatus(); }
+    else showToast('丢弃失败: ' + (r.error || ''), 'error');
   };
   window.gitShowDiff = async (path) => {
     const r = await window.LabCode.git.diff(state.projectPath, path);
@@ -10682,12 +10689,27 @@ function bindEvents() {
   const gitPushBtn = document.getElementById('git-push-btn');
   if (gitPushBtn) gitPushBtn.addEventListener('click', async () => {
     const r = await window.LabCode.git.push(state.projectPath);
-    showToast(r.success ? '已推送' : '推送失败: ' + (r.error || ''), r.success ? 'success' : 'error');
+    showToast(r.success ? (r.setUpstream ? '已推送并设置 upstream' : '已推送') : '推送失败: ' + (r.error || ''), r.success ? 'success' : 'error');
   });
   const gitPullBtn = document.getElementById('git-pull-btn');
   if (gitPullBtn) gitPullBtn.addEventListener('click', async () => {
     const r = await window.LabCode.git.pull(state.projectPath);
     showToast(r.success ? '已拉取' : '拉取失败: ' + (r.error || ''), r.success ? 'success' : 'error');
+  });
+  const gitStageAllBtn = document.getElementById('git-stage-all-btn');
+  if (gitStageAllBtn) gitStageAllBtn.addEventListener('click', async () => {
+    const r = await window.LabCode.git.add(state.projectPath, []);
+    if (r.success) { showToast('已暂存全部', 'success'); refreshGitStatus(); }
+    else showToast('暂存失败: ' + (r.error || ''), 'error');
+  });
+  const gitNewBranchBtn = document.getElementById('git-newbranch-btn');
+  if (gitNewBranchBtn) gitNewBranchBtn.addEventListener('click', async () => {
+    const inp = document.getElementById('git-newbranch-name');
+    const name = (inp && inp.value || '').trim();
+    if (!name) { showToast('分支名必填', 'warn'); return; }
+    const r = await window.LabCode.git.createBranch(state.projectPath, name);
+    if (r.success) { showToast('已创建并切换到 ' + name, 'success'); if (inp) inp.value = ''; refreshGitStatus(); }
+    else showToast('创建失败: ' + (r.error || ''), 'error');
   });
 
   // ===== 设备面板编译/烧录/监视按钮 =====

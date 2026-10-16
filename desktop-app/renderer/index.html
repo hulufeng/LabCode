@@ -380,11 +380,18 @@
         <div id="git-status" style="padding:8px;font-size:12px;color:#888;">未选择仓库</div>
         <div id="git-files" style="flex:1;overflow:auto;padding:4px 8px;"></div>
         <div style="padding:8px;border-top:1px solid #3c3c3c;">
+          <div style="display:flex;gap:6px;margin-bottom:6px;">
+            <button class="btn btn-secondary btn-sm" id="git-stage-all-btn" style="flex:1;font-size:12px;">全部暂存</button>
+          </div>
           <input id="git-commit-msg" placeholder="提交信息…" style="width:100%;background:#2d2d2d;border:1px solid #3c3c3c;color:#ccc;padding:6px 8px;border-radius:4px;margin-bottom:6px;font-size:12px;">
-          <div style="display:flex;gap:6px;">
+          <div style="display:flex;gap:6px;margin-bottom:6px;">
             <button class="btn btn-primary" id="git-commit-btn" style="flex:1;font-size:12px;">提交</button>
             <button class="btn btn-secondary" id="git-push-btn" style="flex:1;font-size:12px;">推送</button>
             <button class="btn btn-secondary" id="git-pull-btn" style="flex:1;font-size:12px;">拉取</button>
+          </div>
+          <div style="display:flex;gap:6px;">
+            <input id="git-newbranch-name" placeholder="新分支名" style="flex:1;background:#2d2d2d;border:1px solid #3c3c3c;color:#ccc;padding:6px 8px;border-radius:4px;font-size:12px;">
+            <button class="btn btn-secondary btn-sm" id="git-newbranch-btn" style="font-size:12px;">新建</button>
           </div>
         </div>
       </div>
