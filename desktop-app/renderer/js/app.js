@@ -3944,10 +3944,14 @@ class RealAIClient {
   }
 
   async _loadConfig() {
+    this.customSystemPrompt = '';
     try {
       if (window.LabCode && window.LabCode.config) {
         this.config = await window.LabCode.config.get();
       }
+      // 恢复内置 Agent 的 persona（持久化的是提示词文本本身，避免跨作用域依赖）
+      const p = (this.config && this.config.ai && this.config.ai.activeAgentPrompt) || '';
+      if (p) this.customSystemPrompt = p;
     } catch (e) {
       console.warn('[RealAIClient] 加载配置失败:', e);
     }
@@ -4048,7 +4052,8 @@ class RealAIClient {
       }
     }
 
-    return `你是 LabCode（代码实验室）的 AI 编程助手。你可以使用工具来读写文件、执行命令、联网搜索等。
+    const identity = this.customSystemPrompt || '你是 LabCode（代码实验室）的 AI 编程助手。你可以使用工具来读写文件、执行命令、联网搜索等。';
+    return `${identity}
 ${memorySection}
 ## 当前项目
 - 项目类型: ${projectTypeDesc}
@@ -11262,10 +11267,39 @@ function bindEvents() {
       { tier: 'runtime', name: 'Claude Code', typeLabel: '编码运行时', runtime: 'Claude Code', desc: 'Anthropic 官方编码 agent，工具调用成熟（底层 Anthropic）', link: 'https://docs.anthropic.com/claude-code',
         config: { provider: 'custom', model: 'claude-sonnet-4', apiKey: '', baseURL: 'https://api.anthropic.com/v1', thinking: 'standard' }, selectable: true, mcpPreset: ['filesystem', 'github'] },
       { tier: 'runtime', name: 'Qwen Code', typeLabel: '编码运行时', runtime: 'Qwen Code', desc: '阿里通义千问编码 agent，中文友好（底层 DashScope）', link: 'https://github.com/QwenLM/qwen-code',
-        config: { provider: 'custom', model: 'qwen-max', apiKey: '', baseURL: 'https://dashscope.aliyuncs.com/compatible-mode/v1', thinking: 'standard' }, selectable: true, mcpPreset: ['filesystem'] }
+        config: { provider: 'custom', model: 'qwen-max', apiKey: '', baseURL: 'https://dashscope.aliyuncs.com/compatible-mode/v1', thinking: 'standard' }, selectable: true, mcpPreset: ['filesystem'] },
+      // ===== 内置 Agent（对齐 Ekko 的内置 agent：专业角色预设，注入系统提示词）=====
+      { tier: 'agent', name: 'ESP32 嵌入式专家', typeLabel: '内置 Agent', desc: '专精 Arduino-ESP32 / ESP-IDF：引脚、WiFi/BLE、低功耗、外设驱动、烧录排错', link: '',
+        agent: { id: 'esp32-expert' }, selectable: true },
+      { tier: 'agent', name: '代码审查员', typeLabel: '内置 Agent', desc: '审查生成代码：能否编译、API 用法、bug/安全隐患，表格化给出修复建议', link: '',
+        agent: { id: 'code-reviewer' }, selectable: true },
+      { tier: 'agent', name: '技术文档作者', typeLabel: '内置 Agent', desc: '把实现整理成文档式交付：结构/功能/使用/验证四区块', link: '',
+        agent: { id: 'doc-writer' }, selectable: true },
+      { tier: 'agent', name: '调试排错专家', typeLabel: '内置 Agent', desc: '面对编译/运行错误先定位根因，给出能跑通的方案', link: '',
+        agent: { id: 'debugger' }, selectable: true }
     ];
 
+    // 内置 Agent 的 persona 系统提示词（选用时注入 RealAIClient，重载时由 _loadConfig 恢复）
+    const BUILTIN_AGENTS = {
+      'esp32-expert': { name: 'ESP32 嵌入式专家', systemPrompt: '你是 LabCode 的 ESP32/嵌入式开发专家 Agent。专精 Arduino-ESP32 与 ESP-IDF：引脚规划（GPIO/ADC/PWM/I2C/SPI/UART）、WiFi/BLE、低功耗（deep sleep/light sleep）、外设驱动（传感器/电机/屏幕/SD）以及编译烧录排错。面对需求优先输出可编译、可烧录的完整代码（Arduino 用 ```ino 标注），并给出接线与验证说明。' },
+      'code-reviewer': { name: '代码审查员', systemPrompt: '你是 LabCode 的代码审查 Agent。职责是审查 AI 生成的代码：检查能否编译通过、API 用法是否正确（如 ESP32 core 3.x 已移除 ledcSetup 旧 API）、是否有明显 bug 或安全隐患、是否符合项目文件格式。审查结果用 Markdown 表格给出「问题 / 严重程度 / 修复建议」，必要时直接产出修复后的完整代码块。' },
+      'doc-writer': { name: '技术文档作者', systemPrompt: '你是 LabCode 的技术文档 Agent。擅长把实现成果整理成清晰的文档式交付：项目结构（树形）、功能特性表、接线/配置说明、编译上传步骤、验证结果。当被要求总结或写说明时，默认按文档式总结规范输出（结构 / 功能 / 使用 / 验证四区块）。' },
+      'debugger': { name: '调试排错专家', systemPrompt: '你是 LabCode 的调试排错 Agent。面对编译/运行/配置错误，先定位根因（区分代码错误、工具链缺失、端口/驱动问题、路径含中文等），给出可操作的修复步骤，必要时直接输出修复后的完整代码或命令。不要停在报错上，要给出能跑通的方案。' }
+    };
+
     function applyMarketAgent(a) {
+      if (a.agent) {
+        // 选用内置 Agent：注入 persona 到 RealAIClient 并持久化（对齐 Ekko 的内置 agent 预设）
+        try {
+          const id = a.agent.id;
+          const prompt = (BUILTIN_AGENTS[id] && BUILTIN_AGENTS[id].systemPrompt) || '';
+          if (state.agent && state.agent.ai) state.agent.ai.customSystemPrompt = prompt;
+          window.LabCode?.config?.set?.('ai.activeAgent', id);
+          if (prompt) window.LabCode?.config?.set?.('ai.activeAgentPrompt', prompt);
+        } catch (e) {}
+        showToast('已切换内置 Agent：' + a.name, 'info');
+        return;
+      }
       const c = a.config;
       document.getElementById('ai-provider').value = c.provider;
       document.getElementById('ai-apikey').value = c.apiKey || '';
@@ -11286,7 +11320,7 @@ function bindEvents() {
       const list = document.getElementById('agent-market-list');
       if (!list) return;
       list.innerHTML = '';
-      const tierTitle = { model: 'AI 模型', runtime: '编码 Agent 运行时（映射到其底层模型）' };
+      const tierTitle = { model: 'AI 模型', runtime: '编码 Agent 运行时（映射到其底层模型）', agent: '内置 Agent（专业角色预设，注入系统提示词）' };
       let lastTier = null;
       MARKET_AGENTS.forEach((a) => {
         if (a.tier !== lastTier) {
