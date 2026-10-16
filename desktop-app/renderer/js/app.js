@@ -11015,6 +11015,7 @@ function bindEvents() {
     document.getElementById('ai-thinking').value = ai.thinkingLevel || 'standard';
     document.getElementById('ai-test-result').textContent = '';
     updateAiSettingsVisibility();
+    renderAgentMarket();
     // 刷新网关账号状态（登录态 + 余额）
     refreshGatewayUI();
     modal.style.display = 'flex';
@@ -11207,6 +11208,88 @@ function bindEvents() {
       }
       settingsModal.style.display = 'none';
     });
+
+    // ============ Agent 市场：从市面上的 AI 智能体里挑选并切换 ============
+    // 数据来源：前期调研（Hermes / DeepSeek 系 / 本地引擎 / 开源编码 agent）
+    const MARKET_AGENTS = [
+      { name: 'DeepSeek Chat', typeLabel: '云端 API', desc: 'DeepSeek 通用对话模型，性价比高，代码与中文能力强', link: 'https://platform.deepseek.com/',
+        config: { provider: 'deepseek', model: 'deepseek-chat', apiKey: '', baseURL: '', thinking: 'standard' }, selectable: true },
+      { name: 'DeepSeek Reasoner', typeLabel: '云端 API', desc: 'DeepSeek-R1 推理模型，复杂多步任务 / 数学 / 调试更稳', link: 'https://platform.deepseek.com/',
+        config: { provider: 'deepseek', model: 'deepseek-reasoner', apiKey: '', baseURL: '', thinking: 'deep' }, selectable: true },
+      { name: 'LabCode 本地 AI 引擎', typeLabel: '内置引擎', desc: '内置 llama.cpp，安装模型即离线可用，无需 API Key', link: '',
+        config: { provider: 'local', model: '', apiKey: '', baseURL: '', thinking: 'standard' }, selectable: true },
+      { name: 'Ollama 本地模型', typeLabel: '本地运行', desc: '连接本机 Ollama，运行 Qwen / Codellama / DeepHermes 等 GGUF', link: 'https://ollama.com/',
+        config: { provider: 'ollama', model: '', apiKey: '', baseURL: '', thinking: 'standard' }, selectable: true },
+      { name: 'OpenAI GPT-4o', typeLabel: '云端 API', desc: 'OpenAI 官方模型，通用能力强（需自有 API Key）', link: 'https://platform.openai.com/',
+        config: { provider: 'openai', model: 'gpt-4o', apiKey: '', baseURL: '', thinking: 'standard' }, selectable: true },
+      { name: 'Hermes（NousResearch 开源）', typeLabel: '开源', desc: 'NousResearch 开放模型家族，指令遵循 / 工具调用友好，走 OpenRouter', link: 'https://github.com/NousResearch/hermes-agent',
+        config: { provider: 'custom', model: 'nousresearch/hermes-3-llama-3.1-405b', apiKey: '', baseURL: 'https://openrouter.ai/api/v1', thinking: 'standard' }, selectable: true },
+      { name: 'DeepHermes（DeepSeek 推理 + Hermes）', typeLabel: '开源/本地', desc: '把 DeepSeek-R1 推理蒸馏进 Hermes 的推理模型，本地 Ollama 运行', link: 'https://ollama.com/library/deephermes',
+        config: { provider: 'ollama', model: 'deephermes', apiKey: '', baseURL: '', thinking: 'standard' }, selectable: true },
+      { name: 'dscode（DeepSeek 编码 agent）', typeLabel: '开源参考', desc: '996★ 的 DeepSeek 编码 agent harness，可作自建参考', link: 'https://github.com/qiz029/dscode',
+        config: null, selectable: false },
+      { name: 'WEIPING_WHALE（终端编码 agent）', typeLabel: '开源参考', desc: '131★ 终端原生 DeepSeek agent：子代理 / LSP / MCP / session 回溯', link: 'https://github.com/appleweiping/WEIPING_WHALE',
+        config: null, selectable: false }
+    ];
+
+    function applyMarketAgent(a) {
+      const c = a.config;
+      document.getElementById('ai-provider').value = c.provider;
+      document.getElementById('ai-apikey').value = c.apiKey || '';
+      document.getElementById('ai-baseurl').value = c.baseURL || '';
+      document.getElementById('ai-model').value = c.model || '';
+      document.getElementById('ai-thinking').value = c.thinking || 'standard';
+      updateAiSettingsVisibility();
+      // 复用既有保存管线：写配置 + 刷新 RealAIClient + 提示 + 关闭弹窗
+      document.getElementById('settings-save').click();
+    }
+
+    function renderAgentMarket() {
+      const list = document.getElementById('agent-market-list');
+      if (!list) return;
+      list.innerHTML = '';
+      MARKET_AGENTS.forEach((a) => {
+        const card = document.createElement('div');
+        card.style.cssText = 'border:1px solid var(--border-color);border-radius:8px;padding:10px;display:flex;flex-direction:column;gap:6px;background:var(--card-color);';
+        const top = document.createElement('div');
+        top.style.cssText = 'display:flex;justify-content:space-between;align-items:center;gap:6px;';
+        const nm = document.createElement('span');
+        nm.style.cssText = 'font-size:13px;font-weight:600;color:var(--text-color);';
+        nm.textContent = a.name;
+        const badge = document.createElement('span');
+        badge.style.cssText = 'font-size:10px;padding:1px 6px;border-radius:10px;background:var(--accent);color:#fff;white-space:nowrap;';
+        badge.textContent = a.typeLabel;
+        top.appendChild(nm); top.appendChild(badge);
+        const dsc = document.createElement('div');
+        dsc.style.cssText = 'font-size:11px;color:var(--text-secondary);line-height:1.4;flex:1;';
+        dsc.textContent = a.desc;
+        const actions = document.createElement('div');
+        actions.style.cssText = 'display:flex;gap:6px;align-items:center;margin-top:2px;';
+        if (a.selectable) {
+          const btn = document.createElement('button');
+          btn.className = 'btn btn-primary';
+          btn.style.cssText = 'flex:1;padding:5px;font-size:12px;';
+          btn.textContent = '选用';
+          btn.addEventListener('click', () => applyMarketAgent(a));
+          actions.appendChild(btn);
+        } else {
+          const info = document.createElement('span');
+          info.style.cssText = 'font-size:11px;color:var(--text-secondary);';
+          info.textContent = '开源参考实现';
+          actions.appendChild(info);
+        }
+        if (a.link) {
+          const link = document.createElement('a');
+          link.href = a.link; link.target = '_blank'; link.rel = 'noopener';
+          link.style.cssText = 'font-size:12px;color:var(--accent);white-space:nowrap;';
+          link.textContent = '源码 ↗';
+          actions.appendChild(link);
+        }
+        card.appendChild(top); card.appendChild(dsc); card.appendChild(actions);
+        list.appendChild(card);
+      });
+    }
+
     document.getElementById('ai-test-btn').addEventListener('click', async () => {
       const resultEl = document.getElementById('ai-test-result');
       resultEl.textContent = '测试中...';
