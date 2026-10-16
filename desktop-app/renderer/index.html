@@ -683,8 +683,10 @@
       </div>
     </div>
 
-    <!-- 编辑器区域 -->
-          <div class="ai-panel" id="ai-panel">
+    </div><!-- /left-column（侧栏列：文件树等，全高） -->
+
+    <!-- AI 对话栏（右栏；DOM 顺序在编辑器前，flex order 排到最右） -->
+    <div class="ai-panel" id="ai-panel">
       <!-- AI 面板顶部操作栏（1:1 对齐 TrieCode） -->
       <div class="ai-top-bar">
         <div class="ai-top-left">
@@ -821,11 +823,9 @@
         </div>
         <div class="ai-tool-flow-body" id="ai-tool-flow-body"></div>
       </div>
-    </div>
-  </div>
+    </div><!-- /ai-panel -->
 
   <!-- 底部面板（默认隐藏，编译/终端操作后自动显示） -->
-    </div><!-- /left-column -->
 
     <div class="editor-container">
       <!-- 编辑器顶部工具栏 -->
@@ -1000,8 +1000,9 @@
           </div>
         </div>
       </div>
-    </div>
-  </div>
+    </div><!-- /editor-container -->
+  </div><!-- /main-container -->
+  </div><!-- /main-container（补齐缺失闭合） -->
 
   <!-- 状态栏（对齐 TrieCode：内容整体靠右排列） -->
   <div class="statusbar">

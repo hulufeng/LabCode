@@ -1678,21 +1678,19 @@ input, textarea {
    AI 助手面板
    ============================================ */
 .ai-panel {
-  flex: 2;
-  min-width: 480px;
   background: var(--bg-primary);
   border-left: 1px solid var(--border-light);
   display: flex;
   flex-direction: column;
 }
 
-/* 1:1 对齐 TrieCode：无打开文件时，保持三栏布局——中间编辑器显示空状态提示，右侧 AI 面板 flex:2 */
+/* 1:1 对齐 TrieCode：无打开文件时，保持三栏布局——中间编辑器显示空状态提示，右侧 AI 面板固定宽 */
 body.no-open-file .editor-container {
   display: flex;
 }
 body.no-open-file .ai-panel {
-  flex: 2;
-  min-width: 480px;
+  flex: 0 0 380px;
+  min-width: 0;
   border-left: 1px solid var(--border-light);
 }
 
@@ -4831,11 +4829,12 @@ button:disabled,
   cursor: not-allowed !important;
 }
 
-/* ===== 豆包风格布局：左侧技能+对话，右侧编辑器 ===== */
+/* ===== TrieCode 三栏布局：左=侧栏（文件树，全高），中=编辑器，右=AI 对话 ===== */
 .left-column {
-  width: 380px;
-  min-width: 320px;
-  max-width: 480px;
+  width: 260px;
+  min-width: 220px;
+  max-width: 320px;
+  order: 0;
   display: flex;
   flex-direction: column;
   border-right: 1px solid var(--border-light);
@@ -4845,31 +4844,30 @@ button:disabled,
 .left-column .sidebar {
   width: 100% !important;
   border-right: none !important;
-  flex: 0 1 auto;
-  max-height: 55%;
+  flex: 1 1 auto !important;
+  max-height: 100% !important;
   min-height: 120px;
   overflow-y: auto;
-  border-bottom: 1px solid var(--border-light);
-}
-.left-column .ai-panel {
-  flex: 1 1 auto !important;
-  min-width: 0 !important;
-  border-left: none !important;
-  border-right: none !important;
+  border-bottom: none !important;
 }
 .editor-container {
+  order: 1;
   flex: 1 !important;
   min-width: 0;
 }
-body.no-open-file .editor-container,
-body.no-open-file .ai-panel {
-  flex: 1 1 auto !important;
+/* AI 面板 DOM 在编辑器之前，用 order 排到最右 */
+.ai-panel {
+  order: 2;
+  flex: 0 0 380px !important;
+  width: 380px;
   min-width: 0 !important;
+  border-left: 1px solid var(--border-light) !important;
+  border-right: none !important;
 }
+body.no-open-file .editor-container { flex: 1 1 auto !important; min-width: 0 !important; }
 /* ===== 未登录首屏（对齐 TrieCode）：主区居中登录卡，左侧欢迎面板全高 ===== */
 .editor-container { position: relative; }
-body.logged-out .left-column .ai-panel { display: none !important; }
-body.logged-out .left-column .sidebar { max-height: 100% !important; flex: 1 1 auto !important; }
+body.logged-out .ai-panel { display: none !important; }
 body.logged-out .editor-toolbar { display: none !important; }
 body.logged-out #welcome-screen { display: none !important; }
 body.logged-out .editor-tabs { display: none !important; }
