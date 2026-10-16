@@ -4870,3 +4870,7 @@ body.no-open-file .ai-panel {
 .editor-container { position: relative; }
 body.logged-out .left-column .ai-panel { display: none !important; }
 body.logged-out .left-column .sidebar { max-height: 100% !important; flex: 1 1 auto !important; }
+body.logged-out .editor-toolbar { display: none !important; }
+body.logged-out #welcome-screen { display: none !important; }
+body.logged-out .editor-tabs { display: none !important; }
+body.logged-out .editor-container, body.logged-out .editor-wrapper { background: var(--bg-primary) !important; border-top: none !important; box-shadow: none !important; }
