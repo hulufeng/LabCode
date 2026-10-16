@@ -11269,8 +11269,11 @@ function bindEvents() {
   document.addEventListener('DOMContentLoaded', () => {
     const ov = document.getElementById('gw-login-overlay');
     if (!ov) return;
-    const showLoginOverlay = () => { ov.style.display = 'flex'; };
-    const hideLoginOverlay = () => { ov.style.display = 'none'; };
+    // 嵌入主区（对齐 TrieCode：登录卡在编辑器区域居中，侧栏照常可见）
+    const ecHost = document.querySelector('.editor-container');
+    if (ecHost) ecHost.appendChild(ov);
+    const showLoginOverlay = () => { ov.style.display = 'flex'; document.body.classList.add('logged-out'); };
+    const hideLoginOverlay = () => { ov.style.display = 'none'; document.body.classList.remove('logged-out'); };
     const switchGwOvTab = (tab) => {
       const lt = document.getElementById('gw-ov-tab-login'), rt = document.getElementById('gw-ov-tab-register');
       const lp = document.getElementById('gw-ov-login-panel'), rp = document.getElementById('gw-ov-register-panel');

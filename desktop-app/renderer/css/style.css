@@ -4846,8 +4846,9 @@ button:disabled,
   width: 100% !important;
   border-right: none !important;
   flex: 0 1 auto;
-  max-height: 45%;
+  max-height: 55%;
   min-height: 120px;
+  overflow-y: auto;
   border-bottom: 1px solid var(--border-light);
 }
 .left-column .ai-panel {
@@ -4865,3 +4866,7 @@ body.no-open-file .ai-panel {
   flex: 1 1 auto !important;
   min-width: 0 !important;
 }
+/* ===== 未登录首屏（对齐 TrieCode）：主区居中登录卡，左侧欢迎面板全高 ===== */
+.editor-container { position: relative; }
+body.logged-out .left-column .ai-panel { display: none !important; }
+body.logged-out .left-column .sidebar { max-height: 100% !important; flex: 1 1 auto !important; }
