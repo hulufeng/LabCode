@@ -11369,6 +11369,37 @@ function bindEvents() {
     if (t) { await t.execute({ port, baud: 115200 }); showToast('串口监视已打开 ' + port, 'success'); }
   });
 
+  // ============ 编辑器工具栏快捷：编译 / 烧录（软硬件开发流水线）============
+  const editorCompileBtn = document.getElementById('editor-compile-btn');
+  if (editorCompileBtn) editorCompileBtn.addEventListener('click', async () => {
+    const t = getToolDef('arduino-cli-toolchain_compile');
+    if (!t) { showToast('编译工具未加载', 'error'); return; }
+    showToast('编译中…', 'info');
+    const r = await t.execute({});
+    showToast(r.includes('error') ? '编译失败' : '编译成功', r.includes('error') ? 'error' : 'success');
+    const ov = document.getElementById('bottom-panel');
+    if (ov && ov.style.display === 'none') { ov.style.display = 'flex'; }
+    const ot = document.querySelector('.bottom-tab[data-panel="output"]');
+    if (ot) ot.click();
+  });
+  const editorUploadBtn = document.getElementById('editor-upload-btn');
+  if (editorUploadBtn) editorUploadBtn.addEventListener('click', async () => {
+    const portSel = document.getElementById('port-select');
+    const port = portSel ? portSel.value : '';
+    if (!port) { showToast('请先在设备面板选择串口', 'warn'); return; }
+    showToast('烧录到 ' + port + '…', 'info');
+    if (window.LabCode.terminal && window.LabCode.terminal.execute) {
+      const r = await window.LabCode.terminal.execute('arduino-cli upload -p ' + port, state.projectPath, 120000);
+      showToast(String(r).includes('error') ? '烧录失败' : '烧录完成', String(r).includes('error') ? 'error' : 'success');
+    } else {
+      showToast('终端模块未就绪', 'error');
+    }
+    const ov2 = document.getElementById('bottom-panel');
+    if (ov2 && ov2.style.display === 'none') { ov2.style.display = 'flex'; }
+    const tt = document.querySelector('.bottom-tab[data-panel="terminal"]');
+    if (tt) tt.click();
+  });
+
   // 工具活动面板（Flow）按钮
   const toolFlowClear = document.getElementById('ai-tool-flow-clear');
   if (toolFlowClear) {

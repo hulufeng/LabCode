@@ -309,14 +309,14 @@
     <!-- 活动栏 -->
     <div class="activity-bar">
       <button class="activity-btn active" data-panel="explorer" title="资源管理器"><svg class="icon"><use href="#icon-folder"></use></svg></button>
+      <button class="activity-btn" data-panel="device" title="设备（选板/端口/编译烧录）"><svg class="icon"><use href="#icon-infinity"></use></svg></button>
+      <button class="activity-btn" data-panel="workflow" title="工作流（可视化编排）"><svg class="icon"><use href="#icon-flow"></use></svg></button>
+      <button class="activity-btn" data-panel="groupchat" title="群聊（多 Agent 房间）"><svg class="icon"><use href="#icon-user"></use></svg></button>
       <button class="activity-btn" data-panel="git" title="Git"><svg class="icon"><use href="#icon-git-branch"></use></svg></button>
-      <button class="activity-btn" data-panel="plugins" title="插件市场"><svg class="icon"><use href="#icon-puzzle"></use></svg></button>
-      <button class="activity-btn" data-panel="device" title="设备"><svg class="icon"><use href="#icon-infinity"></use></svg></button>
-      <button class="activity-btn" data-panel="mcp" title="MCP 服务"><svg class="icon"><use href="#icon-bolt"></use></svg></button>
       <button class="activity-btn" data-panel="context" title="上下文用量"><svg class="icon"><use href="#icon-chart-bar"></use></svg></button>
       <button class="activity-btn" data-panel="schedule" title="定时任务"><svg class="icon"><use href="#icon-clock"></use></svg></button>
-      <button class="activity-btn" data-panel="groupchat" title="群聊（多 Agent 房间）"><svg class="icon"><use href="#icon-user"></use></svg></button>
-      <button class="activity-btn" data-panel="workflow" title="工作流（可视化编排）"><svg class="icon"><use href="#icon-flow"></use></svg></button>
+      <button class="activity-btn" data-panel="mcp" title="MCP 服务"><svg class="icon"><use href="#icon-bolt"></use></svg></button>
+      <button class="activity-btn" data-panel="plugins" title="插件市场"><svg class="icon"><use href="#icon-puzzle"></use></svg></button>
     </div>
 
     <!-- 群聊 / 多 Agent 房间（全屏覆盖视图，对标 Ekko「群聊」） -->
@@ -553,10 +553,24 @@
                 <option value="COM5">COM5</option>
               </select>
             </div>
-            <div style="display:flex;gap:8px;margin-top:12px;">
-              <button class="btn btn-primary" id="dev-compile-btn" style="flex:1;font-size:12px;">编译</button>
-              <button class="btn btn-secondary" id="dev-upload-btn" style="flex:1;font-size:12px;">烧录</button>
-              <button class="btn btn-secondary" id="dev-monitor-btn" style="flex:1;font-size:12px;">串口监视</button>
+            <div class="dev-actions">
+              <div class="dev-step-label">开发流程</div>
+              <div class="dev-action-row">
+                <button class="dev-action-btn dev-compile" id="dev-compile-btn" title="编译当前代码">
+                  <svg class="icon"><use href="#icon-code"></use></svg>
+                  <span>编译</span>
+                </button>
+                <span class="dev-arrow">→</span>
+                <button class="dev-action-btn dev-upload" id="dev-upload-btn" title="烧录到开发板">
+                  <svg class="icon"><use href="#icon-arrow-bar-to-down"></use></svg>
+                  <span>烧录</span>
+                </button>
+                <span class="dev-arrow">→</span>
+                <button class="dev-action-btn dev-monitor" id="dev-monitor-btn" title="打开串口监视器">
+                  <svg class="icon"><use href="#icon-terminal"></use></svg>
+                  <span>串口监视</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -943,6 +957,9 @@
           <button class="editor-toolbar-btn" id="editor-redo-btn" title="重做"><svg class="icon"><use href="#icon-arrow-forward-up"></use></svg></button>
           <button class="editor-toolbar-btn" id="editor-save-btn" title="保存"><svg class="icon"><use href="#icon-device-floppy"></use></svg></button>
           <button class="editor-toolbar-btn" id="editor-history-btn" title="历史"><svg class="icon"><use href="#icon-history"></use></svg></button>
+          <span class="editor-toolbar-sep"></span>
+          <button class="editor-toolbar-btn dev-quick-btn" id="editor-compile-btn" title="编译当前代码（软硬件开发流水线）"><svg class="icon"><use href="#icon-code"></use></svg></button>
+          <button class="editor-toolbar-btn dev-quick-btn" id="editor-upload-btn" title="烧录到开发板"><svg class="icon"><use href="#icon-arrow-bar-to-down"></use></svg></button>
         </div>
       </div>
 
@@ -983,11 +1000,11 @@
     <!-- AI 助手面板（1:1 对齐 TrieCode 主区域布局） -->
     <div class="bottom-panel" id="bottom-panel" style="display:none;">
     <div class="bottom-tabs">
-      <button class="bottom-tab active" data-panel="output">输出</button>
-      <button class="bottom-tab" data-panel="problems">问题 <span class="badge" id="problem-count">0</span></button>
+      <button class="bottom-tab active" data-panel="terminal">终端</button>
       <button class="bottom-tab" data-panel="serial">串口监视器</button>
       <button class="bottom-tab" data-panel="plotter">绘图仪</button>
-      <button class="bottom-tab" data-panel="terminal">终端</button>
+      <button class="bottom-tab" data-panel="output">输出</button>
+      <button class="bottom-tab" data-panel="problems">问题 <span class="badge" id="problem-count">0</span></button>
       <button class="bottom-tab" data-panel="debug">调试</button>
     </div>
     <div class="bottom-content">

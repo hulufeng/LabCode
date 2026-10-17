@@ -5194,3 +5194,121 @@ select:focus,
   from { opacity: 0; }
   to { opacity: 1; }
 }
+
+/* ================================================================
+   UI 质感升级层 v3 —— 软硬件开发主线（2026-10-17）
+   ----------------------------------------------------------------
+   ① 设备面板：开发流程流水线（选板/端口 → 编译 → 烧录 → 串口监视）
+   ② 编辑器工具栏：编译/烧录快捷入口（开发最高频动作常驻）
+   ③ 活动栏/底部面板重排后的视觉协调
+   ================================================================ */
+
+/* ---------- 设备面板：开发流程流水线 ---------- */
+.dev-actions {
+  margin-top: 16px;
+  padding: 10px 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+}
+.dev-step-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+.dev-action-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.dev-action-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  flex: 1;
+  padding: 8px 4px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface-1);
+  color: var(--text-primary);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+.dev-action-btn svg {
+  width: 18px;
+  height: 18px;
+}
+.dev-action-btn:hover {
+  border-color: var(--primary);
+  background: var(--primary-lighter);
+  color: var(--primary);
+  transform: translateY(-1px);
+}
+.dev-action-btn:active {
+  transform: scale(0.95);
+}
+.dev-action-btn.dev-compile {
+  background: linear-gradient(135deg, var(--primary), var(--primary-active));
+  border-color: transparent;
+  color: #fff;
+}
+.dev-action-btn.dev-compile:hover {
+  filter: brightness(1.1);
+  color: #fff;
+}
+.dev-action-btn.dev-upload {
+  border-color: var(--border-dark);
+}
+.dev-action-btn.dev-monitor {
+  border-color: var(--border-dark);
+}
+.dev-arrow {
+  color: var(--text-tertiary);
+  font-size: 13px;
+  user-select: none;
+}
+
+/* ---------- 编辑器工具栏：快捷编译/烧录 ---------- */
+.editor-toolbar-sep {
+  width: 1px;
+  height: 18px;
+  background: var(--border);
+  margin: 0 6px;
+  align-self: center;
+}
+.dev-quick-btn {
+  color: var(--text-secondary);
+}
+.dev-quick-btn:hover {
+  color: var(--primary);
+}
+#editor-compile-btn.dev-quick-btn {
+  color: var(--primary);
+}
+#editor-compile-btn.dev-quick-btn:hover {
+  filter: brightness(1.15);
+}
+
+/* ---------- 活动栏重排后的视觉提示：设备/工作流高优先 ---------- */
+.activity-btn[data-panel="device"] {
+  position: relative;
+}
+.activity-btn[data-panel="device"]::after,
+.activity-btn[data-panel="workflow"]::after {
+  content: '';
+  position: absolute;
+  bottom: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--primary);
+  opacity: 0.55;
+}
