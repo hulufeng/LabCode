@@ -8687,10 +8687,29 @@ function bindEvents() {
     await saveCustomAgents();
     return { success: true };
   }
+  // 编辑/更新自定义 Agent（对齐 Ekko Agent Manager 的更新能力）
+  async function updateCustomAgent(name, patch) {
+    if (!AGENT_PRESETS[name] || isBuiltinAgent(name)) return { success: false, error: '仅自定义 Agent 可更新' };
+    const a = AGENT_PRESETS[name];
+    if (patch && patch.name && patch.name.trim() && patch.name.trim() !== name) {
+      if (AGENT_PRESETS[patch.name.trim()]) return { success: false, error: '目标名称已存在' };
+      delete AGENT_PRESETS[name];
+      AGENT_PRESETS[patch.name.trim()] = a;
+      name = patch.name.trim();
+    }
+    if (patch.provider) a.provider = patch.provider;
+    if (patch.model) a.model = patch.model;
+    if (patch.apiKey != null) a.apiKey = patch.apiKey;
+    if (patch.baseURL != null) a.baseURL = patch.baseURL;
+    if (patch.thinking) a.thinking = patch.thinking;
+    await saveCustomAgents();
+    return { success: true, name };
+  }
   // 暴露给全局（init 启动加载用）
   window.__mergeCustomAgents = mergeCustomAgents;
   window.__installCustomAgent = installCustomAgent;
   window.__uninstallCustomAgent = uninstallCustomAgent;
+  window.__updateCustomAgent = updateCustomAgent;
 
   let gcRooms = [];
   let gcActiveId = null;
@@ -8949,60 +8968,92 @@ function bindEvents() {
   // ============ Agent Manager（对齐 Ekko Studio Agent Manager）============
   // 展示 AGENT_PRESETS 中的多 Agent 运行时：名称/provider/模型/内置状态/连通测试
   let wfAgentsBound = false;
+  // Agent 连通测试结果（错误原因可见，对齐 Ekko status.error/source）
+  const agentTestResults = {};
+  let editingAgentName = null;
+
   async function wfAgentsShow() {
     const p = document.getElementById('wf-props'); if (!p) return;
     await mergeCustomAgents(); // 确保自定义 Agent 已合并
     const names = Object.keys(AGENT_PRESETS);
     const builtins = names.filter(n => isBuiltinAgent(n)).length;
-    let html = '<div style="font-weight:600;margin-bottom:8px;">Agent Manager（' + names.length + ' 个运行时：' + builtins + ' 内置 / ' + (names.length - builtins) + ' 自定义）</div>';
-    html += '<div style="font-size:11px;color:var(--text-secondary);margin-bottom:10px;">管理可接入工作流与群聊的多 Agent 运行时；可安装新 Agent（OpenAI 兼容 / Anthropic / 本地 Ollama / DeepSeek / 自定义），点击「测试」检查连通性。</div>';
-    // ===== 安装新 Agent 表单 =====
-    html += '<div style="border:1px dashed var(--primary);border-radius:8px;padding:10px;margin-bottom:10px;background:var(--surface-1);">' +
-      '<div style="font-weight:600;font-size:12px;color:var(--primary);margin-bottom:8px;">+ 安装新 Agent</div>' +
+    const customs = names.length - builtins;
+    let html = '<div style="font-weight:600;margin-bottom:6px;">Agent Manager <span style="font-size:11px;color:var(--text-tertiary);">(' + names.length + ' 个运行时 · ' + builtins + ' 内置 / ' + customs + ' 自定义）</span></div>';
+    html += '<div style="font-size:11px;color:var(--text-secondary);margin-bottom:10px;">目录供工作流 / 群聊 / 调度共享；可安装新 Agent 并测试连通性，自定义项支持编辑与卸载。</div>';
+    // ===== 安装 / 编辑 Agent 表单（同一表单两种模式）=====
+    const isEdit = !!editingAgentName;
+    const editCfg = isEdit ? AGENT_PRESETS[editingAgentName] : null;
+    html += '<div style="border:1px solid ' + (isEdit ? 'var(--primary)' : 'var(--border)') + ';border-radius:8px;padding:10px;margin-bottom:10px;background:var(--surface-1);">' +
+      '<div style="font-weight:600;font-size:12px;color:var(--primary);margin-bottom:8px;">' + (isEdit ? '✏️ 编辑 Agent：' + wfEsc(editingAgentName) : '+ 安装新 Agent') + '</div>' +
       '<div style="display:flex;flex-direction:column;gap:6px;">' +
-      '<input id="wf-install-name" placeholder="Agent 名称（如 本地Qwen）" style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-primary);font-size:12px;" />' +
+      '<input id="wf-install-name" placeholder="Agent 名称（如 本地Qwen）" value="' + (isEdit ? wfEsc(editingAgentName) : '') + '" style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-primary);font-size:12px;" />' +
       '<select id="wf-install-template" style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-primary);font-size:12px;">' +
       '<option value="openai">OpenAI（云端 API）</option><option value="anthropic">Anthropic / Claude</option>' +
       '<option value="ollama">本地 Ollama</option><option value="deepseek">DeepSeek</option><option value="custom">自定义（OpenAI 兼容）</option></select>' +
-      '<input id="wf-install-model" placeholder="模型名（留空用默认）" style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-primary);font-size:12px;" />' +
-      '<input id="wf-install-key" type="password" placeholder="API Key（本地/自定义可不填）" style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-primary);font-size:12px;" />' +
-      '<input id="wf-install-url" placeholder="Base URL（留空用模板默认）" style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-primary);font-size:12px;" />' +
+      '<input id="wf-install-model" placeholder="模型名（留空用默认）" value="' + (isEdit && editCfg ? wfEsc(editCfg.model || '') : '') + '" style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-primary);font-size:12px;" />' +
+      '<input id="wf-install-key" type="password" placeholder="API Key（本地/自定义可不填）" value="' + (isEdit && editCfg ? wfEsc(editCfg.apiKey || '') : '') + '" style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-primary);font-size:12px;" />' +
+      '<input id="wf-install-url" placeholder="Base URL（留空用模板默认）" value="' + (isEdit && editCfg ? wfEsc(editCfg.baseURL || '') : '') + '" style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-primary);font-size:12px;" />' +
       '<select id="wf-install-thinking" style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-primary);font-size:12px;">' +
       '<option value="standard">思考档位：standard</option><option value="fast">fast</option><option value="light">light</option><option value="deep">deep</option></select>' +
-      '<button class="btn btn-sm btn-primary" id="wf-install-btn">安装</button></div></div>';
-    // ===== Agent 列表 =====
+      '<div style="display:flex;gap:6px;"><button class="btn btn-sm btn-primary" id="wf-install-btn" style="flex:1;">' + (isEdit ? '保存更改' : '安装') + '</button>' +
+      (isEdit ? '<button class="btn btn-sm btn-secondary" id="wf-edit-cancel" style="flex:1;">取消</button>' : '') +
+      '</div></div></div>';
+    // ===== Agent 卡片目录 =====
+    html += '<div style="display:flex;flex-direction:column;gap:8px;">';
     names.forEach(name => {
       const cfg = AGENT_PRESETS[name];
       const isCustom = cfg && cfg.custom;
-      html += '<div style="border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:8px;background:var(--surface-0);">' +
+      const tr = agentTestResults[name];
+      const statusHtml = tr
+        ? (tr.ok
+          ? '<div style="font-size:11px;color:var(--success,#22c55e);margin-top:4px;">✅ 连通正常（' + wfEsc(tr.time || '') + '）</div>'
+          : '<div style="font-size:11px;color:#ef4444;margin-top:4px;word-break:break-all;">❌ ' + wfEsc(tr.message || '连接失败') + '</div>')
+        : '';
+      html += '<div data-wf-card="1" style="border:1px solid var(--border);border-radius:8px;padding:8px 10px;background:var(--surface-0);">' +
         '<div style="display:flex;justify-content:space-between;align-items:center;">' +
         '<span style="font-weight:600;font-size:13px;">' + wfEsc(name) + '</span>' +
         '<span style="font-size:10px;color:var(--text-tertiary);">' + (isCustom ? '自定义' : '内置') + '</span></div>' +
         '<div style="font-size:11px;color:var(--text-secondary);margin-top:3px;">provider: ' + wfEsc(cfg.provider) + ' · model: ' + wfEsc(cfg.model || '（默认）') + '</div>' +
         '<div style="font-size:10px;color:var(--text-tertiary);margin-top:2px;word-break:break-all;">' + wfEsc(cfg.baseURL || '（使用默认端点）') + '</div>' +
+        statusHtml +
         '<div style="margin-top:6px;display:flex;gap:6px;"><button class="btn btn-sm" data-wf-test="' + wfEsc(name) + '">测试连通</button>' +
+        (isCustom ? '<button class="btn btn-sm" data-wf-edit="' + wfEsc(name) + '">编辑</button>' : '') +
         (isCustom ? '<button class="btn btn-sm" data-wf-uninstall="' + wfEsc(name) + '" style="border-color:#ef4444;color:#ef4444;">卸载</button>' : '') +
         '</div></div>';
     });
+    html += '</div>';
     p.innerHTML = html;
+
+    // ===== 安装/保存按钮 =====
     const installBtn = document.getElementById('wf-install-btn');
-    if (installBtn) {
-      installBtn.addEventListener('click', async () => {
-        const name = (document.getElementById('wf-install-name').value || '').trim();
-        const template = document.getElementById('wf-install-template').value;
-        const model = document.getElementById('wf-install-model').value;
-        const apiKey = document.getElementById('wf-install-key').value;
-        const baseURL = document.getElementById('wf-install-url').value;
-        const thinking = document.getElementById('wf-install-thinking').value;
-        if (!name) { showToast('请填写 Agent 名称', 'warn'); return; }
+    if (installBtn) installBtn.addEventListener('click', async () => {
+      const name = (document.getElementById('wf-install-name').value || '').trim();
+      const template = document.getElementById('wf-install-template').value;
+      const model = document.getElementById('wf-install-model').value;
+      const apiKey = document.getElementById('wf-install-key').value;
+      const baseURL = document.getElementById('wf-install-url').value;
+      const thinking = document.getElementById('wf-install-thinking').value;
+      if (!name) { showToast('请填写 Agent 名称', 'warn'); return; }
+      if (editingAgentName) {
+        const r = await updateCustomAgent(editingAgentName, { name, provider: undefined, model, apiKey, baseURL, thinking });
+        editingAgentName = null;
+        if (r.success) { showToast('已更新 Agent「' + r.name + '」', 'success'); wfAgentsShow(); }
+        else { showToast('更新失败：' + r.error, 'error'); wfAgentsShow(); }
+      } else {
         const r = await installCustomAgent({ name, template, model, apiKey, baseURL, thinking });
         if (r.success) { showToast('已安装 Agent「' + r.name + '」，可在工作流/群聊中使用', 'success'); wfAgentsShow(); }
         else showToast('安装失败：' + r.error, 'error');
-      });
-    }
+      }
+    });
+    const cancelBtn = document.getElementById('wf-edit-cancel');
+    if (cancelBtn) cancelBtn.addEventListener('click', () => { editingAgentName = null; wfAgentsShow(); });
+
+    // ===== 事件委托：测试 / 编辑 / 卸载 =====
     if (!wfAgentsBound) {
       wfAgentsBound = true;
       p.addEventListener('click', async (e) => {
+        const editBtn = e.target.closest('[data-wf-edit]');
+        if (editBtn) { editingAgentName = editBtn.dataset.wfEdit; wfAgentsShow(); return; }
         const unBtn = e.target.closest('[data-wf-uninstall]');
         if (unBtn) {
           const name = unBtn.dataset.wfUninstall;
@@ -9026,17 +9077,35 @@ function bindEvents() {
           await window.LabCode.config.set('ai.baseURL', cfg.baseURL || '');
           await window.LabCode.config.set('ai.thinkingLevel', cfg.thinking || 'standard');
           const res = await window.LabCode.ai.checkConnection({});
-          btn.textContent = (res && res.ok) ? '✅ 连通' : '❌ ' + ((res && res.message) || '失败');
+          const ok = !!(res && res.ok);
+          agentTestResults[name] = { ok, message: (res && res.message) || (ok ? 'OK' : '连接失败'), time: new Date().toLocaleTimeString() };
+          btn.textContent = ok ? '✅ 连通' : '❌ 失败';
           for (const k of Object.keys(saved)) { try { await window.LabCode.config.set('ai.' + k, saved[k]); } catch (err) {} }
         } catch (err) {
+          agentTestResults[name] = { ok: false, message: err.message || '异常', time: new Date().toLocaleTimeString() };
           btn.textContent = '❌ 异常';
         } finally {
           btn.disabled = false;
           setTimeout(() => { const b = p.querySelector('[data-wf-test="' + wfEsc(name) + '"]'); if (b) b.textContent = '测试连通'; }, 4000);
+          // 错误原因可见：更新该卡片状态区而不整页重渲（保留滚动位置）
+          const card = btn.closest('[data-wf-card]');
+          const tr = agentTestResults[name];
+          if (card && tr && !tr.ok) {
+            let st = card.querySelector('[data-wf-status]');
+            if (!st) {
+              st = document.createElement('div');
+              st.setAttribute('data-wf-status', '1');
+              st.style.cssText = 'font-size:11px;color:#ef4444;margin-top:4px;word-break:break-all;';
+              const meta = card.querySelector('div:nth-child(3)');
+              if (meta && meta.parentNode) meta.parentNode.insertBefore(st, meta.nextSibling);
+            }
+            st.textContent = '❌ ' + (tr.message || '连接失败');
+          }
         }
       });
     }
   }
+
 
   // ============ 活动栏按钮 ============
   document.querySelectorAll('.activity-btn').forEach(item => {
