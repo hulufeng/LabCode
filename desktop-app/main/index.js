@@ -1744,6 +1744,64 @@ function setupIPC() {
     return await ensureEsp32Toolchain();
   });
 
+  // ============ arduino-cli 本体一键安装（跨平台）============
+  // 检测未安装时下载官方二进制到应用数据目录；已有则跳过。进度经 toolchain:progress 推送。
+  ipcMain.handle('toolchain:installCli', async () => {
+    const p = resolveArduinoCli();
+    if (fs.existsSync(p)) return { ok: true, path: p, message: 'arduino-cli 已存在' };
+    const send = (data) => { try { mainWindow.webContents.send('toolchain:progress', { stage: 'cli', ...data }); } catch (e) {} };
+    try {
+      const os = process.platform;
+      const arch = process.arch === 'arm64' ? 'arm64' : (process.arch === 'x64' ? '64bit' : '32bit');
+      const ver = '1.1.1';
+      let url;
+      if (os === 'win32') url = 'https://downloads.arduino.cc/arduino-cli/arduino-cli_' + ver + '_Windows_64bit.zip';
+      else if (os === 'darwin') url = 'https://downloads.arduino.cc/arduino-cli/arduino-cli_' + ver + '_macOS_' + (process.arch === 'arm64' ? 'ARM64' : '64bit') + '.tar.gz';
+      else url = 'https://downloads.arduino.cc/arduino-cli/arduino-cli_' + ver + '_Linux_' + arch + '.tar.gz';
+      send({ message: '开始下载 arduino-cli ' + ver + ' …', progress: 5 });
+      const dlDir = path.join(app.getPath('appData'), 'codelab-desktop', 'tools', 'arduino-cli');
+      fs.mkdirSync(dlDir, { recursive: true });
+      const tmp = path.join(dlDir, 'dl-' + Date.now());
+      const resp = await new Promise((resolve, reject) => {
+        const req = require('https').get(url, res => {
+          if (res.statusCode >= 400) { reject(new Error('HTTP ' + res.statusCode)); return; }
+          resolve(res);
+        });
+        req.on('error', reject);
+        req.setTimeout(60000, () => { req.destroy(new Error('下载超时')); });
+      });
+      const total = parseInt(resp.headers['content-length'] || '0', 10);
+      let got = 0;
+      const ws = fs.createWriteStream(tmp);
+      resp.pipe(ws);
+      resp.on('data', chunk => { got += chunk.length; if (total) send({ progress: 10 + Math.round(80 * got / total) }); });
+      await new Promise((resolve, reject) => { ws.on('finish', resolve); ws.on('error', reject); });
+      send({ progress: 92, message: '解压安装…' });
+      // 解压：zip 用 unzip，tar.gz 用 tar
+      const exeName = os === 'win32' ? 'arduino-cli.exe' : 'arduino-cli';
+      const outDir = dlDir;
+      if (os === 'win32') {
+        await new Promise((resolve, reject) => {
+          const cp = require('child_process').spawn('powershell', ['-NoProfile', '-Command', 'Expand-Archive -Path "' + tmp + '" -DestinationPath "' + outDir + '" -Force']);
+          cp.on('close', resolve); cp.on('error', reject);
+        });
+      } else {
+        await new Promise((resolve, reject) => {
+          const cp = require('child_process').spawn('tar', ['-xzf', tmp, '-C', outDir]);
+          cp.on('close', resolve); cp.on('error', reject);
+        });
+      }
+      // 清理下载临时文件
+      try { fs.unlinkSync(tmp); } catch (e) {}
+      const installed = path.join(outDir, exeName);
+      send({ progress: 100, message: '安装完成', path: installed });
+      return { ok: fs.existsSync(installed), path: installed, message: 'arduino-cli 安装' + (fs.existsSync(installed) ? '完成' : '失败') };
+    } catch (e) {
+      send({ message: '安装失败：' + e.message });
+      return { ok: false, error: e.message };
+    }
+  });
+
   // Windows: arduino-cli / CMake / python subprocesses fail silently on
   // non-ASCII project paths (e.g. a Chinese project folder name) because the
   // spawned tools resolve scripts/paths with the system codepage. Map such a

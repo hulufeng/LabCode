@@ -109,6 +109,7 @@ contextBridge.exposeInMainWorld('LabCode', {
     getArduinoCliPath: () => ipcRenderer.invoke('toolchain:getArduinoCliPath'),
     status: () => ipcRenderer.invoke('toolchain:status'),
     ensure: () => ipcRenderer.invoke('toolchain:ensure'),
+    installCli: () => ipcRenderer.invoke('toolchain:installCli'),
     onProgress: (cb) => ipcRenderer.on('toolchain:progress', (_e, data) => cb(data))
   },
 

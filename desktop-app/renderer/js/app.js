@@ -4648,6 +4648,8 @@ void loop() {
             this.usageAcc.totalTokens += u.total_tokens || u.totalTokens || 0;
             this.usageAcc.calls += 1;
           }
+          // 用量统计（对齐 Ekko Usage Analytics）
+          try { usageRecord((aiCfg && aiCfg.model) || '默认', true, (u && (u.total_tokens || u.totalTokens)) || 0); } catch (e) {}
           return streamResult.result;
         }
         if (streamResult && streamResult.error) {
@@ -4667,6 +4669,8 @@ void loop() {
 
       if (!result || !result.success) {
         console.warn('[RealAIClient] AI 请求失败:', result?.error);
+        // 用量统计：调用失败
+        try { usageRecord((aiCfg && aiCfg.model) || '默认', false, 0); } catch (e) {}
         // 网关积分不足：给出升级引导
         if (result && result.creditsInsufficient) {
           const mockResult = this.mock.generateResponse(userInput, messages);
@@ -4689,6 +4693,8 @@ void loop() {
         rawContent = rawContent.replace(/^[\s\S]*?<\/think>/, '').trim();
       }
       const { text, toolCalls } = this._parseToolCalls(rawContent);
+      // 用量统计：非流式成功
+      try { usageRecord((aiCfg && aiCfg.model) || '默认', true, Math.max(1, Math.round(rawContent.length / 4))); } catch (e) {}
       return {
         content: text || (toolCalls.length > 0 ? '好的，我来执行以下操作。' : rawContent),
         toolCalls,
@@ -8661,7 +8667,7 @@ function bindEvents() {
       el.querySelector('.wf-node-header').addEventListener('mousedown', e => { e.preventDefault(); wfDrag = { id: n.id, dx: e.clientX - n.x, dy: e.clientY - n.y }; });
       el.addEventListener('mousedown', () => { wfSelect(n.id); });
       pout.addEventListener('mousedown', e => { e.stopPropagation(); wfConnectFrom = n.id; showToast('已选起点，点目标节点输入口连线', 'info'); });
-      pin.addEventListener('mousedown', e => { e.stopPropagation(); if (wfConnectFrom && wfConnectFrom !== n.id) { wfEdges.push({ from: wfConnectFrom, to: n.id }); wfConnectFrom = null; wfRenderEdges(); wfSave(); } else { wfConnectFrom = null; } });
+      pin.addEventListener('mousedown', e => { e.stopPropagation(); if (wfConnectFrom && wfConnectFrom !== n.id) { const backEdge = wfNodes.findIndex(x => x.id === wfConnectFrom) >= wfNodes.findIndex(x => x.id === n.id); wfEdges.push({ from: wfConnectFrom, to: n.id, route: backEdge ? 'loop' : 'success' }); wfConnectFrom = null; wfRenderEdges(); wfSave(); } else { wfConnectFrom = null; } });
       el.addEventListener('dblclick', e => { e.stopPropagation(); wfEdit(n.id); });
       wrap.appendChild(el);
     });
@@ -8675,8 +8681,19 @@ function bindEvents() {
       const pa = wfPortPos(a, 'out'), pb = wfPortPos(b, 'in');
       const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
       line.setAttribute('x1', pa.x); line.setAttribute('y1', pa.y); line.setAttribute('x2', pb.x); line.setAttribute('y2', pb.y);
-      line.setAttribute('stroke', 'var(--primary)'); line.setAttribute('stroke-width', '2');
+      const isLoop = ed.route === 'loop';
+      line.setAttribute('stroke', isLoop ? '#ef4444' : 'var(--primary)');
+      line.setAttribute('stroke-width', '2');
+      line.setAttribute('stroke-dasharray', isLoop ? '6,4' : '');
+      line.setAttribute('data-route', isLoop ? 'loop' : 'success');
       svg.appendChild(line);
+      if (isLoop) {
+        const lbl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        lbl.setAttribute('x', (pa.x + pb.x) / 2 + 6); lbl.setAttribute('y', (pa.y + pb.y) / 2 - 6);
+        lbl.setAttribute('fill', '#ef4444'); lbl.setAttribute('font-size', '10');
+        lbl.textContent = '循环';
+        svg.appendChild(lbl);
+      }
     });
   }
   function wfAddNode(type) {
@@ -8719,12 +8736,32 @@ function bindEvents() {
     if (wfRunning) { showToast('工作流正在运行中', 'warn'); return; }
     wfRunning = true;
     try {
-      // 拓扑排序（入口节点无入边；cond 节点当前按成功路由透传）
+      // 执行模型：按边路由调度（success 边正常前进；loop 边回跳形成迭代，带最大轮次保护）
+      const MAX_LOOP = 5;                 // 每个节点最大循环次数，防死循环
+      const loopCount = {};               // 记录每个"回跳目标"的循环次数
       const indeg = {}; wfNodes.forEach(n => indeg[n.id] = 0); wfEdges.forEach(e => { if (indeg[e.to] != null) indeg[e.to]++; });
-      const queue = wfNodes.filter(n => indeg[n.id] === 0).map(n => n.id); const order = []; const adj = {};
-      wfEdges.forEach(e => { (adj[e.from] = adj[e.from] || []).push(e.to); });
-      while (queue.length) { const id = queue.shift(); order.push(id); (adj[id] || []).forEach(t => { indeg[t]--; if (indeg[t] === 0) queue.push(t); }); }
-      if (order.length !== wfNodes.length) { showToast('工作流存在环，无法运行', 'error'); return; }
+      const entry = wfNodes.filter(n => indeg[n.id] === 0).map(n => n.id);
+      if (!entry.length) { showToast('工作流缺少入口节点', 'error'); return; }
+      const order = [];                    // 实际执行队列（允许重复出现，形成循环）
+      const seq = entry.slice();
+      while (seq.length) {
+        const id = seq.shift();
+        order.push(id);
+        const n = wfNodes.find(x => x.id === id); if (!n) continue;
+        // 该节点的出边：success 边（含无路由默认）后续；loop 边回跳前置
+        const outs = wfEdges.filter(e => e.from === id);
+        for (const e of outs) {
+          if (e.route === 'loop') {
+            const target = wfNodes.find(x => x.id === e.to);
+            if (target) {
+              loopCount[e.to] = (loopCount[e.to] || 0) + 1;
+              if (loopCount[e.to] <= MAX_LOOP) seq.push(e.to);
+            }
+          } else {
+            seq.push(e.to);
+          }
+        }
+      }
 
       // 重置状态
       wfNodes.forEach(n => { n.data.status = 'idle'; n.data.result = ''; });
@@ -8732,11 +8769,10 @@ function bindEvents() {
 
       for (const id of order) {
         const n = wfNodes.find(x => x.id === id); if (!n) continue;
-        // 有入边的节点只有在前置全部成功后才执行；否则跳过标记
-        const hasInEdge = wfEdges.some(e => e.to === id);
+        // 有 success 入边的节点只有在前置全部成功后才执行；否则跳过标记
+        const hasInEdge = wfEdges.some(e => e.to === id && e.route !== 'loop');
         if (hasInEdge) {
-          const upstreamFailed = wfEdges.some(e => e.to === id ? false : (wfNodes.find(x => x.id === e.from) || {}).data?.status === 'failed');
-          const anyUpstreamFailed = wfEdges.some(e => e.to === id && (wfNodes.find(x => x.id === e.from) || {}).data?.status === 'failed');
+          const anyUpstreamFailed = wfEdges.some(e => e.to === id && e.route !== 'loop' && (wfNodes.find(x => x.id === e.from) || {}).data?.status === 'failed');
           if (anyUpstreamFailed) { n.data.status = 'failed'; n.data.result = '（前置节点失败，跳过）'; wfRenderNodes(); continue; }
         }
 
@@ -8810,6 +8846,41 @@ function bindEvents() {
       wfBound = true;
       document.querySelectorAll('.wf-palette-item').forEach(it => it.addEventListener('click', () => wfAddNode(it.dataset.type)));
       document.getElementById('wf-new').addEventListener('click', () => { wfNodes = []; wfEdges = []; wfActiveId = null; wfRenderNodes(); wfSave(); });
+      // ============ 工作流导入 / 导出（JSON，便携可迁移）============
+      document.getElementById('wf-export').addEventListener('click', () => {
+        const payload = { version: 1, nodes: wfNodes, edges: wfEdges };
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'workflow-' + Date.now() + '.json';
+        a.click();
+        URL.revokeObjectURL(a.href);
+        showToast('已导出 ' + wfNodes.length + ' 个节点', 'success');
+      });
+      document.getElementById('wf-import').addEventListener('click', () => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.json,application/json';
+        input.onchange = () => {
+          const file = input.files && input.files[0]; if (!file) return;
+          const reader = new FileReader();
+          reader.onload = () => {
+            try {
+              const data = JSON.parse(reader.result);
+              if (!data || !Array.isArray(data.nodes)) { showToast('文件格式不正确（缺少 nodes 数组）', 'error'); return; }
+              wfNodes = data.nodes;
+              wfEdges = Array.isArray(data.edges) ? data.edges : [];
+              // 兼容旧文件：边无 route 时补默认
+              wfEdges.forEach(e => { if (!e.route) e.route = 'success'; });
+              wfActiveId = null;
+              wfRenderNodes(); wfSave();
+              showToast('已导入 ' + wfNodes.length + ' 个节点 / ' + wfEdges.length + ' 条边', 'success');
+            } catch (e) { showToast('导入失败：' + e.message, 'error'); }
+          };
+          reader.readAsText(file);
+        };
+        input.click();
+      });
       document.getElementById('wf-save').addEventListener('click', () => { wfSave(); showToast('已保存工作流', 'info'); });
       document.getElementById('wf-run').addEventListener('click', () => wfRun());
       const wfAgentsBtn = document.getElementById('wf-agents-btn');
@@ -9033,9 +9104,24 @@ function bindEvents() {
     const input = document.getElementById('gc-input'); if (!input) return;
     const text = input.value.trim(); if (!text) return; input.value = '';
     room.messages.push({ role: 'user', name: '我', content: text, ts: Date.now() }); gcRenderMessages(room);
+    // @mention 定向：解析消息中的 @Agent名，命中则只让该 Agent 回复；否则全员轮流
+    let targets = (room.members || []).slice();
+    const mentionMatch = text.match(/@([\u4e00-\u9fa5A-Za-z0-9（）()·]+)/g);
+    if (mentionMatch) {
+      const mentioned = [];
+      mentionMatch.forEach(mt => {
+        const name = mt.slice(1).trim();
+        if (room.members && room.members.includes(name)) mentioned.push(name);
+      });
+      if (mentioned.length) {
+        targets = mentioned;
+        room.messages.push({ role: 'system', name: '系统', content: '（已定向 @' + mentioned.join('、') + '，仅其回复）', ts: Date.now() });
+        gcRenderMessages(room);
+      }
+    }
     const keys = ['provider', 'model', 'apiKey', 'baseURL', 'thinkingLevel'];
     const curCfg3 = await window.LabCode.config.get(); const saved = {}; keys.forEach(k => { try { saved[k] = (curCfg3 && curCfg3.ai) ? curCfg3.ai[k] : ''; } catch (e) { saved[k] = ''; } });
-    for (const m of (room.members || [])) {
+    for (const m of targets) {
       const cfg = AGENT_PRESETS[m]; if (!cfg) continue;
       room.messages.push({ role: 'agent', name: m, content: '（思考中…）', ts: Date.now() }); gcRenderMessages(room);
       try {
@@ -10303,6 +10389,38 @@ function bindEvents() {
       populateDefaultBoards();
       populateSystemPorts();
       showToast('arduino-cli 未安装，设备列表为常用预设', 'warning');
+      // 一键安装引导条
+      const banner = document.getElementById('dev-cli-banner');
+      const instBtn = document.getElementById('dev-cli-install');
+      if (banner) banner.style.display = 'block';
+      if (instBtn) {
+        instBtn.addEventListener('click', async () => {
+          const prog = document.getElementById('dev-cli-progress');
+          instBtn.disabled = true; instBtn.textContent = '安装中…';
+          if (prog) { prog.style.display = 'block'; prog.textContent = '正在下载 arduino-cli…'; }
+          try {
+            if (window.LabCode.toolchain && window.LabCode.toolchain.onProgress) {
+              window.LabCode.toolchain.onProgress((d) => {
+                if (prog && d && d.message) prog.textContent = d.message + (d.progress ? ' (' + d.progress + '%)' : '');
+              });
+            }
+            const r = await window.LabCode.toolchain.installCli();
+            if (prog) prog.textContent = (r && r.message) ? r.message : '安装结果未知';
+            if (r && r.ok) {
+              instBtn.textContent = '已安装';
+              showToast('arduino-cli 安装成功', 'success');
+              await initDevicePanel();
+            } else {
+              instBtn.disabled = false; instBtn.textContent = '重试安装';
+              showToast('安装失败：' + ((r && r.error) || '未知'), 'error');
+            }
+          } catch (e) {
+            instBtn.disabled = false; instBtn.textContent = '重试安装';
+            if (prog) prog.textContent = '安装失败：' + e.message;
+            showToast('安装失败：' + e.message, 'error');
+          }
+        });
+      }
       return;
     }
     await Promise.all([refreshBoards(), refreshPorts(), refreshCores()]);
@@ -12638,10 +12756,108 @@ async function initTheme() {
   }
 }
 
+// ============ 用量统计（本地记录 AI 调用次数/Token 估算/模型分布，对齐 Ekko Usage Analytics）============
+const USAGE_KEY = 'ai.usage';
+let usageData = { calls: 0, tokens: 0, success: 0, fail: 0, byModel: {}, history: [] };
+
+async function usageLoad() {
+  try {
+    const c = await window.LabCode.config.get();
+    usageData = (c && c.ai && c.ai.usage) || usageData;
+    if (!usageData.byModel) usageData.byModel = {};
+    if (!usageData.history) usageData.history = [];
+  } catch (e) {}
+}
+function usageSave() {
+  try { window.LabCode.config.set(USAGE_KEY, usageData); } catch (e) {}
+}
+function usageRecord(model, ok, tokenEstimate) {
+  usageData.calls++;
+  usageData.tokens += (tokenEstimate || 0);
+  if (ok) usageData.success++; else usageData.fail++;
+  const m = model || 'unknown';
+  usageData.byModel[m] = (usageData.byModel[m] || 0) + 1;
+  usageData.history.unshift({ t: Date.now(), model: m, ok: !!ok, tokens: tokenEstimate || 0 });
+  if (usageData.history.length > 50) usageData.history = usageData.history.slice(0, 50);
+  usageSave();
+  usageRender();
+}
+function usageTokenEstimate(messages) {
+  // 粗略估算：中文约 1.5 字/token，英文约 4 字符/token
+  try {
+    const text = (messages || []).map(m => (m.content || '')).join(' ');
+    const cjk = (text.match(/[\u4e00-\u9fa5]/g) || []).length;
+    const other = text.length - cjk;
+    return Math.max(1, Math.round(cjk * 1.5 + other / 4));
+  } catch (e) { return 0; }
+}
+function usageEsc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+function usageRender() {
+  const setNum = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = String(v); };
+  setNum('usage-total-calls', usageData.calls);
+  setNum('usage-total-tokens', usageData.tokens.toLocaleString());
+  setNum('usage-total-success', usageData.success);
+  setNum('usage-total-fail', usageData.fail);
+  // 模型分布
+  const mm = document.getElementById('usage-models');
+  if (mm) {
+    const names = Object.keys(usageData.byModel);
+    mm.innerHTML = names.length ? names.map(n => '<div class="usage-model-row"><span>' + usageEsc(n) + '</span><span class="usage-model-count">' + usageData.byModel[n] + '</span></div>').join('') : '<div class="usage-empty">暂无数据</div>';
+  }
+  // 最近调用
+  const hh = document.getElementById('usage-history');
+  if (hh) {
+    hh.innerHTML = usageData.history.length ? usageData.history.map(h => {
+      const d = new Date(h.t);
+      const pad = x => String(x).padStart(2, '0');
+      return '<div class="usage-hist-row"><span class="usage-hist-time">' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds()) + '</span><span>' + usageEsc(h.model) + '</span><span class="' + (h.ok ? 'usage-ok' : 'usage-fail') + '">' + (h.ok ? '成功' : '失败') + '</span><span class="usage-tk">' + h.tokens + ' tok</span></div>';
+    }).join('') : '<div class="usage-empty">暂无调用记录</div>';
+  }
+}
+function usageToggle(show) {
+  const p = document.getElementById('usage-panel');
+  if (!p) return;
+  p.style.display = show ? 'block' : 'none';
+  if (show) usageRender();
+}
+function initUsagePanel() {
+  const btn = document.getElementById('ai-usage-btn');
+  if (btn) btn.addEventListener('click', () => { const p = document.getElementById('usage-panel'); usageToggle(!p || p.style.display === 'none'); });
+  const close = document.getElementById('usage-close');
+  if (close) close.addEventListener('click', () => usageToggle(false));
+  const reset = document.getElementById('usage-reset');
+  if (reset) reset.addEventListener('click', async () => {
+    usageData = { calls: 0, tokens: 0, success: 0, fail: 0, byModel: {}, history: [] };
+    usageSave(); usageRender();
+    if (window.showToast) showToast('用量统计已重置', 'success');
+  });
+}
+// 拦截 window.LabCode.ai.chat 统一计数（所有调用点自动纳入统计）
+function initUsageInterceptor() {
+  try {
+    if (!window.LabCode || !window.LabCode.ai || window.LabCode.ai.__usageWrapped) return;
+    const origChat = window.LabCode.ai.chat;
+    if (typeof origChat !== 'function') return;
+    window.LabCode.ai.__usageWrapped = true;
+    window.LabCode.ai.chat = async (opts) => {
+      const est = usageTokenEstimate(opts && opts.messages);
+      try {
+        const res = await origChat(opts);
+        usageRecord((opts && opts.model) || '默认', !!(res && res.success), est);
+        return res;
+      } catch (e) {
+        usageRecord((opts && opts.model) || '默认', false, est);
+        throw e;
+      }
+    };
+  } catch (e) { /* 忽略包装失败 */ }
+}
+
 function init() {
   try {
     // 1:1 对齐 TrieCode：默认无打开文件，AI 面板占满主区域
     initTheme();
+    usageLoad().then(() => { initUsagePanel(); initUsageInterceptor(); usageRender(); });
     document.body.classList.add('no-open-file');
     initFiles();
     renderFileTree();
