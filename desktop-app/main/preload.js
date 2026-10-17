@@ -298,6 +298,7 @@ contextBridge.exposeInMainWorld('LabCode', {
     install: (opts) => ipcRenderer.invoke('codingAgents:install', opts),
     update: (opts) => ipcRenderer.invoke('codingAgents:update', opts),
     remove: (opts) => ipcRenderer.invoke('codingAgents:remove', opts),
+    run: (opts) => ipcRenderer.invoke('codingAgents:run', opts),
     onProgress: (callback) => {
       const listener = (_event, data) => callback(data);
       ipcRenderer.on('codingAgents:progress', listener);

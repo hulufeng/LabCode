@@ -1669,6 +1669,38 @@ function setupIPC() {
     { id: 'zcode', name: 'ZCode', command: 'zcode', packageName: '', docs: 'https://zcode.z.ai/', manual: true }
   ];
   const agentCliBusy = new Set();
+  // 单轮非交互执行参数（对齐各 CLI print/run 模式；不支持的返回明确提示）
+  function cliRunArgs(def, prompt) {
+    const P = prompt || '';
+    switch (def.id) {
+      case 'claude-code': return ['-p', P, '--output-format', 'text'];
+      case 'codex': return ['exec', P];
+      case 'opencode': return ['run', P];
+      case 'qwen': return ['-p', P];
+      case 'kimi': return ['-p', P];
+      case 'grok': return ['-p', P];
+      case 'codebuddy': return ['-p', P];
+      case 'pi': return ['-p', P];
+      case 'dsh': return ['-p', P];
+      default: return null;
+    }
+  }
+  async function runAgentCli(id, prompt) {
+    const def = CLI_AGENTS.find(a => a.id === id);
+    if (!def || def.manual) return { success: false, error: '未知或需手动安装的 Agent: ' + id };
+    const args = cliRunArgs(def, prompt);
+    if (!args) return { success: false, error: '该 CLI 暂不支持单轮执行（' + def.name + '）' };
+    const cmdPath = await resolveCommandPath(def.command);
+    if (!cmdPath) return { success: false, error: def.command + ' 未安装' };
+    try {
+      const out = await new Promise(r => execFile(cmdPath, args, { timeout: 5 * 60 * 1000, maxBuffer: 20 * 1024 * 1024, env: process.env }, (e, so, se) => r({ code: e ? e.code : 0, out: String(so || ''), err: String(se || ''), msg: e ? e.message : '' })));
+      if (out.code === 0 && out.out.trim()) return { success: true, output: out.out.trim(), error: '' };
+      if (out.code === 0 && !out.out.trim()) return { success: false, error: 'CLI 无输出（' + (out.err.trim().slice(0, 200) || '可能是交互模式或未登录') + '）' };
+      return { success: false, error: (out.err.trim() || out.msg).slice(0, 300) };
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
+  }
 
   function npmCmd() { return process.platform === 'win32' ? 'npm.cmd' : 'npm'; }
   function resolveCommandPath(command) {
@@ -1732,6 +1764,7 @@ function setupIPC() {
   ipcMain.handle('codingAgents:install', (_, opts) => mutateAgentCli('install', opts && opts.id));
   ipcMain.handle('codingAgents:update', (_, opts) => mutateAgentCli('update', opts && opts.id));
   ipcMain.handle('codingAgents:remove', (_, opts) => mutateAgentCli('remove', opts && opts.id));
+  ipcMain.handle('codingAgents:run', (_, opts) => runAgentCli(opts && opts.id, opts && opts.prompt));
 
   // ============ ESP32 工具链自动安装（商业化：首次启动自动下载） ============
   const ESP32_ADDITIONAL_URLS = [

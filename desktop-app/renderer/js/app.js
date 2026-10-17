@@ -8663,6 +8663,30 @@ function bindEvents() {
       }
     } catch (e) { console.warn('mergeCustomAgents:', e.message); }
   }
+  // 已安装的 coding-agent CLI 桥接为可执行 Agent（provider='cli'，对齐 Ekko：CLI 可接入工作流/群聊）
+  const CLI_NAME_MAP = { 'claude-code': 'Claude Code', 'codex': 'Codex', 'pi': 'Pi', 'grok': 'Grok', 'opencode': 'OpenCode', 'dsh': 'DeepSeek Harness', 'qwen': 'Qwen Code', 'kimi': 'Kimi Code', 'codebuddy': 'CodeBuddy', 'qoder': 'Qoder', 'copilot': 'GitHub Copilot', 'cursor': 'Cursor', 'antigravity': 'Antigravity', 'zcode': 'ZCode' };
+  async function mergeCliAgents() {
+    try {
+      if (!window.LabCode.codingAgents) return;
+      const r = await window.LabCode.codingAgents.list();
+      if (!r || !r.success || !r.agents) return;
+      for (const a of r.agents) {
+        if (!a.installed || a.manual) continue;
+        const name = CLI_NAME_MAP[a.id] || a.name;
+        if (AGENT_PRESETS[name] && !AGENT_PRESETS[name].custom) continue; // 内置同名不覆盖
+        AGENT_PRESETS[name] = { provider: 'cli', model: a.id, apiKey: '', baseURL: '', thinking: 'standard', builtin: false, custom: true, cli: true, cliVersion: a.version, cliPath: a.path };
+      }
+    } catch (e) { console.warn('mergeCliAgents:', e.message); }
+  }
+  // CLI 执行（provider='cli' 的 Agent）
+  async function runCliAgent(name, prompt) {
+    const cfg = AGENT_PRESETS[name];
+    if (!cfg || !cfg.cli) return { success: false, error: '非 CLI Agent' };
+    try {
+      const r = await window.LabCode.codingAgents.run({ id: cfg.model || name, prompt });
+      return r || { success: false, error: '无返回' };
+    } catch (e) { return { success: false, error: e.message }; }
+  }
   async function saveCustomAgents() {
     try {
       const list = Object.keys(AGENT_PRESETS).filter(k => AGENT_PRESETS[k] && AGENT_PRESETS[k].custom).map(k => {
@@ -8710,6 +8734,8 @@ function bindEvents() {
   window.__installCustomAgent = installCustomAgent;
   window.__uninstallCustomAgent = uninstallCustomAgent;
   window.__updateCustomAgent = updateCustomAgent;
+  window.__mergeCliAgents = mergeCliAgents;
+  window.__runCliAgent = runCliAgent;
 
   let gcRooms = [];
   let gcActiveId = null;
@@ -8876,21 +8902,28 @@ function bindEvents() {
               if (!decision) { n.data.status = 'failed'; n.data.result = '（审批被拒绝）'; wfRenderNodes(); continue; }
               n.data.status = 'running'; n.data.result = '（运行中…）'; wfRenderNodes();
             }
-            // 按绑定 Agent 切换配置 → 调用 → 恢复
+            // 按绑定 Agent 执行：CLI Agent 走真实 CLI，API Agent 切换配置调用
             const agentCfg = (window.__AGENT_PRESETS || AGENT_PRESETS)[n.data.agent] || (window.__AGENT_PRESETS || AGENT_PRESETS)['LabCode（内置）'];
-            const keys = ['provider', 'model', 'apiKey', 'baseURL', 'thinkingLevel'];
-            const curCfg = await window.LabCode.config.get(); const saved = {}; keys.forEach(k => { try { saved[k] = (curCfg && curCfg.ai) ? curCfg.ai[k] : ''; } catch (e) { saved[k] = ''; } });
-            try {
-              await window.LabCode.config.set('ai.provider', agentCfg.provider);
-              await window.LabCode.config.set('ai.model', agentCfg.model || '');
-              await window.LabCode.config.set('ai.apiKey', agentCfg.apiKey || '');
-              await window.LabCode.config.set('ai.baseURL', agentCfg.baseURL || '');
-              await window.LabCode.config.set('ai.thinkingLevel', agentCfg.thinking || 'standard');
-              const res = await window.LabCode.ai.chat({ messages: [{ role: 'user', content: n.data.prompt || '你好' }], temperature: 0.7, maxTokens: 8192 });
-              n.data.result = (res && res.success) ? (res.content || '') : '[失败：' + ((res && res.error) || '未知') + ']';
-              n.data.status = (res && res.success) ? 'completed' : 'failed';
-            } finally {
-              for (const k of keys) { try { await window.LabCode.config.set('ai.' + k, saved[k]); } catch (e) {} }
+            if (agentCfg.provider === 'cli') {
+              // CLI 桥接：执行已安装的 coding-agent CLI（非交互模式）
+              const cliRes = await runCliAgent(n.data.agent, n.data.prompt || '你好');
+              n.data.result = cliRes.success ? (cliRes.output || '') : '[CLI 失败：' + (cliRes.error || '未知') + ']';
+              n.data.status = cliRes.success ? 'completed' : 'failed';
+            } else {
+              const keys = ['provider', 'model', 'apiKey', 'baseURL', 'thinkingLevel'];
+              const curCfg = await window.LabCode.config.get(); const saved = {}; keys.forEach(k => { try { saved[k] = (curCfg && curCfg.ai) ? curCfg.ai[k] : ''; } catch (e) { saved[k] = ''; } });
+              try {
+                await window.LabCode.config.set('ai.provider', agentCfg.provider);
+                await window.LabCode.config.set('ai.model', agentCfg.model || '');
+                await window.LabCode.config.set('ai.apiKey', agentCfg.apiKey || '');
+                await window.LabCode.config.set('ai.baseURL', agentCfg.baseURL || '');
+                await window.LabCode.config.set('ai.thinkingLevel', agentCfg.thinking || 'standard');
+                const res = await window.LabCode.ai.chat({ messages: [{ role: 'user', content: n.data.prompt || '你好' }], temperature: 0.7, maxTokens: 8192 });
+                n.data.result = (res && res.success) ? (res.content || '') : '[失败：' + ((res && res.error) || '未知') + ']';
+                n.data.status = (res && res.success) ? 'completed' : 'failed';
+              } finally {
+                for (const k of keys) { try { await window.LabCode.config.set('ai.' + k, saved[k]); } catch (e) {} }
+              }
             }
           } else if (n.type === 'tool') {
             n.data.result = '[终端] ' + (n.data.cmd || '(空)') + (window.LabCode && window.LabCode.shell && window.LabCode.shell.runCommand ? '（已发送执行）' : '（MVP 未接真实终端）');
@@ -9375,15 +9408,22 @@ function bindEvents() {
       const cfg = AGENT_PRESETS[m]; if (!cfg) continue;
       room.messages.push({ role: 'agent', name: m, content: '（思考中…）', ts: Date.now() }); gcRenderMessages(room);
       try {
-        await window.LabCode.config.set('ai.provider', cfg.provider);
-        await window.LabCode.config.set('ai.model', cfg.model || '');
-        await window.LabCode.config.set('ai.apiKey', cfg.apiKey || '');
-        await window.LabCode.config.set('ai.baseURL', cfg.baseURL || '');
-        await window.LabCode.config.set('ai.thinkingLevel', cfg.thinking || 'standard');
-        const hist = room.messages.filter(x => x.content !== '（思考中…）').map(x => ({ role: x.role === 'user' ? 'user' : 'assistant', content: (x.name ? ('[' + x.name + '] ') : '') + x.content }));
-        const sys = { role: 'system', content: '你是群聊房间「' + room.name + '」里的一个 Agent（' + m + '）。房间内有多个 Agent 与用户协作，请用简洁的中文回应。' };
-        const res = await window.LabCode.ai.chat({ messages: [sys].concat(hist), temperature: 0.7, maxTokens: 8192 });
-        const reply = (res && res.success) ? (res.content || '') : '[调用失败：' + ((res && res.error) || '未知') + ']';
+        let reply;
+        if (cfg.provider === 'cli') {
+          // CLI 桥接：群聊成员为已安装 CLI 时直接执行
+          const cliRes = await runCliAgent(m, (room.messages.filter(x => x.role === 'user').pop() || {}).content || '你好');
+          reply = cliRes.success ? (cliRes.output || '（无输出）') : '[CLI 失败：' + (cliRes.error || '未知') + ']';
+        } else {
+          await window.LabCode.config.set('ai.provider', cfg.provider);
+          await window.LabCode.config.set('ai.model', cfg.model || '');
+          await window.LabCode.config.set('ai.apiKey', cfg.apiKey || '');
+          await window.LabCode.config.set('ai.baseURL', cfg.baseURL || '');
+          await window.LabCode.config.set('ai.thinkingLevel', cfg.thinking || 'standard');
+          const hist = room.messages.filter(x => x.content !== '（思考中…）').map(x => ({ role: x.role === 'user' ? 'user' : 'assistant', content: (x.name ? ('[' + x.name + '] ') : '') + x.content }));
+          const sys = { role: 'system', content: '你是群聊房间「' + room.name + '」里的一个 Agent（' + m + '）。房间内有多个 Agent 与用户协作，请用简洁的中文回应。' };
+          const res = await window.LabCode.ai.chat({ messages: [sys].concat(hist), temperature: 0.7, maxTokens: 8192 });
+          reply = (res && res.success) ? (res.content || '') : '[调用失败：' + ((res && res.error) || '未知') + ']';
+        }
         const idx = room.messages.findIndex(x => x.role === 'agent' && x.name === m && x.content === '（思考中…）');
         if (idx >= 0) room.messages[idx] = { role: 'agent', name: m, content: reply || '（无回复）', ts: Date.now() };
       } catch (e) {
@@ -13045,20 +13085,27 @@ async function wfRunScheduled(nodes, edges, taskPrompt) {
         // 审批门节点：调度场景自动通过（任务已由用户预授权）
         if (n.data.approval) { n.data.status = 'pending_approval'; await new Promise(r => setTimeout(r, 300)); }
         const agentCfg = (window.__AGENT_PRESETS || AGENT_PRESETS)[n.data.agent] || (window.__AGENT_PRESETS || AGENT_PRESETS)['LabCode（内置）'];
-        const keys = ['provider', 'model', 'apiKey', 'baseURL', 'thinkingLevel'];
-        const curCfg = await window.LabCode.config.get(); const saved = {}; keys.forEach(k => { try { saved[k] = (curCfg && curCfg.ai) ? curCfg.ai[k] : ''; } catch (e) { saved[k] = ''; } });
-        try {
-          await window.LabCode.config.set('ai.provider', agentCfg.provider);
-          await window.LabCode.config.set('ai.model', agentCfg.model || '');
-          await window.LabCode.config.set('ai.apiKey', agentCfg.apiKey || '');
-          await window.LabCode.config.set('ai.baseURL', agentCfg.baseURL || '');
-          await window.LabCode.config.set('ai.thinkingLevel', agentCfg.thinking || 'standard');
-          const prompt = [n.data.prompt || '', taskPrompt ? '（定时任务附加指令：' + taskPrompt + '）' : ''].filter(Boolean).join('\n');
-          const res = await window.LabCode.ai.chat({ messages: [{ role: 'user', content: prompt || '你好' }], temperature: 0.7, maxTokens: 8192 });
-          n.data.status = (res && res.success) ? 'completed' : 'failed';
-          n.data.result = (res && res.success) ? (res.content || '') : ('[失败：' + ((res && res.error) || '未知') + ']');
-        } finally {
-          for (const k of keys) { try { await window.LabCode.config.set('ai.' + k, saved[k]); } catch (e) {} }
+        if (agentCfg.provider === 'cli') {
+          // CLI 桥接：调度触发执行已安装 CLI（非交互模式）
+          const cliRes = await runCliAgent(n.data.agent, n.data.prompt || '你好');
+          n.data.status = cliRes.success ? 'completed' : 'failed';
+          n.data.result = cliRes.success ? (cliRes.output || '') : ('[CLI 失败：' + (cliRes.error || '未知') + ']');
+        } else {
+          const keys = ['provider', 'model', 'apiKey', 'baseURL', 'thinkingLevel'];
+          const curCfg = await window.LabCode.config.get(); const saved = {}; keys.forEach(k => { try { saved[k] = (curCfg && curCfg.ai) ? curCfg.ai[k] : ''; } catch (e) { saved[k] = ''; } });
+          try {
+            await window.LabCode.config.set('ai.provider', agentCfg.provider);
+            await window.LabCode.config.set('ai.model', agentCfg.model || '');
+            await window.LabCode.config.set('ai.apiKey', agentCfg.apiKey || '');
+            await window.LabCode.config.set('ai.baseURL', agentCfg.baseURL || '');
+            await window.LabCode.config.set('ai.thinkingLevel', agentCfg.thinking || 'standard');
+            const prompt = [n.data.prompt || '', taskPrompt ? '（定时任务附加指令：' + taskPrompt + '）' : ''].filter(Boolean).join('\n');
+            const res = await window.LabCode.ai.chat({ messages: [{ role: 'user', content: prompt || '你好' }], temperature: 0.7, maxTokens: 8192 });
+            n.data.status = (res && res.success) ? 'completed' : 'failed';
+            n.data.result = (res && res.success) ? (res.content || '') : ('[失败：' + ((res && res.error) || '未知') + ']');
+          } finally {
+            for (const k of keys) { try { await window.LabCode.config.set('ai.' + k, saved[k]); } catch (e) {} }
+          }
         }
       } else if (n.type === 'tool') {
         n.data.result = '[终端] ' + (n.data.cmd || '(空)');
@@ -13209,7 +13256,7 @@ function init() {
     initTheme();
     usageLoad().then(() => { initUsagePanel(); initUsageInterceptor(); usageRender(); });
     initScheduledWorkflow();
-    if (window.__mergeCustomAgents) window.__mergeCustomAgents().then(() => { try { if (typeof wfRenderNodes === 'function') wfRenderNodes(); } catch (e) {} });
+    if (window.__mergeCustomAgents) window.__mergeCustomAgents().then(async () => { try { if (window.__mergeCliAgents) await window.__mergeCliAgents(); if (typeof wfRenderNodes === 'function') wfRenderNodes(); } catch (e) {} });
     document.body.classList.add('no-open-file');
     initFiles();
     renderFileTree();
