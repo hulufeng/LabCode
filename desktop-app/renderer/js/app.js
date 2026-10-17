@@ -43,12 +43,21 @@ async function getDefaultProjectDir() {
   if (isElectron && window.LabCode && window.LabCode.app) {
     try {
       const home = await window.LabCode.app.getPath('home');
-      return home + '\\LabCodeProjects';
+      return home.replace(/\\/g, '/') + '/LabCodeProjects';
     } catch (e) {
       return 'C:\\Users\\Administrator\\LabCodeProjects';
     }
   }
   return 'C:\\Users\\Administrator\\LabCodeProjects';
+}
+
+// 跨平台磁盘路径拼接（对齐主进程 path.join 语义）：
+// Windows 的 fs 也接受 '/'，统一用 '/' 保证 Windows/macOS/Linux 三端一致；
+// 同时把用户输入的 Windows 反斜杠路径归一化为 '/'，避免混用导致路径解析错误。
+function diskJoin(projectPath, relPath) {
+  const base = String(projectPath || '').replace(/\\/g, '/').replace(/\/$/, '');
+  const rel = String(relPath || '').replace(/\\/g, '/').replace(/^\//, '');
+  return base + '/' + rel;
 }
 
 // 统一文件系统 API（Electron 用磁盘，浏览器用内存）
@@ -147,8 +156,8 @@ window.LabCodeUI.state = state;
       showToast('Update downloaded. Restart to install.', true);
     });
   }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', run);
-  else run();
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => { run(); bindCommandPalette(); });
+  else { run(); bindCommandPalette(); }
 })();
 
 // ============ 样本项目 ============
@@ -1008,7 +1017,7 @@ const TOOL_DEFS = [
           if (!state.projectPath) {
             try {
               const home = await window.LabCode.app.getPath('home');
-              state.projectPath = home + '\\LabCodeProjects\\untitled';
+              state.projectPath = home.replace(/\\/g, '/') + '/LabCodeProjects/untitled';
               updateProjectStatusText(state.projectPath);
               addOutputLog(`已自动创建默认项目目录: ${state.projectPath}`, 'info');
             } catch (e) {
@@ -1016,7 +1025,7 @@ const TOOL_DEFS = [
             }
           }
           if (state.projectPath) {
-            const fullPath = state.projectPath + '\\' + args.file_path;
+            const fullPath = diskJoin(state.projectPath, args.file_path);
             try { await FileSystem.writeFile(fullPath, args.content); } catch (e) { console.error('写入磁盘失败:', e); }
           }
         }
@@ -1030,24 +1039,48 @@ const TOOL_DEFS = [
   {
     name: 'edit_file', category: 'modify', description: '编辑文件（替换指定文本）',
     parameters: { type: 'object', properties: { file_path: {type:'string'}, old_string: {type:'string'}, new_string: {type:'string'} }, required: ['file_path','old_string','new_string'] },
-    execute: (args) => {
+    execute: async (args) => {
       const f = state.files[args.file_path];
       if (!f) return `Error: 文件不存在: ${args.file_path}`;
       if (!f.content.includes(args.old_string)) return `Error: 未找到要替换的文本`;
       f.content = f.content.replace(args.old_string, args.new_string);
       f.dirty = true;
       if (state.activeTab === args.file_path && state.editor) state.editor.setValue(f.content);
+      // ===== 磁盘同步（对齐 write_file）：Electron 下编辑后立即落盘，避免重启丢内容 =====
+      if (isElectron) {
+        try {
+          if (!state.projectPath) {
+            const home = await window.LabCode.app.getPath('home');
+            state.projectPath = home.replace(/\\/g, '/') + '/LabCodeProjects/untitled';
+            updateProjectStatusText(state.projectPath);
+            addOutputLog(`已自动创建默认项目目录: ${state.projectPath}`, 'info');
+          }
+          if (state.projectPath) {
+            const fullPath = diskJoin(state.projectPath, args.file_path);
+            await FileSystem.writeFile(fullPath, f.content);
+          }
+        } catch (e) { console.error('edit_file 写盘失败:', e); }
+      }
       return `文件已编辑: ${args.file_path}`;
     }
   },
   {
     name: 'delete_file', category: 'modify', description: '删除文件',
     parameters: { type: 'object', properties: { file_path: {type:'string'} }, required: ['file_path'] },
-    execute: (args) => {
+    execute: async (args) => {
       if (!state.files[args.file_path]) return `Error: 文件不存在: ${args.file_path}`;
       delete state.files[args.file_path];
       closeTab(args.file_path);
       buildFileTree(); renderFileTree();
+      // ===== 磁盘同步（对齐 write_file）：Electron 下删除后同步删盘 =====
+      if (isElectron) {
+        try {
+          if (state.projectPath) {
+            const fullPath = diskJoin(state.projectPath, args.file_path);
+            if (await FileSystem.exists(fullPath)) await window.LabCode.fs.deleteFile(fullPath);
+          }
+        } catch (e) { console.error('delete_file 删盘失败:', e); }
+      }
       return `文件已删除: ${args.file_path}`;
     }
   },
@@ -1397,7 +1430,7 @@ const TOOL_DEFS = [
       buildFileTree(); renderFileTree();
       try { openFile(filePath); } catch (e) { console.error('openFile 失败:', e); }
       if (isElectron && state.projectPath) {
-        const fullPath = state.projectPath + '\\' + filePath.replace(/\//g, '\\');
+        const fullPath = diskJoin(state.projectPath, filePath);
         try {
           const parent = fullPath.split('\\').slice(0, -1).join('\\');
           if (parent && window.LabCode && window.LabCode.fs && window.LabCode.fs.mkdir) {
@@ -1676,7 +1709,7 @@ const TOOL_DEFS = [
       buildFileTree(); renderFileTree();
       try {
         if (isElectron && state.projectPath) {
-          const base = state.projectPath + '\\' + dir.replace(/\//g, '\\');
+          const base = diskJoin(state.projectPath, dir);
           await window.LabCode.fs.mkdir(base).catch(() => {});
           await FileSystem.writeFile(base + '\\plugin.json', JSON.stringify(manifest, null, 2));
           await FileSystem.writeFile(base + '\\README.md', `# ${args.name || id}\n\nLabCode 插件。\n`);
@@ -1721,7 +1754,7 @@ const TOOL_DEFS = [
       if (!window.PluginSystem) return 'Error: 插件系统未就绪';
       // 调插件系统的 installLocal 方法
       if (typeof window.PluginSystem.installFromDir === 'function') {
-        const fullPath = state.projectPath + '\\' + dir.replace(/\//g, '\\');
+        const fullPath = diskJoin(state.projectPath, dir);
         const r = await window.PluginSystem.installFromDir(fullPath);
         return r.success ? `插件 ${m.id} 已安装（${m.tools.length} 工具）` : '安装失败: ' + (r.error || '');
       }
@@ -1744,7 +1777,7 @@ const TOOL_DEFS = [
       const memFile = state.files[fp];
       if (memFile && memFile.content) return memFile.content;
       try {
-        const fullPath = state.projectPath + '\\' + fp.replace(/\//g, '\\');
+        const fullPath = diskJoin(state.projectPath, fp);
         const result = await window.LabCode.fs.readPdf(fullPath, args.max_pages || 20);
         if (!result || result.success === false) return 'Error: 读取 PDF 失败: ' + ((result && result.error) || '文件不存在');
         const text = result.text || '';
@@ -1766,7 +1799,7 @@ const TOOL_DEFS = [
       if (!fp) return 'Error: 请提供图片路径';
       if (!/\.(png|jpe?g|gif|webp|bmp)$/i.test(fp)) return 'Error: 不支持的图片格式';
       try {
-        const fullPath = state.projectPath + '\\' + fp.replace(/\//g, '\\');
+        const fullPath = diskJoin(state.projectPath, fp);
         const result = await window.LabCode.fs.analyzeImage(fullPath, args.prompt || '请描述这张图片的内容');
         if (!result || result.success === false) return 'Error: 图片分析失败: ' + ((result && result.error) || '当前模型不支持视觉或文件不存在');
         return result.description || '（模型未返回描述）';
@@ -3105,16 +3138,38 @@ class WebTools {
     const cacheKey = `search:${query}`;
     const cached = this.getCache(cacheKey);
     if (cached) return { success: true, results: cached, fromCache: true };
-    
+
+    // ===== 真实联网优先：主进程 web-search.js（Bing HTML 端点，无 API Key）=====
+    // 2026-10-17：此前完全返回 mock，AI 拿到的是假搜索结果；现优先走真实通道，
+    // 真实搜索失败时才降级 mock，并在结果中明确标注 [降级]，防止 AI 把假结果当事实。
+    if (isElectron && window.LabCode && window.LabCode.web) {
+      try {
+        const real = await window.LabCode.web.search(query, options);
+        if (real && real.success && Array.isArray(real.results) && real.results.length) {
+          this.setCache(cacheKey, real.results);
+          return { success: true, results: real.results, fromCache: !!real.fromCache, source: 'live' };
+        }
+        if (real && real.success && Array.isArray(real.results) && real.results.length === 0) {
+          return { success: false, error: real.error || '搜索无结果', results: [] };
+        }
+        this._lastLiveError = (real && real.error) || '未知错误';
+        addOutputLog(`web_search 真实搜索不可用(${this._lastLiveError})，降级为模拟结果（仅供演示，AI 不应引用）`, 'warn');
+      } catch (e) {
+        this._lastLiveError = e.message;
+        addOutputLog(`web_search 真实搜索异常(${e.message})，降级为模拟结果（仅供演示，AI 不应引用）`, 'warn');
+      }
+    }
+
+    // ===== 降级：mock 结果（明确标注 [降级]，防止被当作真实信息）=====
     const mockResults = [
-      { title: `${query} - 搜索结果1`, url: `https://example.com/search?q=${encodeURIComponent(query)}&r=1`, snippet: `关于「${query}」的搜索结果摘要。`, source: 'example.com' },
-      { title: `${query} - 搜索结果2`, url: `https://example.org/search?q=${encodeURIComponent(query)}&r=2`, snippet: `关于「${query}」的深入分析和实现指南。`, source: 'example.org' },
-      { title: `${query} - 搜索结果3`, url: `https://example.net/search?q=${encodeURIComponent(query)}&r=3`, snippet: `「${query}」的最新动态和社区讨论。`, source: 'example.net' }
+      { title: `[降级] ${query} - 搜索结果1`, url: `https://example.com/search?q=${encodeURIComponent(query)}&r=1`, snippet: `[降级模拟，非真实搜索结果] 关于「${query}」的搜索结果摘要。`, source: 'example.com' },
+      { title: `[降级] ${query} - 搜索结果2`, url: `https://example.org/search?q=${encodeURIComponent(query)}&r=2`, snippet: `[降级模拟，非真实搜索结果] 关于「${query}」的深入分析和实现指南。`, source: 'example.org' },
+      { title: `[降级] ${query} - 搜索结果3`, url: `https://example.net/search?q=${encodeURIComponent(query)}&r=3`, snippet: `[降级模拟，非真实搜索结果] 「${query}」的最新动态和社区讨论。`, source: 'example.net' }
     ];
     this.setCache(cacheKey, mockResults);
-    return { success: true, results: mockResults, fromCache: false };
+    return { success: true, results: mockResults, fromCache: false, source: 'mock' };
   }
-  
+
   async fetch(url, options = {}) {
     const safetyCheck = this.isSafeUrl(url);
     if (!safetyCheck.safe) {
@@ -3123,12 +3178,41 @@ class WebTools {
     const cacheKey = `fetch:${url}`;
     const cached = this.getCache(cacheKey);
     if (cached) return { success: true, content: cached, fromCache: true, url };
-    
-    const mockContent = `# ${url}\n\n这是从 ${url} 获取的网页内容（模拟）。\n\n## 主要内容\n- 详细介绍\n- 技术实现\n- 最佳实践\n\n## 总结\n网页内容已获取并转换为 Markdown。`;
+
+    // ===== 真实抓取优先：主进程 web-search.js =====
+    // 2026-10-17：此前 web_fetch 直接返回模拟内容；现优先走主进程真实抓取，
+    // 失败才降级 mock，且降级内容明确标注 [降级模拟]，防止 AI 引用假信息。
+    if (isElectron && window.LabCode && window.LabCode.web) {
+      try {
+        const real = await window.LabCode.web.fetch(url, options);
+        if (real && real.success && real.content) {
+          this.setCache(cacheKey, real.content);
+          return { success: true, content: real.content, fromCache: !!real.fromCache, url, source: 'live' };
+        }
+        this._lastLiveError = (real && real.error) || '未知错误';
+        addOutputLog(`web_fetch 真实抓取失败(${this._lastLiveError})，降级为模拟内容`, 'warn');
+      } catch (e) {
+        this._lastLiveError = e.message;
+        addOutputLog(`web_fetch 真实抓取异常(${e.message})，降级为模拟内容`, 'warn');
+      }
+    }
+
+    // ===== 降级：mock 内容（明确标注 [降级]）=====
+    const mockContent = `# ${url}
+
+>[降级模拟] 真实网页抓取不可用，以下为模拟内容，请勿作为事实引用。
+
+## 主要内容
+- 详细介绍
+- 技术实现
+- 最佳实践
+
+## 总结
+网页内容已获取并转换为 Markdown。`;
     this.setCache(cacheKey, mockContent);
-    return { success: true, content: mockContent, fromCache: false, url };
+    return { success: true, content: mockContent, fromCache: false, url, source: 'mock' };
   }
-  
+
   clearCache() { this.cache.clear(); this.searchCount = 0; }
   getCacheStats() { return { size: this.cache.size, maxSize: this.maxCacheSize, searchCount: this.searchCount }; }
 }
@@ -3193,7 +3277,7 @@ class FileChangeTracker {
   _diskPath(path) {
     if (!state.projectPath) return null;
     if (path && /^[A-Za-z]:[\\/]/.test(path)) return path;
-    return state.projectPath + '\\' + String(path || '').replace(/^\//, '').replace(/\//g, '\\');
+    return diskJoin(state.projectPath, String(path || ''));
   }
 
   /**
@@ -3344,6 +3428,135 @@ async function redoLastAgentTurn() {
   }
   return result;
 }
+
+// ============ 命令面板（Ctrl+Shift+P / 菜单「命令面板」）============
+// 对齐 TrieCode/VS Code：顶部命令输入 + 模糊过滤 + 上下键选择 + Enter 执行
+const COMMAND_PALETTE_COMMANDS = [
+  { label: '新建文件', group: '文件', run: () => { const btn = document.getElementById('quick-new-file'); if (btn) btn.click(); } },
+  { label: '打开项目…', group: '文件', run: () => { const btn = document.getElementById('welcome-open-project'); if (btn) btn.click(); else { const di = document.querySelector('.dropdown-item[data-action="open-project"]'); if (di) di.click(); } } },
+  { label: '保存文件', group: '文件', run: () => { const btn = document.getElementById('editor-save-btn'); if (btn) btn.click(); } },
+  { label: '全部保存', group: '文件', run: () => saveAllFiles() },
+  { label: '撤销最近 AI 变更', group: '编辑', run: () => undoLastAgentTurn() },
+  { label: '重做最近 AI 变更', group: '编辑', run: () => redoLastAgentTurn() },
+  { label: '新建终端', group: '终端', run: () => { const btn = document.querySelector('.bottom-tab[data-panel="terminal"]'); if (btn) btn.click(); } },
+  { label: '打开串口监视器', group: '面板', run: () => switchPanel('serial', 'bottom') },
+  { label: '打开绘图仪', group: '面板', run: () => switchPanel('plotter', 'bottom') },
+  { label: '打开调试器', group: '面板', run: () => switchPanel('debug', 'bottom') },
+  { label: '打开输出面板', group: '面板', run: () => switchPanel('output', 'bottom') },
+  { label: '打开问题面板', group: '面板', run: () => switchPanel('problems', 'bottom') },
+  { label: '打开终端面板', group: '面板', run: () => switchPanel('terminal', 'bottom') },
+  { label: '打开资源管理器', group: '面板', run: () => switchPanel('explorer', 'activity') },
+  { label: '打开 Git 面板', group: '面板', run: () => switchPanel('git', 'activity') },
+  { label: '打开插件市场', group: '面板', run: () => switchPanel('plugins', 'activity') },
+  { label: '打开 MCP 服务', group: '面板', run: () => switchPanel('mcp', 'activity') },
+  { label: '打开设备面板', group: '面板', run: () => switchPanel('device', 'activity') },
+  { label: '打开上下文面板', group: '面板', run: () => switchPanel('context', 'activity') },
+  { label: '打开调度面板', group: '面板', run: () => switchPanel('schedule', 'activity') },
+  { label: '打开群聊', group: '面板', run: () => switchPanel('groupchat', 'activity') },
+  { label: '打开工作流', group: '面板', run: () => switchPanel('workflow', 'activity') },
+  { label: '检查更新', group: '帮助', run: () => { if (window.LabCode && window.LabCode.update) window.LabCode.update.check(); } },
+  { label: '打开文档', group: '帮助', run: () => { if (window.LabCode && window.LabCode.shell) window.LabCode.shell.openExternal('https://www.labcode.com/docs'); } },
+  { label: '访问官网', group: '帮助', run: () => { if (window.LabCode && window.LabCode.shell) window.LabCode.shell.openExternal('https://www.labcode.com'); } }
+];
+let _cmdPaletteIdx = 0;
+let _cmdPaletteFiltered = [];
+
+// 面板切换 helper：activity（左侧活动栏）或 bottom（底部标签页），找不到时尝试另一类
+function switchPanel(panel, kind) {
+  const selector = kind === 'bottom' ? '.bottom-tab' : '.activity-btn';
+  let el = document.querySelector(selector + '[data-panel="' + panel + '"]');
+  if (!el) {
+    const other = kind === 'bottom' ? '.activity-btn' : '.bottom-tab';
+    el = document.querySelector(other + '[data-panel="' + panel + '"]');
+  }
+  if (el) el.click();
+  else showToast('未找到面板: ' + panel, 'warn');
+}
+
+function cmdPaletteEsc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function cmdPaletteRender() {
+  const list = document.getElementById('cmd-palette-list');
+  const input = document.getElementById('cmd-palette-input');
+  if (!list || !input) return;
+  const q = input.value.trim().toLowerCase();
+  const all = COMMAND_PALETTE_COMMANDS;
+  _cmdPaletteFiltered = q ? all.filter(c => (c.label + ' ' + (c.group || '')).toLowerCase().includes(q)) : all;
+  if (_cmdPaletteIdx >= _cmdPaletteFiltered.length) _cmdPaletteIdx = 0;
+  if (!_cmdPaletteFiltered.length) {
+    list.innerHTML = '<div style="padding:14px;color:var(--text-tertiary);text-align:center;font-size:13px;">无匹配命令</div>';
+    return;
+  }
+  let html = '';
+  _cmdPaletteFiltered.forEach((c, i) => {
+    html += `<div class="cmd-palette-item${i === _cmdPaletteIdx ? ' active' : ''}" data-idx="${i}" style="padding:7px 10px;border-radius:6px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;font-size:13px;${i === _cmdPaletteIdx ? 'background:var(--primary-light);color:var(--primary);' : 'color:var(--text-primary);'}">` +
+      `<span>${cmdPaletteEsc(c.label)}</span><span style="font-size:11px;color:var(--text-tertiary);">${cmdPaletteEsc(c.group || '')}</span></div>`;
+  });
+  list.innerHTML = html;
+  list.querySelectorAll('.cmd-palette-item').forEach(el => {
+    el.addEventListener('click', () => {
+      _cmdPaletteIdx = Number(el.dataset.idx);
+      cmdPaletteRun();
+    });
+    el.addEventListener('mouseenter', () => { _cmdPaletteIdx = Number(el.dataset.idx); cmdPaletteRender(); });
+  });
+}
+
+function cmdPaletteRun() {
+  const cmd = _cmdPaletteFiltered[_cmdPaletteIdx];
+  if (!cmd) return;
+  cmdPaletteClose();
+  try { cmd.run(); } catch (e) { console.error('命令执行失败:', e); showToast('命令执行失败: ' + e.message, 'error'); }
+}
+
+function openCommandPalette() {
+  const overlay = document.getElementById('command-palette');
+  const input = document.getElementById('cmd-palette-input');
+  if (!overlay || !input) { showToast('命令面板不可用', 'warn'); return; }
+  overlay.style.display = 'flex';
+  _cmdPaletteIdx = 0;
+  input.value = '';
+  cmdPaletteRender();
+  setTimeout(() => input.focus(), 30);
+}
+
+function cmdPaletteClose() {
+  const overlay = document.getElementById('command-palette');
+  if (overlay) overlay.style.display = 'none';
+}
+
+// 命令面板事件绑定（幂等）
+let _cmdPaletteBound = false;
+function bindCommandPalette() {
+  if (_cmdPaletteBound) return;
+  _cmdPaletteBound = true;
+  const overlay = document.getElementById('command-palette');
+  const input = document.getElementById('cmd-palette-input');
+  const closeBtn = document.getElementById('cmd-palette-close');
+  if (input) {
+    input.addEventListener('input', () => { _cmdPaletteIdx = 0; cmdPaletteRender(); });
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowDown') { e.preventDefault(); _cmdPaletteIdx = Math.min(_cmdPaletteIdx + 1, _cmdPaletteFiltered.length - 1); cmdPaletteRender(); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); _cmdPaletteIdx = Math.max(_cmdPaletteIdx - 1, 0); cmdPaletteRender(); }
+      else if (e.key === 'Enter') { e.preventDefault(); cmdPaletteRun(); }
+      else if (e.key === 'Escape') { e.preventDefault(); cmdPaletteClose(); }
+    });
+  }
+  if (closeBtn) closeBtn.addEventListener('click', () => cmdPaletteClose());
+  if (overlay) overlay.addEventListener('click', (e) => { if (e.target === overlay) cmdPaletteClose(); });
+  // Ctrl+Shift+P 全局快捷键
+  document.addEventListener('keydown', (e) => {
+    if (e.ctrlKey && e.shiftKey && (e.key === 'P' || e.key === 'p')) {
+      e.preventDefault();
+      const overlay = document.getElementById('command-palette');
+      if (overlay && overlay.style.display !== 'none') cmdPaletteClose();
+      else openCommandPalette();
+    }
+  });
+}
+
 
 // ============ 增强：LRU 缓存系统 ============
 // 参考业界 cache.js: AI响应LRU缓存带TTL+在途请求去重
@@ -4435,6 +4648,8 @@ void loop() {
             this.usageAcc.totalTokens += u.total_tokens || u.totalTokens || 0;
             this.usageAcc.calls += 1;
           }
+          // 用量统计（对齐 Ekko Usage Analytics）
+          try { usageRecord((aiCfg && aiCfg.model) || '默认', true, (u && (u.total_tokens || u.totalTokens)) || 0); } catch (e) {}
           return streamResult.result;
         }
         if (streamResult && streamResult.error) {
@@ -4454,6 +4669,8 @@ void loop() {
 
       if (!result || !result.success) {
         console.warn('[RealAIClient] AI 请求失败:', result?.error);
+        // 用量统计：调用失败
+        try { usageRecord((aiCfg && aiCfg.model) || '默认', false, 0); } catch (e) {}
         // 网关积分不足：给出升级引导
         if (result && result.creditsInsufficient) {
           const mockResult = this.mock.generateResponse(userInput, messages);
@@ -4476,6 +4693,8 @@ void loop() {
         rawContent = rawContent.replace(/^[\s\S]*?<\/think>/, '').trim();
       }
       const { text, toolCalls } = this._parseToolCalls(rawContent);
+      // 用量统计：非流式成功
+      try { usageRecord((aiCfg && aiCfg.model) || '默认', true, Math.max(1, Math.round(rawContent.length / 4))); } catch (e) {}
       return {
         content: text || (toolCalls.length > 0 ? '好的，我来执行以下操作。' : rawContent),
         toolCalls,
@@ -6705,12 +6924,12 @@ async function persistCodeFile(filePath, code) {
   try {
     if (!state.projectPath) {
       const home = await window.LabCode.app.getPath('home');
-      state.projectPath = home + '\\LabCodeProjects\\untitled';
+      state.projectPath = home.replace(/\\/g, '/') + '/LabCodeProjects/untitled';
       updateProjectStatusText(state.projectPath);
       addOutputLog(`已自动创建默认项目目录: ${state.projectPath}`, 'info');
     }
     if (state.projectPath) {
-      const fullPath = state.projectPath + '\\' + filePath;
+      const fullPath = diskJoin(state.projectPath, filePath);
       await FileSystem.writeFile(fullPath, code);
     }
   } catch (e) {
@@ -8031,7 +8250,7 @@ ${outText || errText}
               buildFileTree(); renderFileTree();
               if (state.activeTab === targetFile && state.editor) state.editor.setValue(code);
               if (isElectron && state.projectPath) {
-                const fullPath = state.projectPath + '\\' + targetFile;
+                const fullPath = diskJoin(state.projectPath, targetFile);
                 FileSystem.writeFile(fullPath, code).catch(e => console.error('诊断修复写盘失败:', e));
               }
               addOutputLog(`🤖 AI 已自动修复: ${targetFile}`, 'success');
@@ -8272,7 +8491,7 @@ function handleMenuAction(action) {
       showToast('键盘快捷键', 'info');
       break;
     case 'commands':
-      showToast('命令面板', 'info');
+      openCommandPalette();
       break;
     case 'check-updates':
       showToast('检查更新', 'info');
@@ -8416,7 +8635,108 @@ function bindEvents() {
     'Qoder': { provider: 'custom', model: 'qoder', apiKey: '', baseURL: '', thinking: 'standard' },
     'GitHub Copilot': { provider: 'custom', model: 'gpt-4o', apiKey: '', baseURL: 'https://api.githubcopilot.com', thinking: 'standard' },
     'ZCode': { provider: 'custom', model: 'glm-4', apiKey: '', baseURL: 'https://open.bigmodel.cn/api/ai/paas/v4', thinking: 'standard' }
+  };
+  // 暴露给全局（调度工作流执行器 wfRunScheduled 需要访问 Agent 预设）
+  window.__AGENT_PRESETS = AGENT_PRESETS;
+
+  // ============ 自定义 Agent 安装/注册（对齐 Ekko：Agent 可插拔注册）============
+  // 启动时从 config.ai.customAgents 合并进 AGENT_PRESETS（const 只锁绑定，属性可增）
+  // 合并后所有引用点（工作流下拉 / 群聊成员 / Agent Manager / 配置切换）自动生效
+  const CUSTOM_AGENT_TEMPLATES = {
+    'openai':  { provider: 'openai', model: 'gpt-4o-mini', baseURL: '', apiKey: '', thinking: 'standard' },
+    'anthropic': { provider: 'custom', model: 'claude-sonnet-4', baseURL: 'https://api.anthropic.com/v1', apiKey: '', thinking: 'standard' },
+    'ollama':  { provider: 'ollama', model: 'qwen2.5-coder:7b', baseURL: 'http://localhost:11434/v1', apiKey: '', thinking: 'standard' },
+    'deepseek':{ provider: 'deepseek', model: 'deepseek-chat', baseURL: 'https://api.deepseek.com/v1', apiKey: '', thinking: 'standard' },
+    'custom':  { provider: 'custom', model: '', baseURL: '', apiKey: '', thinking: 'standard' }
   };
+  // 内置 Agent 名单（定义 AGENT_PRESETS 时锁定，安装/卸载保护用）
+  const BUILTIN_AGENT_NAMES = Object.keys(AGENT_PRESETS);
+  function isBuiltinAgent(name) { return BUILTIN_AGENT_NAMES.indexOf(name) >= 0; }
+  async function mergeCustomAgents() {
+    try {
+      const c = await window.LabCode.config.get();
+      const list = (c && c.ai && Array.isArray(c.ai.customAgents)) ? c.ai.customAgents : [];
+      for (const a of list) {
+        if (!a || !a.name) continue;
+        if (AGENT_PRESETS[a.name]) continue; // 已存在（含内置）不覆盖
+        AGENT_PRESETS[a.name] = { provider: a.provider || 'custom', model: a.model || '', apiKey: a.apiKey || '', baseURL: a.baseURL || '', thinking: a.thinking || 'standard', builtin: false, custom: true };
+      }
+    } catch (e) { console.warn('mergeCustomAgents:', e.message); }
+  }
+  // 已安装的 coding-agent CLI 桥接为可执行 Agent（provider='cli'，对齐 Ekko：CLI 可接入工作流/群聊）
+  const CLI_NAME_MAP = { 'claude-code': 'Claude Code', 'codex': 'Codex', 'pi': 'Pi', 'grok': 'Grok', 'opencode': 'OpenCode', 'dsh': 'DeepSeek Harness', 'qwen': 'Qwen Code', 'kimi': 'Kimi Code', 'codebuddy': 'CodeBuddy', 'qoder': 'Qoder', 'copilot': 'GitHub Copilot', 'cursor': 'Cursor', 'antigravity': 'Antigravity', 'zcode': 'ZCode' };
+  async function mergeCliAgents() {
+    try {
+      if (!window.LabCode.codingAgents) return;
+      const r = await window.LabCode.codingAgents.list();
+      if (!r || !r.success || !r.agents) return;
+      for (const a of r.agents) {
+        if (!a.installed || a.manual) continue;
+        const name = CLI_NAME_MAP[a.id] || a.name;
+        if (AGENT_PRESETS[name] && !AGENT_PRESETS[name].custom) continue; // 内置同名不覆盖
+        AGENT_PRESETS[name] = { provider: 'cli', model: a.id, apiKey: '', baseURL: '', thinking: 'standard', builtin: false, custom: true, cli: true, cliVersion: a.version, cliPath: a.path };
+      }
+    } catch (e) { console.warn('mergeCliAgents:', e.message); }
+  }
+  // CLI 执行（provider='cli' 的 Agent）
+  async function runCliAgent(name, prompt) {
+    const cfg = AGENT_PRESETS[name];
+    if (!cfg || !cfg.cli) return { success: false, error: '非 CLI Agent' };
+    try {
+      const r = await window.LabCode.codingAgents.run({ id: cfg.model || name, prompt });
+      return r || { success: false, error: '无返回' };
+    } catch (e) { return { success: false, error: e.message }; }
+  }
+  async function saveCustomAgents() {
+    try {
+      const list = Object.keys(AGENT_PRESETS).filter(k => AGENT_PRESETS[k] && AGENT_PRESETS[k].custom).map(k => {
+        const a = AGENT_PRESETS[k];
+        return { name: k, provider: a.provider, model: a.model, apiKey: a.apiKey || '', baseURL: a.baseURL || '', thinking: a.thinking || 'standard' };
+      });
+      await window.LabCode.config.set('ai.customAgents', list);
+    } catch (e) { console.warn('saveCustomAgents:', e.message); }
+  }
+  async function installCustomAgent(cfg) {
+    const name = String(cfg && cfg.name || '').trim();
+    if (!name) return { success: false, error: 'Agent 名称不能为空' };
+    if (AGENT_PRESETS[name]) return { success: false, error: '该名称已存在（内置或已安装），请换一个' };
+    const tmpl = CUSTOM_AGENT_TEMPLATES[cfg.template] || CUSTOM_AGENT_TEMPLATES.custom;
+    AGENT_PRESETS[name] = { provider: cfg.provider || tmpl.provider, model: (cfg.model || '').trim() || tmpl.model, apiKey: (cfg.apiKey || '').trim() || tmpl.apiKey, baseURL: (cfg.baseURL || '').trim() || tmpl.baseURL, thinking: cfg.thinking || tmpl.thinking, builtin: false, custom: true };
+    await saveCustomAgents();
+    return { success: true, name };
+  }
+  async function uninstallCustomAgent(name) {
+    if (!AGENT_PRESETS[name] || isBuiltinAgent(name)) return { success: false, error: '内置 Agent 不可卸载' };
+    delete AGENT_PRESETS[name];
+    await saveCustomAgents();
+    return { success: true };
+  }
+  // 编辑/更新自定义 Agent（对齐 Ekko Agent Manager 的更新能力）
+  async function updateCustomAgent(name, patch) {
+    if (!AGENT_PRESETS[name] || isBuiltinAgent(name)) return { success: false, error: '仅自定义 Agent 可更新' };
+    const a = AGENT_PRESETS[name];
+    if (patch && patch.name && patch.name.trim() && patch.name.trim() !== name) {
+      if (AGENT_PRESETS[patch.name.trim()]) return { success: false, error: '目标名称已存在' };
+      delete AGENT_PRESETS[name];
+      AGENT_PRESETS[patch.name.trim()] = a;
+      name = patch.name.trim();
+    }
+    if (patch.provider) a.provider = patch.provider;
+    if (patch.model) a.model = patch.model;
+    if (patch.apiKey != null) a.apiKey = patch.apiKey;
+    if (patch.baseURL != null) a.baseURL = patch.baseURL;
+    if (patch.thinking) a.thinking = patch.thinking;
+    await saveCustomAgents();
+    return { success: true, name };
+  }
+  // 暴露给全局（init 启动加载用）
+  window.__mergeCustomAgents = mergeCustomAgents;
+  window.__installCustomAgent = installCustomAgent;
+  window.__uninstallCustomAgent = uninstallCustomAgent;
+  window.__updateCustomAgent = updateCustomAgent;
+  window.__mergeCliAgents = mergeCliAgents;
+  window.__runCliAgent = runCliAgent;
+
   let gcRooms = [];
   let gcActiveId = null;
   let gcBound = false;
@@ -8430,21 +8750,25 @@ function bindEvents() {
   let wfBound = false;
   let wfDrag = null;
   function wfEsc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
-  function wfLoad() { try { const w = window.LabCode?.config?.get?.('ai.workflow'); if (w && w.nodes) { wfNodes = w.nodes; wfEdges = w.edges || []; return; } } catch (e) {} wfNodes = []; wfEdges = []; }
+  async function wfLoad() { try { const c = await window.LabCode?.config?.get?.(); const w = c && c.ai ? c.ai.workflow : null; if (w && w.nodes) { wfNodes = w.nodes; wfEdges = w.edges || []; return; } } catch (e) {} wfNodes = []; wfEdges = []; }
   function wfSave() { try { window.LabCode?.config?.set?.('ai.workflow', { nodes: wfNodes, edges: wfEdges }); } catch (e) {} }
   function wfPortPos(node, kind) { if (kind === 'in') return { x: node.x + 90, y: node.y }; return { x: node.x + 90, y: node.y + 70 }; }
   function wfRenderNodes() {
     const wrap = document.getElementById('wf-nodes'); if (!wrap) return;
     wrap.innerHTML = '';
     wfNodes.forEach(n => {
-      const el = document.createElement('div'); el.className = 'wf-node' + (n.id === wfActiveId ? ' selected' : '') + (n._state ? ' wf-' + n._state : ''); el.style.left = n.x + 'px'; el.style.top = n.y + 'px';
-      el.innerHTML = '<div class="wf-node-header"><span>' + WF_TYPE[n.type] + (n.data.label ? '：' + wfEsc(n.data.label) : '') + '</span><span class="wf-state ' + (n._state || '') + '">' + ({ running: '⏳运行中', done: '✅', error: '⚠️', skipped: '⏭️跳过' }[n._state] || '') + '</span></div><div class="wf-node-body">' + (n.data.result ? wfEsc(String(n.data.result).slice(0, 120)) : '双击编辑 / 拖拽移动') + '</div>';
+      const el = document.createElement('div'); el.className = 'wf-node' + (n.id === wfActiveId ? ' selected' : ''); el.style.left = n.x + 'px'; el.style.top = n.y + 'px';
+      const st = n.data.status || 'idle';
+      const stColor = WF_STATUS_COLOR[st] || 'var(--text-tertiary)';
+      const stText = WF_STATUS_TEXT[st] || st;
+      const agentTag = (n.type === 'ai' && n.data.agent) ? '<span style="font-size:10px;color:var(--text-tertiary);">' + wfEsc(n.data.agent) + (n.data.approval ? ' · 审批门' : '') + '</span>' : '';
+      el.innerHTML = '<div class="wf-node-header">' + WF_TYPE[n.type] + (n.data.label ? '：' + wfEsc(n.data.label) : '') + '<span style="float:right;font-size:10px;color:' + stColor + ';">' + stText + '</span></div><div class="wf-node-body">' + agentTag + '<div>' + (n.data.result ? wfEsc(String(n.data.result).slice(0, 100)) : '双击编辑 / 拖拽移动') + '</div></div>';
       const pin = document.createElement('div'); pin.className = 'wf-port in'; el.appendChild(pin);
       const pout = document.createElement('div'); pout.className = 'wf-port out'; el.appendChild(pout);
       el.querySelector('.wf-node-header').addEventListener('mousedown', e => { e.preventDefault(); wfDrag = { id: n.id, dx: e.clientX - n.x, dy: e.clientY - n.y }; });
       el.addEventListener('mousedown', () => { wfSelect(n.id); });
       pout.addEventListener('mousedown', e => { e.stopPropagation(); wfConnectFrom = n.id; showToast('已选起点，点目标节点输入口连线', 'info'); });
-      pin.addEventListener('mousedown', e => { e.stopPropagation(); if (wfConnectFrom && wfConnectFrom !== n.id) { wfEdges.push({ from: wfConnectFrom, to: n.id }); wfConnectFrom = null; wfRenderEdges(); wfSave(); } else { wfConnectFrom = null; } });
+      pin.addEventListener('mousedown', e => { e.stopPropagation(); if (wfConnectFrom && wfConnectFrom !== n.id) { const backEdge = wfNodes.findIndex(x => x.id === wfConnectFrom) >= wfNodes.findIndex(x => x.id === n.id); wfEdges.push({ from: wfConnectFrom, to: n.id, route: backEdge ? 'loop' : 'success' }); wfConnectFrom = null; wfRenderEdges(); wfSave(); } else { wfConnectFrom = null; } });
       el.addEventListener('dblclick', e => { e.stopPropagation(); wfEdit(n.id); });
       wrap.appendChild(el);
     });
@@ -8458,149 +8782,456 @@ function bindEvents() {
       const pa = wfPortPos(a, 'out'), pb = wfPortPos(b, 'in');
       const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
       line.setAttribute('x1', pa.x); line.setAttribute('y1', pa.y); line.setAttribute('x2', pb.x); line.setAttribute('y2', pb.y);
-      line.setAttribute('stroke', 'var(--primary)'); line.setAttribute('stroke-width', '2');
+      const isLoop = ed.route === 'loop';
+      line.setAttribute('stroke', isLoop ? '#ef4444' : 'var(--primary)');
+      line.setAttribute('stroke-width', '2');
+      line.setAttribute('stroke-dasharray', isLoop ? '6,4' : '');
+      line.setAttribute('data-route', isLoop ? 'loop' : 'success');
       svg.appendChild(line);
+      if (isLoop) {
+        const lbl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        lbl.setAttribute('x', (pa.x + pb.x) / 2 + 6); lbl.setAttribute('y', (pa.y + pb.y) / 2 - 6);
+        lbl.setAttribute('fill', '#ef4444'); lbl.setAttribute('font-size', '10');
+        lbl.textContent = '循环';
+        svg.appendChild(lbl);
+      }
     });
   }
-  function wfAddNode(type) { const n = { id: 'n' + Date.now(), type: type, x: 60 + (wfNodes.length % 6) * 30, y: 60 + (wfNodes.length % 6) * 30, data: { label: '', prompt: '', cmd: '', result: '' } }; wfNodes.push(n); wfRenderNodes(); wfSave(); }
+  function wfAddNode(type) {
+    const n = { id: 'n' + Date.now(), type: type, x: 60 + (wfNodes.length % 6) * 30, y: 60 + (wfNodes.length % 6) * 30, data: { label: '', prompt: '', cmd: '', result: '', agent: 'LabCode（内置）', approval: false, status: 'idle' } };
+    wfNodes.push(n); wfRenderNodes(); wfSave();
+  }
   function wfSelect(id) { wfActiveId = id; wfRenderNodes(); wfRenderProps(id); }
   function wfRenderProps(id) {
     const p = document.getElementById('wf-props'); const n = wfNodes.find(x => x.id === id); if (!p) return;
     if (!n) { p.innerHTML = '<span class="gc-hint">点选节点编辑属性</span>'; return; }
     let html = '<div style="font-weight:600;margin-bottom:8px;">' + WF_TYPE[n.type] + '</div>';
     html += '<label>名称</label><input id="wf-p-label" value="' + wfEsc(n.data.label || '') + '" />';
-    if (n.type === 'ai' || n.type === 'cond') { html += '<label>' + (n.type === 'cond' ? '条件表达式（JS）' : '提示词') + '</label><textarea id="wf-p-prompt" rows="4" placeholder="' + (n.type === 'cond' ? "如 prev.includes('error') 或 ctx['n上一步ID'].includes('失败')" : '') + '">' + wfEsc(n.data.prompt || '') + '</textarea>'; }
-    if (n.type === 'cond') { html += '<div class="wf-cond-hint">可用 <b>prev</b>（上游节点输出文本，换行连接）或 <b>ctx[\'节点ID\']</b> 引用任意节点结果；真分支取第 1 条出边，假分支取第 2 条出边。</div>'; }
+    if (n.type === 'ai') {
+      const agentNames = Object.keys(AGENT_PRESETS);
+      html += '<label>执行 Agent</label><select id="wf-p-agent">' + agentNames.map(a => '<option value="' + wfEsc(a) + '"' + (n.data.agent === a ? ' selected' : '') + '>' + wfEsc(a) + '</option>').join('') + '</select>';
+      html += '<label>审批门（执行前人工确认）</label><label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" id="wf-p-approval"' + (n.data.approval ? ' checked' : '') + ' /> 需要审批</label>';
+      html += '<label>提示词</label><textarea id="wf-p-prompt" rows="4">' + wfEsc(n.data.prompt || '') + '</textarea>';
+    } else if (n.type === 'cond') { html += '<label>条件</label><textarea id="wf-p-prompt" rows="4">' + wfEsc(n.data.prompt || '') + '</textarea>'; }
     if (n.type === 'tool') { html += '<label>终端命令</label><input id="wf-p-cmd" value="' + wfEsc(n.data.cmd || '') + '" />'; }
     if (n.type === 'output') { html += '<div style="margin-top:6px;color:var(--text-secondary)">输出：' + (n.data.result ? wfEsc(String(n.data.result).slice(0, 200)) : '—') + '</div>'; }
     html += '<div style="margin-top:10px;"><button class="btn btn-sm" id="wf-p-del">删除节点</button></div>';
     p.innerHTML = html;
-    const lb = p.querySelector('#wf-p-label'); if (lb) lb.addEventListener('input', () => { n.data.label = lb.value; wfRenderNodes(); });
-    const pr = p.querySelector('#wf-p-prompt'); if (pr) pr.addEventListener('input', () => { n.data.prompt = pr.value; });
-    const cm = p.querySelector('#wf-p-cmd'); if (cm) cm.addEventListener('input', () => { n.data.cmd = cm.value; });
+    const lb = p.querySelector('#wf-p-label'); if (lb) lb.addEventListener('input', () => { n.data.label = lb.value; wfRenderNodes(); wfSave(); });
+    const pr = p.querySelector('#wf-p-prompt'); if (pr) pr.addEventListener('input', () => { n.data.prompt = pr.value; wfSave(); });
+    const ag = p.querySelector('#wf-p-agent'); if (ag) ag.addEventListener('change', () => { n.data.agent = ag.value; wfSave(); });
+    const ap = p.querySelector('#wf-p-approval'); if (ap) ap.addEventListener('change', () => { n.data.approval = ap.checked; wfSave(); });
+    const cm = p.querySelector('#wf-p-cmd'); if (cm) cm.addEventListener('input', () => { n.data.cmd = cm.value; wfSave(); });
     const del = p.querySelector('#wf-p-del'); if (del) del.addEventListener('click', () => { wfNodes = wfNodes.filter(x => x.id !== id); wfEdges = wfEdges.filter(e => e.from !== id && e.to !== id); wfActiveId = null; wfRenderNodes(); wfSave(); });
   }
   function wfEdit(id) { wfSelect(id); const pr = document.getElementById('wf-p-prompt') || document.getElementById('wf-p-label'); if (pr) pr.focus(); }
+    // ============ 多 Agent 工作流引擎（对齐 Ekko Studio 设计）============
+  // 状态机：idle → queued → running → pending_approval → completed / failed
+  // 边路由：success（默认，前一节点成功才继续）→ 后续节点；失败则整条流程停止
+  // AI 节点绑定 AGENT_PRESETS 中的 Agent：运行时临时切换 ai 配置 → 调用 → 恢复
+  const WF_STATUS_TEXT = { idle: '待运行', queued: '排队中', running: '运行中', pending_approval: '待审批', completed: '已完成', failed: '失败' };
+  const WF_STATUS_COLOR = { idle: 'var(--text-tertiary)', queued: 'var(--text-secondary)', running: 'var(--primary)', pending_approval: 'var(--warn, #eab308)', completed: 'var(--success, #22c55e)', failed: '#ef4444' };
+  let wfRunning = false;
+
   async function wfRun() {
-    if (!wfNodes.length) { showToast('画布为空，先添加节点', 'info'); return; }
-    // ---- 环检测（完整图 Kahn）----
-    const indeg = {}; wfNodes.forEach(n => indeg[n.id] = 0);
-    wfEdges.forEach(e => { if (indeg[e.to] != null) indeg[e.to]++; });
-    const adj = {}; wfNodes.forEach(n => adj[n.id] = []);
-    wfEdges.forEach(e => { if (adj[e.from]) adj[e.from].push(e.to); });
-    const q = wfNodes.filter(n => indeg[n.id] === 0).map(n => n.id);
-    const topo = [];
-    while (q.length) { const id = q.shift(); topo.push(id); (adj[id] || []).forEach(t => { indeg[t]--; if (indeg[t] === 0) q.push(t); }); }
-    if (topo.length !== wfNodes.length) { showToast('工作流存在环，无法运行', 'error'); return; }
-
-    // ---- 单遍拓扑执行：条件分支按上游结果裁剪下游边 ----
-    const key = e => e.from + '->' + e.to;
-    const active = new Set(wfEdges.map(key));
-    const incomingOf = id => wfEdges.filter(e => e.to === id);
-    const ctxId = () => { const c = {}; wfNodes.forEach(x => { c[x.id] = (x.data && x.data.result) || ''; }); return c; };
-    let skipped = 0;
-    wfNodes.forEach(n => { n._state = 'idle'; });
-
-    const reachable = new Set();
-    wfNodes.filter(n => incomingOf(n.id).length === 0).forEach(n => reachable.add(n.id));
-    for (const id of topo) {
-      const n = wfNodes.find(x => x.id === id);
-      if (!n) continue;
-      const inc = incomingOf(id);
-      if (!reachable.has(id)) { n._state = 'skipped'; skipped++; wfRenderNodes(); continue; }
-      n._state = 'running'; wfRenderNodes();
-      try {
-        if (n.type === 'ai') {
-          const res = await window.LabCode.ai.chat({ messages: [{ role: 'user', content: n.data.prompt || '你好' }], temperature: 0.7, maxTokens: 8192 });
-          n.data.result = (res && res.success) ? (res.content || '') : '[失败：' + ((res && res.error) || '未知') + ']';
-          n._state = (res && res.success) ? 'done' : 'error';
-        } else if (n.type === 'tool') {
-          if (window.LabCode && window.LabCode.terminal && window.LabCode.terminal.execute) {
-            const cwd = (typeof state !== 'undefined' && state.projectPath) || undefined;
-            const res = await window.LabCode.terminal.execute(n.data.cmd || '', cwd, 60000);
-            if (res && res.blocked === 'deny') { n.data.result = '[已拦截] ' + (res.error || '危险命令'); n._state = 'error'; }
-            else {
-              const out = (res && res.stdout ? res.stdout : '') + (res && res.stderr ? '\n' + res.stderr : '');
-              const ec = res && res.exitCode !== undefined ? res.exitCode : (res && res.success ? 0 : 1);
-              n.data.result = (out || '(无输出)') + '\n(退出码 ' + ec + ')';
-              n._state = (res && res.success === false) ? 'error' : 'done';
+    if (wfRunning) { showToast('工作流正在运行中', 'warn'); return; }
+    wfRunning = true;
+    try {
+      // 执行模型：按边路由调度（success 边正常前进；loop 边回跳形成迭代，带最大轮次保护）
+      const MAX_LOOP = 5;                 // 每个节点最大循环次数，防死循环
+      const loopCount = {};               // 记录每个"回跳目标"的循环次数
+      const indeg = {}; wfNodes.forEach(n => indeg[n.id] = 0); wfEdges.forEach(e => { if (indeg[e.to] != null) indeg[e.to]++; });
+      const entry = wfNodes.filter(n => indeg[n.id] === 0).map(n => n.id);
+      if (!entry.length) { showToast('工作流缺少入口节点', 'error'); return; }
+      const order = [];                    // 实际执行队列（允许重复出现，形成循环）
+      const seq = entry.slice();
+      while (seq.length) {
+        const id = seq.shift();
+        order.push(id);
+        const n = wfNodes.find(x => x.id === id); if (!n) continue;
+        // 该节点的出边：success 边（含无路由默认）后续；loop 边回跳前置
+        const outs = wfEdges.filter(e => e.from === id);
+        for (const e of outs) {
+          if (e.route === 'loop') {
+            const target = wfNodes.find(x => x.id === e.to);
+            if (target) {
+              loopCount[e.to] = (loopCount[e.to] || 0) + 1;
+              if (loopCount[e.to] <= MAX_LOOP) seq.push(e.to);
             }
-          } else { n.data.result = '[非 Electron 环境，无法执行终端]'; n._state = 'error'; }
-        } else if (n.type === 'cond') {
-          const ups = inc.map(e => (wfNodes.find(x => x.id === e.from) || {}).data?.result || '');
-          let pass = false;
-          if (n.data.prompt && n.data.prompt.trim()) {
-            try { pass = !!new Function('ctx', 'prev', 'return (' + n.data.prompt + ')').call(null, ctxId(), ups.join('\n')); }
-            catch (err) { n.data.result = '[条件解析错误：' + err.message + ']'; n._state = 'error'; }
-          } else { n.data.result = '[未设置条件，默认走真分支]'; }
-          const outs = wfEdges.filter(e => e.from === id);
-          if (pass) { outs.slice(1).forEach(e => active.delete(key(e))); n.data.result = '✅ 条件成立 → 走真分支'; }
-          else { outs.slice(0, 1).forEach(e => active.delete(key(e))); n.data.result = '⬜ 条件不成立 → 走假分支'; }
-          if (n._state !== 'error') n._state = 'done';
-        } else {
-          n.data.result = '（已执行）'; n._state = 'done';
+          } else {
+            seq.push(e.to);
+          }
         }
-      } catch (e) { n.data.result = '[异常：' + e.message + ']'; n._state = 'error'; }
-      wfRenderNodes();
-      wfEdges.filter(e => e.from === id && active.has(key(e))).forEach(e => reachable.add(e.to));
-    }
-    wfSave();
-    const ran = wfNodes.filter(n => n._state === 'done' || n._state === 'error').length;
-    showToast('运行完成：执行 ' + ran + (skipped ? '，跳过 ' + skipped + ' 个（分支未命中）' : '') + ' 个节点', 'info');
-  }
-
-  async function wfExport() {
-    try {
-      const data = { name: 'LabCode 工作流', version: 1, exportedAt: new Date().toISOString(),
-        nodes: wfNodes.map(n => { const { _state, ...r } = n; return r; }), edges: wfEdges.slice() };
-      const json = JSON.stringify(data, null, 2);
-      if (window.LabCode && window.LabCode.dialog && window.LabCode.fs) {
-        const p = await window.LabCode.dialog.saveFile('labcode-workflow.json');
-        if (!p) return;
-        await window.LabCode.fs.writeFile(p, json);
-        showToast('已导出工作流到 ' + p, 'success');
-      } else {
-        const blob = new Blob([json], { type: 'application/json' });
-        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'labcode-workflow.json'; a.click();
-        showToast('已导出工作流 JSON', 'success');
       }
-    } catch (e) { showToast('导出失败：' + e.message, 'error'); }
-  }
 
-  async function wfImport() {
-    try {
-      if (!(window.LabCode && window.LabCode.dialog && window.LabCode.fs)) { showToast('仅 Electron 环境支持导入', 'error'); return; }
-      const p = await window.LabCode.dialog.openFile();
-      if (!p) return;
-      const content = await window.LabCode.fs.readFile(p);
-      const data = JSON.parse(content);
-      if (!data || !Array.isArray(data.nodes)) { showToast('文件格式不正确', 'error'); return; }
-      wfNodes = data.nodes.map(n => ({
-        id: n.id || ('n' + Date.now() + Math.random().toString(36).slice(2, 6)),
-        type: n.type || 'ai', x: n.x || 60, y: n.y || 60,
-        data: Object.assign({ label: '', prompt: '', cmd: '', result: '' }, n.data || {}),
-        _state: 'idle'
-      }));
-      wfEdges = Array.isArray(data.edges) ? data.edges.filter(e => e && e.from && e.to) : [];
-      wfActiveId = null; wfRenderNodes(); wfSave();
-      showToast('已导入工作流（' + wfNodes.length + ' 节点 / ' + wfEdges.length + ' 连线）', 'success');
-    } catch (e) { showToast('导入失败：' + e.message, 'error'); }
+      // 重置状态
+      wfNodes.forEach(n => { n.data.status = 'idle'; n.data.result = ''; });
+      wfRenderNodes();
+
+      for (const id of order) {
+        const n = wfNodes.find(x => x.id === id); if (!n) continue;
+        // 有 success 入边的节点只有在前置全部成功后才执行；否则跳过标记
+        const hasInEdge = wfEdges.some(e => e.to === id && e.route !== 'loop');
+        if (hasInEdge) {
+          const anyUpstreamFailed = wfEdges.some(e => e.to === id && e.route !== 'loop' && (wfNodes.find(x => x.id === e.from) || {}).data?.status === 'failed');
+          if (anyUpstreamFailed) { n.data.status = 'failed'; n.data.result = '（前置节点失败，跳过）'; wfRenderNodes(); continue; }
+        }
+
+        n.data.status = 'running'; n.data.result = '（运行中…）'; wfRenderNodes();
+        try {
+          if (n.type === 'ai') {
+            // 审批门：执行前人工确认
+            if (n.data.approval) {
+              n.data.status = 'pending_approval';
+              n.data.result = '等待人工审批…';
+              wfRenderNodes();
+              const decision = await new Promise(resolve => {
+                const box = document.createElement('div');
+                box.className = 'wf-approval-box';
+                box.style.cssText = 'position:fixed;top:45%;left:50%;transform:translate(-50%,-50%);z-index:2000;background:var(--surface-2,#1e1e2e);border:1px solid var(--border);border-radius:12px;padding:18px 22px;max-width:520px;box-shadow:0 12px 40px rgba(0,0,0,.35);';
+                box.innerHTML = '<div style="font-weight:600;margin-bottom:6px;">审批门 · ' + wfEsc(n.data.label || n.data.agent || 'AI 节点') + '</div>' +
+                  '<div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;max-height:120px;overflow:auto;white-space:pre-wrap;">' + wfEsc((n.data.prompt || '').slice(0, 500)) + '</div>' +
+                  '<div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;">执行 Agent：' + wfEsc(n.data.agent || 'LabCode（内置）') + '</div>' +
+                  '<div style="display:flex;gap:8px;justify-content:flex-end;"><button class="btn btn-sm" id="wf-ap-reject" style="background:#ef4444;color:#fff;border:none;border-radius:6px;padding:5px 14px;cursor:pointer;">拒绝</button>' +
+                  '<button class="btn btn-sm btn-primary" id="wf-ap-approve" style="background:var(--primary);color:#fff;border:none;border-radius:6px;padding:5px 14px;cursor:pointer;">批准执行</button></div>';
+                document.body.appendChild(box);
+                const cleanup = () => { box.remove(); };
+                box.querySelector('#wf-ap-approve').addEventListener('click', () => { cleanup(); resolve(true); });
+                box.querySelector('#wf-ap-reject').addEventListener('click', () => { cleanup(); resolve(false); });
+              });
+              if (!decision) { n.data.status = 'failed'; n.data.result = '（审批被拒绝）'; wfRenderNodes(); continue; }
+              n.data.status = 'running'; n.data.result = '（运行中…）'; wfRenderNodes();
+            }
+            // 按绑定 Agent 执行：CLI Agent 走真实 CLI，API Agent 切换配置调用
+            const agentCfg = (window.__AGENT_PRESETS || AGENT_PRESETS)[n.data.agent] || (window.__AGENT_PRESETS || AGENT_PRESETS)['LabCode（内置）'];
+            if (agentCfg.provider === 'cli') {
+              // CLI 桥接：执行已安装的 coding-agent CLI（非交互模式）
+              const cliRes = await runCliAgent(n.data.agent, n.data.prompt || '你好');
+              n.data.result = cliRes.success ? (cliRes.output || '') : '[CLI 失败：' + (cliRes.error || '未知') + ']';
+              n.data.status = cliRes.success ? 'completed' : 'failed';
+            } else {
+              const keys = ['provider', 'model', 'apiKey', 'baseURL', 'thinkingLevel'];
+              const curCfg = await window.LabCode.config.get(); const saved = {}; keys.forEach(k => { try { saved[k] = (curCfg && curCfg.ai) ? curCfg.ai[k] : ''; } catch (e) { saved[k] = ''; } });
+              try {
+                await window.LabCode.config.set('ai.provider', agentCfg.provider);
+                await window.LabCode.config.set('ai.model', agentCfg.model || '');
+                await window.LabCode.config.set('ai.apiKey', agentCfg.apiKey || '');
+                await window.LabCode.config.set('ai.baseURL', agentCfg.baseURL || '');
+                await window.LabCode.config.set('ai.thinkingLevel', agentCfg.thinking || 'standard');
+                const res = await window.LabCode.ai.chat({ messages: [{ role: 'user', content: n.data.prompt || '你好' }], temperature: 0.7, maxTokens: 8192 });
+                n.data.result = (res && res.success) ? (res.content || '') : '[失败：' + ((res && res.error) || '未知') + ']';
+                n.data.status = (res && res.success) ? 'completed' : 'failed';
+              } finally {
+                for (const k of keys) { try { await window.LabCode.config.set('ai.' + k, saved[k]); } catch (e) {} }
+              }
+            }
+          } else if (n.type === 'tool') {
+            // 真实终端执行（本地 849c17e 能力并入远端多 Agent 引擎，2026-10-17 合并）
+            if (window.LabCode && window.LabCode.terminal && window.LabCode.terminal.execute) {
+              const cwd = (typeof state !== 'undefined' && state.projectPath) || undefined;
+              const res = await window.LabCode.terminal.execute(n.data.cmd || '', cwd, 60000);
+              if (res && res.blocked === 'deny') {
+                n.data.result = '[已拦截] ' + (res.error || '危险命令'); n.data.status = 'failed';
+              } else {
+                const out = (res && res.stdout ? res.stdout : '') + (res && res.stderr ? '\n' + res.stderr : '');
+                const ec = res && res.exitCode !== undefined ? res.exitCode : (res && res.success ? 0 : 1);
+                n.data.result = (out || '(无输出)') + '\n(退出码 ' + ec + ')';
+                n.data.status = (res && res.success === false) ? 'failed' : 'completed';
+              }
+            } else { n.data.result = '[非 Electron 环境，无法执行终端]'; n.data.status = 'failed'; }
+          } else if (n.type === 'cond') {
+            n.data.result = '（条件节点，默认透传成功路由）'; n.data.status = 'completed';
+          } else {
+            n.data.result = '（已执行）'; n.data.status = 'completed';
+          }
+        } catch (e) {
+          n.data.result = '[异常：' + e.message + ']';
+          n.data.status = 'failed';
+        }
+        wfRenderNodes();
+        if (n.data.status === 'failed') { showToast('工作流在节点「' + (n.data.label || n.id) + '」失败，已停止', 'error'); break; }
+      }
+      wfSave();
+      const failedCount = wfNodes.filter(n => n.data.status === 'failed').length;
+      showToast(failedCount ? '运行结束（' + failedCount + ' 节点失败）' : '运行完成', failedCount ? 'error' : 'success');
+    } finally {
+      wfRunning = false;
+    }
   }
   function wfShowView() {
-    wfLoad(); wfRenderNodes();
+    wfLoad().then(() => { wfRenderNodes(); });
     const v = document.getElementById('workflow-view'); if (v) v.style.display = 'flex';
     if (!wfBound) {
       wfBound = true;
       document.querySelectorAll('.wf-palette-item').forEach(it => it.addEventListener('click', () => wfAddNode(it.dataset.type)));
       document.getElementById('wf-new').addEventListener('click', () => { wfNodes = []; wfEdges = []; wfActiveId = null; wfRenderNodes(); wfSave(); });
+      // ============ 工作流导入 / 导出（JSON，便携可迁移）============
+      document.getElementById('wf-export').addEventListener('click', () => {
+        const payload = { version: 1, nodes: wfNodes, edges: wfEdges };
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'workflow-' + Date.now() + '.json';
+        a.click();
+        URL.revokeObjectURL(a.href);
+        showToast('已导出 ' + wfNodes.length + ' 个节点', 'success');
+      });
+      document.getElementById('wf-import').addEventListener('click', () => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.json,application/json';
+        input.onchange = () => {
+          const file = input.files && input.files[0]; if (!file) return;
+          const reader = new FileReader();
+          reader.onload = () => {
+            try {
+              const data = JSON.parse(reader.result);
+              if (!data || !Array.isArray(data.nodes)) { showToast('文件格式不正确（缺少 nodes 数组）', 'error'); return; }
+              wfNodes = data.nodes;
+              wfEdges = Array.isArray(data.edges) ? data.edges : [];
+              // 兼容旧文件：边无 route 时补默认
+              wfEdges.forEach(e => { if (!e.route) e.route = 'success'; });
+              wfActiveId = null;
+              wfRenderNodes(); wfSave();
+              showToast('已导入 ' + wfNodes.length + ' 个节点 / ' + wfEdges.length + ' 条边', 'success');
+            } catch (e) { showToast('导入失败：' + e.message, 'error'); }
+          };
+          reader.readAsText(file);
+        };
+        input.click();
+      });
       document.getElementById('wf-save').addEventListener('click', () => { wfSave(); showToast('已保存工作流', 'info'); });
       document.getElementById('wf-run').addEventListener('click', () => wfRun());
-      document.getElementById('wf-export').addEventListener('click', () => wfExport());
-      document.getElementById('wf-import').addEventListener('click', () => wfImport());
+      const wfAgentsBtn = document.getElementById('wf-agents-btn');
+      if (wfAgentsBtn) wfAgentsBtn.addEventListener('click', () => wfAgentsShow());
       document.addEventListener('mousemove', e => { if (wfDrag) { const n = wfNodes.find(x => x.id === wfDrag.id); if (n) { n.x = e.clientX - wfDrag.dx; n.y = e.clientY - wfDrag.dy; wfRenderNodes(); } } });
       document.addEventListener('mouseup', () => { if (wfDrag) { wfDrag = null; wfSave(); } });
     }
   }
+
+  // ============ Agent Manager（对齐 Ekko Studio Agent Manager）============
+  // 展示 AGENT_PRESETS 中的多 Agent 运行时：名称/provider/模型/内置状态/连通测试
+  let wfAgentsBound = false;
+  // Agent 连通测试结果（错误原因可见，对齐 Ekko status.error/source）
+  const agentTestResults = {};
+  let editingAgentName = null;
+  let wfAgentsTab = 'agents'; // 'agents' | 'cli'
+
+  let wfAgentsCliBound = false;
+  const cliProgress = {};
+
+  async function wfAgentsShowCli(p) {
+    if (!window.LabCode.codingAgents) {
+      p.innerHTML += '<div style="font-size:12px;color:var(--text-tertiary);margin-top:8px;">主进程未暴露 codingAgents API</div>';
+      return;
+    }
+    p.innerHTML += '<div style="font-size:11px;color:var(--text-secondary);margin-bottom:8px;">安装 / 检测 / 更新真实的 coding-agent CLI（npm 全局安装，对齐 Ekko Agent Manager）。装好后即可接入工作流与群聊作为 Agent 使用。</div>' +
+      '<div style="margin-bottom:8px;display:flex;gap:6px;"><button class="btn btn-sm" id="wf-cli-refresh">刷新状态</button>' +
+      '<span style="font-size:10px;color:var(--text-tertiary);align-self:center;">安装需本机 npm（Node.js 自带）</span></div>';
+    const listBox = document.createElement('div');
+    listBox.id = 'wf-cli-list';
+    p.appendChild(listBox);
+    const render = async () => {
+      listBox.innerHTML = '<div style="color:var(--text-tertiary);font-size:12px;">检测中…</div>';
+      let r;
+      try { r = await window.LabCode.codingAgents.list(); } catch (e) { listBox.innerHTML = '<div style="font-size:12px;color:#ef4444;">检测失败：' + wfEsc(e.message) + '</div>'; return; }
+      if (!r || !r.success || !r.agents) { listBox.innerHTML = '<div style="font-size:12px;">无数据</div>'; return; }
+      listBox.innerHTML = r.agents.map(a => {
+        const st = a.installed
+          ? '<span style="font-size:11px;color:var(--success,#22c55e);">✅ ' + wfEsc(a.version || '') + '</span>'
+          : (a.manual ? '<span style="font-size:11px;color:var(--text-tertiary);">📄 手动安装</span>' : '<span style="font-size:11px;color:#ef4444;">❌ 未安装</span>');
+        const err = (!a.installed && !a.manual && a.error) ? '<div style="font-size:10px;color:var(--text-tertiary);margin-top:2px;">' + wfEsc(a.error) + '</div>' : '';
+        const path = a.installed && a.path ? '<div style="font-size:10px;color:var(--text-tertiary);word-break:break-all;">' + wfEsc(a.path) + '</div>' : '';
+        return '<div data-wf-card="1" style="border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:6px;background:var(--surface-0);">' +
+          '<div style="display:flex;justify-content:space-between;align-items:center;"><span style="font-weight:600;font-size:12px;">' + wfEsc(a.name) + '</span>' + st + '</div>' +
+          err + path +
+          '<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;">' +
+          (a.manual
+            ? '<a class="btn btn-sm" href="' + wfEsc(a.docs) + '" target="_blank" rel="noopener" style="text-decoration:none;">安装指南 ↗</a>'
+            : (a.installed
+              ? '<button class="btn btn-sm" data-cli-op="update" data-cli-id="' + wfEsc(a.id) + '">更新</button>' +
+                '<button class="btn btn-sm" data-cli-op="remove" data-cli-id="' + wfEsc(a.id) + '" style="border-color:#ef4444;color:#ef4444;">卸载</button>'
+              : '<button class="btn btn-sm btn-primary" data-cli-op="install" data-cli-id="' + wfEsc(a.id) + '">安装</button>')) +
+          '</div>' +
+          '<div data-cli-progress="' + wfEsc(a.id) + '" style="display:none;font-size:11px;color:var(--primary);margin-top:4px;word-break:break-all;"></div></div>';
+      }).join('');
+    };
+    await render();
+    const refBtn = document.getElementById('wf-cli-refresh');
+    if (refBtn) refBtn.addEventListener('click', render);
+    if (!wfAgentsCliBound) {
+      wfAgentsCliBound = true;
+      // 进度订阅：主进程 npm 输出 → 对应卡片进度行
+      if (window.LabCode.codingAgents.onProgress) {
+        window.LabCode.codingAgents.onProgress((data) => {
+          const el = p.querySelector('[data-cli-progress="' + (data && data.id || '') + '"]');
+          if (el && data && data.message) { el.style.display = 'block'; el.textContent = (data.percent != null ? data.percent + '% ' : '') + data.message; }
+        });
+      }
+      p.addEventListener('click', async (e) => {
+        const btn = e.target.closest('[data-cli-op]');
+        if (!btn) return;
+        const op = btn.dataset.cliOp, id = btn.dataset.cliId;
+        const prog = p.querySelector('[data-cli-progress="' + id + '"]');
+        btn.disabled = true; btn.textContent = '处理中…';
+        if (prog) { prog.style.display = 'block'; prog.textContent = '启动 npm ' + op + ' …'; }
+        try {
+          const r = await window.LabCode.codingAgents[op]({ id });
+          if (prog) { prog.style.display = 'block'; prog.textContent = r.success ? ('✓ ' + (op === 'install' ? '安装完成' : op === 'update' ? '更新完成' : '已卸载')) : ('失败：' + (r.error || '')); }
+        } catch (err) {
+          if (prog) { prog.style.display = 'block'; prog.textContent = '异常：' + err.message; }
+        } finally {
+          btn.disabled = false; btn.textContent = op === 'install' ? '安装' : op === 'update' ? '更新' : '卸载';
+          setTimeout(render, 1500);
+        }
+      });
+    }
+  }
+
+  async function wfAgentsShow() {
+    const p = document.getElementById('wf-props'); if (!p) return;
+    const tabsHtml = '<div style="display:flex;gap:6px;margin-bottom:10px;">' +
+      '<button class="btn btn-sm ' + (wfAgentsTab === 'agents' ? 'btn-primary' : 'btn-secondary') + '" data-wf-tab="agents">Agent 目录</button>' +
+      '<button class="btn btn-sm ' + (wfAgentsTab === 'cli' ? 'btn-primary' : 'btn-secondary') + '" data-wf-tab="cli">CLI 工具</button></div>';
+    if (wfAgentsTab === 'cli') {
+      p.innerHTML = tabsHtml;
+      await wfAgentsShowCli(p);
+      return;
+    }
+    await mergeCustomAgents(); // 确保自定义 Agent 已合并
+    const names = Object.keys(AGENT_PRESETS);
+    const builtins = names.filter(n => isBuiltinAgent(n)).length;
+    const customs = names.length - builtins;
+    let html = '<div style="font-weight:600;margin-bottom:6px;">Agent Manager <span style="font-size:11px;color:var(--text-tertiary);">(' + names.length + ' 个运行时 · ' + builtins + ' 内置 / ' + customs + ' 自定义）</span></div>';
+    html += '<div style="font-size:11px;color:var(--text-secondary);margin-bottom:10px;">目录供工作流 / 群聊 / 调度共享；可安装新 Agent 并测试连通性，自定义项支持编辑与卸载。</div>';
+    // ===== 安装 / 编辑 Agent 表单（同一表单两种模式）=====
+    const isEdit = !!editingAgentName;
+    const editCfg = isEdit ? AGENT_PRESETS[editingAgentName] : null;
+    html += '<div style="border:1px solid ' + (isEdit ? 'var(--primary)' : 'var(--border)') + ';border-radius:8px;padding:10px;margin-bottom:10px;background:var(--surface-1);">' +
+      '<div style="font-weight:600;font-size:12px;color:var(--primary);margin-bottom:8px;">' + (isEdit ? '✏️ 编辑 Agent：' + wfEsc(editingAgentName) : '+ 安装新 Agent') + '</div>' +
+      '<div style="display:flex;flex-direction:column;gap:6px;">' +
+      '<input id="wf-install-name" placeholder="Agent 名称（如 本地Qwen）" value="' + (isEdit ? wfEsc(editingAgentName) : '') + '" style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-primary);font-size:12px;" />' +
+      '<select id="wf-install-template" style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-primary);font-size:12px;">' +
+      '<option value="openai">OpenAI（云端 API）</option><option value="anthropic">Anthropic / Claude</option>' +
+      '<option value="ollama">本地 Ollama</option><option value="deepseek">DeepSeek</option><option value="custom">自定义（OpenAI 兼容）</option></select>' +
+      '<input id="wf-install-model" placeholder="模型名（留空用默认）" value="' + (isEdit && editCfg ? wfEsc(editCfg.model || '') : '') + '" style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-primary);font-size:12px;" />' +
+      '<input id="wf-install-key" type="password" placeholder="API Key（本地/自定义可不填）" value="' + (isEdit && editCfg ? wfEsc(editCfg.apiKey || '') : '') + '" style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-primary);font-size:12px;" />' +
+      '<input id="wf-install-url" placeholder="Base URL（留空用模板默认）" value="' + (isEdit && editCfg ? wfEsc(editCfg.baseURL || '') : '') + '" style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-primary);font-size:12px;" />' +
+      '<select id="wf-install-thinking" style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-primary);font-size:12px;">' +
+      '<option value="standard">思考档位：standard</option><option value="fast">fast</option><option value="light">light</option><option value="deep">deep</option></select>' +
+      '<div style="display:flex;gap:6px;"><button class="btn btn-sm btn-primary" id="wf-install-btn" style="flex:1;">' + (isEdit ? '保存更改' : '安装') + '</button>' +
+      (isEdit ? '<button class="btn btn-sm btn-secondary" id="wf-edit-cancel" style="flex:1;">取消</button>' : '') +
+      '</div></div></div>';
+    // ===== Agent 卡片目录 =====
+    html += '<div style="display:flex;flex-direction:column;gap:8px;">';
+    names.forEach(name => {
+      const cfg = AGENT_PRESETS[name];
+      const isCustom = cfg && cfg.custom;
+      const tr = agentTestResults[name];
+      const statusHtml = tr
+        ? (tr.ok
+          ? '<div style="font-size:11px;color:var(--success,#22c55e);margin-top:4px;">✅ 连通正常（' + wfEsc(tr.time || '') + '）</div>'
+          : '<div style="font-size:11px;color:#ef4444;margin-top:4px;word-break:break-all;">❌ ' + wfEsc(tr.message || '连接失败') + '</div>')
+        : '';
+      html += '<div data-wf-card="1" style="border:1px solid var(--border);border-radius:8px;padding:8px 10px;background:var(--surface-0);">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;">' +
+        '<span style="font-weight:600;font-size:13px;">' + wfEsc(name) + '</span>' +
+        '<span style="font-size:10px;color:var(--text-tertiary);">' + (isCustom ? '自定义' : '内置') + '</span></div>' +
+        '<div style="font-size:11px;color:var(--text-secondary);margin-top:3px;">provider: ' + wfEsc(cfg.provider) + ' · model: ' + wfEsc(cfg.model || '（默认）') + '</div>' +
+        '<div style="font-size:10px;color:var(--text-tertiary);margin-top:2px;word-break:break-all;">' + wfEsc(cfg.baseURL || '（使用默认端点）') + '</div>' +
+        statusHtml +
+        '<div style="margin-top:6px;display:flex;gap:6px;"><button class="btn btn-sm" data-wf-test="' + wfEsc(name) + '">测试连通</button>' +
+        (isCustom ? '<button class="btn btn-sm" data-wf-edit="' + wfEsc(name) + '">编辑</button>' : '') +
+        (isCustom ? '<button class="btn btn-sm" data-wf-uninstall="' + wfEsc(name) + '" style="border-color:#ef4444;color:#ef4444;">卸载</button>' : '') +
+        '</div></div>';
+    });
+    html += '</div>';
+    p.innerHTML = tabsHtml + html;
+
+    // ===== 安装/保存按钮 =====
+    const installBtn = document.getElementById('wf-install-btn');
+    if (installBtn) installBtn.addEventListener('click', async () => {
+      const name = (document.getElementById('wf-install-name').value || '').trim();
+      const template = document.getElementById('wf-install-template').value;
+      const model = document.getElementById('wf-install-model').value;
+      const apiKey = document.getElementById('wf-install-key').value;
+      const baseURL = document.getElementById('wf-install-url').value;
+      const thinking = document.getElementById('wf-install-thinking').value;
+      if (!name) { showToast('请填写 Agent 名称', 'warn'); return; }
+      if (editingAgentName) {
+        const r = await updateCustomAgent(editingAgentName, { name, provider: undefined, model, apiKey, baseURL, thinking });
+        editingAgentName = null;
+        if (r.success) { showToast('已更新 Agent「' + r.name + '」', 'success'); wfAgentsShow(); }
+        else { showToast('更新失败：' + r.error, 'error'); wfAgentsShow(); }
+      } else {
+        const r = await installCustomAgent({ name, template, model, apiKey, baseURL, thinking });
+        if (r.success) { showToast('已安装 Agent「' + r.name + '」，可在工作流/群聊中使用', 'success'); wfAgentsShow(); }
+        else showToast('安装失败：' + r.error, 'error');
+      }
+    });
+    const cancelBtn = document.getElementById('wf-edit-cancel');
+    if (cancelBtn) cancelBtn.addEventListener('click', () => { editingAgentName = null; wfAgentsShow(); });
+
+    // ===== 事件委托：测试 / 编辑 / 卸载 =====
+    if (!wfAgentsBound) {
+      wfAgentsBound = true;
+      p.addEventListener('click', async (e) => {
+        const tabBtn = e.target.closest('[data-wf-tab]');
+        if (tabBtn) { wfAgentsTab = tabBtn.dataset.wfTab; wfAgentsShow(); return; }
+        const editBtn = e.target.closest('[data-wf-edit]');
+        if (editBtn) { editingAgentName = editBtn.dataset.wfEdit; wfAgentsShow(); return; }
+        const unBtn = e.target.closest('[data-wf-uninstall]');
+        if (unBtn) {
+          const name = unBtn.dataset.wfUninstall;
+          const r = await uninstallCustomAgent(name);
+          if (r.success) { showToast('已卸载 Agent「' + name + '」', 'success'); wfAgentsShow(); }
+          else showToast('卸载失败：' + r.error, 'error');
+          return;
+        }
+        const btn = e.target.closest('[data-wf-test]');
+        if (!btn) return;
+        const name = btn.dataset.wfTest;
+        const cfg = AGENT_PRESETS[name];
+        if (!cfg) return;
+        btn.disabled = true; btn.textContent = '测试中…';
+        try {
+          const saved = {};
+          const curCfg2 = await window.LabCode.config.get(); ['provider', 'model', 'apiKey', 'baseURL', 'thinkingLevel'].forEach(k => { try { saved[k] = (curCfg2 && curCfg2.ai) ? curCfg2.ai[k] : ''; } catch (err) { saved[k] = ''; } });
+          await window.LabCode.config.set('ai.provider', cfg.provider);
+          await window.LabCode.config.set('ai.model', cfg.model || '');
+          await window.LabCode.config.set('ai.apiKey', cfg.apiKey || '');
+          await window.LabCode.config.set('ai.baseURL', cfg.baseURL || '');
+          await window.LabCode.config.set('ai.thinkingLevel', cfg.thinking || 'standard');
+          const res = await window.LabCode.ai.checkConnection({});
+          const ok = !!(res && res.ok);
+          agentTestResults[name] = { ok, message: (res && res.message) || (ok ? 'OK' : '连接失败'), time: new Date().toLocaleTimeString() };
+          btn.textContent = ok ? '✅ 连通' : '❌ 失败';
+          for (const k of Object.keys(saved)) { try { await window.LabCode.config.set('ai.' + k, saved[k]); } catch (err) {} }
+        } catch (err) {
+          agentTestResults[name] = { ok: false, message: err.message || '异常', time: new Date().toLocaleTimeString() };
+          btn.textContent = '❌ 异常';
+        } finally {
+          btn.disabled = false;
+          setTimeout(() => { const b = p.querySelector('[data-wf-test="' + wfEsc(name) + '"]'); if (b) b.textContent = '测试连通'; }, 4000);
+          // 错误原因可见：更新该卡片状态区而不整页重渲（保留滚动位置）
+          const card = btn.closest('[data-wf-card]');
+          const tr = agentTestResults[name];
+          if (card && tr && !tr.ok) {
+            let st = card.querySelector('[data-wf-status]');
+            if (!st) {
+              st = document.createElement('div');
+              st.setAttribute('data-wf-status', '1');
+              st.style.cssText = 'font-size:11px;color:#ef4444;margin-top:4px;word-break:break-all;';
+              const meta = card.querySelector('div:nth-child(3)');
+              if (meta && meta.parentNode) meta.parentNode.insertBefore(st, meta.nextSibling);
+            }
+            st.textContent = '❌ ' + (tr.message || '连接失败');
+          }
+        }
+      });
+    }
+  }
+
 
   // ============ 活动栏按钮 ============
   document.querySelectorAll('.activity-btn').forEach(item => {
@@ -8709,7 +9340,7 @@ function bindEvents() {
   // ============ 群聊 / 多 Agent 房间（对标 Ekko「群聊」） ============
   // 内置 + 运行时预设（与 Agent 市场运行时档一致），用于房间成员配置（变量声明见活动栏前，模块级避免 TDZ）
   function gcEsc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
-  function gcLoad() { try { gcRooms = window.LabCode?.config?.get?.('ai.groupRooms') || []; } catch (e) { gcRooms = []; } if (!Array.isArray(gcRooms)) gcRooms = []; }
+  async function gcLoad() { try { const c = await window.LabCode?.config?.get?.(); gcRooms = (c && c.ai && c.ai.groupRooms) || []; } catch (e) { gcRooms = []; } if (!Array.isArray(gcRooms)) gcRooms = []; }
   function gcSave() { try { window.LabCode?.config?.set?.('ai.groupRooms', gcRooms); } catch (e) {} }
   function gcRenderRooms() {
     const list = document.getElementById('gc-room-list'); if (!list) return;
@@ -8767,21 +9398,43 @@ function bindEvents() {
     const input = document.getElementById('gc-input'); if (!input) return;
     const text = input.value.trim(); if (!text) return; input.value = '';
     room.messages.push({ role: 'user', name: '我', content: text, ts: Date.now() }); gcRenderMessages(room);
+    // @mention 定向：解析消息中的 @Agent名，命中则只让该 Agent 回复；否则全员轮流
+    let targets = (room.members || []).slice();
+    const mentionMatch = text.match(/@([\u4e00-\u9fa5A-Za-z0-9（）()·]+)/g);
+    if (mentionMatch) {
+      const mentioned = [];
+      mentionMatch.forEach(mt => {
+        const name = mt.slice(1).trim();
+        if (room.members && room.members.includes(name)) mentioned.push(name);
+      });
+      if (mentioned.length) {
+        targets = mentioned;
+        room.messages.push({ role: 'system', name: '系统', content: '（已定向 @' + mentioned.join('、') + '，仅其回复）', ts: Date.now() });
+        gcRenderMessages(room);
+      }
+    }
     const keys = ['provider', 'model', 'apiKey', 'baseURL', 'thinkingLevel'];
-    const saved = {}; keys.forEach(k => { try { saved[k] = window.LabCode.config.get('ai.' + k); } catch (e) { saved[k] = ''; } });
-    for (const m of (room.members || [])) {
+    const curCfg3 = await window.LabCode.config.get(); const saved = {}; keys.forEach(k => { try { saved[k] = (curCfg3 && curCfg3.ai) ? curCfg3.ai[k] : ''; } catch (e) { saved[k] = ''; } });
+    for (const m of targets) {
       const cfg = AGENT_PRESETS[m]; if (!cfg) continue;
       room.messages.push({ role: 'agent', name: m, content: '（思考中…）', ts: Date.now() }); gcRenderMessages(room);
       try {
-        await window.LabCode.config.set('ai.provider', cfg.provider);
-        await window.LabCode.config.set('ai.model', cfg.model || '');
-        await window.LabCode.config.set('ai.apiKey', cfg.apiKey || '');
-        await window.LabCode.config.set('ai.baseURL', cfg.baseURL || '');
-        await window.LabCode.config.set('ai.thinkingLevel', cfg.thinking || 'standard');
-        const hist = room.messages.filter(x => x.content !== '（思考中…）').map(x => ({ role: x.role === 'user' ? 'user' : 'assistant', content: (x.name ? ('[' + x.name + '] ') : '') + x.content }));
-        const sys = { role: 'system', content: '你是群聊房间「' + room.name + '」里的一个 Agent（' + m + '）。房间内有多个 Agent 与用户协作，请用简洁的中文回应。' };
-        const res = await window.LabCode.ai.chat({ messages: [sys].concat(hist), temperature: 0.7, maxTokens: 8192 });
-        const reply = (res && res.success) ? (res.content || '') : '[调用失败：' + ((res && res.error) || '未知') + ']';
+        let reply;
+        if (cfg.provider === 'cli') {
+          // CLI 桥接：群聊成员为已安装 CLI 时直接执行
+          const cliRes = await runCliAgent(m, (room.messages.filter(x => x.role === 'user').pop() || {}).content || '你好');
+          reply = cliRes.success ? (cliRes.output || '（无输出）') : '[CLI 失败：' + (cliRes.error || '未知') + ']';
+        } else {
+          await window.LabCode.config.set('ai.provider', cfg.provider);
+          await window.LabCode.config.set('ai.model', cfg.model || '');
+          await window.LabCode.config.set('ai.apiKey', cfg.apiKey || '');
+          await window.LabCode.config.set('ai.baseURL', cfg.baseURL || '');
+          await window.LabCode.config.set('ai.thinkingLevel', cfg.thinking || 'standard');
+          const hist = room.messages.filter(x => x.content !== '（思考中…）').map(x => ({ role: x.role === 'user' ? 'user' : 'assistant', content: (x.name ? ('[' + x.name + '] ') : '') + x.content }));
+          const sys = { role: 'system', content: '你是群聊房间「' + room.name + '」里的一个 Agent（' + m + '）。房间内有多个 Agent 与用户协作，请用简洁的中文回应。' };
+          const res = await window.LabCode.ai.chat({ messages: [sys].concat(hist), temperature: 0.7, maxTokens: 8192 });
+          reply = (res && res.success) ? (res.content || '') : '[调用失败：' + ((res && res.error) || '未知') + ']';
+        }
         const idx = room.messages.findIndex(x => x.role === 'agent' && x.name === m && x.content === '（思考中…）');
         if (idx >= 0) room.messages[idx] = { role: 'agent', name: m, content: reply || '（无回复）', ts: Date.now() };
       } catch (e) {
@@ -8798,7 +9451,7 @@ function bindEvents() {
     gcSave();
   }
   function gcShowView() {
-    gcLoad(); gcRenderRooms();
+    gcLoad().then(() => gcRenderRooms());
     if (!gcActiveId && gcRooms.length) gcActiveId = gcRooms[0].id;
     gcRenderRoom();
     const v = document.getElementById('groupchat-view'); if (v) v.style.display = 'flex';
@@ -10037,6 +10690,38 @@ function bindEvents() {
       populateDefaultBoards();
       populateSystemPorts();
       showToast('arduino-cli 未安装，设备列表为常用预设', 'warning');
+      // 一键安装引导条
+      const banner = document.getElementById('dev-cli-banner');
+      const instBtn = document.getElementById('dev-cli-install');
+      if (banner) banner.style.display = 'block';
+      if (instBtn) {
+        instBtn.addEventListener('click', async () => {
+          const prog = document.getElementById('dev-cli-progress');
+          instBtn.disabled = true; instBtn.textContent = '安装中…';
+          if (prog) { prog.style.display = 'block'; prog.textContent = '正在下载 arduino-cli…'; }
+          try {
+            if (window.LabCode.toolchain && window.LabCode.toolchain.onProgress) {
+              window.LabCode.toolchain.onProgress((d) => {
+                if (prog && d && d.message) prog.textContent = d.message + (d.progress ? ' (' + d.progress + '%)' : '');
+              });
+            }
+            const r = await window.LabCode.toolchain.installCli();
+            if (prog) prog.textContent = (r && r.message) ? r.message : '安装结果未知';
+            if (r && r.ok) {
+              instBtn.textContent = '已安装';
+              showToast('arduino-cli 安装成功', 'success');
+              await initDevicePanel();
+            } else {
+              instBtn.disabled = false; instBtn.textContent = '重试安装';
+              showToast('安装失败：' + ((r && r.error) || '未知'), 'error');
+            }
+          } catch (e) {
+            instBtn.disabled = false; instBtn.textContent = '重试安装';
+            if (prog) prog.textContent = '安装失败：' + e.message;
+            showToast('安装失败：' + e.message, 'error');
+          }
+        });
+      }
       return;
     }
     await Promise.all([refreshBoards(), refreshPorts(), refreshCores()]);
@@ -10687,8 +11372,8 @@ function bindEvents() {
   document.getElementById('run-btn').addEventListener('click', async () => {
     if (!state.activeTab) { showToast('请先打开一个文件','error'); return; }
     const fileName = state.activeTab;
-    const projectPath = state.projectPath || 'C:\\Users\\Administrator\\LabCodeProjects\\untitled';
-    const fullPath = projectPath + '\\' + fileName;
+    const projectPath = state.projectPath || 'C:/Users/Administrator/LabCodeProjects/untitled';
+    const fullPath = diskJoin(projectPath, fileName);
     
     addOutputLog(`运行文件: ${fileName}`, 'info');
     
@@ -11101,6 +11786,37 @@ function bindEvents() {
     if (!port) { showToast('请先选串口', 'warn'); return; }
     const t = getToolDef('arduino-cli-toolchain_serial_log_open');
     if (t) { await t.execute({ port, baud: 115200 }); showToast('串口监视已打开 ' + port, 'success'); }
+  });
+
+  // ============ 编辑器工具栏快捷：编译 / 烧录（软硬件开发流水线）============
+  const editorCompileBtn = document.getElementById('editor-compile-btn');
+  if (editorCompileBtn) editorCompileBtn.addEventListener('click', async () => {
+    const t = getToolDef('arduino-cli-toolchain_compile');
+    if (!t) { showToast('编译工具未加载', 'error'); return; }
+    showToast('编译中…', 'info');
+    const r = await t.execute({});
+    showToast(r.includes('error') ? '编译失败' : '编译成功', r.includes('error') ? 'error' : 'success');
+    const ov = document.getElementById('bottom-panel');
+    if (ov && ov.style.display === 'none') { ov.style.display = 'flex'; }
+    const ot = document.querySelector('.bottom-tab[data-panel="output"]');
+    if (ot) ot.click();
+  });
+  const editorUploadBtn = document.getElementById('editor-upload-btn');
+  if (editorUploadBtn) editorUploadBtn.addEventListener('click', async () => {
+    const portSel = document.getElementById('port-select');
+    const port = portSel ? portSel.value : '';
+    if (!port) { showToast('请先在设备面板选择串口', 'warn'); return; }
+    showToast('烧录到 ' + port + '…', 'info');
+    if (window.LabCode.terminal && window.LabCode.terminal.execute) {
+      const r = await window.LabCode.terminal.execute('arduino-cli upload -p ' + port, state.projectPath, 120000);
+      showToast(String(r).includes('error') ? '烧录失败' : '烧录完成', String(r).includes('error') ? 'error' : 'success');
+    } else {
+      showToast('终端模块未就绪', 'error');
+    }
+    const ov2 = document.getElementById('bottom-panel');
+    if (ov2 && ov2.style.display === 'none') { ov2.style.display = 'flex'; }
+    const tt = document.querySelector('.bottom-tab[data-panel="terminal"]');
+    if (tt) tt.click();
   });
 
   // 工具活动面板（Flow）按钮
@@ -11909,11 +12625,11 @@ function bindEvents() {
             properties: ['openFile', 'multiSelections']
           });
           if (!result.canceled && result.filePaths.length > 0) {
-            const projectPath = state.projectPath || 'C:\\Users\\Administrator\\LabCodeProjects\\untitled';
+            const projectPath = state.projectPath || 'C:/Users/Administrator/LabCodeProjects/untitled';
             let addedCount = 0;
             for (const filePath of result.filePaths) {
               const fileName = filePath.split('\\').pop();
-              const destPath = projectPath + '\\' + fileName;
+              const destPath = diskJoin(projectPath, fileName);
               try {
                 // 使用 preload 暴露的 fs.copyFile API
                 const copyResult = await window.LabCode.fs.copyFile(filePath, destPath);
@@ -12306,9 +13022,252 @@ async function loadMcpTools() {
 }
 
 // ============ 初始化 ============
+// ============ UI 主题管理（双主题：深色/浅色一键切换，全局作用域）============
+async function applyTheme(theme, save) {
+  const t = (theme === 'light') ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', t);
+  try {
+    if (window.monaco && window.monaco.editor) {
+      window.monaco.editor.setTheme(t === 'light' ? 'vs' : 'labcode-dark');
+      if (window.monaco.editor.getEditors) {
+        window.monaco.editor.getEditors().forEach(ed => ed.updateOptions({ theme: t === 'light' ? 'vs' : 'labcode-dark' }));
+      }
+    }
+  } catch (e) { /* monaco 未就绪时忽略 */ }
+  const sel = document.getElementById('ui-theme-select');
+  if (sel) sel.value = t;
+  if (save !== false) {
+    try { await window.LabCode.config.set('ui.theme', t); } catch (e) {}
+  }
+}
+
+async function initTheme() {
+  let t = 'dark';
+  try {
+    const c = await window.LabCode.config.get();
+    t = (c && c.ui && c.ui.theme) || 'dark';
+  } catch (e) {}
+  try { await applyTheme(t, false); } catch (e) {}
+  const sel = document.getElementById('ui-theme-select');
+  if (sel) {
+    sel.addEventListener('change', async () => {
+      await applyTheme(sel.value, true);
+      if (window.showToast) showToast('主题已切换为' + (sel.value === 'light' ? '浅色' : '深色'), 'success');
+    });
+  }
+}
+
+// ============ 调度触发工作流执行器（无 UI 纯执行，主进程 cron 到点调用）============
+async function wfRunScheduled(nodes, edges, taskPrompt) {
+  const MAX_LOOP = 5;
+  const loopCount = {};
+  const indeg = {}; nodes.forEach(n => indeg[n.id] = 0); edges.forEach(e => { if (indeg[e.to] != null) indeg[e.to]++; });
+  const entry = nodes.filter(n => indeg[n.id] === 0).map(n => n.id);
+  if (!entry.length) return { ok: false, error: '工作流缺少入口节点' };
+  const order = [];
+  const seq = entry.slice();
+  while (seq.length) {
+    const id = seq.shift();
+    order.push(id);
+    const n = nodes.find(x => x.id === id); if (!n) continue;
+    const outs = edges.filter(e => e.from === id);
+    for (const e of outs) {
+      if (e.route === 'loop') {
+        const target = nodes.find(x => x.id === e.to);
+        if (target) {
+          loopCount[e.to] = (loopCount[e.to] || 0) + 1;
+          if (loopCount[e.to] <= MAX_LOOP) seq.push(e.to);
+        }
+      } else seq.push(e.to);
+    }
+  }
+  const summary = [];
+  let failed = 0;
+  for (const id of order) {
+    const n = nodes.find(x => x.id === id); if (!n) continue;
+    const hasInEdge = edges.some(e => e.to === id && e.route !== 'loop');
+    if (hasInEdge) {
+      const anyUpstreamFailed = edges.some(e => e.to === id && e.route !== 'loop' && (nodes.find(x => x.id === e.from) || {}).data?.status === 'failed');
+      if (anyUpstreamFailed) { n.data.status = 'failed'; failed++; summary.push((n.data.label || n.id) + ': 跳过（前置失败）'); continue; }
+    }
+    n.data.status = 'running';
+    try {
+      if (n.type === 'ai') {
+        // 审批门节点：调度场景自动通过（任务已由用户预授权）
+        if (n.data.approval) { n.data.status = 'pending_approval'; await new Promise(r => setTimeout(r, 300)); }
+        const agentCfg = (window.__AGENT_PRESETS || AGENT_PRESETS)[n.data.agent] || (window.__AGENT_PRESETS || AGENT_PRESETS)['LabCode（内置）'];
+        if (agentCfg.provider === 'cli') {
+          // CLI 桥接：调度触发执行已安装 CLI（非交互模式）
+          const cliRes = await runCliAgent(n.data.agent, n.data.prompt || '你好');
+          n.data.status = cliRes.success ? 'completed' : 'failed';
+          n.data.result = cliRes.success ? (cliRes.output || '') : ('[CLI 失败：' + (cliRes.error || '未知') + ']');
+        } else {
+          const keys = ['provider', 'model', 'apiKey', 'baseURL', 'thinkingLevel'];
+          const curCfg = await window.LabCode.config.get(); const saved = {}; keys.forEach(k => { try { saved[k] = (curCfg && curCfg.ai) ? curCfg.ai[k] : ''; } catch (e) { saved[k] = ''; } });
+          try {
+            await window.LabCode.config.set('ai.provider', agentCfg.provider);
+            await window.LabCode.config.set('ai.model', agentCfg.model || '');
+            await window.LabCode.config.set('ai.apiKey', agentCfg.apiKey || '');
+            await window.LabCode.config.set('ai.baseURL', agentCfg.baseURL || '');
+            await window.LabCode.config.set('ai.thinkingLevel', agentCfg.thinking || 'standard');
+            const prompt = [n.data.prompt || '', taskPrompt ? '（定时任务附加指令：' + taskPrompt + '）' : ''].filter(Boolean).join('\n');
+            const res = await window.LabCode.ai.chat({ messages: [{ role: 'user', content: prompt || '你好' }], temperature: 0.7, maxTokens: 8192 });
+            n.data.status = (res && res.success) ? 'completed' : 'failed';
+            n.data.result = (res && res.success) ? (res.content || '') : ('[失败：' + ((res && res.error) || '未知') + ']');
+          } finally {
+            for (const k of keys) { try { await window.LabCode.config.set('ai.' + k, saved[k]); } catch (e) {} }
+          }
+        }
+      } else if (n.type === 'tool') {
+        n.data.result = '[终端] ' + (n.data.cmd || '(空)');
+        n.data.status = 'completed';
+      } else if (n.type === 'cond') {
+        n.data.result = '（条件节点，默认透传成功路由）'; n.data.status = 'completed';
+      } else {
+        n.data.result = '（已执行）'; n.data.status = 'completed';
+      }
+    } catch (e) {
+      n.data.result = '[异常：' + e.message + ']';
+      n.data.status = 'failed';
+    }
+    const tag = n.data.label || n.id;
+    const detail = n.data.result ? String(n.data.result).slice(0, 200) : '';
+    summary.push(tag + ' [' + n.data.status + '] ' + detail);
+    if (n.data.status === 'failed') { failed++; break; }
+  }
+  return { ok: failed === 0, summary: summary.join('\n'), failedCount: failed, total: order.length };
+}
+
+// 注册调度工作流监听（主进程 cron 到点 → 执行 → 回报）
+function initScheduledWorkflow() {
+  try {
+    if (!window.LabCode || !window.LabCode.schedule || !window.LabCode.schedule.onExecWorkflow) return;
+    window.LabCode.schedule.onExecWorkflow(async (data) => {
+      try {
+        const cfg = await window.LabCode.config.get();
+        const wf = cfg && cfg.ai && cfg.ai.workflow;
+        if (!wf || !wf.nodes || !wf.nodes.length) {
+          window.LabCode.schedule.sendWorkflowResult({ token: data.token, ok: false, error: '没有可执行的工作流（请先在工作流面板配置）' });
+          return;
+        }
+        // 深拷贝执行，避免污染面板当前状态
+        const nodes = JSON.parse(JSON.stringify(wf.nodes));
+        const edges = JSON.parse(JSON.stringify(wf.edges || []));
+        const res = await wfRunScheduled(nodes, edges, data.prompt || '');
+        // 用量统计：调度触发的执行补记
+        try { usageRecord('调度工作流', res.ok, 0); } catch (e) {}
+        window.LabCode.schedule.sendWorkflowResult({ token: data.token, ok: res.ok, summary: res.summary, error: res.error || '' });
+      } catch (e) {
+        window.LabCode.schedule.sendWorkflowResult({ token: data.token, ok: false, error: e.message });
+      }
+    });
+  } catch (e) { /* 忽略 */ }
+}
+
+// ============ 用量统计（本地记录 AI 调用次数/Token 估算/模型分布，对齐 Ekko Usage Analytics）============
+const USAGE_KEY = 'ai.usage';
+let usageData = { calls: 0, tokens: 0, success: 0, fail: 0, byModel: {}, history: [] };
+
+async function usageLoad() {
+  try {
+    const c = await window.LabCode.config.get();
+    usageData = (c && c.ai && c.ai.usage) || usageData;
+    if (!usageData.byModel) usageData.byModel = {};
+    if (!usageData.history) usageData.history = [];
+  } catch (e) {}
+}
+function usageSave() {
+  try { window.LabCode.config.set(USAGE_KEY, usageData); } catch (e) {}
+}
+function usageRecord(model, ok, tokenEstimate) {
+  usageData.calls++;
+  usageData.tokens += (tokenEstimate || 0);
+  if (ok) usageData.success++; else usageData.fail++;
+  const m = model || 'unknown';
+  usageData.byModel[m] = (usageData.byModel[m] || 0) + 1;
+  usageData.history.unshift({ t: Date.now(), model: m, ok: !!ok, tokens: tokenEstimate || 0 });
+  if (usageData.history.length > 50) usageData.history = usageData.history.slice(0, 50);
+  usageSave();
+  usageRender();
+}
+function usageTokenEstimate(messages) {
+  // 粗略估算：中文约 1.5 字/token，英文约 4 字符/token
+  try {
+    const text = (messages || []).map(m => (m.content || '')).join(' ');
+    const cjk = (text.match(/[\u4e00-\u9fa5]/g) || []).length;
+    const other = text.length - cjk;
+    return Math.max(1, Math.round(cjk * 1.5 + other / 4));
+  } catch (e) { return 0; }
+}
+function usageEsc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+function usageRender() {
+  const setNum = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = String(v); };
+  setNum('usage-total-calls', usageData.calls);
+  setNum('usage-total-tokens', usageData.tokens.toLocaleString());
+  setNum('usage-total-success', usageData.success);
+  setNum('usage-total-fail', usageData.fail);
+  // 模型分布
+  const mm = document.getElementById('usage-models');
+  if (mm) {
+    const names = Object.keys(usageData.byModel);
+    mm.innerHTML = names.length ? names.map(n => '<div class="usage-model-row"><span>' + usageEsc(n) + '</span><span class="usage-model-count">' + usageData.byModel[n] + '</span></div>').join('') : '<div class="usage-empty">暂无数据</div>';
+  }
+  // 最近调用
+  const hh = document.getElementById('usage-history');
+  if (hh) {
+    hh.innerHTML = usageData.history.length ? usageData.history.map(h => {
+      const d = new Date(h.t);
+      const pad = x => String(x).padStart(2, '0');
+      return '<div class="usage-hist-row"><span class="usage-hist-time">' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds()) + '</span><span>' + usageEsc(h.model) + '</span><span class="' + (h.ok ? 'usage-ok' : 'usage-fail') + '">' + (h.ok ? '成功' : '失败') + '</span><span class="usage-tk">' + h.tokens + ' tok</span></div>';
+    }).join('') : '<div class="usage-empty">暂无调用记录</div>';
+  }
+}
+function usageToggle(show) {
+  const p = document.getElementById('usage-panel');
+  if (!p) return;
+  p.style.display = show ? 'block' : 'none';
+  if (show) usageRender();
+}
+function initUsagePanel() {
+  const btn = document.getElementById('ai-usage-btn');
+  if (btn) btn.addEventListener('click', () => { const p = document.getElementById('usage-panel'); usageToggle(!p || p.style.display === 'none'); });
+  const close = document.getElementById('usage-close');
+  if (close) close.addEventListener('click', () => usageToggle(false));
+  const reset = document.getElementById('usage-reset');
+  if (reset) reset.addEventListener('click', async () => {
+    usageData = { calls: 0, tokens: 0, success: 0, fail: 0, byModel: {}, history: [] };
+    usageSave(); usageRender();
+    if (window.showToast) showToast('用量统计已重置', 'success');
+  });
+}
+// 拦截 window.LabCode.ai.chat 统一计数（所有调用点自动纳入统计）
+function initUsageInterceptor() {
+  try {
+    if (!window.LabCode || !window.LabCode.ai || window.LabCode.ai.__usageWrapped) return;
+    const origChat = window.LabCode.ai.chat;
+    if (typeof origChat !== 'function') return;
+    window.LabCode.ai.__usageWrapped = true;
+    window.LabCode.ai.chat = async (opts) => {
+      const est = usageTokenEstimate(opts && opts.messages);
+      try {
+        const res = await origChat(opts);
+        usageRecord((opts && opts.model) || '默认', !!(res && res.success), est);
+        return res;
+      } catch (e) {
+        usageRecord((opts && opts.model) || '默认', false, est);
+        throw e;
+      }
+    };
+  } catch (e) { /* 忽略包装失败 */ }
+}
+
 function init() {
   try {
     // 1:1 对齐 TrieCode：默认无打开文件，AI 面板占满主区域
+    initTheme();
+    usageLoad().then(() => { initUsagePanel(); initUsageInterceptor(); usageRender(); });
+    initScheduledWorkflow();
+    if (window.__mergeCustomAgents) window.__mergeCustomAgents().then(async () => { try { if (window.__mergeCliAgents) await window.__mergeCliAgents(); if (typeof wfRenderNodes === 'function') wfRenderNodes(); } catch (e) {} });
     document.body.classList.add('no-open-file');
     initFiles();
     renderFileTree();
@@ -12660,6 +13619,7 @@ if (document.readyState === 'loading') {
       }
     });
   }
+
 })();
 
 
@@ -12916,6 +13876,7 @@ if (document.readyState === 'loading') {
     const btn = document.getElementById('save-ai-config');
     if (btn) btn.addEventListener('click', saveAIConfig);
   });
+
 })();
 
 

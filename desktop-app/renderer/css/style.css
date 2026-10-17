@@ -4872,3 +4872,551 @@ body.logged-out .editor-toolbar { display: none !important; }
 body.logged-out #welcome-screen { display: none !important; }
 body.logged-out .editor-tabs { display: none !important; }
 body.logged-out .editor-container, body.logged-out .editor-wrapper { background: var(--bg-primary) !important; border-top: none !important; box-shadow: none !important; }
+
+/* ================================================================
+   UI 质感升级层 v2（2026-10-17）
+   ----------------------------------------------------------------
+   双主题设计令牌精修 + 全局质感（圆角/阴影/渐变/过渡）
+   + 组件质感（按钮/输入框/标签页/滚动条/弹窗）
+   + 功能页美化（欢迎页/命令面板/工作流/群聊/Agent Manager）
+   本层置于文件末尾，后写覆盖，不影响既有布局结构。
+   ================================================================ */
+
+/* ---------- ① 双主题设计令牌精修 ---------- */
+:root,
+[data-theme="dark"] {
+  /* 更现代的高级暗色：偏冷蓝黑，层级更细腻 */
+  --surface-0: #0b0f14;
+  --surface-1: #11161d;
+  --surface-2: #171e27;
+  --surface-3: #1f2833;
+  --surface-hover: rgba(255, 255, 255, 0.06);
+  --surface-active: rgba(255, 255, 255, 0.10);
+  --border: #232c37;
+  --border-light: #1a222b;
+  --border-medium: #232c37;
+  --border-dark: #313d4b;
+  --text: #e8edf3;
+  --text-primary: #e8edf3;
+  --text-secondary: #9aa7b5;
+  --text-tertiary: #7c8896;
+  --primary: #4f8ef7;
+  --primary-hover: #6aa2ff;
+  --primary-active: #3b76e0;
+  --primary-light: rgba(79, 142, 247, 0.16);
+  --primary-lighter: rgba(79, 142, 247, 0.08);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.25);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.32);
+  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.45);
+}
+
+[data-theme="light"] {
+  /* 更干净通透的现代亮色 */
+  --surface-0: #f3f5f9;
+  --surface-1: #ffffff;
+  --surface-2: #f6f7fa;
+  --surface-3: #eef1f6;
+  --surface-hover: rgba(30, 41, 59, 0.05);
+  --surface-active: rgba(30, 41, 59, 0.085);
+  --border: #e3e7ee;
+  --border-light: #eef1f5;
+  --border-medium: #e3e7ee;
+  --border-dark: #d2d8e2;
+  --text: #1f2937;
+  --text-primary: #1f2937;
+  --text-secondary: #5a6474;
+  --text-tertiary: #8791a0;
+  --primary: #2563eb;
+  --primary-hover: #1d4ed8;
+  --primary-active: #1e40af;
+  --primary-light: rgba(37, 99, 235, 0.10);
+  --primary-lighter: rgba(37, 99, 235, 0.05);
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.06);
+  --shadow-md: 0 4px 14px rgba(16, 24, 40, 0.10);
+  --shadow-lg: 0 12px 32px rgba(16, 24, 40, 0.16);
+}
+
+/* ---------- ② 全局质感与动效 ---------- */
+body,
+.app,
+.editor-container,
+.ai-panel,
+.sidebar,
+.bottom-panel,
+.welcome-content,
+.titlebar,
+.toolbar,
+.statusbar {
+  transition: background-color 0.25s ease, border-color 0.25s ease, color 0.2s ease;
+}
+
+/* 全局滚动条（暗/亮自适应） */
+::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-dark);
+  border-radius: 6px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-tertiary);
+  background-clip: padding-box;
+}
+
+/* 按钮质感：圆角、过渡、按下反馈 */
+button,
+.btn,
+.wf-palette-item,
+.cmd-palette-item,
+.dropdown-item,
+.activity-btn,
+.bottom-tab,
+.icon-btn,
+.editor-toolbar-btn,
+.gc-room-item,
+.wf-node,
+.sidebar-item {
+  transition: background-color 0.18s ease, border-color 0.18s ease,
+    color 0.18s ease, transform 0.12s ease, box-shadow 0.18s ease;
+}
+button:active:not(:disabled),
+.btn:active:not(:disabled),
+.activity-btn:active,
+.icon-btn:active:not(:disabled),
+.editor-toolbar-btn:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.btn,
+button.btn {
+  border-radius: 7px;
+}
+.btn-primary {
+  background: linear-gradient(135deg, var(--primary), var(--primary-active));
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+.btn-primary:hover:not(:disabled) {
+  filter: brightness(1.08);
+  box-shadow: 0 2px 8px var(--primary-light);
+}
+
+/* 输入框质感 */
+input,
+textarea,
+select,
+.monaco-editor {
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.2s ease;
+}
+input:focus,
+textarea:focus,
+select:focus,
+.ai-input:focus-within,
+.search-input:focus-within {
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 3px var(--primary-lighter) !important;
+  outline: none;
+}
+
+/* 活动栏：当前项更明显 */
+.activity-btn.active {
+  background: var(--primary-light) !important;
+  border-left: 2px solid var(--primary);
+  color: var(--primary) !important;
+}
+.activity-btn {
+  border-left: 2px solid transparent;
+}
+
+/* 标签页：hover 与激活态 */
+.editor-tab,
+.tab-item {
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.editor-tab.active,
+.tab-item.active {
+  background: var(--surface-2);
+  box-shadow: inset 0 -2px 0 var(--primary);
+}
+
+/* 状态栏 */
+.statusbar {
+  border-top: 1px solid var(--border-light);
+  font-size: 11px;
+}
+
+/* 标题栏 */
+.titlebar {
+  border-bottom: 1px solid var(--border-light);
+}
+
+/* ---------- ③ 功能页美化 ---------- */
+
+/* 欢迎页：更精致的层级 */
+.welcome-content,
+#welcome-screen {
+  background:
+    radial-gradient(1200px 600px at 85% -10%, var(--primary-lighter), transparent 60%),
+    var(--surface-1);
+}
+
+/* 欢迎弹窗 / 登录卡 */
+.welcome-modal,
+.login-card,
+.welcome-card {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow-lg);
+  backdrop-filter: blur(8px);
+}
+
+/* 命令面板：全屏遮罩 + 精致卡片 */
+#command-palette {
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(4px);
+}
+#command-palette .command-palette-modal {
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
+  background: var(--surface-1);
+  animation: cmdPaletteIn 0.16s ease-out;
+}
+@keyframes cmdPaletteIn {
+  from { opacity: 0; transform: translateY(-6px) scale(0.99); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.cmd-palette-item.active {
+  background: var(--primary-light) !important;
+  color: var(--primary) !important;
+}
+
+/* 工作流画布：网格背景 + 节点质感 */
+.workflow-view .wf-canvas-wrap {
+  background-image:
+    linear-gradient(var(--border-light) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border-light) 1px, transparent 1px) !important;
+  background-size: 24px 24px !important;
+}
+#wf-nodes .wf-node {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-sm);
+  background: var(--surface-2);
+  transition: box-shadow 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
+}
+#wf-nodes .wf-node:hover {
+  box-shadow: var(--shadow-md);
+  border-color: var(--primary);
+  transform: translateY(-1px);
+}
+#wf-nodes .wf-node.selected {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--primary-lighter), var(--shadow-md);
+}
+#wf-nodes .wf-node .wf-port {
+  border-radius: 50%;
+  border: 2px solid var(--surface-2);
+  background: var(--primary);
+  box-shadow: 0 0 4px var(--primary-light);
+}
+.workflow-view .wf-sidebar {
+  background: var(--surface-1);
+  border-right: 1px solid var(--border-light);
+}
+.workflow-view .wf-props {
+  background: var(--surface-1);
+  border-left: 1px solid var(--border-light);
+}
+.workflow-view .wf-palette-item {
+  border-radius: 7px;
+  background: var(--surface-2);
+}
+.workflow-view .wf-palette-item:hover {
+  background: var(--surface-hover);
+  border-color: var(--primary);
+}
+
+/* 群聊：消息气泡质感 */
+.gc-msg {
+  border-radius: 10px;
+  max-width: 78%;
+  box-shadow: var(--shadow-sm);
+}
+.gc-msg-agent {
+  background: var(--surface-2) !important;
+  border: 1px solid var(--border-light);
+}
+.gc-msg-user {
+  background: linear-gradient(135deg, var(--primary), var(--primary-active)) !important;
+  color: #fff;
+}
+.gc-room-item {
+  border-radius: 8px;
+}
+.gc-room-item.active {
+  background: var(--primary-light);
+  color: var(--primary);
+}
+.gc-chip {
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  font-size: 11px;
+  padding: 2px 10px;
+}
+
+/* Agent Manager 卡片 */
+[data-wf-test] {
+  border-radius: 6px;
+}
+
+/* 审批门弹窗动画 */
+.wf-approval-box {
+  animation: approvalIn 0.2s ease-out;
+}
+@keyframes approvalIn {
+  from { opacity: 0; transform: translate(-50%, -48%) scale(0.97); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+/* 模态框通用 */
+.modal-overlay,
+[class*="modal"] {
+  animation: modalIn 0.18s ease-out;
+}
+@keyframes modalIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* ================================================================
+   UI 质感升级层 v3 —— 软硬件开发主线（2026-10-17）
+   ----------------------------------------------------------------
+   ① 设备面板：开发流程流水线（选板/端口 → 编译 → 烧录 → 串口监视）
+   ② 编辑器工具栏：编译/烧录快捷入口（开发最高频动作常驻）
+   ③ 活动栏/底部面板重排后的视觉协调
+   ================================================================ */
+
+/* ---------- 设备面板：开发流程流水线 ---------- */
+.dev-actions {
+  margin-top: 16px;
+  padding: 10px 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+}
+.dev-step-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+.dev-action-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.dev-action-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  flex: 1;
+  padding: 8px 4px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface-1);
+  color: var(--text-primary);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+.dev-action-btn svg {
+  width: 18px;
+  height: 18px;
+}
+.dev-action-btn:hover {
+  border-color: var(--primary);
+  background: var(--primary-lighter);
+  color: var(--primary);
+  transform: translateY(-1px);
+}
+.dev-action-btn:active {
+  transform: scale(0.95);
+}
+.dev-action-btn.dev-compile {
+  background: linear-gradient(135deg, var(--primary), var(--primary-active));
+  border-color: transparent;
+  color: #fff;
+}
+.dev-action-btn.dev-compile:hover {
+  filter: brightness(1.1);
+  color: #fff;
+}
+.dev-action-btn.dev-upload {
+  border-color: var(--border-dark);
+}
+.dev-action-btn.dev-monitor {
+  border-color: var(--border-dark);
+}
+.dev-arrow {
+  color: var(--text-tertiary);
+  font-size: 13px;
+  user-select: none;
+}
+
+/* ---------- 编辑器工具栏：快捷编译/烧录 ---------- */
+.editor-toolbar-sep {
+  width: 1px;
+  height: 18px;
+  background: var(--border);
+  margin: 0 6px;
+  align-self: center;
+}
+.dev-quick-btn {
+  color: var(--text-secondary);
+}
+.dev-quick-btn:hover {
+  color: var(--primary);
+}
+#editor-compile-btn.dev-quick-btn {
+  color: var(--primary);
+}
+#editor-compile-btn.dev-quick-btn:hover {
+  filter: brightness(1.15);
+}
+
+/* ---------- 活动栏重排后的视觉提示：设备/工作流高优先 ---------- */
+.activity-btn[data-panel="device"] {
+  position: relative;
+}
+.activity-btn[data-panel="device"]::after,
+.activity-btn[data-panel="workflow"]::after {
+  content: '';
+  position: absolute;
+  bottom: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--primary);
+  opacity: 0.55;
+}
+
+/* ================================================================
+   UI 质感升级层 v4 —— 用量统计面板（对齐 Ekko Usage Analytics）
+   ================================================================ */
+.usage-panel {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-light);
+  background: var(--surface-1);
+  max-height: 340px;
+  overflow-y: auto;
+}
+.usage-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.usage-panel-title {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.usage-panel-actions { display: flex; gap: 6px; }
+.usage-btn {
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.usage-btn:hover { border-color: var(--primary); color: var(--primary); }
+.usage-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.usage-stat-card {
+  background: var(--surface-2);
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  padding: 10px 6px;
+  text-align: center;
+}
+.usage-stat-num {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--primary);
+}
+.usage-stat-label {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  margin-top: 2px;
+}
+.usage-section-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  margin: 10px 0 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.usage-model-row,
+.usage-hist-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--text-primary);
+}
+.usage-model-row:nth-child(odd),
+.usage-hist-row:nth-child(odd) { background: var(--surface-2); }
+.usage-model-count {
+  background: var(--primary-lighter);
+  color: var(--primary);
+  border-radius: 10px;
+  padding: 1px 8px;
+  font-size: 11px;
+}
+.usage-hist-time { color: var(--text-tertiary); font-size: 11px; }
+.usage-ok { color: var(--success); }
+.usage-fail { color: var(--error); }
+.usage-tk { color: var(--text-tertiary); font-size: 11px; }
+.usage-empty {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  padding: 8px;
+}
+
+/* ============ 调度 · 工作流模式标签 ============ */
+.sched-mode-tag {
+  display: inline-block;
+  background: var(--primary-lighter, rgba(99,102,241,.15));
+  color: var(--primary, #818cf8);
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 10px;
+  margin-left: 4px;
+  vertical-align: middle;
+}

@@ -16,6 +16,10 @@ const terminalService = getTerminalService();
 let mainWindow = null;
 let isDev = process.argv.includes('--dev');
 
+// 模块化：开发板管理（@labcode/core 的 Board 模块，compile/upload 兜底 FQBN 推断）
+// 2026-10-17：接入 packages/core/src/board.js（真实模块），fqbn 缺失时用 guessFQBN 推断
+const Board = require('../packages/core/src/board.js');
+
 // 鐢ㄦ埛鏁版嵁鐩綍
 const USER_DATA_PATH = app.getPath('userData');
 const CONFIG_PATH = path.join(USER_DATA_PATH, 'config.json');
@@ -1647,6 +1651,121 @@ function setupIPC() {
     };
   });
 
+  // ============ Coding-Agent CLI 安装/检测（对齐 Ekko Agent Manager：npm 安装真实 CLI）============
+  const CLI_AGENTS = [
+    { id: 'claude-code', name: 'Claude Code', command: 'claude', packageName: '@anthropic-ai/claude-code', docs: '', manual: false },
+    { id: 'codex', name: 'Codex', command: 'codex', packageName: '@openai/codex', docs: '', manual: false },
+    { id: 'pi', name: 'Pi', command: 'pi', packageName: '@earendil-works/pi-coding-agent', docs: '', manual: false },
+    { id: 'grok', name: 'Grok', command: 'grok', packageName: '@xai-official/grok', docs: '', manual: false },
+    { id: 'opencode', name: 'OpenCode', command: 'opencode', packageName: 'opencode-ai', docs: '', manual: false },
+    { id: 'dsh', name: 'DeepSeek Harness', command: 'dsh', packageName: '@deepseek-ai/dsh', docs: '', manual: false },
+    { id: 'qwen', name: 'Qwen Code', command: 'qwen', packageName: '@qwen-code/qwen-code', docs: '', manual: false },
+    { id: 'kimi', name: 'Kimi Code', command: 'kimi', packageName: '@moonshot-ai/kimi-code', docs: '', manual: false },
+    { id: 'codebuddy', name: 'CodeBuddy', command: 'codebuddy', packageName: '@tencent-ai/codebuddy-code', docs: '', manual: false },
+    { id: 'qoder', name: 'Qoder', command: 'qoder', packageName: '@qoder-ai/qodercli', docs: '', manual: false },
+    { id: 'copilot', name: 'GitHub Copilot', command: 'copilot', packageName: '@github/copilot', docs: '', manual: false },
+    { id: 'cursor', name: 'Cursor', command: 'agent', packageName: '', docs: 'https://cursor.com/install', manual: true },
+    { id: 'antigravity', name: 'Antigravity', command: 'agy', packageName: '', docs: 'https://antigravity.google/docs/cli/install', manual: true },
+    { id: 'zcode', name: 'ZCode', command: 'zcode', packageName: '', docs: 'https://zcode.z.ai/', manual: true }
+  ];
+  const agentCliBusy = new Set();
+  // 单轮非交互执行参数（对齐各 CLI print/run 模式；不支持的返回明确提示）
+  function cliRunArgs(def, prompt) {
+    const P = prompt || '';
+    switch (def.id) {
+      case 'claude-code': return ['-p', P, '--output-format', 'text'];
+      case 'codex': return ['exec', P];
+      case 'opencode': return ['run', P];
+      case 'qwen': return ['-p', P];
+      case 'kimi': return ['-p', P];
+      case 'grok': return ['-p', P];
+      case 'codebuddy': return ['-p', P];
+      case 'pi': return ['-p', P];
+      case 'dsh': return ['-p', P];
+      default: return null;
+    }
+  }
+  async function runAgentCli(id, prompt) {
+    const def = CLI_AGENTS.find(a => a.id === id);
+    if (!def || def.manual) return { success: false, error: '未知或需手动安装的 Agent: ' + id };
+    const args = cliRunArgs(def, prompt);
+    if (!args) return { success: false, error: '该 CLI 暂不支持单轮执行（' + def.name + '）' };
+    const cmdPath = await resolveCommandPath(def.command);
+    if (!cmdPath) return { success: false, error: def.command + ' 未安装' };
+    try {
+      const out = await new Promise(r => execFile(cmdPath, args, { timeout: 5 * 60 * 1000, maxBuffer: 20 * 1024 * 1024, env: process.env }, (e, so, se) => r({ code: e ? e.code : 0, out: String(so || ''), err: String(se || ''), msg: e ? e.message : '' })));
+      if (out.code === 0 && out.out.trim()) return { success: true, output: out.out.trim(), error: '' };
+      if (out.code === 0 && !out.out.trim()) return { success: false, error: 'CLI 无输出（' + (out.err.trim().slice(0, 200) || '可能是交互模式或未登录') + '）' };
+      return { success: false, error: (out.err.trim() || out.msg).slice(0, 300) };
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
+  }
+
+  function npmCmd() { return process.platform === 'win32' ? 'npm.cmd' : 'npm'; }
+  function resolveCommandPath(command) {
+    return new Promise((resolve) => {
+      const cmd = process.platform === 'win32' ? 'where' : 'which';
+      execFile(cmd, [command], { timeout: 5000 }, (err, stdout) => resolve(err ? '' : String(stdout || '').trim().split('\n')[0]));
+    });
+  }
+  function extractCliVersion(raw) {
+    const m = String(raw || '').match(/\d+\.\d+\.\d+[^\s]*/);
+    return m ? m[0] : String(raw || '').trim().slice(0, 40);
+  }
+  async function detectAgentCli(def) {
+    if (def.manual) return { id: def.id, name: def.name, manual: true, docs: def.docs, installed: false, error: '需手动安装（见指南）' };
+    try {
+      const cmdPath = await resolveCommandPath(def.command);
+      if (!cmdPath) return { id: def.id, name: def.name, installed: false, error: '未安装（可用「安装」一键 npm 安装）' };
+      const raw = await new Promise(r => execFile(cmdPath, ['--version'], { timeout: 8000, env: process.env }, (e, so, se) => r(String(so || se || '').trim())));
+      return { id: def.id, name: def.name, installed: true, version: extractCliVersion(raw), path: cmdPath };
+    } catch (e) {
+      return { id: def.id, name: def.name, installed: false, error: e.message };
+    }
+  }
+  async function mutateAgentCli(action, id) {
+    const def = CLI_AGENTS.find(a => a.id === id);
+    if (!def) return { success: false, error: '未知 Agent: ' + id };
+    if (def.manual || !def.packageName) return { success: false, error: '该 Agent 需手动安装（见安装指南）', docs: def.docs };
+    if (agentCliBusy.has(id)) return { success: false, error: '操作已在进行中' };
+    agentCliBusy.add(id);
+    const send = (percent, message) => { try { mainWindow.webContents.send('codingAgents:progress', { id, percent, message }); } catch (e) {} };
+    try {
+      send(3, 'npm ' + action + ' ' + def.packageName + ' …');
+      const args = action === 'install' ? ['install', '-g', def.packageName]
+        : action === 'update' ? ['update', '-g', def.packageName]
+        : ['uninstall', '-g', def.packageName];
+      const result = await new Promise((resolve) => {
+        let out = '';
+        const proc = spawn(npmCmd(), args, { env: { ...process.env }, stdio: ['ignore', 'pipe', 'pipe'] });
+        const onData = (d) => { const s = String(d || '').trim(); if (s) { out += s + '\n'; send(Math.min(85, 5 + out.length / 8), s.slice(0, 120)); } };
+        proc.stdout.on('data', onData); proc.stderr.on('data', onData);
+        const timer = setTimeout(() => { try { proc.kill(); } catch (e) {} resolve({ ok: false, error: '超时（10 分钟）', out }); }, 10 * 60 * 1000);
+        proc.on('error', (e) => { clearTimeout(timer); resolve({ ok: false, error: e.message, out }); });
+        proc.on('close', (code) => { clearTimeout(timer); resolve({ ok: code === 0, code, out }); });
+      });
+      send(95, result.ok ? (action === 'install' ? '安装完成' : action === 'update' ? '更新完成' : '已卸载') : '失败');
+      if (!result.ok) send(100, String(result.error || result.out).slice(-200));
+      return { success: result.ok, error: result.ok ? '' : (result.error || String(result.out).slice(-300)), out: String(result.out).slice(-400) };
+    } catch (e) {
+      send(100, '失败：' + e.message);
+      return { success: false, error: e.message };
+    } finally {
+      agentCliBusy.delete(id);
+    }
+  }
+
+  ipcMain.handle('codingAgents:list', async () => ({ success: true, agents: await Promise.all(CLI_AGENTS.map(detectAgentCli)) }));
+  ipcMain.handle('codingAgents:detect', async (_, opts) => {
+    const def = CLI_AGENTS.find(a => a.id === (opts && opts.id));
+    return def ? await detectAgentCli(def) : { id: (opts && opts.id), installed: false, error: 'unknown' };
+  });
+  ipcMain.handle('codingAgents:install', (_, opts) => mutateAgentCli('install', opts && opts.id));
+  ipcMain.handle('codingAgents:update', (_, opts) => mutateAgentCli('update', opts && opts.id));
+  ipcMain.handle('codingAgents:remove', (_, opts) => mutateAgentCli('remove', opts && opts.id));
+  ipcMain.handle('codingAgents:run', (_, opts) => runAgentCli(opts && opts.id, opts && opts.prompt));
+
   // ============ ESP32 工具链自动安装（商业化：首次启动自动下载） ============
   const ESP32_ADDITIONAL_URLS = [
     'https://jihulab.com/esp32-arduino/esp32/-/raw/gh-pages/package_esp32_index.json',
@@ -1740,6 +1859,64 @@ function setupIPC() {
     return await ensureEsp32Toolchain();
   });
 
+  // ============ arduino-cli 本体一键安装（跨平台）============
+  // 检测未安装时下载官方二进制到应用数据目录；已有则跳过。进度经 toolchain:progress 推送。
+  ipcMain.handle('toolchain:installCli', async () => {
+    const p = resolveArduinoCli();
+    if (fs.existsSync(p)) return { ok: true, path: p, message: 'arduino-cli 已存在' };
+    const send = (data) => { try { mainWindow.webContents.send('toolchain:progress', { stage: 'cli', ...data }); } catch (e) {} };
+    try {
+      const os = process.platform;
+      const arch = process.arch === 'arm64' ? 'arm64' : (process.arch === 'x64' ? '64bit' : '32bit');
+      const ver = '1.1.1';
+      let url;
+      if (os === 'win32') url = 'https://downloads.arduino.cc/arduino-cli/arduino-cli_' + ver + '_Windows_64bit.zip';
+      else if (os === 'darwin') url = 'https://downloads.arduino.cc/arduino-cli/arduino-cli_' + ver + '_macOS_' + (process.arch === 'arm64' ? 'ARM64' : '64bit') + '.tar.gz';
+      else url = 'https://downloads.arduino.cc/arduino-cli/arduino-cli_' + ver + '_Linux_' + arch + '.tar.gz';
+      send({ message: '开始下载 arduino-cli ' + ver + ' …', progress: 5 });
+      const dlDir = path.join(app.getPath('appData'), 'codelab-desktop', 'tools', 'arduino-cli');
+      fs.mkdirSync(dlDir, { recursive: true });
+      const tmp = path.join(dlDir, 'dl-' + Date.now());
+      const resp = await new Promise((resolve, reject) => {
+        const req = require('https').get(url, res => {
+          if (res.statusCode >= 400) { reject(new Error('HTTP ' + res.statusCode)); return; }
+          resolve(res);
+        });
+        req.on('error', reject);
+        req.setTimeout(60000, () => { req.destroy(new Error('下载超时')); });
+      });
+      const total = parseInt(resp.headers['content-length'] || '0', 10);
+      let got = 0;
+      const ws = fs.createWriteStream(tmp);
+      resp.pipe(ws);
+      resp.on('data', chunk => { got += chunk.length; if (total) send({ progress: 10 + Math.round(80 * got / total) }); });
+      await new Promise((resolve, reject) => { ws.on('finish', resolve); ws.on('error', reject); });
+      send({ progress: 92, message: '解压安装…' });
+      // 解压：zip 用 unzip，tar.gz 用 tar
+      const exeName = os === 'win32' ? 'arduino-cli.exe' : 'arduino-cli';
+      const outDir = dlDir;
+      if (os === 'win32') {
+        await new Promise((resolve, reject) => {
+          const cp = require('child_process').spawn('powershell', ['-NoProfile', '-Command', 'Expand-Archive -Path "' + tmp + '" -DestinationPath "' + outDir + '" -Force']);
+          cp.on('close', resolve); cp.on('error', reject);
+        });
+      } else {
+        await new Promise((resolve, reject) => {
+          const cp = require('child_process').spawn('tar', ['-xzf', tmp, '-C', outDir]);
+          cp.on('close', resolve); cp.on('error', reject);
+        });
+      }
+      // 清理下载临时文件
+      try { fs.unlinkSync(tmp); } catch (e) {}
+      const installed = path.join(outDir, exeName);
+      send({ progress: 100, message: '安装完成', path: installed });
+      return { ok: fs.existsSync(installed), path: installed, message: 'arduino-cli 安装' + (fs.existsSync(installed) ? '完成' : '失败') };
+    } catch (e) {
+      send({ message: '安装失败：' + e.message });
+      return { ok: false, error: e.message };
+    }
+  });
+
   // Windows: arduino-cli / CMake / python subprocesses fail silently on
   // non-ASCII project paths (e.g. a Chinese project folder name) because the
   // spawned tools resolve scripts/paths with the system codepage. Map such a
@@ -1806,9 +1983,15 @@ function setupIPC() {
   ipcMain.handle('compile:arduino', async (_, options) => {
     const { sketchPath, fqbn, outputDir } = options || {};
     if (!sketchPath) return { success: false, error: '缂哄皯 sketchPath' };
-    if (!fqbn) return { success: false, error: '缺少 fqbn（开发板型号）' };
+    // 2026-10-17：fqbn 缺失时用 Board.guessFQBN 兜底（无需先 select_board）
+    let effectiveFqbn = fqbn;
+    if (!effectiveFqbn) {
+      effectiveFqbn = Board.guessFQBN(sketchPath);
+      if (effectiveFqbn) console.log('📌 已按 sketch 推断 FQBN:', effectiveFqbn);
+    }
+    if (!effectiveFqbn) return { success: false, error: '缺少 fqbn（开发板型号）' };
     const norm = normalizeSketchDir(sketchPath);
-    const args = ['compile', '--fqbn', fqbn];
+    const args = ['compile', '--fqbn', effectiveFqbn];
     if (outputDir) args.push('--output-dir', outputDir);
     args.push(norm.target);
     const result = await runArduinoCli(args, path.dirname(norm.target));
@@ -1819,10 +2002,16 @@ function setupIPC() {
   ipcMain.handle('compile:upload', async (_, options) => {
     const { sketchPath, fqbn, port } = options || {};
     if (!sketchPath) return { success: false, error: '缂哄皯 sketchPath' };
-    if (!fqbn) return { success: false, error: '缂哄皯 fqbn' };
+    // 2026-10-17：fqbn 缺失时用 Board.guessFQBN 兜底
+    let effectiveFqbn = fqbn;
+    if (!effectiveFqbn) {
+      effectiveFqbn = Board.guessFQBN(sketchPath);
+      if (effectiveFqbn) console.log('📌 已按 sketch 推断 FQBN:', effectiveFqbn);
+    }
+    if (!effectiveFqbn) return { success: false, error: '缂哄皯 fqbn' };
     if (!port) return { success: false, error: '缺少端口（port）' };
     const norm = normalizeSketchDir(sketchPath);
-    const args = ['upload', '--fqbn', fqbn, '--port', port, norm.target];
+    const args = ['upload', '--fqbn', effectiveFqbn, '--port', port, norm.target];
     const result = await runArduinoCli(args, path.dirname(norm.target));
     if (norm.cleanup) { try { fs.rmSync(norm.cleanup, { recursive: true, force: true }); } catch (e) {} }
     return result;
@@ -1968,6 +2157,31 @@ function setupIPC() {
 
   // 澶栭儴閾炬帴
   ipcMain.handle('shell:openExternal', (_, url) => shell.openExternal(url));
+
+  // ============ Web 搜索/抓取（真实联网，渲染端 WebTools 优先走这里）============
+  // 模块：main/web-search.js（Bing HTML 端点，无 API Key；SSRF 防护 + 15min 缓存 + 会话上限）
+  const webSearch = require('./web-search');
+  ipcMain.handle('web:search', async (_, query, options = {}) => {
+    try {
+      const result = await webSearch.search(query, options);
+      if (!result.success) {
+        // 明确失败信息（含反爬提示），渲染端据此决定降级并标注
+        return result;
+      }
+      return result;
+    } catch (e) {
+      return { success: false, error: `搜索模块异常: ${e.message}` };
+    }
+  });
+  ipcMain.handle('web:fetch', async (_, url, options = {}) => {
+    try {
+      return await webSearch.fetchPage(url, options);
+    } catch (e) {
+      return { success: false, error: `抓取模块异常: ${e.message}` };
+    }
+  });
+  ipcMain.handle('web:stats', () => webSearch.getStats());
+  ipcMain.handle('web:clear-cache', () => webSearch.clearCache());
 
 
   // ============ Hermes 借鉴：FTS5 记忆搜索 + 并行子代理 + Webhook + SSH ============
@@ -2490,6 +2704,18 @@ function setupIPC() {
     if (scheduleStore.runs.length > 200) scheduleStore.runs.length = 200;
     saveSchedule();
     try {
+      // 工作流模式：调度触发渲染进程执行可视化工作流，结果回报入库
+      if (task.mode === 'workflow') {
+        const execResult = await schedExecWorkflow(task);
+        run.status = execResult.ok ? 'done' : 'error';
+        run.finishedAt = Date.now();
+        run.patch = execResult.summary || String(execResult.error || '');
+        run.slots = [{ label: 'workflow', size: String(run.patch || '').length }];
+        if (!execResult.ok) run.error = execResult.error;
+        task.lastRunAt = Date.now();
+        saveSchedule();
+        return run;
+      }
       const out = await callAiOnce([
         { role: 'system', content: 'You are an autonomous coding agent running on a schedule. Produce concrete, reviewable output for the requested task.' },
         { role: 'user', content: task.prompt || '' }
@@ -2507,6 +2733,27 @@ function setupIPC() {
     saveSchedule();
     return run;
   }
+
+  // 调度触发工作流：向渲染进程发送执行请求并等待结果（30s 超时）
+  function schedExecWorkflow(task) {
+    return new Promise((resolve) => {
+      if (!mainWindow || mainWindow.isDestroyed()) { resolve({ ok: false, error: '窗口未就绪' }); return; }
+      const token = 'wf_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+      const onResult = (_ev, data) => {
+        if (data && data.token === token) {
+          ipcMain.removeListener('schedule:workflow-result', onResult);
+          clearTimeout(timer);
+          resolve({ ok: !!data.ok, summary: data.summary || '', error: data.error || '' });
+        }
+      };
+      ipcMain.on('schedule:workflow-result', onResult);
+      const timer = setTimeout(() => {
+        ipcMain.removeListener('schedule:workflow-result', onResult);
+        resolve({ ok: false, error: '工作流执行超时（30s）' });
+      }, 30000);
+      mainWindow.webContents.send('schedule:exec-workflow', { token, taskId: task.id, prompt: task.prompt, mode: task.mode });
+    });
+  }
   loadSchedule();
   const scheduleTimer = setInterval(() => {
     try {
@@ -2522,7 +2769,7 @@ function setupIPC() {
   ipcMain.handle('schedule:createTask', (_, opts) => {
     try {
       const o = opts || {};
-      const t = { id: schedNextId('task'), type: o.type === 'interval' ? 'interval' : 'cron', expr: String(o.expr || ''), prompt: String(o.prompt || ''), enabled: true, createdAt: Date.now(), lastRunAt: 0 };
+      const t = { id: schedNextId('task'), type: o.type === 'interval' ? 'interval' : 'cron', expr: String(o.expr || ''), prompt: String(o.prompt || ''), mode: o.mode === 'workflow' ? 'workflow' : 'chat', enabled: true, createdAt: Date.now(), lastRunAt: 0 };
       scheduleStore.tasks.push(t);
       saveSchedule();
       return { success: true, id: t.id, task: t };

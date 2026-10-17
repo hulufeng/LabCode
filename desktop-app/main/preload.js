@@ -109,6 +109,7 @@ contextBridge.exposeInMainWorld('LabCode', {
     getArduinoCliPath: () => ipcRenderer.invoke('toolchain:getArduinoCliPath'),
     status: () => ipcRenderer.invoke('toolchain:status'),
     ensure: () => ipcRenderer.invoke('toolchain:ensure'),
+    installCli: () => ipcRenderer.invoke('toolchain:installCli'),
     onProgress: (cb) => ipcRenderer.on('toolchain:progress', (_e, data) => cb(data))
   },
 
@@ -155,6 +156,13 @@ contextBridge.exposeInMainWorld('LabCode', {
   // Hermes: 记忆搜索 + Webhook + SSH
   memory: {
     search: (q) => ipcRenderer.invoke('memory:search', q)
+  },
+  // 真实联网搜索/抓取（Bing 端点，无 API Key；失败时渲染端降级 mock 并标注）
+  web: {
+    search: (query, options) => ipcRenderer.invoke('web:search', query, options),
+    fetch: (url, options) => ipcRenderer.invoke('web:fetch', url, options),
+    stats: () => ipcRenderer.invoke('web:stats'),
+    clearCache: () => ipcRenderer.invoke('web:clear-cache')
   },
   webhook: {
     start: (port) => ipcRenderer.invoke('webhook:start', port),
@@ -274,7 +282,29 @@ contextBridge.exposeInMainWorld('LabCode', {
     getPatch: (opts) => ipcRenderer.invoke('schedule:getPatch', opts),
     previewSlots: (opts) => ipcRenderer.invoke('schedule:previewSlots', opts),
     applyPatch: (opts) => ipcRenderer.invoke('schedule:applyPatch', opts),
-    discardPatch: (opts) => ipcRenderer.invoke('schedule:discardPatch', opts)
+    discardPatch: (opts) => ipcRenderer.invoke('schedule:discardPatch', opts),
+    // 调度触发工作流（主进程 → 渲染进程执行 → 回报）
+    onExecWorkflow: (callback) => {
+      const listener = (_event, data) => callback(data);
+      ipcRenderer.on('schedule:exec-workflow', listener);
+      return listener;
+    },
+    sendWorkflowResult: (data) => ipcRenderer.send('schedule:workflow-result', data)
+  },
+  // Coding-Agent CLI 安装/检测（对齐 Ekko Agent Manager）
+  codingAgents: {
+    list: () => ipcRenderer.invoke('codingAgents:list'),
+    detect: (opts) => ipcRenderer.invoke('codingAgents:detect', opts),
+    install: (opts) => ipcRenderer.invoke('codingAgents:install', opts),
+    update: (opts) => ipcRenderer.invoke('codingAgents:update', opts),
+    remove: (opts) => ipcRenderer.invoke('codingAgents:remove', opts),
+    run: (opts) => ipcRenderer.invoke('codingAgents:run', opts),
+    onProgress: (callback) => {
+      const listener = (_event, data) => callback(data);
+      ipcRenderer.on('codingAgents:progress', listener);
+      return listener;
+    },
+    offProgress: (listener) => { if (listener) ipcRenderer.removeListener('codingAgents:progress', listener); }
   },
 
   on: (channel, callback) => {

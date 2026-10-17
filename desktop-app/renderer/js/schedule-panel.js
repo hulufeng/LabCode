@@ -22,10 +22,15 @@
       <div class="sched-form" id="sched-form" style="display:none;">
         <div class="sched-field"><label>类型</label>
           <select id="sched-type"><option value="cron">Cron</option><option value="interval">Interval</option></select></div>
+        <div class="sched-field"><label>执行类型</label>
+          <select id="sched-mode">
+            <option value="chat">AI 对话</option>
+            <option value="workflow">触发工作流</option>
+          </select></div>
         <div class="sched-field"><label id="sched-expr-label">Cron 表达式</label>
           <input id="sched-expr" type="text" placeholder="*/5 * * * *" /></div>
-        <div class="sched-field"><label>Prompt</label>
-          <textarea id="sched-prompt" rows="3" placeholder="定时执行的指令…"></textarea></div>
+        <div class="sched-field"><label>Prompt / 附加指令</label>
+          <textarea id="sched-prompt" rows="3" placeholder="定时执行的指令（工作流模式作为附加指令）…"></textarea></div>
         <div class="sched-form-actions">
           <button class="btn btn-primary btn-sm" id="sched-create">创建</button>
           <button class="btn btn-secondary btn-sm" id="sched-cancel">取消</button></div>
@@ -63,7 +68,7 @@
       html += `<div class="sched-item" data-task-id="${escapeHtml(id)}">
         <div class="sched-item-top"><span class="sched-item-title">${escapeHtml(t.name || prompt.slice(0, 24) || id || '未命名任务')}</span>
           <span class="badge ${enabled ? 'badge-info' : 'badge-muted'}">${enabled ? '启用' : '停用'}</span></div>
-        <div class="sched-item-meta">${escapeHtml(type)} · ${escapeHtml(expr)}</div>
+        <div class="sched-item-meta">${escapeHtml(type)} · ${escapeHtml(expr)}${t.mode === 'workflow' ? ' · <span class="sched-mode-tag">工作流</span>' : ''}</div>
         <div class="sched-item-actions">
           <button class="btn btn-sm btn-secondary" data-act="run" data-id="${escapeHtml(id)}">立即运行</button>
           <button class="btn btn-sm btn-secondary" data-act="runs" data-id="${escapeHtml(id)}">产出</button></div></div>`;
@@ -89,8 +94,9 @@
 
   async function createTask() {
     const type = panelEl.querySelector('#sched-type').value, expr = panelEl.querySelector('#sched-expr').value.trim(), prompt = panelEl.querySelector('#sched-prompt').value.trim();
+    const mode = panelEl.querySelector('#sched-mode') ? panelEl.querySelector('#sched-mode').value : 'chat';
     if (!expr || !prompt) { toast('请填写表达式与 prompt', 'warning'); return; }
-    try { const res = await ipcInvoke('schedule:createTask', { type, expr, prompt }); toast('已创建任务：' + (res && res.id ? res.id : 'ok'), 'success'); toggleForm(); panelEl.querySelector('#sched-expr').value = ''; panelEl.querySelector('#sched-prompt').value = ''; refreshSchedulePanel(); }
+    try { const res = await ipcInvoke('schedule:createTask', { type, expr, prompt, mode }); toast('已创建任务：' + (res && res.id ? res.id : 'ok'), 'success'); toggleForm(); panelEl.querySelector('#sched-expr').value = ''; panelEl.querySelector('#sched-prompt').value = ''; refreshSchedulePanel(); }
     catch (e) { toast('创建失败（依赖 main 实现 schedule:createTask）：' + e.message, 'error'); }
   }
   async function runNow(taskId) { try { const res = await ipcInvoke('schedule:runNow', { taskId }); toast('已触发运行：' + (res && res.runId ? res.runId : taskId), 'success'); refreshSchedulePanel(); } catch (e) { toast('运行失败（依赖 main 实现 schedule:runNow）：' + e.message, 'error'); } }

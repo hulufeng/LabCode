@@ -309,14 +309,14 @@
     <!-- 活动栏 -->
     <div class="activity-bar">
       <button class="activity-btn active" data-panel="explorer" title="资源管理器"><svg class="icon"><use href="#icon-folder"></use></svg></button>
+      <button class="activity-btn" data-panel="device" title="设备（选板/端口/编译烧录）"><svg class="icon"><use href="#icon-infinity"></use></svg></button>
+      <button class="activity-btn" data-panel="workflow" title="工作流（可视化编排）"><svg class="icon"><use href="#icon-flow"></use></svg></button>
+      <button class="activity-btn" data-panel="groupchat" title="群聊（多 Agent 房间）"><svg class="icon"><use href="#icon-user"></use></svg></button>
       <button class="activity-btn" data-panel="git" title="Git"><svg class="icon"><use href="#icon-git-branch"></use></svg></button>
-      <button class="activity-btn" data-panel="plugins" title="插件市场"><svg class="icon"><use href="#icon-puzzle"></use></svg></button>
-      <button class="activity-btn" data-panel="device" title="设备"><svg class="icon"><use href="#icon-infinity"></use></svg></button>
-      <button class="activity-btn" data-panel="mcp" title="MCP 服务"><svg class="icon"><use href="#icon-bolt"></use></svg></button>
       <button class="activity-btn" data-panel="context" title="上下文用量"><svg class="icon"><use href="#icon-chart-bar"></use></svg></button>
       <button class="activity-btn" data-panel="schedule" title="定时任务"><svg class="icon"><use href="#icon-clock"></use></svg></button>
-      <button class="activity-btn" data-panel="groupchat" title="群聊（多 Agent 房间）"><svg class="icon"><use href="#icon-user"></use></svg></button>
-      <button class="activity-btn" data-panel="workflow" title="工作流（可视化编排）"><svg class="icon"><use href="#icon-flow"></use></svg></button>
+      <button class="activity-btn" data-panel="mcp" title="MCP 服务"><svg class="icon"><use href="#icon-bolt"></use></svg></button>
+      <button class="activity-btn" data-panel="plugins" title="插件市场"><svg class="icon"><use href="#icon-puzzle"></use></svg></button>
     </div>
 
     <!-- 群聊 / 多 Agent 房间（全屏覆盖视图，对标 Ekko「群聊」） -->
@@ -411,6 +411,11 @@
           <button class="btn btn-sm" id="wf-export">导出</button>
           <button class="btn btn-sm" id="wf-save">保存</button>
           <button class="btn btn-sm btn-primary" id="wf-run">运行</button>
+          <button class="btn btn-sm" id="wf-export" title="导出工作流为 JSON">导出</button>
+          <button class="btn btn-sm" id="wf-import" title="从 JSON 导入工作流">导入</button>
+        </div>
+        <div class="wf-sidebar-actions" style="margin-top:8px;">
+          <button class="btn btn-sm" id="wf-agents-btn" title="管理可用的多 Agent 运行时（对齐 Ekko Agent Manager）">Agent 管理</button>
         </div>
       </div>
       <div class="wf-canvas-wrap" id="wf-canvas-wrap">
@@ -540,6 +545,14 @@
 
         <!-- 设备标签内容 -->
         <div class="device-tab-content" id="device-tab-device" style="flex:1;overflow-y:auto;padding:16px;">
+          <!-- arduino-cli 安装引导条（未安装时显示） -->
+          <div class="dev-cli-banner" id="dev-cli-banner" style="display:none;margin-bottom:12px;padding:10px 12px;background:var(--warning-bg);border:1px solid var(--warning);border-radius:8px;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="font-size:12px;color:var(--text-primary);">⚠️ 未检测到 arduino-cli，编译/烧录不可用</span>
+              <button class="btn btn-sm btn-primary" id="dev-cli-install" style="margin-left:auto;font-size:11px;">一键安装</button>
+            </div>
+            <div id="dev-cli-progress" style="display:none;margin-top:8px;font-size:11px;color:var(--text-secondary);"></div>
+          </div>
           <div class="device-section">
             <div class="device-section-title">设备</div>
             <div class="device-form-group">
@@ -563,10 +576,24 @@
                 <option value="COM5">COM5</option>
               </select>
             </div>
-            <div style="display:flex;gap:8px;margin-top:12px;">
-              <button class="btn btn-primary" id="dev-compile-btn" style="flex:1;font-size:12px;">编译</button>
-              <button class="btn btn-secondary" id="dev-upload-btn" style="flex:1;font-size:12px;">烧录</button>
-              <button class="btn btn-secondary" id="dev-monitor-btn" style="flex:1;font-size:12px;">串口监视</button>
+            <div class="dev-actions">
+              <div class="dev-step-label">开发流程</div>
+              <div class="dev-action-row">
+                <button class="dev-action-btn dev-compile" id="dev-compile-btn" title="编译当前代码">
+                  <svg class="icon"><use href="#icon-code"></use></svg>
+                  <span>编译</span>
+                </button>
+                <span class="dev-arrow">→</span>
+                <button class="dev-action-btn dev-upload" id="dev-upload-btn" title="烧录到开发板">
+                  <svg class="icon"><use href="#icon-arrow-bar-to-down"></use></svg>
+                  <span>烧录</span>
+                </button>
+                <span class="dev-arrow">→</span>
+                <button class="dev-action-btn dev-monitor" id="dev-monitor-btn" title="打开串口监视器">
+                  <svg class="icon"><use href="#icon-terminal"></use></svg>
+                  <span>串口监视</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -666,6 +693,17 @@
 
         <!-- 设置标签内容 -->
         <div class="device-tab-content" id="device-tab-settings" style="flex:1;overflow-y:auto;padding:16px;display:none;">
+          <div class="device-section">
+            <div class="device-section-title">界面主题</div>
+            <div class="device-form-group">
+              <label class="device-label">主题外观</label>
+              <select class="device-select" id="ui-theme-select">
+                <option value="dark">深色（现代）</option>
+                <option value="light">浅色（通透）</option>
+              </select>
+              <div style="font-size:11px;color:var(--text-tertiary);margin-top:4px;">选择后立即生效，编辑器配色同步切换。</div>
+            </div>
+          </div>
           <div class="device-section">
             <div class="device-section-title">上传设置</div>
             <div class="device-form-group">
@@ -806,6 +844,7 @@
           <button class="ai-top-btn" title="撤销"><svg class="icon"><use href="#icon-arrow-counter-clockwise"></use></svg></button>
           <button class="ai-top-btn" title="重做"><svg class="icon"><use href="#icon-arrow-clockwise"></use></svg></button>
           <button class="ai-top-btn" id="ai-new-chat-btn" title="新对话"><svg class="icon"><use href="#icon-plus"></use></svg></button>
+          <button class="ai-top-btn" id="ai-usage-btn" title="用量统计"><svg class="icon"><use href="#icon-chart-bar"></use></svg></button>
           <button class="ai-top-btn" title="历史"><svg class="icon"><use href="#icon-clock"></use></svg></button>
         </div>
       </div>
@@ -927,6 +966,26 @@
         </div>
         <div class="ai-tool-flow-body" id="ai-tool-flow-body"></div>
       </div>
+      <!-- 用量统计面板（本地记录 AI 调用次数/Token 估算/模型分布） -->
+      <div class="usage-panel" id="usage-panel" style="display:none;">
+        <div class="usage-panel-header">
+          <span class="usage-panel-title"><svg class="icon icon-xs"><use href="#icon-chart-bar"></use></svg> 用量统计</span>
+          <span class="usage-panel-actions">
+            <button class="usage-btn" id="usage-reset" title="清空统计">重置</button>
+            <button class="usage-btn" id="usage-close" title="关闭">×</button>
+          </span>
+        </div>
+        <div class="usage-stats" id="usage-stats">
+          <div class="usage-stat-card"><div class="usage-stat-num" id="usage-total-calls">0</div><div class="usage-stat-label">总调用</div></div>
+          <div class="usage-stat-card"><div class="usage-stat-num" id="usage-total-tokens">0</div><div class="usage-stat-label">Token 估算</div></div>
+          <div class="usage-stat-card"><div class="usage-stat-num" id="usage-total-success">0</div><div class="usage-stat-label">成功</div></div>
+          <div class="usage-stat-card"><div class="usage-stat-num" id="usage-total-fail">0</div><div class="usage-stat-label">失败</div></div>
+        </div>
+        <div class="usage-section-title">模型分布</div>
+        <div class="usage-models" id="usage-models"></div>
+        <div class="usage-section-title">最近调用</div>
+        <div class="usage-history" id="usage-history"></div>
+      </div>
     </div><!-- /ai-panel -->
 
   <!-- 底部面板（默认隐藏，编译/终端操作后自动显示） -->
@@ -942,6 +1001,9 @@
           <button class="editor-toolbar-btn" id="editor-redo-btn" title="重做"><svg class="icon"><use href="#icon-arrow-forward-up"></use></svg></button>
           <button class="editor-toolbar-btn" id="editor-save-btn" title="保存"><svg class="icon"><use href="#icon-device-floppy"></use></svg></button>
           <button class="editor-toolbar-btn" id="editor-history-btn" title="历史"><svg class="icon"><use href="#icon-history"></use></svg></button>
+          <span class="editor-toolbar-sep"></span>
+          <button class="editor-toolbar-btn dev-quick-btn" id="editor-compile-btn" title="编译当前代码（软硬件开发流水线）"><svg class="icon"><use href="#icon-code"></use></svg></button>
+          <button class="editor-toolbar-btn dev-quick-btn" id="editor-upload-btn" title="烧录到开发板"><svg class="icon"><use href="#icon-arrow-bar-to-down"></use></svg></button>
         </div>
       </div>
 
@@ -982,11 +1044,11 @@
     <!-- AI 助手面板（1:1 对齐 TrieCode 主区域布局） -->
     <div class="bottom-panel" id="bottom-panel" style="display:none;">
     <div class="bottom-tabs">
-      <button class="bottom-tab active" data-panel="output">输出</button>
-      <button class="bottom-tab" data-panel="problems">问题 <span class="badge" id="problem-count">0</span></button>
+      <button class="bottom-tab active" data-panel="terminal">终端</button>
       <button class="bottom-tab" data-panel="serial">串口监视器</button>
       <button class="bottom-tab" data-panel="plotter">绘图仪</button>
-      <button class="bottom-tab" data-panel="terminal">终端</button>
+      <button class="bottom-tab" data-panel="output">输出</button>
+      <button class="bottom-tab" data-panel="problems">问题 <span class="badge" id="problem-count">0</span></button>
       <button class="bottom-tab" data-panel="debug">调试</button>
     </div>
     <div class="bottom-content">
@@ -1120,6 +1182,21 @@
       <span class="status-item" id="user-account-status">🔵 1205415012</span>
     </div>
     <div class="statusbar-right"></div>
+  </div>
+
+  <!-- 命令面板（Ctrl+Shift+P） -->
+  <div class="modal-overlay" id="command-palette" style="display:none;">
+    <div class="modal command-palette-modal" style="width:560px;top:12vh;position:relative;align-self:flex-start;margin:0 auto;">
+      <div class="modal-header">
+        <h3>命令面板</h3>
+        <button class="modal-close" id="cmd-palette-close"><svg class="icon icon-xs"><use href="#icon-x"></use></svg></button>
+      </div>
+      <div class="modal-body" style="padding:12px 16px;">
+        <input type="text" id="cmd-palette-input" placeholder="输入命令名称进行过滤…" style="width:100%;box-sizing:border-box;padding:8px 12px;border:1px solid var(--border-light);border-radius:var(--radius-sm);background:var(--bg-secondary);color:var(--text-primary);font-size:13px;outline:none;"/>
+        <div id="cmd-palette-list" style="margin-top:10px;max-height:320px;overflow-y:auto;"></div>
+        <div style="margin-top:8px;font-size:11px;color:var(--text-tertiary);">↑↓ 选择 · Enter 执行 · Esc 关闭</div>
+      </div>
+    </div>
   </div>
 
   <!-- 计划批准弹窗 -->
