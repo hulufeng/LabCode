@@ -8398,12 +8398,38 @@ function bindEvents() {
     }
   });
   
+  // ============ 群聊 / 多 Agent 房间：模块级状态（IIFE 作用域，初始化一次，避免 TDZ） ============
+  const AGENT_PRESETS = {
+    'LabCode（内置）': { provider: 'gateway', model: '', apiKey: '', baseURL: '', thinking: 'standard', builtin: true },
+    'Hermes': { provider: 'custom', model: 'nousresearch/hermes-3-llama-3.1-405b', apiKey: '', baseURL: 'https://openrouter.ai/api/v1', thinking: 'standard' },
+    'Claude': { provider: 'custom', model: 'claude-sonnet-4', apiKey: '', baseURL: 'https://api.anthropic.com/v1', thinking: 'standard' },
+    'Codex': { provider: 'openai', model: 'gpt-4o', apiKey: '', baseURL: '', thinking: 'standard' },
+    'Pi': { provider: 'custom', model: 'pi', apiKey: '', baseURL: '', thinking: 'standard' },
+    'Grok': { provider: 'custom', model: 'grok-2', apiKey: '', baseURL: 'https://api.x.ai/v1', thinking: 'standard' },
+    'OpenCode': { provider: 'openai', model: 'gpt-4o', apiKey: '', baseURL: '', thinking: 'standard' },
+    'DeepSeek Harness': { provider: 'deepseek', model: 'deepseek-reasoner', apiKey: '', baseURL: '', thinking: 'deep' },
+    'Cursor': { provider: 'custom', model: 'gpt-4o', apiKey: '', baseURL: '', thinking: 'standard' },
+    'Antigravity': { provider: 'custom', model: 'gemini-2.5-pro', apiKey: '', baseURL: 'https://generativelanguage.googleapis.com/v1', thinking: 'standard' },
+    'Qwen Code': { provider: 'custom', model: 'qwen-max', apiKey: '', baseURL: 'https://dashscope.aliyuncs.com/compatible-mode/v1', thinking: 'standard' },
+    'Kimi Code': { provider: 'custom', model: 'kimi-k2', apiKey: '', baseURL: 'https://api.moonshot.cn/v1', thinking: 'standard' },
+    'CodeBuddy': { provider: 'custom', model: 'hunyuan-code', apiKey: '', baseURL: 'https://api.hunyuan.cloud.tencent.com/v1', thinking: 'standard' },
+    'Qoder': { provider: 'custom', model: 'qoder', apiKey: '', baseURL: '', thinking: 'standard' },
+    'GitHub Copilot': { provider: 'custom', model: 'gpt-4o', apiKey: '', baseURL: 'https://api.githubcopilot.com', thinking: 'standard' },
+    'ZCode': { provider: 'custom', model: 'glm-4', apiKey: '', baseURL: 'https://open.bigmodel.cn/api/ai/paas/v4', thinking: 'standard' }
+  };
+  let gcRooms = [];
+  let gcActiveId = null;
+  let gcBound = false;
+
   // ============ 活动栏按钮 ============
   document.querySelectorAll('.activity-btn').forEach(item => {
     item.addEventListener('click', () => {
       document.querySelectorAll('.activity-btn').forEach(i => i.classList.remove('active'));
       item.classList.add('active');
       const panel = item.dataset.panel;
+      const gcView = document.getElementById('groupchat-view');
+      if (gcView) gcView.style.display = 'none';
+      const mcpPanel = document.getElementById('mcp-panel');
       stopDeviceRefresh();
       if (mcpPanel) mcpPanel.style.display = 'none';
       const sidebar = document.getElementById('sidebar');
@@ -8412,7 +8438,6 @@ function bindEvents() {
       const pluginsPanel = document.getElementById('plugins-panel');
       const devicePanel = document.getElementById('device-panel');
       const gitPanel = document.getElementById('git-panel');
-      const mcpPanel = document.getElementById('mcp-panel');
       const sidebarHeader = sidebar ? sidebar.querySelector('.sidebar-header') : null;
 
       if (panel === 'explorer') {
@@ -8485,10 +8510,118 @@ function bindEvents() {
         if (schedPanel) schedPanel.style.display = 'flex';
         if (sidebarHeader) sidebarHeader.style.display = 'none';
         if (window.LabCodeUI && window.LabCodeUI.refreshSchedulePanel) window.LabCodeUI.refreshSchedulePanel();
+      } else if (panel === 'groupchat') {
+        sidebar.style.display = 'none';
+        if (sidebarHeader) sidebarHeader.style.display = 'none';
+        gcShowView();
       } else {
         // settings 等其他按钮
         sidebar.style.display = 'none';
       }
+
+  // ============ 群聊 / 多 Agent 房间（对标 Ekko「群聊」） ============
+  // 内置 + 运行时预设（与 Agent 市场运行时档一致），用于房间成员配置（变量声明见活动栏前，模块级避免 TDZ）
+  function gcEsc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+  function gcLoad() { try { gcRooms = window.LabCode?.config?.get?.('ai.groupRooms') || []; } catch (e) { gcRooms = []; } if (!Array.isArray(gcRooms)) gcRooms = []; }
+  function gcSave() { try { window.LabCode?.config?.set?.('ai.groupRooms', gcRooms); } catch (e) {} }
+  function gcRenderRooms() {
+    const list = document.getElementById('gc-room-list'); if (!list) return;
+    list.innerHTML = '';
+    if (gcRooms.length === 0) { const e = document.createElement('div'); e.className = 'gc-empty'; e.textContent = '暂无房间，点右上角 + 新建'; list.appendChild(e); return; }
+    gcRooms.forEach(r => {
+      const item = document.createElement('div'); item.className = 'gc-room-item' + (r.id === gcActiveId ? ' active' : '');
+      item.innerHTML = '<span class="gc-room-name">' + gcEsc(r.name) + '</span><span class="gc-room-members">' + (r.members ? r.members.length : 0) + ' agents</span>';
+      item.addEventListener('click', () => gcSelect(r.id));
+      list.appendChild(item);
+    });
+  }
+  function gcSelect(id) { gcActiveId = id; gcRenderRooms(); gcRenderRoom(); }
+  function gcRenderRoom() {
+    const room = gcRooms.find(r => r.id === gcActiveId);
+    const header = document.getElementById('gc-room-header'); const msgs = document.getElementById('gc-messages');
+    if (!room) { if (header) header.innerHTML = '<span class="gc-hint">请选择或新建一个房间</span>'; if (msgs) msgs.innerHTML = ''; return; }
+    if (header) {
+      header.innerHTML = '<div class="gc-room-title">' + gcEsc(room.name) + '</div><div class="gc-member-chips" id="gc-member-chips"></div><button class="btn btn-sm" id="gc-add-member">+ 添加 Agent</button>';
+      const chips = header.querySelector('#gc-member-chips');
+      (room.members || []).forEach(m => { const c = document.createElement('span'); c.className = 'gc-chip'; c.textContent = m; chips.appendChild(c); });
+      const addBtn = header.querySelector('#gc-add-member');
+      if (addBtn) addBtn.addEventListener('click', () => gcAddMember(room.id));
+    }
+    gcRenderMessages(room);
+  }
+  function gcRenderMessages(room) {
+    const msgs = document.getElementById('gc-messages'); if (!msgs) return;
+    msgs.innerHTML = '';
+    (room.messages || []).forEach(m => {
+      const d = document.createElement('div'); d.className = 'gc-msg ' + (m.role === 'user' ? 'gc-msg-user' : 'gc-msg-agent');
+      const who = m.role === 'user' ? '我' : (m.name || 'Agent');
+      d.innerHTML = '<div class="gc-msg-name">' + gcEsc(who) + '</div><div class="gc-msg-body">' + gcEsc(m.content || '') + '</div>';
+      msgs.appendChild(d);
+    });
+    msgs.scrollTop = msgs.scrollHeight;
+  }
+  function gcAddMember(roomId) {
+    const room = gcRooms.find(r => r.id === roomId); if (!room) return;
+    const names = Object.keys(AGENT_PRESETS);
+    const pick = prompt('添加 Agent（可选：' + names.join(' / ') + '）', 'LabCode（内置）');
+    if (!pick) return;
+    if (names.indexOf(pick) < 0) { showToast('未知 Agent：' + pick, 'error'); return; }
+    room.members = room.members || [];
+    if (room.members.indexOf(pick) >= 0) { showToast('已在房间中', 'info'); return; }
+    room.members.push(pick); gcSave(); gcRenderRoom();
+  }
+  function gcCreateRoom() {
+    const name = prompt('房间名称', '新房间'); if (!name) return;
+    const room = { id: 'r' + Date.now(), name: name.trim(), members: ['LabCode（内置）'], messages: [] };
+    gcRooms.push(room); gcSave(); gcSelect(room.id);
+  }
+  async function gcSend() {
+    const room = gcRooms.find(r => r.id === gcActiveId); if (!room) return;
+    const input = document.getElementById('gc-input'); if (!input) return;
+    const text = input.value.trim(); if (!text) return; input.value = '';
+    room.messages.push({ role: 'user', name: '我', content: text, ts: Date.now() }); gcRenderMessages(room);
+    const keys = ['provider', 'model', 'apiKey', 'baseURL', 'thinkingLevel'];
+    const saved = {}; keys.forEach(k => { try { saved[k] = window.LabCode.config.get('ai.' + k); } catch (e) { saved[k] = ''; } });
+    for (const m of (room.members || [])) {
+      const cfg = AGENT_PRESETS[m]; if (!cfg) continue;
+      room.messages.push({ role: 'agent', name: m, content: '（思考中…）', ts: Date.now() }); gcRenderMessages(room);
+      try {
+        await window.LabCode.config.set('ai.provider', cfg.provider);
+        await window.LabCode.config.set('ai.model', cfg.model || '');
+        await window.LabCode.config.set('ai.apiKey', cfg.apiKey || '');
+        await window.LabCode.config.set('ai.baseURL', cfg.baseURL || '');
+        await window.LabCode.config.set('ai.thinkingLevel', cfg.thinking || 'standard');
+        const hist = room.messages.filter(x => x.content !== '（思考中…）').map(x => ({ role: x.role === 'user' ? 'user' : 'assistant', content: (x.name ? ('[' + x.name + '] ') : '') + x.content }));
+        const sys = { role: 'system', content: '你是群聊房间「' + room.name + '」里的一个 Agent（' + m + '）。房间内有多个 Agent 与用户协作，请用简洁的中文回应。' };
+        const res = await window.LabCode.ai.chat({ messages: [sys].concat(hist), temperature: 0.7, maxTokens: 8192 });
+        const reply = (res && res.success) ? (res.content || '') : '[调用失败：' + ((res && res.error) || '未知') + ']';
+        const idx = room.messages.findIndex(x => x.role === 'agent' && x.name === m && x.content === '（思考中…）');
+        if (idx >= 0) room.messages[idx] = { role: 'agent', name: m, content: reply || '（无回复）', ts: Date.now() };
+      } catch (e) {
+        const idx = room.messages.findIndex(x => x.role === 'agent' && x.name === m && x.content === '（思考中…）');
+        if (idx >= 0) room.messages[idx] = { role: 'agent', name: m, content: '[异常：' + e.message + ']', ts: Date.now() };
+      }
+      gcRenderMessages(room);
+    }
+    try {
+      window.LabCode.config.set('ai.provider', saved.provider); window.LabCode.config.set('ai.model', saved.model || '');
+      window.LabCode.config.set('ai.apiKey', saved.apiKey || ''); window.LabCode.config.set('ai.baseURL', saved.baseURL || '');
+      window.LabCode.config.set('ai.thinkingLevel', saved.thinkingLevel || 'standard');
+    } catch (e) {}
+    gcSave();
+  }
+  function gcShowView() {
+    gcLoad(); gcRenderRooms();
+    if (!gcActiveId && gcRooms.length) gcActiveId = gcRooms[0].id;
+    gcRenderRoom();
+    const v = document.getElementById('groupchat-view'); if (v) v.style.display = 'flex';
+    if (!gcBound) {
+      gcBound = true;
+      const nr = document.getElementById('gc-new-room'); if (nr) nr.addEventListener('click', gcCreateRoom);
+      const sb = document.getElementById('gc-send'); if (sb) sb.addEventListener('click', gcSend);
+      const inp = document.getElementById('gc-input'); if (inp) inp.addEventListener('keydown', e => { if (e.key === 'Enter') gcSend(); });
+    }
+  }
     });
   });
 

@@ -314,6 +314,49 @@
       <button class="activity-btn" data-panel="mcp" title="MCP 服务"><svg class="icon"><use href="#icon-bolt"></use></svg></button>
       <button class="activity-btn" data-panel="context" title="上下文用量"><svg class="icon"><use href="#icon-chart-bar"></use></svg></button>
       <button class="activity-btn" data-panel="schedule" title="定时任务"><svg class="icon"><use href="#icon-clock"></use></svg></button>
+      <button class="activity-btn" data-panel="groupchat" title="群聊（多 Agent 房间）"><svg class="icon"><use href="#icon-user"></use></svg></button>
+    </div>
+
+    <!-- 群聊 / 多 Agent 房间（全屏覆盖视图，对标 Ekko「群聊」） -->
+    <style>
+      .groupchat-view{position:fixed;top:40px;left:48px;right:0;bottom:0;z-index:500;display:flex;background:var(--surface-1);}
+      .gc-sidebar{width:240px;background:var(--surface-2);border-right:1px solid var(--border);display:flex;flex-direction:column;}
+      .gc-sidebar-header{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid var(--border);font-weight:600;color:var(--text);}
+      .gc-room-list{flex:1;overflow:auto;padding:8px;}
+      .gc-room-item{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-radius:6px;cursor:pointer;color:var(--text-secondary);}
+      .gc-room-item:hover{background:var(--surface-hover);}
+      .gc-room-item.active{background:var(--bg-selected);color:var(--text);}
+      .gc-room-name{font-size:13px;}
+      .gc-room-members{font-size:11px;color:var(--text-tertiary);}
+      .gc-empty{padding:16px;color:var(--text-tertiary);font-size:12px;text-align:center;}
+      .gc-main{flex:1;display:flex;flex-direction:column;min-width:0;}
+      .gc-room-header{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:8px;}
+      .gc-room-title{font-size:15px;font-weight:600;color:var(--text);}
+      .gc-member-chips{display:flex;flex-wrap:wrap;gap:6px;}
+      .gc-chip{font-size:12px;padding:2px 8px;border-radius:10px;background:var(--primary-light);color:var(--primary);}
+      .gc-hint{color:var(--text-tertiary);font-size:13px;}
+      .gc-messages{flex:1;overflow:auto;padding:16px;display:flex;flex-direction:column;gap:12px;}
+      .gc-msg{max-width:80%;padding:10px 12px;border-radius:10px;}
+      .gc-msg-user{align-self:flex-end;background:var(--primary);color:#fff;}
+      .gc-msg-agent{align-self:flex-start;background:var(--surface-3);color:var(--text);}
+      .gc-msg-name{font-size:11px;color:var(--text-secondary);margin-bottom:4px;}
+      .gc-msg-body{font-size:13px;white-space:pre-wrap;word-break:break-word;}
+      .gc-input-bar{display:flex;gap:8px;padding:12px 16px;border-top:1px solid var(--border);}
+      .gc-input-bar input{flex:1;background:var(--surface-0);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;outline:none;}
+    </style>
+    <div id="groupchat-view" class="groupchat-view" style="display:none;">
+      <div class="gc-sidebar">
+        <div class="gc-sidebar-header"><span>群聊</span><button class="icon-btn" id="gc-new-room" title="新建房间"><svg class="icon icon-xs"><use href="#icon-plus"></use></svg></button></div>
+        <div class="gc-room-list" id="gc-room-list"></div>
+      </div>
+      <div class="gc-main">
+        <div class="gc-room-header" id="gc-room-header"></div>
+        <div class="gc-messages" id="gc-messages"></div>
+        <div class="gc-input-bar">
+          <input id="gc-input" type="text" placeholder="输入消息，房间内所有 Agent 将依次回应…" />
+          <button class="btn btn-primary" id="gc-send">发送</button>
+        </div>
+      </div>
     </div>
 
     <!-- 左侧列：技能/插件 + 对话 -->
