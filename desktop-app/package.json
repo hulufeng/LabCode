@@ -50,6 +50,7 @@
     "files": [
       "main/**/*",
       "renderer/**/*",
+      "packages/**/*",
       "resources/**/*",
       "!resources/llama/**",
       "package.json"
