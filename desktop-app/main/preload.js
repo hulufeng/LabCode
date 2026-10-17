@@ -291,6 +291,20 @@ contextBridge.exposeInMainWorld('LabCode', {
     },
     sendWorkflowResult: (data) => ipcRenderer.send('schedule:workflow-result', data)
   },
+  // Coding-Agent CLI 安装/检测（对齐 Ekko Agent Manager）
+  codingAgents: {
+    list: () => ipcRenderer.invoke('codingAgents:list'),
+    detect: (opts) => ipcRenderer.invoke('codingAgents:detect', opts),
+    install: (opts) => ipcRenderer.invoke('codingAgents:install', opts),
+    update: (opts) => ipcRenderer.invoke('codingAgents:update', opts),
+    remove: (opts) => ipcRenderer.invoke('codingAgents:remove', opts),
+    onProgress: (callback) => {
+      const listener = (_event, data) => callback(data);
+      ipcRenderer.on('codingAgents:progress', listener);
+      return listener;
+    },
+    offProgress: (listener) => { if (listener) ipcRenderer.removeListener('codingAgents:progress', listener); }
+  },
 
   on: (channel, callback) => {
     const allowedChannels = [

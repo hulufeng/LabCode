@@ -8971,9 +8971,89 @@ function bindEvents() {
   // Agent 连通测试结果（错误原因可见，对齐 Ekko status.error/source）
   const agentTestResults = {};
   let editingAgentName = null;
+  let wfAgentsTab = 'agents'; // 'agents' | 'cli'
+
+  let wfAgentsCliBound = false;
+  const cliProgress = {};
+
+  async function wfAgentsShowCli(p) {
+    if (!window.LabCode.codingAgents) {
+      p.innerHTML += '<div style="font-size:12px;color:var(--text-tertiary);margin-top:8px;">主进程未暴露 codingAgents API</div>';
+      return;
+    }
+    p.innerHTML += '<div style="font-size:11px;color:var(--text-secondary);margin-bottom:8px;">安装 / 检测 / 更新真实的 coding-agent CLI（npm 全局安装，对齐 Ekko Agent Manager）。装好后即可接入工作流与群聊作为 Agent 使用。</div>' +
+      '<div style="margin-bottom:8px;display:flex;gap:6px;"><button class="btn btn-sm" id="wf-cli-refresh">刷新状态</button>' +
+      '<span style="font-size:10px;color:var(--text-tertiary);align-self:center;">安装需本机 npm（Node.js 自带）</span></div>';
+    const listBox = document.createElement('div');
+    listBox.id = 'wf-cli-list';
+    p.appendChild(listBox);
+    const render = async () => {
+      listBox.innerHTML = '<div style="color:var(--text-tertiary);font-size:12px;">检测中…</div>';
+      let r;
+      try { r = await window.LabCode.codingAgents.list(); } catch (e) { listBox.innerHTML = '<div style="font-size:12px;color:#ef4444;">检测失败：' + wfEsc(e.message) + '</div>'; return; }
+      if (!r || !r.success || !r.agents) { listBox.innerHTML = '<div style="font-size:12px;">无数据</div>'; return; }
+      listBox.innerHTML = r.agents.map(a => {
+        const st = a.installed
+          ? '<span style="font-size:11px;color:var(--success,#22c55e);">✅ ' + wfEsc(a.version || '') + '</span>'
+          : (a.manual ? '<span style="font-size:11px;color:var(--text-tertiary);">📄 手动安装</span>' : '<span style="font-size:11px;color:#ef4444;">❌ 未安装</span>');
+        const err = (!a.installed && !a.manual && a.error) ? '<div style="font-size:10px;color:var(--text-tertiary);margin-top:2px;">' + wfEsc(a.error) + '</div>' : '';
+        const path = a.installed && a.path ? '<div style="font-size:10px;color:var(--text-tertiary);word-break:break-all;">' + wfEsc(a.path) + '</div>' : '';
+        return '<div data-wf-card="1" style="border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:6px;background:var(--surface-0);">' +
+          '<div style="display:flex;justify-content:space-between;align-items:center;"><span style="font-weight:600;font-size:12px;">' + wfEsc(a.name) + '</span>' + st + '</div>' +
+          err + path +
+          '<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;">' +
+          (a.manual
+            ? '<a class="btn btn-sm" href="' + wfEsc(a.docs) + '" target="_blank" rel="noopener" style="text-decoration:none;">安装指南 ↗</a>'
+            : (a.installed
+              ? '<button class="btn btn-sm" data-cli-op="update" data-cli-id="' + wfEsc(a.id) + '">更新</button>' +
+                '<button class="btn btn-sm" data-cli-op="remove" data-cli-id="' + wfEsc(a.id) + '" style="border-color:#ef4444;color:#ef4444;">卸载</button>'
+              : '<button class="btn btn-sm btn-primary" data-cli-op="install" data-cli-id="' + wfEsc(a.id) + '">安装</button>')) +
+          '</div>' +
+          '<div data-cli-progress="' + wfEsc(a.id) + '" style="display:none;font-size:11px;color:var(--primary);margin-top:4px;word-break:break-all;"></div></div>';
+      }).join('');
+    };
+    await render();
+    const refBtn = document.getElementById('wf-cli-refresh');
+    if (refBtn) refBtn.addEventListener('click', render);
+    if (!wfAgentsCliBound) {
+      wfAgentsCliBound = true;
+      // 进度订阅：主进程 npm 输出 → 对应卡片进度行
+      if (window.LabCode.codingAgents.onProgress) {
+        window.LabCode.codingAgents.onProgress((data) => {
+          const el = p.querySelector('[data-cli-progress="' + (data && data.id || '') + '"]');
+          if (el && data && data.message) { el.style.display = 'block'; el.textContent = (data.percent != null ? data.percent + '% ' : '') + data.message; }
+        });
+      }
+      p.addEventListener('click', async (e) => {
+        const btn = e.target.closest('[data-cli-op]');
+        if (!btn) return;
+        const op = btn.dataset.cliOp, id = btn.dataset.cliId;
+        const prog = p.querySelector('[data-cli-progress="' + id + '"]');
+        btn.disabled = true; btn.textContent = '处理中…';
+        if (prog) { prog.style.display = 'block'; prog.textContent = '启动 npm ' + op + ' …'; }
+        try {
+          const r = await window.LabCode.codingAgents[op]({ id });
+          if (prog) { prog.style.display = 'block'; prog.textContent = r.success ? ('✓ ' + (op === 'install' ? '安装完成' : op === 'update' ? '更新完成' : '已卸载')) : ('失败：' + (r.error || '')); }
+        } catch (err) {
+          if (prog) { prog.style.display = 'block'; prog.textContent = '异常：' + err.message; }
+        } finally {
+          btn.disabled = false; btn.textContent = op === 'install' ? '安装' : op === 'update' ? '更新' : '卸载';
+          setTimeout(render, 1500);
+        }
+      });
+    }
+  }
 
   async function wfAgentsShow() {
     const p = document.getElementById('wf-props'); if (!p) return;
+    const tabsHtml = '<div style="display:flex;gap:6px;margin-bottom:10px;">' +
+      '<button class="btn btn-sm ' + (wfAgentsTab === 'agents' ? 'btn-primary' : 'btn-secondary') + '" data-wf-tab="agents">Agent 目录</button>' +
+      '<button class="btn btn-sm ' + (wfAgentsTab === 'cli' ? 'btn-primary' : 'btn-secondary') + '" data-wf-tab="cli">CLI 工具</button></div>';
+    if (wfAgentsTab === 'cli') {
+      p.innerHTML = tabsHtml;
+      await wfAgentsShowCli(p);
+      return;
+    }
     await mergeCustomAgents(); // 确保自定义 Agent 已合并
     const names = Object.keys(AGENT_PRESETS);
     const builtins = names.filter(n => isBuiltinAgent(n)).length;
@@ -9022,7 +9102,7 @@ function bindEvents() {
         '</div></div>';
     });
     html += '</div>';
-    p.innerHTML = html;
+    p.innerHTML = tabsHtml + html;
 
     // ===== 安装/保存按钮 =====
     const installBtn = document.getElementById('wf-install-btn');
@@ -9052,6 +9132,8 @@ function bindEvents() {
     if (!wfAgentsBound) {
       wfAgentsBound = true;
       p.addEventListener('click', async (e) => {
+        const tabBtn = e.target.closest('[data-wf-tab]');
+        if (tabBtn) { wfAgentsTab = tabBtn.dataset.wfTab; wfAgentsShow(); return; }
         const editBtn = e.target.closest('[data-wf-edit]');
         if (editBtn) { editingAgentName = editBtn.dataset.wfEdit; wfAgentsShow(); return; }
         const unBtn = e.target.closest('[data-wf-uninstall]');

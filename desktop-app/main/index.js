@@ -1651,6 +1651,88 @@ function setupIPC() {
     };
   });
 
+  // ============ Coding-Agent CLI 安装/检测（对齐 Ekko Agent Manager：npm 安装真实 CLI）============
+  const CLI_AGENTS = [
+    { id: 'claude-code', name: 'Claude Code', command: 'claude', packageName: '@anthropic-ai/claude-code', docs: '', manual: false },
+    { id: 'codex', name: 'Codex', command: 'codex', packageName: '@openai/codex', docs: '', manual: false },
+    { id: 'pi', name: 'Pi', command: 'pi', packageName: '@earendil-works/pi-coding-agent', docs: '', manual: false },
+    { id: 'grok', name: 'Grok', command: 'grok', packageName: '@xai-official/grok', docs: '', manual: false },
+    { id: 'opencode', name: 'OpenCode', command: 'opencode', packageName: 'opencode-ai', docs: '', manual: false },
+    { id: 'dsh', name: 'DeepSeek Harness', command: 'dsh', packageName: '@deepseek-ai/dsh', docs: '', manual: false },
+    { id: 'qwen', name: 'Qwen Code', command: 'qwen', packageName: '@qwen-code/qwen-code', docs: '', manual: false },
+    { id: 'kimi', name: 'Kimi Code', command: 'kimi', packageName: '@moonshot-ai/kimi-code', docs: '', manual: false },
+    { id: 'codebuddy', name: 'CodeBuddy', command: 'codebuddy', packageName: '@tencent-ai/codebuddy-code', docs: '', manual: false },
+    { id: 'qoder', name: 'Qoder', command: 'qoder', packageName: '@qoder-ai/qodercli', docs: '', manual: false },
+    { id: 'copilot', name: 'GitHub Copilot', command: 'copilot', packageName: '@github/copilot', docs: '', manual: false },
+    { id: 'cursor', name: 'Cursor', command: 'agent', packageName: '', docs: 'https://cursor.com/install', manual: true },
+    { id: 'antigravity', name: 'Antigravity', command: 'agy', packageName: '', docs: 'https://antigravity.google/docs/cli/install', manual: true },
+    { id: 'zcode', name: 'ZCode', command: 'zcode', packageName: '', docs: 'https://zcode.z.ai/', manual: true }
+  ];
+  const agentCliBusy = new Set();
+
+  function npmCmd() { return process.platform === 'win32' ? 'npm.cmd' : 'npm'; }
+  function resolveCommandPath(command) {
+    return new Promise((resolve) => {
+      const cmd = process.platform === 'win32' ? 'where' : 'which';
+      execFile(cmd, [command], { timeout: 5000 }, (err, stdout) => resolve(err ? '' : String(stdout || '').trim().split('\n')[0]));
+    });
+  }
+  function extractCliVersion(raw) {
+    const m = String(raw || '').match(/\d+\.\d+\.\d+[^\s]*/);
+    return m ? m[0] : String(raw || '').trim().slice(0, 40);
+  }
+  async function detectAgentCli(def) {
+    if (def.manual) return { id: def.id, name: def.name, manual: true, docs: def.docs, installed: false, error: '需手动安装（见指南）' };
+    try {
+      const cmdPath = await resolveCommandPath(def.command);
+      if (!cmdPath) return { id: def.id, name: def.name, installed: false, error: '未安装（可用「安装」一键 npm 安装）' };
+      const raw = await new Promise(r => execFile(cmdPath, ['--version'], { timeout: 8000, env: process.env }, (e, so, se) => r(String(so || se || '').trim())));
+      return { id: def.id, name: def.name, installed: true, version: extractCliVersion(raw), path: cmdPath };
+    } catch (e) {
+      return { id: def.id, name: def.name, installed: false, error: e.message };
+    }
+  }
+  async function mutateAgentCli(action, id) {
+    const def = CLI_AGENTS.find(a => a.id === id);
+    if (!def) return { success: false, error: '未知 Agent: ' + id };
+    if (def.manual || !def.packageName) return { success: false, error: '该 Agent 需手动安装（见安装指南）', docs: def.docs };
+    if (agentCliBusy.has(id)) return { success: false, error: '操作已在进行中' };
+    agentCliBusy.add(id);
+    const send = (percent, message) => { try { mainWindow.webContents.send('codingAgents:progress', { id, percent, message }); } catch (e) {} };
+    try {
+      send(3, 'npm ' + action + ' ' + def.packageName + ' …');
+      const args = action === 'install' ? ['install', '-g', def.packageName]
+        : action === 'update' ? ['update', '-g', def.packageName]
+        : ['uninstall', '-g', def.packageName];
+      const result = await new Promise((resolve) => {
+        let out = '';
+        const proc = spawn(npmCmd(), args, { env: { ...process.env }, stdio: ['ignore', 'pipe', 'pipe'] });
+        const onData = (d) => { const s = String(d || '').trim(); if (s) { out += s + '\n'; send(Math.min(85, 5 + out.length / 8), s.slice(0, 120)); } };
+        proc.stdout.on('data', onData); proc.stderr.on('data', onData);
+        const timer = setTimeout(() => { try { proc.kill(); } catch (e) {} resolve({ ok: false, error: '超时（10 分钟）', out }); }, 10 * 60 * 1000);
+        proc.on('error', (e) => { clearTimeout(timer); resolve({ ok: false, error: e.message, out }); });
+        proc.on('close', (code) => { clearTimeout(timer); resolve({ ok: code === 0, code, out }); });
+      });
+      send(95, result.ok ? (action === 'install' ? '安装完成' : action === 'update' ? '更新完成' : '已卸载') : '失败');
+      if (!result.ok) send(100, String(result.error || result.out).slice(-200));
+      return { success: result.ok, error: result.ok ? '' : (result.error || String(result.out).slice(-300)), out: String(result.out).slice(-400) };
+    } catch (e) {
+      send(100, '失败：' + e.message);
+      return { success: false, error: e.message };
+    } finally {
+      agentCliBusy.delete(id);
+    }
+  }
+
+  ipcMain.handle('codingAgents:list', async () => ({ success: true, agents: await Promise.all(CLI_AGENTS.map(detectAgentCli)) }));
+  ipcMain.handle('codingAgents:detect', async (_, opts) => {
+    const def = CLI_AGENTS.find(a => a.id === (opts && opts.id));
+    return def ? await detectAgentCli(def) : { id: (opts && opts.id), installed: false, error: 'unknown' };
+  });
+  ipcMain.handle('codingAgents:install', (_, opts) => mutateAgentCli('install', opts && opts.id));
+  ipcMain.handle('codingAgents:update', (_, opts) => mutateAgentCli('update', opts && opts.id));
+  ipcMain.handle('codingAgents:remove', (_, opts) => mutateAgentCli('remove', opts && opts.id));
+
   // ============ ESP32 工具链自动安装（商业化：首次启动自动下载） ============
   const ESP32_ADDITIONAL_URLS = [
     'https://jihulab.com/esp32-arduino/esp32/-/raw/gh-pages/package_esp32_index.json',
