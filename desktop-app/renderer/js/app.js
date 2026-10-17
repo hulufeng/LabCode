@@ -11257,7 +11257,7 @@ function bindEvents() {
         config: null, selectable: false },
       { tier: 'model', name: 'WEIPING_WHALE（终端编码 agent）', typeLabel: '开源参考', desc: '131★ 终端原生 DeepSeek agent：子代理 / LSP / MCP / session 回溯', link: 'https://github.com/appleweiping/WEIPING_WHALE',
         config: null, selectable: false },
-      // ===== 编码 Agent 运行时（对齐 Ekko「Agent 管理」：Hermes / Claude / Codex / Pi / Grok / OpenCode / DeepSeek Harness）=====
+      // ===== 编码 Agent 运行时（对齐 Ekko「Agent 管理」完整清单：Ekko 内置 + Hermes/Claude/Codex/Pi/Grok/OpenCode/DeepSeek Harness/Cursor/Antigravity/Qwen Code/Kimi Code/CodeBuddy/Qoder/GitHub Copilot/ZCode）=====
       { tier: 'runtime', name: 'Hermes', typeLabel: '编码运行时', runtime: 'Hermes', desc: 'NousResearch 开放模型家族，指令遵循 / 工具调用友好，走 OpenRouter', link: 'https://nousresearch.com/',
         config: { provider: 'custom', model: 'nousresearch/hermes-3-llama-3.1-405b', apiKey: '', baseURL: 'https://openrouter.ai/api/v1', thinking: 'standard' }, selectable: true, mcpPreset: ['filesystem', 'github'] },
       { tier: 'runtime', name: 'Claude', typeLabel: '编码运行时', runtime: 'Claude', desc: 'Anthropic 官方编码 agent（Claude Code 同款能力），工具调用成熟', link: 'https://docs.anthropic.com/claude-code',
@@ -11272,6 +11272,22 @@ function bindEvents() {
         config: { provider: 'openai', model: 'gpt-4o', apiKey: '', baseURL: '', thinking: 'standard' }, selectable: true, mcpPreset: ['filesystem', 'github'] },
       { tier: 'runtime', name: 'DeepSeek Harness', typeLabel: '编码运行时', runtime: 'DeepSeek Harness', desc: 'Ekko 内建 DeepSeek 编码 agent：多步编辑 / 子代理 / 工具闭环', link: 'https://github.com/qiz029/dscode',
         config: { provider: 'deepseek', model: 'deepseek-reasoner', apiKey: '', baseURL: '', thinking: 'deep' }, selectable: true, mcpPreset: ['filesystem', 'github', 'terminal'] },
+      { tier: 'runtime', name: 'Cursor', typeLabel: '编码运行时', runtime: 'Cursor', desc: '商用编码 agent，强上下文检索（底层 OpenAI）', link: 'https://cursor.com',
+        config: { provider: 'custom', model: 'gpt-4o', apiKey: '', baseURL: '', thinking: 'standard' }, selectable: true, mcpPreset: ['codebase'] },
+      { tier: 'runtime', name: 'Antigravity', typeLabel: '编码运行时', runtime: 'Antigravity', desc: 'Google 编码 agent（agy CLI，支持全局 / 模型隔离模式）', link: 'https://developers.googleblog.com',
+        config: { provider: 'custom', model: 'gemini-2.5-pro', apiKey: '', baseURL: 'https://generativelanguage.googleapis.com/v1', thinking: 'standard' }, selectable: true, mcpPreset: ['filesystem', 'github'] },
+      { tier: 'runtime', name: 'Qwen Code', typeLabel: '编码运行时', runtime: 'Qwen Code', desc: '阿里通义千问编码 agent，中文友好（底层 DashScope）', link: 'https://github.com/QwenLM/qwen-code',
+        config: { provider: 'custom', model: 'qwen-max', apiKey: '', baseURL: 'https://dashscope.aliyuncs.com/compatible-mode/v1', thinking: 'standard' }, selectable: true, mcpPreset: ['filesystem'] },
+      { tier: 'runtime', name: 'Kimi Code', typeLabel: '编码运行时', runtime: 'Kimi Code', desc: 'Moonshot AI 编码 agent，长上下文强（底层 Kimi）', link: 'https://www.moonshot.cn/',
+        config: { provider: 'custom', model: 'kimi-k2', apiKey: '', baseURL: 'https://api.moonshot.cn/v1', thinking: 'standard' }, selectable: true, mcpPreset: ['filesystem'] },
+      { tier: 'runtime', name: 'CodeBuddy', typeLabel: '编码运行时', runtime: 'CodeBuddy', desc: '腾讯编码 agent（hunyuan 底层），国内合规', link: 'https://www.codebuddy.ai/',
+        config: { provider: 'custom', model: 'hunyuan-code', apiKey: '', baseURL: 'https://api.hunyuan.cloud.tencent.com/v1', thinking: 'standard' }, selectable: true, mcpPreset: ['filesystem', 'github'] },
+      { tier: 'runtime', name: 'Qoder', typeLabel: '编码运行时', runtime: 'Qoder', desc: '阿里 Qoder 编码 agent（类 Qwen Code）', link: 'https://qoder.com/',
+        config: { provider: 'custom', model: 'qoder', apiKey: '', baseURL: '', thinking: 'standard' }, selectable: true, mcpPreset: ['filesystem', 'github'] },
+      { tier: 'runtime', name: 'GitHub Copilot', typeLabel: '编码运行时', runtime: 'GitHub Copilot', desc: 'GitHub 官方编码 agent（底层 OpenAI，需 Copilot 订阅）', link: 'https://github.com/features/copilot',
+        config: { provider: 'custom', model: 'gpt-4o', apiKey: '', baseURL: 'https://api.githubcopilot.com', thinking: 'standard' }, selectable: true, mcpPreset: ['filesystem', 'github'] },
+      { tier: 'runtime', name: 'ZCode', typeLabel: '编码运行时', runtime: 'ZCode', desc: 'Z.ai（智谱 GLM）编码 agent，长上下文 / 推理强', link: 'https://z.ai/',
+        config: { provider: 'custom', model: 'glm-4', apiKey: '', baseURL: 'https://open.bigmodel.cn/api/ai/paas/v4', thinking: 'standard' }, selectable: true, mcpPreset: ['filesystem', 'github'] },
       // ===== 内置 Agent（对齐 Ekko 的「Ekko（内置）」：LabCode 原生 agent）=====
       { tier: 'agent', name: 'LabCode（内置）', typeLabel: '内置 Agent', desc: 'LabCode 原生 AI 编程助手，开箱即用，无需安装任何运行时', link: '',
         agent: { builtin: true }, selectable: true }
@@ -11309,7 +11325,7 @@ function bindEvents() {
       const list = document.getElementById('agent-market-list');
       if (!list) return;
       list.innerHTML = '';
-      const tierTitle = { model: 'AI 模型', runtime: '编码 Agent 运行时（对齐 Ekko：Hermes/Claude/Codex/Pi/Grok/OpenCode/DeepSeek Harness）', agent: '内置 Agent（LabCode 原生，对标 Ekko 的「Ekko（内置）」）' };
+      const tierTitle = { model: 'AI 模型', runtime: '编码 Agent 运行时（对齐 Ekko「Agent 管理」完整清单：Ekko 内置 + 15 个运行时）', agent: '内置 Agent（LabCode 原生，对标 Ekko 的「Ekko（内置）」）' };
       let lastTier = null;
       MARKET_AGENTS.forEach((a) => {
         if (a.tier !== lastTier) {
