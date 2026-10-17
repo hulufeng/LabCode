@@ -156,6 +156,13 @@ contextBridge.exposeInMainWorld('LabCode', {
   memory: {
     search: (q) => ipcRenderer.invoke('memory:search', q)
   },
+  // 真实联网搜索/抓取（Bing 端点，无 API Key；失败时渲染端降级 mock 并标注）
+  web: {
+    search: (query, options) => ipcRenderer.invoke('web:search', query, options),
+    fetch: (url, options) => ipcRenderer.invoke('web:fetch', url, options),
+    stats: () => ipcRenderer.invoke('web:stats'),
+    clearCache: () => ipcRenderer.invoke('web:clear-cache')
+  },
   webhook: {
     start: (port) => ipcRenderer.invoke('webhook:start', port),
     stop: () => ipcRenderer.invoke('webhook:stop'),

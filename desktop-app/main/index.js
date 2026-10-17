@@ -16,6 +16,10 @@ const terminalService = getTerminalService();
 let mainWindow = null;
 let isDev = process.argv.includes('--dev');
 
+// 模块化：开发板管理（@labcode/core 的 Board 模块，compile/upload 兜底 FQBN 推断）
+// 2026-10-17：接入 packages/core/src/board.js（真实模块），fqbn 缺失时用 guessFQBN 推断
+const Board = require('../packages/core/src/board.js');
+
 // 鐢ㄦ埛鏁版嵁鐩綍
 const USER_DATA_PATH = app.getPath('userData');
 const CONFIG_PATH = path.join(USER_DATA_PATH, 'config.json');
@@ -1806,9 +1810,15 @@ function setupIPC() {
   ipcMain.handle('compile:arduino', async (_, options) => {
     const { sketchPath, fqbn, outputDir } = options || {};
     if (!sketchPath) return { success: false, error: '缂哄皯 sketchPath' };
-    if (!fqbn) return { success: false, error: '缺少 fqbn（开发板型号）' };
+    // 2026-10-17：fqbn 缺失时用 Board.guessFQBN 兜底（无需先 select_board）
+    let effectiveFqbn = fqbn;
+    if (!effectiveFqbn) {
+      effectiveFqbn = Board.guessFQBN(sketchPath);
+      if (effectiveFqbn) console.log('📌 已按 sketch 推断 FQBN:', effectiveFqbn);
+    }
+    if (!effectiveFqbn) return { success: false, error: '缺少 fqbn（开发板型号）' };
     const norm = normalizeSketchDir(sketchPath);
-    const args = ['compile', '--fqbn', fqbn];
+    const args = ['compile', '--fqbn', effectiveFqbn];
     if (outputDir) args.push('--output-dir', outputDir);
     args.push(norm.target);
     const result = await runArduinoCli(args, path.dirname(norm.target));
@@ -1819,10 +1829,16 @@ function setupIPC() {
   ipcMain.handle('compile:upload', async (_, options) => {
     const { sketchPath, fqbn, port } = options || {};
     if (!sketchPath) return { success: false, error: '缂哄皯 sketchPath' };
-    if (!fqbn) return { success: false, error: '缂哄皯 fqbn' };
+    // 2026-10-17：fqbn 缺失时用 Board.guessFQBN 兜底
+    let effectiveFqbn = fqbn;
+    if (!effectiveFqbn) {
+      effectiveFqbn = Board.guessFQBN(sketchPath);
+      if (effectiveFqbn) console.log('📌 已按 sketch 推断 FQBN:', effectiveFqbn);
+    }
+    if (!effectiveFqbn) return { success: false, error: '缂哄皯 fqbn' };
     if (!port) return { success: false, error: '缺少端口（port）' };
     const norm = normalizeSketchDir(sketchPath);
-    const args = ['upload', '--fqbn', fqbn, '--port', port, norm.target];
+    const args = ['upload', '--fqbn', effectiveFqbn, '--port', port, norm.target];
     const result = await runArduinoCli(args, path.dirname(norm.target));
     if (norm.cleanup) { try { fs.rmSync(norm.cleanup, { recursive: true, force: true }); } catch (e) {} }
     return result;
@@ -1968,6 +1984,31 @@ function setupIPC() {
 
   // 澶栭儴閾炬帴
   ipcMain.handle('shell:openExternal', (_, url) => shell.openExternal(url));
+
+  // ============ Web 搜索/抓取（真实联网，渲染端 WebTools 优先走这里）============
+  // 模块：main/web-search.js（Bing HTML 端点，无 API Key；SSRF 防护 + 15min 缓存 + 会话上限）
+  const webSearch = require('./web-search');
+  ipcMain.handle('web:search', async (_, query, options = {}) => {
+    try {
+      const result = await webSearch.search(query, options);
+      if (!result.success) {
+        // 明确失败信息（含反爬提示），渲染端据此决定降级并标注
+        return result;
+      }
+      return result;
+    } catch (e) {
+      return { success: false, error: `搜索模块异常: ${e.message}` };
+    }
+  });
+  ipcMain.handle('web:fetch', async (_, url, options = {}) => {
+    try {
+      return await webSearch.fetchPage(url, options);
+    } catch (e) {
+      return { success: false, error: `抓取模块异常: ${e.message}` };
+    }
+  });
+  ipcMain.handle('web:stats', () => webSearch.getStats());
+  ipcMain.handle('web:clear-cache', () => webSearch.clearCache());
 
 
   // ============ Hermes 借鉴：FTS5 记忆搜索 + 并行子代理 + Webhook + SSH ============

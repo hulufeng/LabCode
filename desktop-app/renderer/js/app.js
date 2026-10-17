@@ -43,12 +43,21 @@ async function getDefaultProjectDir() {
   if (isElectron && window.LabCode && window.LabCode.app) {
     try {
       const home = await window.LabCode.app.getPath('home');
-      return home + '\\LabCodeProjects';
+      return home.replace(/\\/g, '/') + '/LabCodeProjects';
     } catch (e) {
       return 'C:\\Users\\Administrator\\LabCodeProjects';
     }
   }
   return 'C:\\Users\\Administrator\\LabCodeProjects';
+}
+
+// 跨平台磁盘路径拼接（对齐主进程 path.join 语义）：
+// Windows 的 fs 也接受 '/'，统一用 '/' 保证 Windows/macOS/Linux 三端一致；
+// 同时把用户输入的 Windows 反斜杠路径归一化为 '/'，避免混用导致路径解析错误。
+function diskJoin(projectPath, relPath) {
+  const base = String(projectPath || '').replace(/\\/g, '/').replace(/\/$/, '');
+  const rel = String(relPath || '').replace(/\\/g, '/').replace(/^\//, '');
+  return base + '/' + rel;
 }
 
 // 统一文件系统 API（Electron 用磁盘，浏览器用内存）
@@ -147,8 +156,8 @@ window.LabCodeUI.state = state;
       showToast('Update downloaded. Restart to install.', true);
     });
   }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', run);
-  else run();
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => { run(); bindCommandPalette(); });
+  else { run(); bindCommandPalette(); }
 })();
 
 // ============ 样本项目 ============
@@ -1008,7 +1017,7 @@ const TOOL_DEFS = [
           if (!state.projectPath) {
             try {
               const home = await window.LabCode.app.getPath('home');
-              state.projectPath = home + '\\LabCodeProjects\\untitled';
+              state.projectPath = home.replace(/\\/g, '/') + '/LabCodeProjects/untitled';
               updateProjectStatusText(state.projectPath);
               addOutputLog(`已自动创建默认项目目录: ${state.projectPath}`, 'info');
             } catch (e) {
@@ -1016,7 +1025,7 @@ const TOOL_DEFS = [
             }
           }
           if (state.projectPath) {
-            const fullPath = state.projectPath + '\\' + args.file_path;
+            const fullPath = diskJoin(state.projectPath, args.file_path);
             try { await FileSystem.writeFile(fullPath, args.content); } catch (e) { console.error('写入磁盘失败:', e); }
           }
         }
@@ -1030,24 +1039,48 @@ const TOOL_DEFS = [
   {
     name: 'edit_file', category: 'modify', description: '编辑文件（替换指定文本）',
     parameters: { type: 'object', properties: { file_path: {type:'string'}, old_string: {type:'string'}, new_string: {type:'string'} }, required: ['file_path','old_string','new_string'] },
-    execute: (args) => {
+    execute: async (args) => {
       const f = state.files[args.file_path];
       if (!f) return `Error: 文件不存在: ${args.file_path}`;
       if (!f.content.includes(args.old_string)) return `Error: 未找到要替换的文本`;
       f.content = f.content.replace(args.old_string, args.new_string);
       f.dirty = true;
       if (state.activeTab === args.file_path && state.editor) state.editor.setValue(f.content);
+      // ===== 磁盘同步（对齐 write_file）：Electron 下编辑后立即落盘，避免重启丢内容 =====
+      if (isElectron) {
+        try {
+          if (!state.projectPath) {
+            const home = await window.LabCode.app.getPath('home');
+            state.projectPath = home.replace(/\\/g, '/') + '/LabCodeProjects/untitled';
+            updateProjectStatusText(state.projectPath);
+            addOutputLog(`已自动创建默认项目目录: ${state.projectPath}`, 'info');
+          }
+          if (state.projectPath) {
+            const fullPath = diskJoin(state.projectPath, args.file_path);
+            await FileSystem.writeFile(fullPath, f.content);
+          }
+        } catch (e) { console.error('edit_file 写盘失败:', e); }
+      }
       return `文件已编辑: ${args.file_path}`;
     }
   },
   {
     name: 'delete_file', category: 'modify', description: '删除文件',
     parameters: { type: 'object', properties: { file_path: {type:'string'} }, required: ['file_path'] },
-    execute: (args) => {
+    execute: async (args) => {
       if (!state.files[args.file_path]) return `Error: 文件不存在: ${args.file_path}`;
       delete state.files[args.file_path];
       closeTab(args.file_path);
       buildFileTree(); renderFileTree();
+      // ===== 磁盘同步（对齐 write_file）：Electron 下删除后同步删盘 =====
+      if (isElectron) {
+        try {
+          if (state.projectPath) {
+            const fullPath = diskJoin(state.projectPath, args.file_path);
+            if (await FileSystem.exists(fullPath)) await window.LabCode.fs.deleteFile(fullPath);
+          }
+        } catch (e) { console.error('delete_file 删盘失败:', e); }
+      }
       return `文件已删除: ${args.file_path}`;
     }
   },
@@ -1397,7 +1430,7 @@ const TOOL_DEFS = [
       buildFileTree(); renderFileTree();
       try { openFile(filePath); } catch (e) { console.error('openFile 失败:', e); }
       if (isElectron && state.projectPath) {
-        const fullPath = state.projectPath + '\\' + filePath.replace(/\//g, '\\');
+        const fullPath = diskJoin(state.projectPath, filePath);
         try {
           const parent = fullPath.split('\\').slice(0, -1).join('\\');
           if (parent && window.LabCode && window.LabCode.fs && window.LabCode.fs.mkdir) {
@@ -1676,7 +1709,7 @@ const TOOL_DEFS = [
       buildFileTree(); renderFileTree();
       try {
         if (isElectron && state.projectPath) {
-          const base = state.projectPath + '\\' + dir.replace(/\//g, '\\');
+          const base = diskJoin(state.projectPath, dir);
           await window.LabCode.fs.mkdir(base).catch(() => {});
           await FileSystem.writeFile(base + '\\plugin.json', JSON.stringify(manifest, null, 2));
           await FileSystem.writeFile(base + '\\README.md', `# ${args.name || id}\n\nLabCode 插件。\n`);
@@ -1721,7 +1754,7 @@ const TOOL_DEFS = [
       if (!window.PluginSystem) return 'Error: 插件系统未就绪';
       // 调插件系统的 installLocal 方法
       if (typeof window.PluginSystem.installFromDir === 'function') {
-        const fullPath = state.projectPath + '\\' + dir.replace(/\//g, '\\');
+        const fullPath = diskJoin(state.projectPath, dir);
         const r = await window.PluginSystem.installFromDir(fullPath);
         return r.success ? `插件 ${m.id} 已安装（${m.tools.length} 工具）` : '安装失败: ' + (r.error || '');
       }
@@ -1744,7 +1777,7 @@ const TOOL_DEFS = [
       const memFile = state.files[fp];
       if (memFile && memFile.content) return memFile.content;
       try {
-        const fullPath = state.projectPath + '\\' + fp.replace(/\//g, '\\');
+        const fullPath = diskJoin(state.projectPath, fp);
         const result = await window.LabCode.fs.readPdf(fullPath, args.max_pages || 20);
         if (!result || result.success === false) return 'Error: 读取 PDF 失败: ' + ((result && result.error) || '文件不存在');
         const text = result.text || '';
@@ -1766,7 +1799,7 @@ const TOOL_DEFS = [
       if (!fp) return 'Error: 请提供图片路径';
       if (!/\.(png|jpe?g|gif|webp|bmp)$/i.test(fp)) return 'Error: 不支持的图片格式';
       try {
-        const fullPath = state.projectPath + '\\' + fp.replace(/\//g, '\\');
+        const fullPath = diskJoin(state.projectPath, fp);
         const result = await window.LabCode.fs.analyzeImage(fullPath, args.prompt || '请描述这张图片的内容');
         if (!result || result.success === false) return 'Error: 图片分析失败: ' + ((result && result.error) || '当前模型不支持视觉或文件不存在');
         return result.description || '（模型未返回描述）';
@@ -3105,16 +3138,38 @@ class WebTools {
     const cacheKey = `search:${query}`;
     const cached = this.getCache(cacheKey);
     if (cached) return { success: true, results: cached, fromCache: true };
-    
+
+    // ===== 真实联网优先：主进程 web-search.js（Bing HTML 端点，无 API Key）=====
+    // 2026-10-17：此前完全返回 mock，AI 拿到的是假搜索结果；现优先走真实通道，
+    // 真实搜索失败时才降级 mock，并在结果中明确标注 [降级]，防止 AI 把假结果当事实。
+    if (isElectron && window.LabCode && window.LabCode.web) {
+      try {
+        const real = await window.LabCode.web.search(query, options);
+        if (real && real.success && Array.isArray(real.results) && real.results.length) {
+          this.setCache(cacheKey, real.results);
+          return { success: true, results: real.results, fromCache: !!real.fromCache, source: 'live' };
+        }
+        if (real && real.success && Array.isArray(real.results) && real.results.length === 0) {
+          return { success: false, error: real.error || '搜索无结果', results: [] };
+        }
+        this._lastLiveError = (real && real.error) || '未知错误';
+        addOutputLog(`web_search 真实搜索不可用(${this._lastLiveError})，降级为模拟结果（仅供演示，AI 不应引用）`, 'warn');
+      } catch (e) {
+        this._lastLiveError = e.message;
+        addOutputLog(`web_search 真实搜索异常(${e.message})，降级为模拟结果（仅供演示，AI 不应引用）`, 'warn');
+      }
+    }
+
+    // ===== 降级：mock 结果（明确标注 [降级]，防止被当作真实信息）=====
     const mockResults = [
-      { title: `${query} - 搜索结果1`, url: `https://example.com/search?q=${encodeURIComponent(query)}&r=1`, snippet: `关于「${query}」的搜索结果摘要。`, source: 'example.com' },
-      { title: `${query} - 搜索结果2`, url: `https://example.org/search?q=${encodeURIComponent(query)}&r=2`, snippet: `关于「${query}」的深入分析和实现指南。`, source: 'example.org' },
-      { title: `${query} - 搜索结果3`, url: `https://example.net/search?q=${encodeURIComponent(query)}&r=3`, snippet: `「${query}」的最新动态和社区讨论。`, source: 'example.net' }
+      { title: `[降级] ${query} - 搜索结果1`, url: `https://example.com/search?q=${encodeURIComponent(query)}&r=1`, snippet: `[降级模拟，非真实搜索结果] 关于「${query}」的搜索结果摘要。`, source: 'example.com' },
+      { title: `[降级] ${query} - 搜索结果2`, url: `https://example.org/search?q=${encodeURIComponent(query)}&r=2`, snippet: `[降级模拟，非真实搜索结果] 关于「${query}」的深入分析和实现指南。`, source: 'example.org' },
+      { title: `[降级] ${query} - 搜索结果3`, url: `https://example.net/search?q=${encodeURIComponent(query)}&r=3`, snippet: `[降级模拟，非真实搜索结果] 「${query}」的最新动态和社区讨论。`, source: 'example.net' }
     ];
     this.setCache(cacheKey, mockResults);
-    return { success: true, results: mockResults, fromCache: false };
+    return { success: true, results: mockResults, fromCache: false, source: 'mock' };
   }
-  
+
   async fetch(url, options = {}) {
     const safetyCheck = this.isSafeUrl(url);
     if (!safetyCheck.safe) {
@@ -3123,12 +3178,41 @@ class WebTools {
     const cacheKey = `fetch:${url}`;
     const cached = this.getCache(cacheKey);
     if (cached) return { success: true, content: cached, fromCache: true, url };
-    
-    const mockContent = `# ${url}\n\n这是从 ${url} 获取的网页内容（模拟）。\n\n## 主要内容\n- 详细介绍\n- 技术实现\n- 最佳实践\n\n## 总结\n网页内容已获取并转换为 Markdown。`;
+
+    // ===== 真实抓取优先：主进程 web-search.js =====
+    // 2026-10-17：此前 web_fetch 直接返回模拟内容；现优先走主进程真实抓取，
+    // 失败才降级 mock，且降级内容明确标注 [降级模拟]，防止 AI 引用假信息。
+    if (isElectron && window.LabCode && window.LabCode.web) {
+      try {
+        const real = await window.LabCode.web.fetch(url, options);
+        if (real && real.success && real.content) {
+          this.setCache(cacheKey, real.content);
+          return { success: true, content: real.content, fromCache: !!real.fromCache, url, source: 'live' };
+        }
+        this._lastLiveError = (real && real.error) || '未知错误';
+        addOutputLog(`web_fetch 真实抓取失败(${this._lastLiveError})，降级为模拟内容`, 'warn');
+      } catch (e) {
+        this._lastLiveError = e.message;
+        addOutputLog(`web_fetch 真实抓取异常(${e.message})，降级为模拟内容`, 'warn');
+      }
+    }
+
+    // ===== 降级：mock 内容（明确标注 [降级]）=====
+    const mockContent = `# ${url}
+
+>[降级模拟] 真实网页抓取不可用，以下为模拟内容，请勿作为事实引用。
+
+## 主要内容
+- 详细介绍
+- 技术实现
+- 最佳实践
+
+## 总结
+网页内容已获取并转换为 Markdown。`;
     this.setCache(cacheKey, mockContent);
-    return { success: true, content: mockContent, fromCache: false, url };
+    return { success: true, content: mockContent, fromCache: false, url, source: 'mock' };
   }
-  
+
   clearCache() { this.cache.clear(); this.searchCount = 0; }
   getCacheStats() { return { size: this.cache.size, maxSize: this.maxCacheSize, searchCount: this.searchCount }; }
 }
@@ -3193,7 +3277,7 @@ class FileChangeTracker {
   _diskPath(path) {
     if (!state.projectPath) return null;
     if (path && /^[A-Za-z]:[\\/]/.test(path)) return path;
-    return state.projectPath + '\\' + String(path || '').replace(/^\//, '').replace(/\//g, '\\');
+    return diskJoin(state.projectPath, String(path || ''));
   }
 
   /**
@@ -3344,6 +3428,135 @@ async function redoLastAgentTurn() {
   }
   return result;
 }
+
+// ============ 命令面板（Ctrl+Shift+P / 菜单「命令面板」）============
+// 对齐 TrieCode/VS Code：顶部命令输入 + 模糊过滤 + 上下键选择 + Enter 执行
+const COMMAND_PALETTE_COMMANDS = [
+  { label: '新建文件', group: '文件', run: () => { const btn = document.getElementById('quick-new-file'); if (btn) btn.click(); } },
+  { label: '打开项目…', group: '文件', run: () => { const btn = document.getElementById('welcome-open-project'); if (btn) btn.click(); else { const di = document.querySelector('.dropdown-item[data-action="open-project"]'); if (di) di.click(); } } },
+  { label: '保存文件', group: '文件', run: () => { const btn = document.getElementById('editor-save-btn'); if (btn) btn.click(); } },
+  { label: '全部保存', group: '文件', run: () => saveAllFiles() },
+  { label: '撤销最近 AI 变更', group: '编辑', run: () => undoLastAgentTurn() },
+  { label: '重做最近 AI 变更', group: '编辑', run: () => redoLastAgentTurn() },
+  { label: '新建终端', group: '终端', run: () => { const btn = document.querySelector('.bottom-tab[data-panel="terminal"]'); if (btn) btn.click(); } },
+  { label: '打开串口监视器', group: '面板', run: () => switchPanel('serial', 'bottom') },
+  { label: '打开绘图仪', group: '面板', run: () => switchPanel('plotter', 'bottom') },
+  { label: '打开调试器', group: '面板', run: () => switchPanel('debug', 'bottom') },
+  { label: '打开输出面板', group: '面板', run: () => switchPanel('output', 'bottom') },
+  { label: '打开问题面板', group: '面板', run: () => switchPanel('problems', 'bottom') },
+  { label: '打开终端面板', group: '面板', run: () => switchPanel('terminal', 'bottom') },
+  { label: '打开资源管理器', group: '面板', run: () => switchPanel('explorer', 'activity') },
+  { label: '打开 Git 面板', group: '面板', run: () => switchPanel('git', 'activity') },
+  { label: '打开插件市场', group: '面板', run: () => switchPanel('plugins', 'activity') },
+  { label: '打开 MCP 服务', group: '面板', run: () => switchPanel('mcp', 'activity') },
+  { label: '打开设备面板', group: '面板', run: () => switchPanel('device', 'activity') },
+  { label: '打开上下文面板', group: '面板', run: () => switchPanel('context', 'activity') },
+  { label: '打开调度面板', group: '面板', run: () => switchPanel('schedule', 'activity') },
+  { label: '打开群聊', group: '面板', run: () => switchPanel('groupchat', 'activity') },
+  { label: '打开工作流', group: '面板', run: () => switchPanel('workflow', 'activity') },
+  { label: '检查更新', group: '帮助', run: () => { if (window.LabCode && window.LabCode.update) window.LabCode.update.check(); } },
+  { label: '打开文档', group: '帮助', run: () => { if (window.LabCode && window.LabCode.shell) window.LabCode.shell.openExternal('https://www.labcode.com/docs'); } },
+  { label: '访问官网', group: '帮助', run: () => { if (window.LabCode && window.LabCode.shell) window.LabCode.shell.openExternal('https://www.labcode.com'); } }
+];
+let _cmdPaletteIdx = 0;
+let _cmdPaletteFiltered = [];
+
+// 面板切换 helper：activity（左侧活动栏）或 bottom（底部标签页），找不到时尝试另一类
+function switchPanel(panel, kind) {
+  const selector = kind === 'bottom' ? '.bottom-tab' : '.activity-btn';
+  let el = document.querySelector(selector + '[data-panel="' + panel + '"]');
+  if (!el) {
+    const other = kind === 'bottom' ? '.activity-btn' : '.bottom-tab';
+    el = document.querySelector(other + '[data-panel="' + panel + '"]');
+  }
+  if (el) el.click();
+  else showToast('未找到面板: ' + panel, 'warn');
+}
+
+function cmdPaletteEsc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function cmdPaletteRender() {
+  const list = document.getElementById('cmd-palette-list');
+  const input = document.getElementById('cmd-palette-input');
+  if (!list || !input) return;
+  const q = input.value.trim().toLowerCase();
+  const all = COMMAND_PALETTE_COMMANDS;
+  _cmdPaletteFiltered = q ? all.filter(c => (c.label + ' ' + (c.group || '')).toLowerCase().includes(q)) : all;
+  if (_cmdPaletteIdx >= _cmdPaletteFiltered.length) _cmdPaletteIdx = 0;
+  if (!_cmdPaletteFiltered.length) {
+    list.innerHTML = '<div style="padding:14px;color:var(--text-tertiary);text-align:center;font-size:13px;">无匹配命令</div>';
+    return;
+  }
+  let html = '';
+  _cmdPaletteFiltered.forEach((c, i) => {
+    html += `<div class="cmd-palette-item${i === _cmdPaletteIdx ? ' active' : ''}" data-idx="${i}" style="padding:7px 10px;border-radius:6px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;font-size:13px;${i === _cmdPaletteIdx ? 'background:var(--primary-light);color:var(--primary);' : 'color:var(--text-primary);'}">` +
+      `<span>${cmdPaletteEsc(c.label)}</span><span style="font-size:11px;color:var(--text-tertiary);">${cmdPaletteEsc(c.group || '')}</span></div>`;
+  });
+  list.innerHTML = html;
+  list.querySelectorAll('.cmd-palette-item').forEach(el => {
+    el.addEventListener('click', () => {
+      _cmdPaletteIdx = Number(el.dataset.idx);
+      cmdPaletteRun();
+    });
+    el.addEventListener('mouseenter', () => { _cmdPaletteIdx = Number(el.dataset.idx); cmdPaletteRender(); });
+  });
+}
+
+function cmdPaletteRun() {
+  const cmd = _cmdPaletteFiltered[_cmdPaletteIdx];
+  if (!cmd) return;
+  cmdPaletteClose();
+  try { cmd.run(); } catch (e) { console.error('命令执行失败:', e); showToast('命令执行失败: ' + e.message, 'error'); }
+}
+
+function openCommandPalette() {
+  const overlay = document.getElementById('command-palette');
+  const input = document.getElementById('cmd-palette-input');
+  if (!overlay || !input) { showToast('命令面板不可用', 'warn'); return; }
+  overlay.style.display = 'flex';
+  _cmdPaletteIdx = 0;
+  input.value = '';
+  cmdPaletteRender();
+  setTimeout(() => input.focus(), 30);
+}
+
+function cmdPaletteClose() {
+  const overlay = document.getElementById('command-palette');
+  if (overlay) overlay.style.display = 'none';
+}
+
+// 命令面板事件绑定（幂等）
+let _cmdPaletteBound = false;
+function bindCommandPalette() {
+  if (_cmdPaletteBound) return;
+  _cmdPaletteBound = true;
+  const overlay = document.getElementById('command-palette');
+  const input = document.getElementById('cmd-palette-input');
+  const closeBtn = document.getElementById('cmd-palette-close');
+  if (input) {
+    input.addEventListener('input', () => { _cmdPaletteIdx = 0; cmdPaletteRender(); });
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowDown') { e.preventDefault(); _cmdPaletteIdx = Math.min(_cmdPaletteIdx + 1, _cmdPaletteFiltered.length - 1); cmdPaletteRender(); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); _cmdPaletteIdx = Math.max(_cmdPaletteIdx - 1, 0); cmdPaletteRender(); }
+      else if (e.key === 'Enter') { e.preventDefault(); cmdPaletteRun(); }
+      else if (e.key === 'Escape') { e.preventDefault(); cmdPaletteClose(); }
+    });
+  }
+  if (closeBtn) closeBtn.addEventListener('click', () => cmdPaletteClose());
+  if (overlay) overlay.addEventListener('click', (e) => { if (e.target === overlay) cmdPaletteClose(); });
+  // Ctrl+Shift+P 全局快捷键
+  document.addEventListener('keydown', (e) => {
+    if (e.ctrlKey && e.shiftKey && (e.key === 'P' || e.key === 'p')) {
+      e.preventDefault();
+      const overlay = document.getElementById('command-palette');
+      if (overlay && overlay.style.display !== 'none') cmdPaletteClose();
+      else openCommandPalette();
+    }
+  });
+}
+
 
 // ============ 增强：LRU 缓存系统 ============
 // 参考业界 cache.js: AI响应LRU缓存带TTL+在途请求去重
@@ -6705,12 +6918,12 @@ async function persistCodeFile(filePath, code) {
   try {
     if (!state.projectPath) {
       const home = await window.LabCode.app.getPath('home');
-      state.projectPath = home + '\\LabCodeProjects\\untitled';
+      state.projectPath = home.replace(/\\/g, '/') + '/LabCodeProjects/untitled';
       updateProjectStatusText(state.projectPath);
       addOutputLog(`已自动创建默认项目目录: ${state.projectPath}`, 'info');
     }
     if (state.projectPath) {
-      const fullPath = state.projectPath + '\\' + filePath;
+      const fullPath = diskJoin(state.projectPath, filePath);
       await FileSystem.writeFile(fullPath, code);
     }
   } catch (e) {
@@ -8031,7 +8244,7 @@ ${outText || errText}
               buildFileTree(); renderFileTree();
               if (state.activeTab === targetFile && state.editor) state.editor.setValue(code);
               if (isElectron && state.projectPath) {
-                const fullPath = state.projectPath + '\\' + targetFile;
+                const fullPath = diskJoin(state.projectPath, targetFile);
                 FileSystem.writeFile(fullPath, code).catch(e => console.error('诊断修复写盘失败:', e));
               }
               addOutputLog(`🤖 AI 已自动修复: ${targetFile}`, 'success');
@@ -8272,7 +8485,7 @@ function handleMenuAction(action) {
       showToast('键盘快捷键', 'info');
       break;
     case 'commands':
-      showToast('命令面板', 'info');
+      openCommandPalette();
       break;
     case 'check-updates':
       showToast('检查更新', 'info');
@@ -8430,7 +8643,7 @@ function bindEvents() {
   let wfBound = false;
   let wfDrag = null;
   function wfEsc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
-  function wfLoad() { try { const w = window.LabCode?.config?.get?.('ai.workflow'); if (w && w.nodes) { wfNodes = w.nodes; wfEdges = w.edges || []; return; } } catch (e) {} wfNodes = []; wfEdges = []; }
+  async function wfLoad() { try { const c = await window.LabCode?.config?.get?.(); const w = c && c.ai ? c.ai.workflow : null; if (w && w.nodes) { wfNodes = w.nodes; wfEdges = w.edges || []; return; } } catch (e) {} wfNodes = []; wfEdges = []; }
   function wfSave() { try { window.LabCode?.config?.set?.('ai.workflow', { nodes: wfNodes, edges: wfEdges }); } catch (e) {} }
   function wfPortPos(node, kind) { if (kind === 'in') return { x: node.x + 90, y: node.y }; return { x: node.x + 90, y: node.y + 70 }; }
   function wfRenderNodes() {
@@ -8438,7 +8651,11 @@ function bindEvents() {
     wrap.innerHTML = '';
     wfNodes.forEach(n => {
       const el = document.createElement('div'); el.className = 'wf-node' + (n.id === wfActiveId ? ' selected' : ''); el.style.left = n.x + 'px'; el.style.top = n.y + 'px';
-      el.innerHTML = '<div class="wf-node-header">' + WF_TYPE[n.type] + (n.data.label ? '：' + wfEsc(n.data.label) : '') + '</div><div class="wf-node-body">' + (n.data.result ? wfEsc(String(n.data.result).slice(0, 120)) : '双击编辑 / 拖拽移动') + '</div>';
+      const st = n.data.status || 'idle';
+      const stColor = WF_STATUS_COLOR[st] || 'var(--text-tertiary)';
+      const stText = WF_STATUS_TEXT[st] || st;
+      const agentTag = (n.type === 'ai' && n.data.agent) ? '<span style="font-size:10px;color:var(--text-tertiary);">' + wfEsc(n.data.agent) + (n.data.approval ? ' · 审批门' : '') + '</span>' : '';
+      el.innerHTML = '<div class="wf-node-header">' + WF_TYPE[n.type] + (n.data.label ? '：' + wfEsc(n.data.label) : '') + '<span style="float:right;font-size:10px;color:' + stColor + ';">' + stText + '</span></div><div class="wf-node-body">' + agentTag + '<div>' + (n.data.result ? wfEsc(String(n.data.result).slice(0, 100)) : '双击编辑 / 拖拽移动') + '</div></div>';
       const pin = document.createElement('div'); pin.className = 'wf-port in'; el.appendChild(pin);
       const pout = document.createElement('div'); pout.className = 'wf-port out'; el.appendChild(pout);
       el.querySelector('.wf-node-header').addEventListener('mousedown', e => { e.preventDefault(); wfDrag = { id: n.id, dx: e.clientX - n.x, dy: e.clientY - n.y }; });
@@ -8462,44 +8679,132 @@ function bindEvents() {
       svg.appendChild(line);
     });
   }
-  function wfAddNode(type) { const n = { id: 'n' + Date.now(), type: type, x: 60 + (wfNodes.length % 6) * 30, y: 60 + (wfNodes.length % 6) * 30, data: { label: '', prompt: '', cmd: '', result: '' } }; wfNodes.push(n); wfRenderNodes(); wfSave(); }
+  function wfAddNode(type) {
+    const n = { id: 'n' + Date.now(), type: type, x: 60 + (wfNodes.length % 6) * 30, y: 60 + (wfNodes.length % 6) * 30, data: { label: '', prompt: '', cmd: '', result: '', agent: 'LabCode（内置）', approval: false, status: 'idle' } };
+    wfNodes.push(n); wfRenderNodes(); wfSave();
+  }
   function wfSelect(id) { wfActiveId = id; wfRenderNodes(); wfRenderProps(id); }
   function wfRenderProps(id) {
     const p = document.getElementById('wf-props'); const n = wfNodes.find(x => x.id === id); if (!p) return;
     if (!n) { p.innerHTML = '<span class="gc-hint">点选节点编辑属性</span>'; return; }
     let html = '<div style="font-weight:600;margin-bottom:8px;">' + WF_TYPE[n.type] + '</div>';
     html += '<label>名称</label><input id="wf-p-label" value="' + wfEsc(n.data.label || '') + '" />';
-    if (n.type === 'ai' || n.type === 'cond') { html += '<label>提示词/条件</label><textarea id="wf-p-prompt" rows="4">' + wfEsc(n.data.prompt || '') + '</textarea>'; }
+    if (n.type === 'ai') {
+      const agentNames = Object.keys(AGENT_PRESETS);
+      html += '<label>执行 Agent</label><select id="wf-p-agent">' + agentNames.map(a => '<option value="' + wfEsc(a) + '"' + (n.data.agent === a ? ' selected' : '') + '>' + wfEsc(a) + '</option>').join('') + '</select>';
+      html += '<label>审批门（执行前人工确认）</label><label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" id="wf-p-approval"' + (n.data.approval ? ' checked' : '') + ' /> 需要审批</label>';
+      html += '<label>提示词</label><textarea id="wf-p-prompt" rows="4">' + wfEsc(n.data.prompt || '') + '</textarea>';
+    } else if (n.type === 'cond') { html += '<label>条件</label><textarea id="wf-p-prompt" rows="4">' + wfEsc(n.data.prompt || '') + '</textarea>'; }
     if (n.type === 'tool') { html += '<label>终端命令</label><input id="wf-p-cmd" value="' + wfEsc(n.data.cmd || '') + '" />'; }
     if (n.type === 'output') { html += '<div style="margin-top:6px;color:var(--text-secondary)">输出：' + (n.data.result ? wfEsc(String(n.data.result).slice(0, 200)) : '—') + '</div>'; }
     html += '<div style="margin-top:10px;"><button class="btn btn-sm" id="wf-p-del">删除节点</button></div>';
     p.innerHTML = html;
-    const lb = p.querySelector('#wf-p-label'); if (lb) lb.addEventListener('input', () => { n.data.label = lb.value; wfRenderNodes(); });
-    const pr = p.querySelector('#wf-p-prompt'); if (pr) pr.addEventListener('input', () => { n.data.prompt = pr.value; });
-    const cm = p.querySelector('#wf-p-cmd'); if (cm) cm.addEventListener('input', () => { n.data.cmd = cm.value; });
+    const lb = p.querySelector('#wf-p-label'); if (lb) lb.addEventListener('input', () => { n.data.label = lb.value; wfRenderNodes(); wfSave(); });
+    const pr = p.querySelector('#wf-p-prompt'); if (pr) pr.addEventListener('input', () => { n.data.prompt = pr.value; wfSave(); });
+    const ag = p.querySelector('#wf-p-agent'); if (ag) ag.addEventListener('change', () => { n.data.agent = ag.value; wfSave(); });
+    const ap = p.querySelector('#wf-p-approval'); if (ap) ap.addEventListener('change', () => { n.data.approval = ap.checked; wfSave(); });
+    const cm = p.querySelector('#wf-p-cmd'); if (cm) cm.addEventListener('input', () => { n.data.cmd = cm.value; wfSave(); });
     const del = p.querySelector('#wf-p-del'); if (del) del.addEventListener('click', () => { wfNodes = wfNodes.filter(x => x.id !== id); wfEdges = wfEdges.filter(e => e.from !== id && e.to !== id); wfActiveId = null; wfRenderNodes(); wfSave(); });
   }
   function wfEdit(id) { wfSelect(id); const pr = document.getElementById('wf-p-prompt') || document.getElementById('wf-p-label'); if (pr) pr.focus(); }
+    // ============ 多 Agent 工作流引擎（对齐 Ekko Studio 设计）============
+  // 状态机：idle → queued → running → pending_approval → completed / failed
+  // 边路由：success（默认，前一节点成功才继续）→ 后续节点；失败则整条流程停止
+  // AI 节点绑定 AGENT_PRESETS 中的 Agent：运行时临时切换 ai 配置 → 调用 → 恢复
+  const WF_STATUS_TEXT = { idle: '待运行', queued: '排队中', running: '运行中', pending_approval: '待审批', completed: '已完成', failed: '失败' };
+  const WF_STATUS_COLOR = { idle: 'var(--text-tertiary)', queued: 'var(--text-secondary)', running: 'var(--primary)', pending_approval: 'var(--warn, #eab308)', completed: 'var(--success, #22c55e)', failed: '#ef4444' };
+  let wfRunning = false;
+
   async function wfRun() {
-    const indeg = {}; wfNodes.forEach(n => indeg[n.id] = 0); wfEdges.forEach(e => { if (indeg[e.to] != null) indeg[e.to]++; });
-    const queue = wfNodes.filter(n => indeg[n.id] === 0).map(n => n.id); const order = []; const adj = {};
-    wfEdges.forEach(e => { (adj[e.from] = adj[e.from] || []).push(e.to); });
-    while (queue.length) { const id = queue.shift(); order.push(id); (adj[id] || []).forEach(t => { indeg[t]--; if (indeg[t] === 0) queue.push(t); }); }
-    if (order.length !== wfNodes.length) { showToast('工作流存在环，无法运行', 'error'); return; }
-    for (const id of order) {
-      const n = wfNodes.find(x => x.id === id); if (!n) continue;
-      n.data.result = '（运行中…）'; wfRenderNodes();
-      try {
-        if (n.type === 'ai') { const res = await window.LabCode.ai.chat({ messages: [{ role: 'user', content: n.data.prompt || '你好' }], temperature: 0.7, maxTokens: 8192 }); n.data.result = (res && res.success) ? (res.content || '') : '[失败：' + ((res && res.error) || '未知') + ']'; }
-        else if (n.type === 'tool') { n.data.result = '[终端] ' + (n.data.cmd || '(空)') + '（MVP 未接真实终端）'; }
-        else { n.data.result = '（已执行）'; }
-      } catch (e) { n.data.result = '[异常：' + e.message + ']'; }
+    if (wfRunning) { showToast('工作流正在运行中', 'warn'); return; }
+    wfRunning = true;
+    try {
+      // 拓扑排序（入口节点无入边；cond 节点当前按成功路由透传）
+      const indeg = {}; wfNodes.forEach(n => indeg[n.id] = 0); wfEdges.forEach(e => { if (indeg[e.to] != null) indeg[e.to]++; });
+      const queue = wfNodes.filter(n => indeg[n.id] === 0).map(n => n.id); const order = []; const adj = {};
+      wfEdges.forEach(e => { (adj[e.from] = adj[e.from] || []).push(e.to); });
+      while (queue.length) { const id = queue.shift(); order.push(id); (adj[id] || []).forEach(t => { indeg[t]--; if (indeg[t] === 0) queue.push(t); }); }
+      if (order.length !== wfNodes.length) { showToast('工作流存在环，无法运行', 'error'); return; }
+
+      // 重置状态
+      wfNodes.forEach(n => { n.data.status = 'idle'; n.data.result = ''; });
       wfRenderNodes();
+
+      for (const id of order) {
+        const n = wfNodes.find(x => x.id === id); if (!n) continue;
+        // 有入边的节点只有在前置全部成功后才执行；否则跳过标记
+        const hasInEdge = wfEdges.some(e => e.to === id);
+        if (hasInEdge) {
+          const upstreamFailed = wfEdges.some(e => e.to === id ? false : (wfNodes.find(x => x.id === e.from) || {}).data?.status === 'failed');
+          const anyUpstreamFailed = wfEdges.some(e => e.to === id && (wfNodes.find(x => x.id === e.from) || {}).data?.status === 'failed');
+          if (anyUpstreamFailed) { n.data.status = 'failed'; n.data.result = '（前置节点失败，跳过）'; wfRenderNodes(); continue; }
+        }
+
+        n.data.status = 'running'; n.data.result = '（运行中…）'; wfRenderNodes();
+        try {
+          if (n.type === 'ai') {
+            // 审批门：执行前人工确认
+            if (n.data.approval) {
+              n.data.status = 'pending_approval';
+              n.data.result = '等待人工审批…';
+              wfRenderNodes();
+              const decision = await new Promise(resolve => {
+                const box = document.createElement('div');
+                box.className = 'wf-approval-box';
+                box.style.cssText = 'position:fixed;top:45%;left:50%;transform:translate(-50%,-50%);z-index:2000;background:var(--surface-2,#1e1e2e);border:1px solid var(--border);border-radius:12px;padding:18px 22px;max-width:520px;box-shadow:0 12px 40px rgba(0,0,0,.35);';
+                box.innerHTML = '<div style="font-weight:600;margin-bottom:6px;">审批门 · ' + wfEsc(n.data.label || n.data.agent || 'AI 节点') + '</div>' +
+                  '<div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;max-height:120px;overflow:auto;white-space:pre-wrap;">' + wfEsc((n.data.prompt || '').slice(0, 500)) + '</div>' +
+                  '<div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;">执行 Agent：' + wfEsc(n.data.agent || 'LabCode（内置）') + '</div>' +
+                  '<div style="display:flex;gap:8px;justify-content:flex-end;"><button class="btn btn-sm" id="wf-ap-reject" style="background:#ef4444;color:#fff;border:none;border-radius:6px;padding:5px 14px;cursor:pointer;">拒绝</button>' +
+                  '<button class="btn btn-sm btn-primary" id="wf-ap-approve" style="background:var(--primary);color:#fff;border:none;border-radius:6px;padding:5px 14px;cursor:pointer;">批准执行</button></div>';
+                document.body.appendChild(box);
+                const cleanup = () => { box.remove(); };
+                box.querySelector('#wf-ap-approve').addEventListener('click', () => { cleanup(); resolve(true); });
+                box.querySelector('#wf-ap-reject').addEventListener('click', () => { cleanup(); resolve(false); });
+              });
+              if (!decision) { n.data.status = 'failed'; n.data.result = '（审批被拒绝）'; wfRenderNodes(); continue; }
+              n.data.status = 'running'; n.data.result = '（运行中…）'; wfRenderNodes();
+            }
+            // 按绑定 Agent 切换配置 → 调用 → 恢复
+            const agentCfg = AGENT_PRESETS[n.data.agent] || AGENT_PRESETS['LabCode（内置）'];
+            const keys = ['provider', 'model', 'apiKey', 'baseURL', 'thinkingLevel'];
+            const curCfg = await window.LabCode.config.get(); const saved = {}; keys.forEach(k => { try { saved[k] = (curCfg && curCfg.ai) ? curCfg.ai[k] : ''; } catch (e) { saved[k] = ''; } });
+            try {
+              await window.LabCode.config.set('ai.provider', agentCfg.provider);
+              await window.LabCode.config.set('ai.model', agentCfg.model || '');
+              await window.LabCode.config.set('ai.apiKey', agentCfg.apiKey || '');
+              await window.LabCode.config.set('ai.baseURL', agentCfg.baseURL || '');
+              await window.LabCode.config.set('ai.thinkingLevel', agentCfg.thinking || 'standard');
+              const res = await window.LabCode.ai.chat({ messages: [{ role: 'user', content: n.data.prompt || '你好' }], temperature: 0.7, maxTokens: 8192 });
+              n.data.result = (res && res.success) ? (res.content || '') : '[失败：' + ((res && res.error) || '未知') + ']';
+              n.data.status = (res && res.success) ? 'completed' : 'failed';
+            } finally {
+              for (const k of keys) { try { await window.LabCode.config.set('ai.' + k, saved[k]); } catch (e) {} }
+            }
+          } else if (n.type === 'tool') {
+            n.data.result = '[终端] ' + (n.data.cmd || '(空)') + (window.LabCode && window.LabCode.shell && window.LabCode.shell.runCommand ? '（已发送执行）' : '（MVP 未接真实终端）');
+            n.data.status = 'completed';
+          } else if (n.type === 'cond') {
+            n.data.result = '（条件节点，默认透传成功路由）'; n.data.status = 'completed';
+          } else {
+            n.data.result = '（已执行）'; n.data.status = 'completed';
+          }
+        } catch (e) {
+          n.data.result = '[异常：' + e.message + ']';
+          n.data.status = 'failed';
+        }
+        wfRenderNodes();
+        if (n.data.status === 'failed') { showToast('工作流在节点「' + (n.data.label || n.id) + '」失败，已停止', 'error'); break; }
+      }
+      wfSave();
+      const failedCount = wfNodes.filter(n => n.data.status === 'failed').length;
+      showToast(failedCount ? '运行结束（' + failedCount + ' 节点失败）' : '运行完成', failedCount ? 'error' : 'success');
+    } finally {
+      wfRunning = false;
     }
-    wfSave(); showToast('运行完成', 'info');
   }
   function wfShowView() {
-    wfLoad(); wfRenderNodes();
+    wfLoad().then(() => { wfRenderNodes(); });
     const v = document.getElementById('workflow-view'); if (v) v.style.display = 'flex';
     if (!wfBound) {
       wfBound = true;
@@ -8507,8 +8812,59 @@ function bindEvents() {
       document.getElementById('wf-new').addEventListener('click', () => { wfNodes = []; wfEdges = []; wfActiveId = null; wfRenderNodes(); wfSave(); });
       document.getElementById('wf-save').addEventListener('click', () => { wfSave(); showToast('已保存工作流', 'info'); });
       document.getElementById('wf-run').addEventListener('click', () => wfRun());
+      const wfAgentsBtn = document.getElementById('wf-agents-btn');
+      if (wfAgentsBtn) wfAgentsBtn.addEventListener('click', () => wfAgentsShow());
       document.addEventListener('mousemove', e => { if (wfDrag) { const n = wfNodes.find(x => x.id === wfDrag.id); if (n) { n.x = e.clientX - wfDrag.dx; n.y = e.clientY - wfDrag.dy; wfRenderNodes(); } } });
       document.addEventListener('mouseup', () => { if (wfDrag) { wfDrag = null; wfSave(); } });
+    }
+  }
+
+  // ============ Agent Manager（对齐 Ekko Studio Agent Manager）============
+  // 展示 AGENT_PRESETS 中的多 Agent 运行时：名称/provider/模型/内置状态/连通测试
+  let wfAgentsBound = false;
+  async function wfAgentsShow() {
+    const p = document.getElementById('wf-props'); if (!p) return;
+    const names = Object.keys(AGENT_PRESETS);
+    let html = '<div style="font-weight:600;margin-bottom:8px;">Agent Manager（' + names.length + ' 个运行时）</div>';
+    html += '<div style="font-size:11px;color:var(--text-secondary);margin-bottom:10px;">管理可接入工作流与群聊的多 Agent 运行时；点击「测试」检查连通性。</div>';
+    names.forEach(name => {
+      const cfg = AGENT_PRESETS[name];
+      html += '<div style="border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:8px;background:var(--surface-0);">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;">' +
+        '<span style="font-weight:600;font-size:13px;">' + wfEsc(name) + '</span>' +
+        '<span style="font-size:10px;color:var(--text-tertiary);">' + (cfg.builtin ? '内置' : '外部') + '</span></div>' +
+        '<div style="font-size:11px;color:var(--text-secondary);margin-top:3px;">provider: ' + wfEsc(cfg.provider) + ' · model: ' + wfEsc(cfg.model || '（默认）') + '</div>' +
+        '<div style="font-size:10px;color:var(--text-tertiary);margin-top:2px;word-break:break-all;">' + wfEsc(cfg.baseURL || '（使用默认端点）') + '</div>' +
+        '<div style="margin-top:6px;"><button class="btn btn-sm" data-wf-test="' + wfEsc(name) + '">测试连通</button></div></div>';
+    });
+    p.innerHTML = html;
+    if (!wfAgentsBound) {
+      wfAgentsBound = true;
+      p.addEventListener('click', async (e) => {
+        const btn = e.target.closest('[data-wf-test]');
+        if (!btn) return;
+        const name = btn.dataset.wfTest;
+        const cfg = AGENT_PRESETS[name];
+        if (!cfg) return;
+        btn.disabled = true; btn.textContent = '测试中…';
+        try {
+          const saved = {};
+          const curCfg2 = await window.LabCode.config.get(); ['provider', 'model', 'apiKey', 'baseURL', 'thinkingLevel'].forEach(k => { try { saved[k] = (curCfg2 && curCfg2.ai) ? curCfg2.ai[k] : ''; } catch (err) { saved[k] = ''; } });
+          await window.LabCode.config.set('ai.provider', cfg.provider);
+          await window.LabCode.config.set('ai.model', cfg.model || '');
+          await window.LabCode.config.set('ai.apiKey', cfg.apiKey || '');
+          await window.LabCode.config.set('ai.baseURL', cfg.baseURL || '');
+          await window.LabCode.config.set('ai.thinkingLevel', cfg.thinking || 'standard');
+          const res = await window.LabCode.ai.checkConnection({});
+          btn.textContent = (res && res.ok) ? '✅ 连通' : '❌ ' + ((res && res.message) || '失败');
+          for (const k of Object.keys(saved)) { try { await window.LabCode.config.set('ai.' + k, saved[k]); } catch (err) {} }
+        } catch (err) {
+          btn.textContent = '❌ 异常';
+        } finally {
+          btn.disabled = false;
+          setTimeout(() => { const b = p.querySelector('[data-wf-test="' + wfEsc(name) + '"]'); if (b) b.textContent = '测试连通'; }, 4000);
+        }
+      });
     }
   }
 
@@ -8619,7 +8975,7 @@ function bindEvents() {
   // ============ 群聊 / 多 Agent 房间（对标 Ekko「群聊」） ============
   // 内置 + 运行时预设（与 Agent 市场运行时档一致），用于房间成员配置（变量声明见活动栏前，模块级避免 TDZ）
   function gcEsc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
-  function gcLoad() { try { gcRooms = window.LabCode?.config?.get?.('ai.groupRooms') || []; } catch (e) { gcRooms = []; } if (!Array.isArray(gcRooms)) gcRooms = []; }
+  async function gcLoad() { try { const c = await window.LabCode?.config?.get?.(); gcRooms = (c && c.ai && c.ai.groupRooms) || []; } catch (e) { gcRooms = []; } if (!Array.isArray(gcRooms)) gcRooms = []; }
   function gcSave() { try { window.LabCode?.config?.set?.('ai.groupRooms', gcRooms); } catch (e) {} }
   function gcRenderRooms() {
     const list = document.getElementById('gc-room-list'); if (!list) return;
@@ -8678,7 +9034,7 @@ function bindEvents() {
     const text = input.value.trim(); if (!text) return; input.value = '';
     room.messages.push({ role: 'user', name: '我', content: text, ts: Date.now() }); gcRenderMessages(room);
     const keys = ['provider', 'model', 'apiKey', 'baseURL', 'thinkingLevel'];
-    const saved = {}; keys.forEach(k => { try { saved[k] = window.LabCode.config.get('ai.' + k); } catch (e) { saved[k] = ''; } });
+    const curCfg3 = await window.LabCode.config.get(); const saved = {}; keys.forEach(k => { try { saved[k] = (curCfg3 && curCfg3.ai) ? curCfg3.ai[k] : ''; } catch (e) { saved[k] = ''; } });
     for (const m of (room.members || [])) {
       const cfg = AGENT_PRESETS[m]; if (!cfg) continue;
       room.messages.push({ role: 'agent', name: m, content: '（思考中…）', ts: Date.now() }); gcRenderMessages(room);
@@ -8708,7 +9064,7 @@ function bindEvents() {
     gcSave();
   }
   function gcShowView() {
-    gcLoad(); gcRenderRooms();
+    gcLoad().then(() => gcRenderRooms());
     if (!gcActiveId && gcRooms.length) gcActiveId = gcRooms[0].id;
     gcRenderRoom();
     const v = document.getElementById('groupchat-view'); if (v) v.style.display = 'flex';
@@ -10597,8 +10953,8 @@ function bindEvents() {
   document.getElementById('run-btn').addEventListener('click', async () => {
     if (!state.activeTab) { showToast('请先打开一个文件','error'); return; }
     const fileName = state.activeTab;
-    const projectPath = state.projectPath || 'C:\\Users\\Administrator\\LabCodeProjects\\untitled';
-    const fullPath = projectPath + '\\' + fileName;
+    const projectPath = state.projectPath || 'C:/Users/Administrator/LabCodeProjects/untitled';
+    const fullPath = diskJoin(projectPath, fileName);
     
     addOutputLog(`运行文件: ${fileName}`, 'info');
     
@@ -11819,11 +12175,11 @@ function bindEvents() {
             properties: ['openFile', 'multiSelections']
           });
           if (!result.canceled && result.filePaths.length > 0) {
-            const projectPath = state.projectPath || 'C:\\Users\\Administrator\\LabCodeProjects\\untitled';
+            const projectPath = state.projectPath || 'C:/Users/Administrator/LabCodeProjects/untitled';
             let addedCount = 0;
             for (const filePath of result.filePaths) {
               const fileName = filePath.split('\\').pop();
-              const destPath = projectPath + '\\' + fileName;
+              const destPath = diskJoin(projectPath, fileName);
               try {
                 // 使用 preload 暴露的 fs.copyFile API
                 const copyResult = await window.LabCode.fs.copyFile(filePath, destPath);
