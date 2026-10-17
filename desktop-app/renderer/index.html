@@ -315,6 +315,7 @@
       <button class="activity-btn" data-panel="context" title="上下文用量"><svg class="icon"><use href="#icon-chart-bar"></use></svg></button>
       <button class="activity-btn" data-panel="schedule" title="定时任务"><svg class="icon"><use href="#icon-clock"></use></svg></button>
       <button class="activity-btn" data-panel="groupchat" title="群聊（多 Agent 房间）"><svg class="icon"><use href="#icon-user"></use></svg></button>
+      <button class="activity-btn" data-panel="workflow" title="工作流（可视化编排）"><svg class="icon"><use href="#icon-bolt"></use></svg></button>
     </div>
 
     <!-- 群聊 / 多 Agent 房间（全屏覆盖视图，对标 Ekko「群聊」） -->
@@ -357,6 +358,52 @@
           <button class="btn btn-primary" id="gc-send">发送</button>
         </div>
       </div>
+    </div>
+
+    <!-- 工作流 / 可视化编排（全屏覆盖视图，对标 Ekko「工作流」） -->
+    <style>
+      .workflow-view{position:fixed;top:40px;left:48px;right:0;bottom:0;z-index:500;display:flex;background:var(--surface-1);}
+      .wf-sidebar{width:220px;background:var(--surface-2);border-right:1px solid var(--border);display:flex;flex-direction:column;}
+      .wf-sidebar-header{padding:10px 12px;font-weight:600;color:var(--text);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;}
+      .wf-palette{padding:10px;display:flex;flex-direction:column;gap:8px;}
+      .wf-palette-item{padding:8px 10px;border:1px solid var(--border);border-radius:6px;cursor:pointer;color:var(--text);font-size:13px;background:var(--surface-3);}
+      .wf-palette-item:hover{border-color:var(--primary);}
+      .wf-sidebar-actions{padding:10px;display:flex;gap:8px;margin-top:auto;}
+      .wf-canvas-wrap{flex:1;position:relative;overflow:auto;background:var(--surface-0);}
+      .wf-edges{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:1;}
+      .wf-edges line{pointer-events:stroke;cursor:pointer;}
+      .wf-nodes{position:absolute;top:0;left:0;width:100%;height:100%;z-index:2;}
+      .wf-node{position:absolute;width:180px;background:var(--surface-3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;box-shadow:0 2px 8px rgba(0,0,0,.2);}
+      .wf-node.selected{border-color:var(--primary);box-shadow:0 0 0 2px var(--primary-light);}
+      .wf-node-header{display:flex;justify-content:space-between;align-items:center;padding:6px 8px;border-bottom:1px solid var(--border);font-weight:600;cursor:move;}
+      .wf-node-body{padding:6px 8px;}
+      .wf-port{position:absolute;width:12px;height:12px;border-radius:50%;background:var(--primary);cursor:crosshair;z-index:3;}
+      .wf-port.in{top:-6px;left:50%;transform:translateX(-50%);background:var(--text-secondary);}
+      .wf-port.out{bottom:-6px;left:50%;transform:translateX(-50%);}
+      .wf-props{width:240px;background:var(--surface-2);border-left:1px solid var(--border);padding:12px;color:var(--text);}
+      .wf-props textarea,.wf-props input{width:100%;background:var(--surface-0);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:6px;outline:none;margin-top:4px;font-size:12px;}
+      .wf-props label{font-size:11px;color:var(--text-secondary);}
+    </style>
+    <div id="workflow-view" class="workflow-view" style="display:none;">
+      <div class="wf-sidebar">
+        <div class="wf-sidebar-header"><span>工作流</span></div>
+        <div class="wf-palette">
+          <div class="wf-palette-item" data-type="ai">AI 对话</div>
+          <div class="wf-palette-item" data-type="cond">条件分支</div>
+          <div class="wf-palette-item" data-type="tool">终端命令</div>
+          <div class="wf-palette-item" data-type="output">输出</div>
+        </div>
+        <div class="wf-sidebar-actions">
+          <button class="btn btn-sm" id="wf-new">新建</button>
+          <button class="btn btn-sm" id="wf-save">保存</button>
+          <button class="btn btn-sm btn-primary" id="wf-run">运行</button>
+        </div>
+      </div>
+      <div class="wf-canvas-wrap" id="wf-canvas-wrap">
+        <svg id="wf-edges" class="wf-edges"></svg>
+        <div id="wf-nodes" class="wf-nodes"></div>
+      </div>
+      <div class="wf-props" id="wf-props"><span class="gc-hint">点选节点编辑属性</span></div>
     </div>
 
     <!-- 左侧列：技能/插件 + 对话 -->

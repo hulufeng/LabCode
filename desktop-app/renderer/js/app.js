@@ -8421,6 +8421,97 @@ function bindEvents() {
   let gcActiveId = null;
   let gcBound = false;
 
+  // ============ 工作流 / 可视化编排（对标 Ekko「工作流」） ============
+  const WF_TYPE = { ai: 'AI 对话', cond: '条件分支', tool: '终端命令', output: '输出' };
+  let wfNodes = [];
+  let wfEdges = [];
+  let wfActiveId = null;
+  let wfConnectFrom = null;
+  let wfBound = false;
+  let wfDrag = null;
+  function wfEsc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+  function wfLoad() { try { const w = window.LabCode?.config?.get?.('ai.workflow'); if (w && w.nodes) { wfNodes = w.nodes; wfEdges = w.edges || []; return; } } catch (e) {} wfNodes = []; wfEdges = []; }
+  function wfSave() { try { window.LabCode?.config?.set?.('ai.workflow', { nodes: wfNodes, edges: wfEdges }); } catch (e) {} }
+  function wfPortPos(node, kind) { if (kind === 'in') return { x: node.x + 90, y: node.y }; return { x: node.x + 90, y: node.y + 70 }; }
+  function wfRenderNodes() {
+    const wrap = document.getElementById('wf-nodes'); if (!wrap) return;
+    wrap.innerHTML = '';
+    wfNodes.forEach(n => {
+      const el = document.createElement('div'); el.className = 'wf-node' + (n.id === wfActiveId ? ' selected' : ''); el.style.left = n.x + 'px'; el.style.top = n.y + 'px';
+      el.innerHTML = '<div class="wf-node-header">' + WF_TYPE[n.type] + (n.data.label ? '：' + wfEsc(n.data.label) : '') + '</div><div class="wf-node-body">' + (n.data.result ? wfEsc(String(n.data.result).slice(0, 120)) : '双击编辑 / 拖拽移动') + '</div>';
+      const pin = document.createElement('div'); pin.className = 'wf-port in'; el.appendChild(pin);
+      const pout = document.createElement('div'); pout.className = 'wf-port out'; el.appendChild(pout);
+      el.querySelector('.wf-node-header').addEventListener('mousedown', e => { e.preventDefault(); wfDrag = { id: n.id, dx: e.clientX - n.x, dy: e.clientY - n.y }; });
+      el.addEventListener('mousedown', () => { wfSelect(n.id); });
+      pout.addEventListener('mousedown', e => { e.stopPropagation(); wfConnectFrom = n.id; showToast('已选起点，点目标节点输入口连线', 'info'); });
+      pin.addEventListener('mousedown', e => { e.stopPropagation(); if (wfConnectFrom && wfConnectFrom !== n.id) { wfEdges.push({ from: wfConnectFrom, to: n.id }); wfConnectFrom = null; wfRenderEdges(); wfSave(); } else { wfConnectFrom = null; } });
+      el.addEventListener('dblclick', e => { e.stopPropagation(); wfEdit(n.id); });
+      wrap.appendChild(el);
+    });
+    wfRenderEdges();
+  }
+  function wfRenderEdges() {
+    const svg = document.getElementById('wf-edges'); if (!svg) return;
+    svg.innerHTML = '';
+    wfEdges.forEach(ed => {
+      const a = wfNodes.find(n => n.id === ed.from), b = wfNodes.find(n => n.id === ed.to); if (!a || !b) return;
+      const pa = wfPortPos(a, 'out'), pb = wfPortPos(b, 'in');
+      const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      line.setAttribute('x1', pa.x); line.setAttribute('y1', pa.y); line.setAttribute('x2', pb.x); line.setAttribute('y2', pb.y);
+      line.setAttribute('stroke', 'var(--primary)'); line.setAttribute('stroke-width', '2');
+      svg.appendChild(line);
+    });
+  }
+  function wfAddNode(type) { const n = { id: 'n' + Date.now(), type: type, x: 60 + (wfNodes.length % 6) * 30, y: 60 + (wfNodes.length % 6) * 30, data: { label: '', prompt: '', cmd: '', result: '' } }; wfNodes.push(n); wfRenderNodes(); wfSave(); }
+  function wfSelect(id) { wfActiveId = id; wfRenderNodes(); wfRenderProps(id); }
+  function wfRenderProps(id) {
+    const p = document.getElementById('wf-props'); const n = wfNodes.find(x => x.id === id); if (!p) return;
+    if (!n) { p.innerHTML = '<span class="gc-hint">点选节点编辑属性</span>'; return; }
+    let html = '<div style="font-weight:600;margin-bottom:8px;">' + WF_TYPE[n.type] + '</div>';
+    html += '<label>名称</label><input id="wf-p-label" value="' + wfEsc(n.data.label || '') + '" />';
+    if (n.type === 'ai' || n.type === 'cond') { html += '<label>提示词/条件</label><textarea id="wf-p-prompt" rows="4">' + wfEsc(n.data.prompt || '') + '</textarea>'; }
+    if (n.type === 'tool') { html += '<label>终端命令</label><input id="wf-p-cmd" value="' + wfEsc(n.data.cmd || '') + '" />'; }
+    if (n.type === 'output') { html += '<div style="margin-top:6px;color:var(--text-secondary)">输出：' + (n.data.result ? wfEsc(String(n.data.result).slice(0, 200)) : '—') + '</div>'; }
+    html += '<div style="margin-top:10px;"><button class="btn btn-sm" id="wf-p-del">删除节点</button></div>';
+    p.innerHTML = html;
+    const lb = p.querySelector('#wf-p-label'); if (lb) lb.addEventListener('input', () => { n.data.label = lb.value; wfRenderNodes(); });
+    const pr = p.querySelector('#wf-p-prompt'); if (pr) pr.addEventListener('input', () => { n.data.prompt = pr.value; });
+    const cm = p.querySelector('#wf-p-cmd'); if (cm) cm.addEventListener('input', () => { n.data.cmd = cm.value; });
+    const del = p.querySelector('#wf-p-del'); if (del) del.addEventListener('click', () => { wfNodes = wfNodes.filter(x => x.id !== id); wfEdges = wfEdges.filter(e => e.from !== id && e.to !== id); wfActiveId = null; wfRenderNodes(); wfSave(); });
+  }
+  function wfEdit(id) { wfSelect(id); const pr = document.getElementById('wf-p-prompt') || document.getElementById('wf-p-label'); if (pr) pr.focus(); }
+  async function wfRun() {
+    const indeg = {}; wfNodes.forEach(n => indeg[n.id] = 0); wfEdges.forEach(e => { if (indeg[e.to] != null) indeg[e.to]++; });
+    const queue = wfNodes.filter(n => indeg[n.id] === 0).map(n => n.id); const order = []; const adj = {};
+    wfEdges.forEach(e => { (adj[e.from] = adj[e.from] || []).push(e.to); });
+    while (queue.length) { const id = queue.shift(); order.push(id); (adj[id] || []).forEach(t => { indeg[t]--; if (indeg[t] === 0) queue.push(t); }); }
+    if (order.length !== wfNodes.length) { showToast('工作流存在环，无法运行', 'error'); return; }
+    for (const id of order) {
+      const n = wfNodes.find(x => x.id === id); if (!n) continue;
+      n.data.result = '（运行中…）'; wfRenderNodes();
+      try {
+        if (n.type === 'ai') { const res = await window.LabCode.ai.chat({ messages: [{ role: 'user', content: n.data.prompt || '你好' }], temperature: 0.7, maxTokens: 8192 }); n.data.result = (res && res.success) ? (res.content || '') : '[失败：' + ((res && res.error) || '未知') + ']'; }
+        else if (n.type === 'tool') { n.data.result = '[终端] ' + (n.data.cmd || '(空)') + '（MVP 未接真实终端）'; }
+        else { n.data.result = '（已执行）'; }
+      } catch (e) { n.data.result = '[异常：' + e.message + ']'; }
+      wfRenderNodes();
+    }
+    wfSave(); showToast('运行完成', 'info');
+  }
+  function wfShowView() {
+    wfLoad(); wfRenderNodes();
+    const v = document.getElementById('workflow-view'); if (v) v.style.display = 'flex';
+    if (!wfBound) {
+      wfBound = true;
+      document.querySelectorAll('.wf-palette-item').forEach(it => it.addEventListener('click', () => wfAddNode(it.dataset.type)));
+      document.getElementById('wf-new').addEventListener('click', () => { wfNodes = []; wfEdges = []; wfActiveId = null; wfRenderNodes(); wfSave(); });
+      document.getElementById('wf-save').addEventListener('click', () => { wfSave(); showToast('已保存工作流', 'info'); });
+      document.getElementById('wf-run').addEventListener('click', () => wfRun());
+      document.addEventListener('mousemove', e => { if (wfDrag) { const n = wfNodes.find(x => x.id === wfDrag.id); if (n) { n.x = e.clientX - wfDrag.dx; n.y = e.clientY - wfDrag.dy; wfRenderNodes(); } } });
+      document.addEventListener('mouseup', () => { if (wfDrag) { wfDrag = null; wfSave(); } });
+    }
+  }
+
   // ============ 活动栏按钮 ============
   document.querySelectorAll('.activity-btn').forEach(item => {
     item.addEventListener('click', () => {
@@ -8429,6 +8520,8 @@ function bindEvents() {
       const panel = item.dataset.panel;
       const gcView = document.getElementById('groupchat-view');
       if (gcView) gcView.style.display = 'none';
+      const wfView = document.getElementById('workflow-view');
+      if (wfView) wfView.style.display = 'none';
       const mcpPanel = document.getElementById('mcp-panel');
       stopDeviceRefresh();
       if (mcpPanel) mcpPanel.style.display = 'none';
@@ -8514,6 +8607,10 @@ function bindEvents() {
         sidebar.style.display = 'none';
         if (sidebarHeader) sidebarHeader.style.display = 'none';
         gcShowView();
+      } else if (panel === 'workflow') {
+        sidebar.style.display = 'none';
+        if (sidebarHeader) sidebarHeader.style.display = 'none';
+        wfShowView();
       } else {
         // settings 等其他按钮
         sidebar.style.display = 'none';
