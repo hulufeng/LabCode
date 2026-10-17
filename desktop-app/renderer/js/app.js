@@ -12572,9 +12572,45 @@ async function loadMcpTools() {
 }
 
 // ============ 初始化 ============
+// ============ UI 主题管理（双主题：深色/浅色一键切换，全局作用域）============
+async function applyTheme(theme, save) {
+  const t = (theme === 'light') ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', t);
+  try {
+    if (window.monaco && window.monaco.editor) {
+      window.monaco.editor.setTheme(t === 'light' ? 'vs' : 'labcode-dark');
+      if (window.monaco.editor.getEditors) {
+        window.monaco.editor.getEditors().forEach(ed => ed.updateOptions({ theme: t === 'light' ? 'vs' : 'labcode-dark' }));
+      }
+    }
+  } catch (e) { /* monaco 未就绪时忽略 */ }
+  const sel = document.getElementById('ui-theme-select');
+  if (sel) sel.value = t;
+  if (save !== false) {
+    try { await window.LabCode.config.set('ui.theme', t); } catch (e) {}
+  }
+}
+
+async function initTheme() {
+  let t = 'dark';
+  try {
+    const c = await window.LabCode.config.get();
+    t = (c && c.ui && c.ui.theme) || 'dark';
+  } catch (e) {}
+  try { await applyTheme(t, false); } catch (e) {}
+  const sel = document.getElementById('ui-theme-select');
+  if (sel) {
+    sel.addEventListener('change', async () => {
+      await applyTheme(sel.value, true);
+      if (window.showToast) showToast('主题已切换为' + (sel.value === 'light' ? '浅色' : '深色'), 'success');
+    });
+  }
+}
+
 function init() {
   try {
     // 1:1 对齐 TrieCode：默认无打开文件，AI 面板占满主区域
+    initTheme();
     document.body.classList.add('no-open-file');
     initFiles();
     renderFileTree();
