@@ -41,7 +41,8 @@
 
 ## 待办 / 遗留
 - [x] 重装依赖 + 算法/集成验证（10/10 + 16/16）已完成；本地提交 `849c17e`。
-- [x] 推 GitHub：经 REST API 推 `hulufeng/LabCode@main` = `18a21b5`（2 源码 + 2 测试；`.handoff` 因含阿里云 AK 完整值未随推，安全考虑）。
+- [x] 推 GitHub：经 REST API 推 `hulufeng/LabCode@main` = `18a21b5`（2 源码 + 2 测试；`.handoff` 因含阿里云 AK 完整值当时未随推，安全考虑）。
+- [x] 补推：`.handoff` 已脱敏（AK `LTAI5t***********`、PAT `ghp_****`、生产密码 `zpp****` 全部打码）并经 REST API 追加推到 `main` = `395985b`；同批纳入 `desktop-app/package-lock.json`。本地提交 `dda5306`。
 - [ ] 用户机器真机验证（GUI / AI 真实 API Key / 终端真实命令）。
 - [ ] 后续可增强：并行节点执行、循环节点、节点级超时/重试、运行日志时间线。
 - [ ] 安全：对话中暴露的 PAT `ghp_****`、阿里云 AK `LTAI5t***********`、生产密码 `zpp****` 均须吊销/轮换（本文件中的敏感值已打码）；**AK 仍残留在本地旧提交（849c17e / de34b6c）中，必须轮换方能彻底消除风险**。
