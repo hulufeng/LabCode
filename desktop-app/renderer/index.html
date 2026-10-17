@@ -376,6 +376,17 @@
       .wf-nodes{position:absolute;top:0;left:0;width:100%;height:100%;z-index:2;}
       .wf-node{position:absolute;width:180px;background:var(--surface-3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;box-shadow:0 2px 8px rgba(0,0,0,.2);}
       .wf-node.selected{border-color:var(--primary);box-shadow:0 0 0 2px var(--primary-light);}
+      .wf-node.wf-running{border-color:#f59e0b;box-shadow:0 0 0 2px rgba(245,158,11,.55);}
+      .wf-node.wf-done{border-color:#22c55e;}
+      .wf-node.wf-error{border-color:#ef4444;box-shadow:0 0 0 2px rgba(239,68,68,.45);}
+      .wf-node.wf-skipped{opacity:.4;}
+      .wf-state{font-size:11px;}
+      .wf-state.running{color:#f59e0b;}
+      .wf-state.done{color:#22c55e;}
+      .wf-state.error{color:#ef4444;}
+      .wf-state.skipped{color:var(--text-tertiary);}
+      .wf-cond-hint{font-size:10px;line-height:1.5;color:var(--text-tertiary);margin-top:6px;background:var(--surface-0);padding:6px 8px;border-radius:6px;}
+      .wf-cond-hint b{color:var(--text-secondary);}
       .wf-node-header{display:flex;justify-content:space-between;align-items:center;padding:6px 8px;border-bottom:1px solid var(--border);font-weight:600;cursor:move;}
       .wf-node-body{padding:6px 8px;}
       .wf-port{position:absolute;width:12px;height:12px;border-radius:50%;background:var(--primary);cursor:crosshair;z-index:3;}
@@ -396,6 +407,8 @@
         </div>
         <div class="wf-sidebar-actions">
           <button class="btn btn-sm" id="wf-new">新建</button>
+          <button class="btn btn-sm" id="wf-import">导入</button>
+          <button class="btn btn-sm" id="wf-export">导出</button>
           <button class="btn btn-sm" id="wf-save">保存</button>
           <button class="btn btn-sm btn-primary" id="wf-run">运行</button>
         </div>
