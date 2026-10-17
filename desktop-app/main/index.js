@@ -2589,6 +2589,18 @@ function setupIPC() {
     if (scheduleStore.runs.length > 200) scheduleStore.runs.length = 200;
     saveSchedule();
     try {
+      // 工作流模式：调度触发渲染进程执行可视化工作流，结果回报入库
+      if (task.mode === 'workflow') {
+        const execResult = await schedExecWorkflow(task);
+        run.status = execResult.ok ? 'done' : 'error';
+        run.finishedAt = Date.now();
+        run.patch = execResult.summary || String(execResult.error || '');
+        run.slots = [{ label: 'workflow', size: String(run.patch || '').length }];
+        if (!execResult.ok) run.error = execResult.error;
+        task.lastRunAt = Date.now();
+        saveSchedule();
+        return run;
+      }
       const out = await callAiOnce([
         { role: 'system', content: 'You are an autonomous coding agent running on a schedule. Produce concrete, reviewable output for the requested task.' },
         { role: 'user', content: task.prompt || '' }
@@ -2606,6 +2618,27 @@ function setupIPC() {
     saveSchedule();
     return run;
   }
+
+  // 调度触发工作流：向渲染进程发送执行请求并等待结果（30s 超时）
+  function schedExecWorkflow(task) {
+    return new Promise((resolve) => {
+      if (!mainWindow || mainWindow.isDestroyed()) { resolve({ ok: false, error: '窗口未就绪' }); return; }
+      const token = 'wf_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+      const onResult = (_ev, data) => {
+        if (data && data.token === token) {
+          ipcMain.removeListener('schedule:workflow-result', onResult);
+          clearTimeout(timer);
+          resolve({ ok: !!data.ok, summary: data.summary || '', error: data.error || '' });
+        }
+      };
+      ipcMain.on('schedule:workflow-result', onResult);
+      const timer = setTimeout(() => {
+        ipcMain.removeListener('schedule:workflow-result', onResult);
+        resolve({ ok: false, error: '工作流执行超时（30s）' });
+      }, 30000);
+      mainWindow.webContents.send('schedule:exec-workflow', { token, taskId: task.id, prompt: task.prompt, mode: task.mode });
+    });
+  }
   loadSchedule();
   const scheduleTimer = setInterval(() => {
     try {
@@ -2621,7 +2654,7 @@ function setupIPC() {
   ipcMain.handle('schedule:createTask', (_, opts) => {
     try {
       const o = opts || {};
-      const t = { id: schedNextId('task'), type: o.type === 'interval' ? 'interval' : 'cron', expr: String(o.expr || ''), prompt: String(o.prompt || ''), enabled: true, createdAt: Date.now(), lastRunAt: 0 };
+      const t = { id: schedNextId('task'), type: o.type === 'interval' ? 'interval' : 'cron', expr: String(o.expr || ''), prompt: String(o.prompt || ''), mode: o.mode === 'workflow' ? 'workflow' : 'chat', enabled: true, createdAt: Date.now(), lastRunAt: 0 };
       scheduleStore.tasks.push(t);
       saveSchedule();
       return { success: true, id: t.id, task: t };

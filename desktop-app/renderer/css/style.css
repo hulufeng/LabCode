@@ -5408,3 +5408,15 @@ select:focus,
   color: var(--text-tertiary);
   padding: 8px;
 }
+
+/* ============ 调度 · 工作流模式标签 ============ */
+.sched-mode-tag {
+  display: inline-block;
+  background: var(--primary-lighter, rgba(99,102,241,.15));
+  color: var(--primary, #818cf8);
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 10px;
+  margin-left: 4px;
+  vertical-align: middle;
+}

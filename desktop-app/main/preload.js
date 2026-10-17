@@ -282,7 +282,14 @@ contextBridge.exposeInMainWorld('LabCode', {
     getPatch: (opts) => ipcRenderer.invoke('schedule:getPatch', opts),
     previewSlots: (opts) => ipcRenderer.invoke('schedule:previewSlots', opts),
     applyPatch: (opts) => ipcRenderer.invoke('schedule:applyPatch', opts),
-    discardPatch: (opts) => ipcRenderer.invoke('schedule:discardPatch', opts)
+    discardPatch: (opts) => ipcRenderer.invoke('schedule:discardPatch', opts),
+    // 调度触发工作流（主进程 → 渲染进程执行 → 回报）
+    onExecWorkflow: (callback) => {
+      const listener = (_event, data) => callback(data);
+      ipcRenderer.on('schedule:exec-workflow', listener);
+      return listener;
+    },
+    sendWorkflowResult: (data) => ipcRenderer.send('schedule:workflow-result', data)
   },
 
   on: (channel, callback) => {

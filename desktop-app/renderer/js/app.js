@@ -8635,7 +8635,10 @@ function bindEvents() {
     'Qoder': { provider: 'custom', model: 'qoder', apiKey: '', baseURL: '', thinking: 'standard' },
     'GitHub Copilot': { provider: 'custom', model: 'gpt-4o', apiKey: '', baseURL: 'https://api.githubcopilot.com', thinking: 'standard' },
     'ZCode': { provider: 'custom', model: 'glm-4', apiKey: '', baseURL: 'https://open.bigmodel.cn/api/ai/paas/v4', thinking: 'standard' }
-  };
+  };
+  // 暴露给全局（调度工作流执行器 wfRunScheduled 需要访问 Agent 预设）
+  window.__AGENT_PRESETS = AGENT_PRESETS;
+
   let gcRooms = [];
   let gcActiveId = null;
   let gcBound = false;
@@ -8802,7 +8805,7 @@ function bindEvents() {
               n.data.status = 'running'; n.data.result = '（运行中…）'; wfRenderNodes();
             }
             // 按绑定 Agent 切换配置 → 调用 → 恢复
-            const agentCfg = AGENT_PRESETS[n.data.agent] || AGENT_PRESETS['LabCode（内置）'];
+            const agentCfg = (window.__AGENT_PRESETS || AGENT_PRESETS)[n.data.agent] || (window.__AGENT_PRESETS || AGENT_PRESETS)['LabCode（内置）'];
             const keys = ['provider', 'model', 'apiKey', 'baseURL', 'thinkingLevel'];
             const curCfg = await window.LabCode.config.get(); const saved = {}; keys.forEach(k => { try { saved[k] = (curCfg && curCfg.ai) ? curCfg.ai[k] : ''; } catch (e) { saved[k] = ''; } });
             try {
@@ -12756,6 +12759,106 @@ async function initTheme() {
   }
 }
 
+// ============ 调度触发工作流执行器（无 UI 纯执行，主进程 cron 到点调用）============
+async function wfRunScheduled(nodes, edges, taskPrompt) {
+  const MAX_LOOP = 5;
+  const loopCount = {};
+  const indeg = {}; nodes.forEach(n => indeg[n.id] = 0); edges.forEach(e => { if (indeg[e.to] != null) indeg[e.to]++; });
+  const entry = nodes.filter(n => indeg[n.id] === 0).map(n => n.id);
+  if (!entry.length) return { ok: false, error: '工作流缺少入口节点' };
+  const order = [];
+  const seq = entry.slice();
+  while (seq.length) {
+    const id = seq.shift();
+    order.push(id);
+    const n = nodes.find(x => x.id === id); if (!n) continue;
+    const outs = edges.filter(e => e.from === id);
+    for (const e of outs) {
+      if (e.route === 'loop') {
+        const target = nodes.find(x => x.id === e.to);
+        if (target) {
+          loopCount[e.to] = (loopCount[e.to] || 0) + 1;
+          if (loopCount[e.to] <= MAX_LOOP) seq.push(e.to);
+        }
+      } else seq.push(e.to);
+    }
+  }
+  const summary = [];
+  let failed = 0;
+  for (const id of order) {
+    const n = nodes.find(x => x.id === id); if (!n) continue;
+    const hasInEdge = edges.some(e => e.to === id && e.route !== 'loop');
+    if (hasInEdge) {
+      const anyUpstreamFailed = edges.some(e => e.to === id && e.route !== 'loop' && (nodes.find(x => x.id === e.from) || {}).data?.status === 'failed');
+      if (anyUpstreamFailed) { n.data.status = 'failed'; failed++; summary.push((n.data.label || n.id) + ': 跳过（前置失败）'); continue; }
+    }
+    n.data.status = 'running';
+    try {
+      if (n.type === 'ai') {
+        // 审批门节点：调度场景自动通过（任务已由用户预授权）
+        if (n.data.approval) { n.data.status = 'pending_approval'; await new Promise(r => setTimeout(r, 300)); }
+        const agentCfg = (window.__AGENT_PRESETS || AGENT_PRESETS)[n.data.agent] || (window.__AGENT_PRESETS || AGENT_PRESETS)['LabCode（内置）'];
+        const keys = ['provider', 'model', 'apiKey', 'baseURL', 'thinkingLevel'];
+        const curCfg = await window.LabCode.config.get(); const saved = {}; keys.forEach(k => { try { saved[k] = (curCfg && curCfg.ai) ? curCfg.ai[k] : ''; } catch (e) { saved[k] = ''; } });
+        try {
+          await window.LabCode.config.set('ai.provider', agentCfg.provider);
+          await window.LabCode.config.set('ai.model', agentCfg.model || '');
+          await window.LabCode.config.set('ai.apiKey', agentCfg.apiKey || '');
+          await window.LabCode.config.set('ai.baseURL', agentCfg.baseURL || '');
+          await window.LabCode.config.set('ai.thinkingLevel', agentCfg.thinking || 'standard');
+          const prompt = [n.data.prompt || '', taskPrompt ? '（定时任务附加指令：' + taskPrompt + '）' : ''].filter(Boolean).join('\n');
+          const res = await window.LabCode.ai.chat({ messages: [{ role: 'user', content: prompt || '你好' }], temperature: 0.7, maxTokens: 8192 });
+          n.data.status = (res && res.success) ? 'completed' : 'failed';
+          n.data.result = (res && res.success) ? (res.content || '') : ('[失败：' + ((res && res.error) || '未知') + ']');
+        } finally {
+          for (const k of keys) { try { await window.LabCode.config.set('ai.' + k, saved[k]); } catch (e) {} }
+        }
+      } else if (n.type === 'tool') {
+        n.data.result = '[终端] ' + (n.data.cmd || '(空)');
+        n.data.status = 'completed';
+      } else if (n.type === 'cond') {
+        n.data.result = '（条件节点，默认透传成功路由）'; n.data.status = 'completed';
+      } else {
+        n.data.result = '（已执行）'; n.data.status = 'completed';
+      }
+    } catch (e) {
+      n.data.result = '[异常：' + e.message + ']';
+      n.data.status = 'failed';
+    }
+    const tag = n.data.label || n.id;
+    const detail = n.data.result ? String(n.data.result).slice(0, 200) : '';
+    summary.push(tag + ' [' + n.data.status + '] ' + detail);
+    if (n.data.status === 'failed') { failed++; break; }
+  }
+  return { ok: failed === 0, summary: summary.join('\n'), failedCount: failed, total: order.length };
+}
+
+// 注册调度工作流监听（主进程 cron 到点 → 执行 → 回报）
+function initScheduledWorkflow() {
+  try {
+    if (!window.LabCode || !window.LabCode.schedule || !window.LabCode.schedule.onExecWorkflow) return;
+    window.LabCode.schedule.onExecWorkflow(async (data) => {
+      try {
+        const cfg = await window.LabCode.config.get();
+        const wf = cfg && cfg.ai && cfg.ai.workflow;
+        if (!wf || !wf.nodes || !wf.nodes.length) {
+          window.LabCode.schedule.sendWorkflowResult({ token: data.token, ok: false, error: '没有可执行的工作流（请先在工作流面板配置）' });
+          return;
+        }
+        // 深拷贝执行，避免污染面板当前状态
+        const nodes = JSON.parse(JSON.stringify(wf.nodes));
+        const edges = JSON.parse(JSON.stringify(wf.edges || []));
+        const res = await wfRunScheduled(nodes, edges, data.prompt || '');
+        // 用量统计：调度触发的执行补记
+        try { usageRecord('调度工作流', res.ok, 0); } catch (e) {}
+        window.LabCode.schedule.sendWorkflowResult({ token: data.token, ok: res.ok, summary: res.summary, error: res.error || '' });
+      } catch (e) {
+        window.LabCode.schedule.sendWorkflowResult({ token: data.token, ok: false, error: e.message });
+      }
+    });
+  } catch (e) { /* 忽略 */ }
+}
+
 // ============ 用量统计（本地记录 AI 调用次数/Token 估算/模型分布，对齐 Ekko Usage Analytics）============
 const USAGE_KEY = 'ai.usage';
 let usageData = { calls: 0, tokens: 0, success: 0, fail: 0, byModel: {}, history: [] };
@@ -12858,6 +12961,7 @@ function init() {
     // 1:1 对齐 TrieCode：默认无打开文件，AI 面板占满主区域
     initTheme();
     usageLoad().then(() => { initUsagePanel(); initUsageInterceptor(); usageRender(); });
+    initScheduledWorkflow();
     document.body.classList.add('no-open-file');
     initFiles();
     renderFileTree();
@@ -13209,6 +13313,7 @@ if (document.readyState === 'loading') {
       }
     });
   }
+
 })();
 
 
@@ -13465,6 +13570,7 @@ if (document.readyState === 'loading') {
     const btn = document.getElementById('save-ai-config');
     if (btn) btn.addEventListener('click', saveAIConfig);
   });
+
 })();
 
 
