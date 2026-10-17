@@ -8437,8 +8437,8 @@ function bindEvents() {
     const wrap = document.getElementById('wf-nodes'); if (!wrap) return;
     wrap.innerHTML = '';
     wfNodes.forEach(n => {
-      const el = document.createElement('div'); el.className = 'wf-node' + (n.id === wfActiveId ? ' selected' : ''); el.style.left = n.x + 'px'; el.style.top = n.y + 'px';
-      el.innerHTML = '<div class="wf-node-header">' + WF_TYPE[n.type] + (n.data.label ? '：' + wfEsc(n.data.label) : '') + '</div><div class="wf-node-body">' + (n.data.result ? wfEsc(String(n.data.result).slice(0, 120)) : '双击编辑 / 拖拽移动') + '</div>';
+      const el = document.createElement('div'); el.className = 'wf-node' + (n.id === wfActiveId ? ' selected' : '') + (n._state ? ' wf-' + n._state : ''); el.style.left = n.x + 'px'; el.style.top = n.y + 'px';
+      el.innerHTML = '<div class="wf-node-header"><span>' + WF_TYPE[n.type] + (n.data.label ? '：' + wfEsc(n.data.label) : '') + '</span><span class="wf-state ' + (n._state || '') + '">' + ({ running: '⏳运行中', done: '✅', error: '⚠️', skipped: '⏭️跳过' }[n._state] || '') + '</span></div><div class="wf-node-body">' + (n.data.result ? wfEsc(String(n.data.result).slice(0, 120)) : '双击编辑 / 拖拽移动') + '</div>';
       const pin = document.createElement('div'); pin.className = 'wf-port in'; el.appendChild(pin);
       const pout = document.createElement('div'); pout.className = 'wf-port out'; el.appendChild(pout);
       el.querySelector('.wf-node-header').addEventListener('mousedown', e => { e.preventDefault(); wfDrag = { id: n.id, dx: e.clientX - n.x, dy: e.clientY - n.y }; });
@@ -8469,7 +8469,8 @@ function bindEvents() {
     if (!n) { p.innerHTML = '<span class="gc-hint">点选节点编辑属性</span>'; return; }
     let html = '<div style="font-weight:600;margin-bottom:8px;">' + WF_TYPE[n.type] + '</div>';
     html += '<label>名称</label><input id="wf-p-label" value="' + wfEsc(n.data.label || '') + '" />';
-    if (n.type === 'ai' || n.type === 'cond') { html += '<label>提示词/条件</label><textarea id="wf-p-prompt" rows="4">' + wfEsc(n.data.prompt || '') + '</textarea>'; }
+    if (n.type === 'ai' || n.type === 'cond') { html += '<label>' + (n.type === 'cond' ? '条件表达式（JS）' : '提示词') + '</label><textarea id="wf-p-prompt" rows="4" placeholder="' + (n.type === 'cond' ? "如 prev.includes('error') 或 ctx['n上一步ID'].includes('失败')" : '') + '">' + wfEsc(n.data.prompt || '') + '</textarea>'; }
+    if (n.type === 'cond') { html += '<div class="wf-cond-hint">可用 <b>prev</b>（上游节点输出文本，换行连接）或 <b>ctx[\'节点ID\']</b> 引用任意节点结果；真分支取第 1 条出边，假分支取第 2 条出边。</div>'; }
     if (n.type === 'tool') { html += '<label>终端命令</label><input id="wf-p-cmd" value="' + wfEsc(n.data.cmd || '') + '" />'; }
     if (n.type === 'output') { html += '<div style="margin-top:6px;color:var(--text-secondary)">输出：' + (n.data.result ? wfEsc(String(n.data.result).slice(0, 200)) : '—') + '</div>'; }
     html += '<div style="margin-top:10px;"><button class="btn btn-sm" id="wf-p-del">删除节点</button></div>';
@@ -8481,22 +8482,109 @@ function bindEvents() {
   }
   function wfEdit(id) { wfSelect(id); const pr = document.getElementById('wf-p-prompt') || document.getElementById('wf-p-label'); if (pr) pr.focus(); }
   async function wfRun() {
-    const indeg = {}; wfNodes.forEach(n => indeg[n.id] = 0); wfEdges.forEach(e => { if (indeg[e.to] != null) indeg[e.to]++; });
-    const queue = wfNodes.filter(n => indeg[n.id] === 0).map(n => n.id); const order = []; const adj = {};
-    wfEdges.forEach(e => { (adj[e.from] = adj[e.from] || []).push(e.to); });
-    while (queue.length) { const id = queue.shift(); order.push(id); (adj[id] || []).forEach(t => { indeg[t]--; if (indeg[t] === 0) queue.push(t); }); }
-    if (order.length !== wfNodes.length) { showToast('工作流存在环，无法运行', 'error'); return; }
-    for (const id of order) {
-      const n = wfNodes.find(x => x.id === id); if (!n) continue;
-      n.data.result = '（运行中…）'; wfRenderNodes();
+    if (!wfNodes.length) { showToast('画布为空，先添加节点', 'info'); return; }
+    // ---- 环检测（完整图 Kahn）----
+    const indeg = {}; wfNodes.forEach(n => indeg[n.id] = 0);
+    wfEdges.forEach(e => { if (indeg[e.to] != null) indeg[e.to]++; });
+    const adj = {}; wfNodes.forEach(n => adj[n.id] = []);
+    wfEdges.forEach(e => { if (adj[e.from]) adj[e.from].push(e.to); });
+    const q = wfNodes.filter(n => indeg[n.id] === 0).map(n => n.id);
+    const topo = [];
+    while (q.length) { const id = q.shift(); topo.push(id); (adj[id] || []).forEach(t => { indeg[t]--; if (indeg[t] === 0) q.push(t); }); }
+    if (topo.length !== wfNodes.length) { showToast('工作流存在环，无法运行', 'error'); return; }
+
+    // ---- 单遍拓扑执行：条件分支按上游结果裁剪下游边 ----
+    const key = e => e.from + '->' + e.to;
+    const active = new Set(wfEdges.map(key));
+    const incomingOf = id => wfEdges.filter(e => e.to === id);
+    const ctxId = () => { const c = {}; wfNodes.forEach(x => { c[x.id] = (x.data && x.data.result) || ''; }); return c; };
+    let skipped = 0;
+    wfNodes.forEach(n => { n._state = 'idle'; });
+
+    const reachable = new Set();
+    wfNodes.filter(n => incomingOf(n.id).length === 0).forEach(n => reachable.add(n.id));
+    for (const id of topo) {
+      const n = wfNodes.find(x => x.id === id);
+      if (!n) continue;
+      const inc = incomingOf(id);
+      if (!reachable.has(id)) { n._state = 'skipped'; skipped++; wfRenderNodes(); continue; }
+      n._state = 'running'; wfRenderNodes();
       try {
-        if (n.type === 'ai') { const res = await window.LabCode.ai.chat({ messages: [{ role: 'user', content: n.data.prompt || '你好' }], temperature: 0.7, maxTokens: 8192 }); n.data.result = (res && res.success) ? (res.content || '') : '[失败：' + ((res && res.error) || '未知') + ']'; }
-        else if (n.type === 'tool') { n.data.result = '[终端] ' + (n.data.cmd || '(空)') + '（MVP 未接真实终端）'; }
-        else { n.data.result = '（已执行）'; }
-      } catch (e) { n.data.result = '[异常：' + e.message + ']'; }
+        if (n.type === 'ai') {
+          const res = await window.LabCode.ai.chat({ messages: [{ role: 'user', content: n.data.prompt || '你好' }], temperature: 0.7, maxTokens: 8192 });
+          n.data.result = (res && res.success) ? (res.content || '') : '[失败：' + ((res && res.error) || '未知') + ']';
+          n._state = (res && res.success) ? 'done' : 'error';
+        } else if (n.type === 'tool') {
+          if (window.LabCode && window.LabCode.terminal && window.LabCode.terminal.execute) {
+            const cwd = (typeof state !== 'undefined' && state.projectPath) || undefined;
+            const res = await window.LabCode.terminal.execute(n.data.cmd || '', cwd, 60000);
+            if (res && res.blocked === 'deny') { n.data.result = '[已拦截] ' + (res.error || '危险命令'); n._state = 'error'; }
+            else {
+              const out = (res && res.stdout ? res.stdout : '') + (res && res.stderr ? '\n' + res.stderr : '');
+              const ec = res && res.exitCode !== undefined ? res.exitCode : (res && res.success ? 0 : 1);
+              n.data.result = (out || '(无输出)') + '\n(退出码 ' + ec + ')';
+              n._state = (res && res.success === false) ? 'error' : 'done';
+            }
+          } else { n.data.result = '[非 Electron 环境，无法执行终端]'; n._state = 'error'; }
+        } else if (n.type === 'cond') {
+          const ups = inc.map(e => (wfNodes.find(x => x.id === e.from) || {}).data?.result || '');
+          let pass = false;
+          if (n.data.prompt && n.data.prompt.trim()) {
+            try { pass = !!new Function('ctx', 'prev', 'return (' + n.data.prompt + ')').call(null, ctxId(), ups.join('\n')); }
+            catch (err) { n.data.result = '[条件解析错误：' + err.message + ']'; n._state = 'error'; }
+          } else { n.data.result = '[未设置条件，默认走真分支]'; }
+          const outs = wfEdges.filter(e => e.from === id);
+          if (pass) { outs.slice(1).forEach(e => active.delete(key(e))); n.data.result = '✅ 条件成立 → 走真分支'; }
+          else { outs.slice(0, 1).forEach(e => active.delete(key(e))); n.data.result = '⬜ 条件不成立 → 走假分支'; }
+          if (n._state !== 'error') n._state = 'done';
+        } else {
+          n.data.result = '（已执行）'; n._state = 'done';
+        }
+      } catch (e) { n.data.result = '[异常：' + e.message + ']'; n._state = 'error'; }
       wfRenderNodes();
+      wfEdges.filter(e => e.from === id && active.has(key(e))).forEach(e => reachable.add(e.to));
     }
-    wfSave(); showToast('运行完成', 'info');
+    wfSave();
+    const ran = wfNodes.filter(n => n._state === 'done' || n._state === 'error').length;
+    showToast('运行完成：执行 ' + ran + (skipped ? '，跳过 ' + skipped + ' 个（分支未命中）' : '') + ' 个节点', 'info');
+  }
+
+  async function wfExport() {
+    try {
+      const data = { name: 'LabCode 工作流', version: 1, exportedAt: new Date().toISOString(),
+        nodes: wfNodes.map(n => { const { _state, ...r } = n; return r; }), edges: wfEdges.slice() };
+      const json = JSON.stringify(data, null, 2);
+      if (window.LabCode && window.LabCode.dialog && window.LabCode.fs) {
+        const p = await window.LabCode.dialog.saveFile('labcode-workflow.json');
+        if (!p) return;
+        await window.LabCode.fs.writeFile(p, json);
+        showToast('已导出工作流到 ' + p, 'success');
+      } else {
+        const blob = new Blob([json], { type: 'application/json' });
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'labcode-workflow.json'; a.click();
+        showToast('已导出工作流 JSON', 'success');
+      }
+    } catch (e) { showToast('导出失败：' + e.message, 'error'); }
+  }
+
+  async function wfImport() {
+    try {
+      if (!(window.LabCode && window.LabCode.dialog && window.LabCode.fs)) { showToast('仅 Electron 环境支持导入', 'error'); return; }
+      const p = await window.LabCode.dialog.openFile();
+      if (!p) return;
+      const content = await window.LabCode.fs.readFile(p);
+      const data = JSON.parse(content);
+      if (!data || !Array.isArray(data.nodes)) { showToast('文件格式不正确', 'error'); return; }
+      wfNodes = data.nodes.map(n => ({
+        id: n.id || ('n' + Date.now() + Math.random().toString(36).slice(2, 6)),
+        type: n.type || 'ai', x: n.x || 60, y: n.y || 60,
+        data: Object.assign({ label: '', prompt: '', cmd: '', result: '' }, n.data || {}),
+        _state: 'idle'
+      }));
+      wfEdges = Array.isArray(data.edges) ? data.edges.filter(e => e && e.from && e.to) : [];
+      wfActiveId = null; wfRenderNodes(); wfSave();
+      showToast('已导入工作流（' + wfNodes.length + ' 节点 / ' + wfEdges.length + ' 连线）', 'success');
+    } catch (e) { showToast('导入失败：' + e.message, 'error'); }
   }
   function wfShowView() {
     wfLoad(); wfRenderNodes();
@@ -8507,6 +8595,8 @@ function bindEvents() {
       document.getElementById('wf-new').addEventListener('click', () => { wfNodes = []; wfEdges = []; wfActiveId = null; wfRenderNodes(); wfSave(); });
       document.getElementById('wf-save').addEventListener('click', () => { wfSave(); showToast('已保存工作流', 'info'); });
       document.getElementById('wf-run').addEventListener('click', () => wfRun());
+      document.getElementById('wf-export').addEventListener('click', () => wfExport());
+      document.getElementById('wf-import').addEventListener('click', () => wfImport());
       document.addEventListener('mousemove', e => { if (wfDrag) { const n = wfNodes.find(x => x.id === wfDrag.id); if (n) { n.x = e.clientX - wfDrag.dx; n.y = e.clientY - wfDrag.dy; wfRenderNodes(); } } });
       document.addEventListener('mouseup', () => { if (wfDrag) { wfDrag = null; wfSave(); } });
     }
