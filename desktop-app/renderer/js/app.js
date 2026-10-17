@@ -8639,6 +8639,59 @@ function bindEvents() {
   // 暴露给全局（调度工作流执行器 wfRunScheduled 需要访问 Agent 预设）
   window.__AGENT_PRESETS = AGENT_PRESETS;
 
+  // ============ 自定义 Agent 安装/注册（对齐 Ekko：Agent 可插拔注册）============
+  // 启动时从 config.ai.customAgents 合并进 AGENT_PRESETS（const 只锁绑定，属性可增）
+  // 合并后所有引用点（工作流下拉 / 群聊成员 / Agent Manager / 配置切换）自动生效
+  const CUSTOM_AGENT_TEMPLATES = {
+    'openai':  { provider: 'openai', model: 'gpt-4o-mini', baseURL: '', apiKey: '', thinking: 'standard' },
+    'anthropic': { provider: 'custom', model: 'claude-sonnet-4', baseURL: 'https://api.anthropic.com/v1', apiKey: '', thinking: 'standard' },
+    'ollama':  { provider: 'ollama', model: 'qwen2.5-coder:7b', baseURL: 'http://localhost:11434/v1', apiKey: '', thinking: 'standard' },
+    'deepseek':{ provider: 'deepseek', model: 'deepseek-chat', baseURL: 'https://api.deepseek.com/v1', apiKey: '', thinking: 'standard' },
+    'custom':  { provider: 'custom', model: '', baseURL: '', apiKey: '', thinking: 'standard' }
+  };
+  // 内置 Agent 名单（定义 AGENT_PRESETS 时锁定，安装/卸载保护用）
+  const BUILTIN_AGENT_NAMES = Object.keys(AGENT_PRESETS);
+  function isBuiltinAgent(name) { return BUILTIN_AGENT_NAMES.indexOf(name) >= 0; }
+  async function mergeCustomAgents() {
+    try {
+      const c = await window.LabCode.config.get();
+      const list = (c && c.ai && Array.isArray(c.ai.customAgents)) ? c.ai.customAgents : [];
+      for (const a of list) {
+        if (!a || !a.name) continue;
+        if (AGENT_PRESETS[a.name]) continue; // 已存在（含内置）不覆盖
+        AGENT_PRESETS[a.name] = { provider: a.provider || 'custom', model: a.model || '', apiKey: a.apiKey || '', baseURL: a.baseURL || '', thinking: a.thinking || 'standard', builtin: false, custom: true };
+      }
+    } catch (e) { console.warn('mergeCustomAgents:', e.message); }
+  }
+  async function saveCustomAgents() {
+    try {
+      const list = Object.keys(AGENT_PRESETS).filter(k => AGENT_PRESETS[k] && AGENT_PRESETS[k].custom).map(k => {
+        const a = AGENT_PRESETS[k];
+        return { name: k, provider: a.provider, model: a.model, apiKey: a.apiKey || '', baseURL: a.baseURL || '', thinking: a.thinking || 'standard' };
+      });
+      await window.LabCode.config.set('ai.customAgents', list);
+    } catch (e) { console.warn('saveCustomAgents:', e.message); }
+  }
+  async function installCustomAgent(cfg) {
+    const name = String(cfg && cfg.name || '').trim();
+    if (!name) return { success: false, error: 'Agent 名称不能为空' };
+    if (AGENT_PRESETS[name]) return { success: false, error: '该名称已存在（内置或已安装），请换一个' };
+    const tmpl = CUSTOM_AGENT_TEMPLATES[cfg.template] || CUSTOM_AGENT_TEMPLATES.custom;
+    AGENT_PRESETS[name] = { provider: cfg.provider || tmpl.provider, model: (cfg.model || '').trim() || tmpl.model, apiKey: (cfg.apiKey || '').trim() || tmpl.apiKey, baseURL: (cfg.baseURL || '').trim() || tmpl.baseURL, thinking: cfg.thinking || tmpl.thinking, builtin: false, custom: true };
+    await saveCustomAgents();
+    return { success: true, name };
+  }
+  async function uninstallCustomAgent(name) {
+    if (!AGENT_PRESETS[name] || isBuiltinAgent(name)) return { success: false, error: '内置 Agent 不可卸载' };
+    delete AGENT_PRESETS[name];
+    await saveCustomAgents();
+    return { success: true };
+  }
+  // 暴露给全局（init 启动加载用）
+  window.__mergeCustomAgents = mergeCustomAgents;
+  window.__installCustomAgent = installCustomAgent;
+  window.__uninstallCustomAgent = uninstallCustomAgent;
+
   let gcRooms = [];
   let gcActiveId = null;
   let gcBound = false;
@@ -8898,23 +8951,66 @@ function bindEvents() {
   let wfAgentsBound = false;
   async function wfAgentsShow() {
     const p = document.getElementById('wf-props'); if (!p) return;
+    await mergeCustomAgents(); // 确保自定义 Agent 已合并
     const names = Object.keys(AGENT_PRESETS);
-    let html = '<div style="font-weight:600;margin-bottom:8px;">Agent Manager（' + names.length + ' 个运行时）</div>';
-    html += '<div style="font-size:11px;color:var(--text-secondary);margin-bottom:10px;">管理可接入工作流与群聊的多 Agent 运行时；点击「测试」检查连通性。</div>';
+    const builtins = names.filter(n => isBuiltinAgent(n)).length;
+    let html = '<div style="font-weight:600;margin-bottom:8px;">Agent Manager（' + names.length + ' 个运行时：' + builtins + ' 内置 / ' + (names.length - builtins) + ' 自定义）</div>';
+    html += '<div style="font-size:11px;color:var(--text-secondary);margin-bottom:10px;">管理可接入工作流与群聊的多 Agent 运行时；可安装新 Agent（OpenAI 兼容 / Anthropic / 本地 Ollama / DeepSeek / 自定义），点击「测试」检查连通性。</div>';
+    // ===== 安装新 Agent 表单 =====
+    html += '<div style="border:1px dashed var(--primary);border-radius:8px;padding:10px;margin-bottom:10px;background:var(--surface-1);">' +
+      '<div style="font-weight:600;font-size:12px;color:var(--primary);margin-bottom:8px;">+ 安装新 Agent</div>' +
+      '<div style="display:flex;flex-direction:column;gap:6px;">' +
+      '<input id="wf-install-name" placeholder="Agent 名称（如 本地Qwen）" style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-primary);font-size:12px;" />' +
+      '<select id="wf-install-template" style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-primary);font-size:12px;">' +
+      '<option value="openai">OpenAI（云端 API）</option><option value="anthropic">Anthropic / Claude</option>' +
+      '<option value="ollama">本地 Ollama</option><option value="deepseek">DeepSeek</option><option value="custom">自定义（OpenAI 兼容）</option></select>' +
+      '<input id="wf-install-model" placeholder="模型名（留空用默认）" style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-primary);font-size:12px;" />' +
+      '<input id="wf-install-key" type="password" placeholder="API Key（本地/自定义可不填）" style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-primary);font-size:12px;" />' +
+      '<input id="wf-install-url" placeholder="Base URL（留空用模板默认）" style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-primary);font-size:12px;" />' +
+      '<select id="wf-install-thinking" style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-primary);font-size:12px;">' +
+      '<option value="standard">思考档位：standard</option><option value="fast">fast</option><option value="light">light</option><option value="deep">deep</option></select>' +
+      '<button class="btn btn-sm btn-primary" id="wf-install-btn">安装</button></div></div>';
+    // ===== Agent 列表 =====
     names.forEach(name => {
       const cfg = AGENT_PRESETS[name];
+      const isCustom = cfg && cfg.custom;
       html += '<div style="border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:8px;background:var(--surface-0);">' +
         '<div style="display:flex;justify-content:space-between;align-items:center;">' +
         '<span style="font-weight:600;font-size:13px;">' + wfEsc(name) + '</span>' +
-        '<span style="font-size:10px;color:var(--text-tertiary);">' + (cfg.builtin ? '内置' : '外部') + '</span></div>' +
+        '<span style="font-size:10px;color:var(--text-tertiary);">' + (isCustom ? '自定义' : '内置') + '</span></div>' +
         '<div style="font-size:11px;color:var(--text-secondary);margin-top:3px;">provider: ' + wfEsc(cfg.provider) + ' · model: ' + wfEsc(cfg.model || '（默认）') + '</div>' +
         '<div style="font-size:10px;color:var(--text-tertiary);margin-top:2px;word-break:break-all;">' + wfEsc(cfg.baseURL || '（使用默认端点）') + '</div>' +
-        '<div style="margin-top:6px;"><button class="btn btn-sm" data-wf-test="' + wfEsc(name) + '">测试连通</button></div></div>';
+        '<div style="margin-top:6px;display:flex;gap:6px;"><button class="btn btn-sm" data-wf-test="' + wfEsc(name) + '">测试连通</button>' +
+        (isCustom ? '<button class="btn btn-sm" data-wf-uninstall="' + wfEsc(name) + '" style="border-color:#ef4444;color:#ef4444;">卸载</button>' : '') +
+        '</div></div>';
     });
     p.innerHTML = html;
+    const installBtn = document.getElementById('wf-install-btn');
+    if (installBtn) {
+      installBtn.addEventListener('click', async () => {
+        const name = (document.getElementById('wf-install-name').value || '').trim();
+        const template = document.getElementById('wf-install-template').value;
+        const model = document.getElementById('wf-install-model').value;
+        const apiKey = document.getElementById('wf-install-key').value;
+        const baseURL = document.getElementById('wf-install-url').value;
+        const thinking = document.getElementById('wf-install-thinking').value;
+        if (!name) { showToast('请填写 Agent 名称', 'warn'); return; }
+        const r = await installCustomAgent({ name, template, model, apiKey, baseURL, thinking });
+        if (r.success) { showToast('已安装 Agent「' + r.name + '」，可在工作流/群聊中使用', 'success'); wfAgentsShow(); }
+        else showToast('安装失败：' + r.error, 'error');
+      });
+    }
     if (!wfAgentsBound) {
       wfAgentsBound = true;
       p.addEventListener('click', async (e) => {
+        const unBtn = e.target.closest('[data-wf-uninstall]');
+        if (unBtn) {
+          const name = unBtn.dataset.wfUninstall;
+          const r = await uninstallCustomAgent(name);
+          if (r.success) { showToast('已卸载 Agent「' + name + '」', 'success'); wfAgentsShow(); }
+          else showToast('卸载失败：' + r.error, 'error');
+          return;
+        }
         const btn = e.target.closest('[data-wf-test]');
         if (!btn) return;
         const name = btn.dataset.wfTest;
@@ -12962,6 +13058,7 @@ function init() {
     initTheme();
     usageLoad().then(() => { initUsagePanel(); initUsageInterceptor(); usageRender(); });
     initScheduledWorkflow();
+    if (window.__mergeCustomAgents) window.__mergeCustomAgents().then(() => { try { if (typeof wfRenderNodes === 'function') wfRenderNodes(); } catch (e) {} });
     document.body.classList.add('no-open-file');
     initFiles();
     renderFileTree();
