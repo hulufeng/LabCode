@@ -57,7 +57,7 @@ function getDefaultConfig() {
       height: 900,
       maximized: false
     },
-    theme: 'dark',
+    theme: 'light',
     recentProjects: [],
     extra: {
       skills: [],

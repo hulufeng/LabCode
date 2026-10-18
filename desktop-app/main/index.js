@@ -85,7 +85,7 @@ function getDefaultConfig() {
       height: 900,
       maximized: false
     },
-    theme: 'dark',
+    theme: 'light',
     recentProjects: [],
     extra: {
       skills: [],
@@ -157,7 +157,7 @@ function createMainWindow() {
     minWidth: 1024,
     minHeight: 680,
     frame: false,
-    backgroundColor: '#1e1e2e',
+    backgroundColor: '#f5f6f8',
     show: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
