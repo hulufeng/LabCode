@@ -1289,17 +1289,33 @@ function setupIPC() {
   });
 
   // ============ 缃戝叧璐﹀彿锛堢櫥褰?/ 娉ㄥ唽 / 浣欓 / 鐧诲嚭锛?===========
-  ipcMain.handle('ai:gatewayAuth', async (_, { action, email, password, gatewayUrl, inviteCode } = {}) => {
+  ipcMain.handle('ai:gatewayAuth', async (_, { action, email, password, gatewayUrl, inviteCode, code } = {}) => {
     // 浼樺厛绾э細鏄惧紡浼犲叆 > 宸蹭繚瀛?config.ai.gatewayUrl > 鐜鍙橀噺 > 榛樿鐢熶骇鍩熷悕
     const savedGw = (config.ai || {}).gatewayUrl || '';
     const gwBase = (gatewayUrl || savedGw || process.env.GATEWAY_URL || AI_PROVIDERS.gateway.baseURL || 'https://bluebubai.work').replace(/\/$/, '');
     try {
+      if (action === 'send-code') {
+        if (!email) return { success: false, error: '璇疯緭鍏ラ偖绠' };
+        const res = await net.fetch(`${gwBase}/api/auth/send-code`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) return { success: false, error: data.error || `缃戝叧杩斿洖 ${res.status}` };
+        return { success: true, ...(data.consoleMode ? { consoleMode: true, devCode: data.devCode } : {}) };
+      }
       if (action === 'login' || action === 'register') {
         if (!email || !password) return { success: false, error: '璇疯緭鍏ラ偖绠卞拰瀵嗙爜' };
+        const body = { email, password };
+        if (action === 'register') {
+          if (inviteCode) body.inviteCode = inviteCode;
+          if (code) body.code = code;
+        }
         const res = await net.fetch(`${gwBase}/api/auth/${action}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify((action === 'register' && inviteCode) ? { email, password, inviteCode } : { email, password })
+          body: JSON.stringify(body)
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) return { success: false, error: data.error || `缃戝叧杩斿洖 ${res.status}` };

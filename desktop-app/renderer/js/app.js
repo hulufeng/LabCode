@@ -12199,7 +12199,7 @@ function bindEvents() {
   // 网关登录 / 注册（对齐 TrieCode：tab 切换 + 邀请码选填 + 忘记密码）
   async function gatewayAuth(action) {
     const msg = document.getElementById('gw-msg');
-    let email, password, inviteCode = '';
+    let email, password, inviteCode = '', code = '';
     if (action === 'login') {
       email = document.getElementById('gw-login-account').value.trim();
       password = document.getElementById('gw-login-password').value.trim();
@@ -12207,18 +12207,20 @@ function bindEvents() {
       email = document.getElementById('gw-register-email').value.trim();
       password = document.getElementById('gw-register-password').value.trim();
       inviteCode = document.getElementById('gw-register-invite').value.trim();
+      code = document.getElementById('gw-register-code').value.trim();
     }
     if (!email || !password) { msg.textContent = '请输入邮箱和密码'; msg.style.color = '#EA6668'; return; }
     if (password.length < 6) { msg.textContent = '密码至少 6 位'; msg.style.color = '#EA6668'; return; }
+    if (action === 'register' && !code) { msg.textContent = '请输入邮箱验证码'; msg.style.color = '#EA6668'; return; }
     msg.textContent = action === 'login' ? '登录中...' : '注册中...';
     msg.style.color = 'var(--text-secondary)';
     if (window.LabCode && window.LabCode.ai && window.LabCode.ai.gatewayAuth) {
-      const r = await window.LabCode.ai.gatewayAuth({ action, email, password, inviteCode });
+      const r = await window.LabCode.ai.gatewayAuth({ action, email, password, inviteCode, code });
       if (r && r.success) {
         msg.textContent = action === 'login' ? '✓ 登录成功' : '✓ 注册成功（已自动登录）';
         msg.style.color = '#52C41A';
         if (action === 'login') document.getElementById('gw-login-password').value = '';
-        else { document.getElementById('gw-register-password').value = ''; document.getElementById('gw-register-invite').value = ''; }
+        else { document.getElementById('gw-register-password').value = ''; document.getElementById('gw-register-invite').value = ''; document.getElementById('gw-register-code').value = ''; }
         await refreshGatewayUI();
         await refreshCreditsBadge();
         // 若当前模型是云端模型，提示切换为积分通道
@@ -12234,6 +12236,47 @@ function bindEvents() {
         msg.textContent = (r && r.error) || '操作失败';
         msg.style.color = '#EA6668';
       }
+    }
+  }
+
+  // 发送注册邮箱验证码（设置面板 / 登录遮罩共用）
+  async function sendGwCode(overlay) {
+    const msgId = overlay ? 'gw-ov-msg' : 'gw-msg';
+    const msg = document.getElementById(msgId);
+    const btnId = overlay ? 'gw-ov-register-send-btn' : 'gw-register-send-btn';
+    const emailId = overlay ? 'gw-ov-register-email' : 'gw-register-email';
+    const btn = document.getElementById(btnId);
+    const email = document.getElementById(emailId).value.trim();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      if (msg) { msg.textContent = '请输入正确的邮箱地址'; msg.style.color = '#EA6668'; }
+      return;
+    }
+    if (btn) { btn.disabled = true; btn.textContent = '发送中...'; }
+    if (msg) { msg.textContent = '验证码发送中...'; msg.style.color = 'var(--text-secondary)'; }
+    try {
+      const r = window.LabCode && window.LabCode.ai && window.LabCode.ai.gatewayAuth
+        ? await window.LabCode.ai.gatewayAuth({ action: 'send-code', email })
+        : null;
+      if (r && r.success) {
+        if (msg) { msg.textContent = '✓ 验证码已发送，请查收邮箱'; msg.style.color = '#52C41A'; }
+        let left = 60;
+        if (btn) { btn.disabled = true; btn.textContent = `${left}s 后重发`; }
+        const timer = setInterval(() => {
+          left -= 1;
+          if (left <= 0) {
+            clearInterval(timer);
+            if (btn) { btn.disabled = false; btn.textContent = '获取验证码'; }
+          } else if (btn) {
+            btn.textContent = `${left}s 后重发`;
+          }
+        }, 1000);
+      } else {
+        if (msg) { msg.textContent = (r && r.error) || '验证码发送失败'; msg.style.color = '#EA6668'; }
+        if (btn) { btn.disabled = false; btn.textContent = '获取验证码'; }
+      }
+    } catch (e) {
+      if (msg) { msg.textContent = '验证码发送失败'; msg.style.color = '#EA6668'; }
+      if (btn) { btn.disabled = false; btn.textContent = '获取验证码'; }
     }
   }
 
@@ -12537,7 +12580,7 @@ function bindEvents() {
     };
     const gatewayAuthOverlay = async (action) => {
       const msg = document.getElementById('gw-ov-msg');
-      let email, password, inviteCode = '';
+      let email, password, inviteCode = '', code = '';
       if (action === 'login') {
         email = document.getElementById('gw-ov-login-account').value.trim();
         password = document.getElementById('gw-ov-login-password').value.trim();
@@ -12545,18 +12588,20 @@ function bindEvents() {
         email = document.getElementById('gw-ov-register-email').value.trim();
         password = document.getElementById('gw-ov-register-password').value.trim();
         inviteCode = document.getElementById('gw-ov-register-invite').value.trim();
+        code = document.getElementById('gw-ov-register-code').value.trim();
       }
       if (!email || !password) { msg.textContent = '请输入邮箱和密码'; msg.style.color = '#EA6668'; return; }
       if (password.length < 6) { msg.textContent = '密码至少 6 位'; msg.style.color = '#EA6668'; return; }
+      if (action === 'register' && !code) { msg.textContent = '请输入邮箱验证码'; msg.style.color = '#EA6668'; return; }
       msg.textContent = action === 'login' ? '登录中...' : '注册中...';
       msg.style.color = 'var(--text-secondary)';
       if (window.LabCode && window.LabCode.ai && window.LabCode.ai.gatewayAuth) {
-        const r = await window.LabCode.ai.gatewayAuth({ action, email, password, inviteCode });
+        const r = await window.LabCode.ai.gatewayAuth({ action, email, password, inviteCode, code });
         if (r && r.success) {
           msg.textContent = action === 'login' ? '✓ 登录成功' : '✓ 注册成功（已自动登录）';
           msg.style.color = '#52C41A';
           if (action === 'login') document.getElementById('gw-ov-login-password').value = '';
-          else { document.getElementById('gw-ov-register-password').value = ''; document.getElementById('gw-ov-register-invite').value = ''; }
+          else { document.getElementById('gw-ov-register-password').value = ''; document.getElementById('gw-ov-register-invite').value = ''; document.getElementById('gw-ov-register-code').value = ''; }
           hideLoginOverlay();
           await refreshGatewayUI(); await refreshCreditsBadge();
           showToast('已登录网关账号', 'success');
@@ -12576,6 +12621,8 @@ function bindEvents() {
     const t2 = document.getElementById('gw-ov-tab-register'); if (t2) t2.addEventListener('click', () => switchGwOvTab('register'));
     const lb = document.getElementById('gw-ov-login-btn'); if (lb) lb.addEventListener('click', () => gatewayAuthOverlay('login'));
     const rb = document.getElementById('gw-ov-register-btn'); if (rb) rb.addEventListener('click', () => gatewayAuthOverlay('register'));
+    const sb = document.getElementById('gw-ov-register-send-btn'); if (sb) sb.addEventListener('click', () => sendGwCode(true));
+    const sb2 = document.getElementById('gw-register-send-btn'); if (sb2) sb2.addEventListener('click', () => sendGwCode(false));
     const fo = document.getElementById('gw-ov-forgot'); if (fo) fo.addEventListener('click', gwForgotOverlay);
     const sk = document.getElementById('gw-ov-skip'); if (sk) sk.addEventListener('click', hideLoginOverlay);
     window.__showGwLoginOverlay = showLoginOverlay;
