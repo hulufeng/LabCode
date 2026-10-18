@@ -829,11 +829,25 @@ function setupIPC() {
     custom:   { baseURL: '', defaultModel: '' }
   };
 
+  // 兼容历史配置的 baseURL/baseUrl 大小写字段（旧版 UI 写入 ai.baseUrl，新版读 ai.baseURL）。
+  // 优先大写 baseURL；为空时回退小写 baseUrl；custom provider 下 baseUrl 指向本地 127.0.0.1 优先。
+  function resolveAiBaseURL(aiCfg) {
+    if (!aiCfg) return '';
+    const upper = aiCfg.baseURL || '';
+    const lower = aiCfg.baseUrl || '';
+    if (aiCfg.provider === 'custom') {
+      // custom 场景：本地端点（127.0.0.1/localhost）优先采用小写字段，云端官方地址按大写处理
+      if (lower && /^(http:\/\/)?(127\.0\.0\.1|localhost)(:\d+)?(\/|$)/i.test(lower)) return lower;
+      return upper || lower;
+    }
+    return upper || lower;
+  }
+
   ipcMain.handle('ai:chat', async (_, options) => {
     const { messages, model, temperature = 0.7, maxTokens = 4096 } = options || {};
     const aiCfg = config.ai || {};
     const provider = AI_PROVIDERS[aiCfg.provider] || AI_PROVIDERS.deepseek;
-    const baseURL = (aiCfg.provider === 'gateway' && aiCfg.gatewayUrl) ? aiCfg.gatewayUrl : (aiCfg.baseURL || provider.baseURL);
+    const baseURL = (aiCfg.provider === 'gateway' && aiCfg.gatewayUrl) ? aiCfg.gatewayUrl : (resolveAiBaseURL(aiCfg) || provider.baseURL);
     const useModel = model || aiCfg.model || provider.defaultModel;
     const apiKey = aiCfg.apiKey || '';
 
@@ -950,7 +964,7 @@ function setupIPC() {
   // 鍗曡疆娴佸紡璋冪敤锛堟敮鎸?tools / function calling锛涘け璐ヨ嚜鍔ㄥ洖閫€闈炴祦寮忥級
   async function streamChatCompletion(sender, runId, { messages, model, temperature, maxTokens, tools, aiCfg }) {
     const provider = AI_PROVIDERS[aiCfg.provider] || AI_PROVIDERS.deepseek;
-    const baseURL = (aiCfg.provider === 'gateway' && aiCfg.gatewayUrl) ? aiCfg.gatewayUrl : (aiCfg.baseURL || provider.baseURL);
+    const baseURL = (aiCfg.provider === 'gateway' && aiCfg.gatewayUrl) ? aiCfg.gatewayUrl : (resolveAiBaseURL(aiCfg) || provider.baseURL);
     let useModel = model || aiCfg.model || provider.defaultModel;
     const abortCtrl = new AbortController();
     activeAiControllers.set(runId, abortCtrl);
@@ -1259,7 +1273,7 @@ function setupIPC() {
     // 娴嬭瘯 AI 杩炴帴锛堝彂涓€鏉℃渶鐭秷鎭級
     const aiCfg = { ...(config.ai || {}), ...(testConfig || {}) };
     const provider = AI_PROVIDERS[aiCfg.provider] || AI_PROVIDERS.deepseek;
-    const baseURL = (aiCfg.provider === 'gateway' && aiCfg.gatewayUrl) ? aiCfg.gatewayUrl : (aiCfg.baseURL || provider.baseURL);
+    const baseURL = (aiCfg.provider === 'gateway' && aiCfg.gatewayUrl) ? aiCfg.gatewayUrl : (resolveAiBaseURL(aiCfg) || provider.baseURL);
     const useModel = aiCfg.model || provider.defaultModel;
     if (!baseURL) return { success: false, error: '鏈厤缃?baseURL' };
     try {
@@ -1618,7 +1632,7 @@ function setupIPC() {
       const dataUrl = 'data:' + mime + ';base64,' + b64;
       const aiCfg = config.ai || {};
       const provider = AI_PROVIDERS[aiCfg.provider] || AI_PROVIDERS.deepseek;
-      const baseURL = aiCfg.baseURL || provider.baseURL;
+      const baseURL = resolveAiBaseURL(aiCfg) || provider.baseURL;
       const apiKey = aiCfg.apiKey || '';
       const url = baseURL.replace(/\/$/, '') + '/chat/completions';
       const resp = await net.fetch(url, {
@@ -2722,7 +2736,7 @@ function setupIPC() {
   async function callAiOnce(messages, opts = {}) {
     const aiCfg = config.ai || {};
     const provider = AI_PROVIDERS[aiCfg.provider] || AI_PROVIDERS.deepseek;
-    const baseURL = (aiCfg.provider === 'gateway' && aiCfg.gatewayUrl) ? aiCfg.gatewayUrl : (aiCfg.baseURL || provider.baseURL);
+    const baseURL = (aiCfg.provider === 'gateway' && aiCfg.gatewayUrl) ? aiCfg.gatewayUrl : (resolveAiBaseURL(aiCfg) || provider.baseURL);
     const useModel = opts.model || aiCfg.model || provider.defaultModel;
     if (!baseURL) throw new Error('AI baseURL not configured');
     const isGateway = aiCfg.provider === 'gateway';

@@ -4603,7 +4603,11 @@ void loop() {
       }
     }
 
-    const hasApiKey = !!(aiCfg.apiKey || aiCfg.gatewayToken || aiCfg.provider === 'ollama' || aiCfg.provider === 'local');
+    // 本地端点（custom + baseUrl 指向 127.0.0.1/localhost）视为本地引擎，无需 API Key。
+    // 优先检查小写 baseUrl（历史字段，用户实际配置的本地端点），再查 baseURL。
+    const localUrl = aiCfg.baseUrl || aiCfg.baseURL || '';
+    const localEndpoint = /^(https?:\/\/)?(127\.0\.0\.1|localhost)(:\d+)?(\/|$)/i.test(localUrl);
+    const hasApiKey = !!(aiCfg.apiKey || aiCfg.gatewayToken || aiCfg.provider === 'ollama' || aiCfg.provider === 'local' || (aiCfg.provider === 'custom' && localEndpoint));
 
     if (!hasApiKey) {
       // 未配置 API Key → 回退模拟，但提示用户
@@ -12119,7 +12123,7 @@ function bindEvents() {
     const ai = cfg.ai || {};
     document.getElementById('ai-provider').value = ai.provider || 'deepseek';
     document.getElementById('ai-apikey').value = ai.apiKey || '';
-    document.getElementById('ai-baseurl').value = ai.baseURL || '';
+    document.getElementById('ai-baseurl').value = ai.baseURL || ai.baseUrl || '';
     document.getElementById('ai-model').value = ai.model || '';
     document.getElementById('ai-thinking').value = ai.thinkingLevel || 'standard';
     document.getElementById('ai-test-result').textContent = '';
@@ -13920,7 +13924,7 @@ if (document.readyState === 'loading') {
       if (radio) radio.checked = true;
       if (prov === 'custom') {
         document.getElementById('custom-api-fields').style.display = 'block';
-        document.getElementById('custom-baseurl').value = ai.baseURL || '';
+        document.getElementById('custom-baseurl').value = ai.baseURL || ai.baseUrl || '';
         document.getElementById('custom-apikey').value = ai.apiKey || '';
         document.getElementById('custom-model').value = ai.defaultModel || '';
       }
