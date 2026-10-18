@@ -2,6 +2,12 @@
 // 基于业界 IDE 设计实践：agent-runner / loop-engine / permission-policy /
 // tool-pipeline / context-manager / plan-store / terminal-exec / ai-provider
 
+// DOMContentLoaded 兼容包装：若事件已触发（如打包 asar 下脚本加载时序抖动），立即以微任务执行
+function __onDCL(cb) {
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', cb);
+  else queueMicrotask(cb);
+}
+
 // ============ 记忆持久化（对齐 TrieCode memory/ 目录）============
 async function saveMemoriesToDisk(memories) {
   if (!isElectron || !window.LabCode || !window.LabCode.fs) return;
@@ -114,49 +120,13 @@ window.LabCodeUI.state = state;
 // ============ Auto-update UI (user-confirmed install) ============
 // Main process no longer force-restarts on download; it notifies the renderer
 // and we surface a toast. The user clicks "Restart & Install" to actually apply.
+// 2026-10-18 用户要求"不要弹窗的小球"：停用更新提示 toast（自动检查已在 main 侧停用）
 (function setupUpdateUI() {
   if (!isElectron || !window.LabCode || !window.LabCode.on) return;
-  let toast = null;
-  function ensureToast() {
-    if (toast) return toast;
-    const el = document.createElement('div');
-    el.id = 'labcode-update-toast';
-    el.style.cssText = 'position:fixed;right:16px;bottom:16px;z-index:99999;display:none;background:#1e1e2e;color:#e6e6e6;border:1px solid #3b82f6;border-radius:8px;padding:12px 16px;box-shadow:0 4px 18px rgba(0,0,0,.45);font:13px/1.5 system-ui,sans-serif;max-width:340px;';
-    (document.body || document.documentElement).appendChild(el);
-    toast = el;
-    return toast;
-  }
-  function showToast(message, withInstall) {
-    const el = ensureToast();
-    el.innerHTML = '';
-    const span = document.createElement('span');
-    span.textContent = message;
-    el.appendChild(span);
-    if (withInstall) {
-      const btn = document.createElement('button');
-      btn.textContent = 'Restart & Install';
-      btn.style.cssText = 'margin-left:12px;background:#3b82f6;color:#fff;border:none;border-radius:4px;padding:5px 12px;cursor:pointer;font:12px system-ui;';
-      btn.onclick = async () => {
-        try {
-          await window.LabCode.update.install();
-        } catch (e) {
-          showToast('Install failed: ' + e.message, 'error');
-        }
-      };
-      el.appendChild(btn);
-    }
-    el.style.display = 'block';
-  }
   function run() {
-    window.LabCode.on('update:available', (info) => {
-      const v = info && info.version ? ' ' + info.version : '';
-      showToast('New version' + v + ' found, downloading...', false);
-    });
-    window.LabCode.on('update:downloaded', () => {
-      showToast('Update downloaded. Restart to install.', true);
-    });
+    // 更新提示弹窗已停用（保留占位，避免误删其他依赖）
   }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => { run(); bindCommandPalette(); });
+  if (document.readyState === 'loading') __onDCL( () => { run(); bindCommandPalette(); });
   else { run(); bindCommandPalette(); }
 })();
 
@@ -2416,7 +2386,7 @@ function bindMcpPanelControls() {
 }
 
 // 启动时拉取一次 MCP 工具（用户未打开面板也能让 Agent 用到）
-if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => setTimeout(refreshMcpToolDefs, 2500));
+if (document.readyState === 'loading') __onDCL( () => setTimeout(refreshMcpToolDefs, 2500));
 else setTimeout(refreshMcpToolDefs, 2500);
 function getToolCategory(name) { const t = getToolDef(name); return t ? t.category : 'query'; }
 
@@ -8635,7 +8605,7 @@ function bindEvents() {
     'Qoder': { provider: 'custom', model: 'qoder', apiKey: '', baseURL: '', thinking: 'standard' },
     'GitHub Copilot': { provider: 'custom', model: 'gpt-4o', apiKey: '', baseURL: 'https://api.githubcopilot.com', thinking: 'standard' },
     'ZCode': { provider: 'custom', model: 'glm-4', apiKey: '', baseURL: 'https://open.bigmodel.cn/api/ai/paas/v4', thinking: 'standard' }
-  };
+  };
   // 暴露给全局（调度工作流执行器 wfRunScheduled 需要访问 Agent 预设）
   window.__AGENT_PRESETS = AGENT_PRESETS;
 
@@ -11627,6 +11597,76 @@ function bindEvents() {
   const mcpOpenBtn = document.getElementById('mcp-open-btn');
   if (mcpOpenBtn) mcpOpenBtn.addEventListener('click', window.openMcpModal);
 
+  // ===== 语音朗读 TTS（对齐 Ekko edge-tts；本实现用系统语音，零依赖） =====
+  let ttsSpeaking = false;
+  let ttsUtterance = null;
+  function stopTts() {
+    if ('speechSynthesis' in window) {
+      try { window.speechSynthesis.cancel(); } catch (e) {}
+    }
+    ttsSpeaking = false;
+  }
+  function pickZhVoice() {
+    const vs = window.speechSynthesis.getVoices();
+    return vs.find(v => /^zh/i.test(v.lang)) || vs.find(v => /^cmn/i.test(v.lang)) || null;
+  }
+  async function speakText(text) {
+    if (!text || !('speechSynthesis' in window)) { showToast('当前环境不支持语音朗读', 'warn'); return; }
+    stopTts();
+    const u = new SpeechSynthesisUtterance(text);
+    const v = pickZhVoice();
+    if (v) u.voice = v;
+    u.lang = v ? v.lang : 'zh-CN';
+    u.rate = 1.0;
+    u.onend = () => { ttsSpeaking = false; };
+    u.onerror = () => { ttsSpeaking = false; showToast('朗读中断', 'warn'); };
+    ttsUtterance = u;
+    window.speechSynthesis.speak(u);
+    ttsSpeaking = true;
+  }
+  const ttsBtn = document.getElementById('tts-btn');
+  if (ttsBtn) {
+    ttsBtn.addEventListener('click', async () => {
+      if (ttsSpeaking) { stopTts(); showToast('已停止朗读', 'info'); return; }
+      try {
+        let text = '';
+        const sel = window.getSelection && window.getSelection().toString();
+        if (sel && sel.trim()) text = sel.trim();
+        if (!text && window.LabCode.clipboard) text = (await window.LabCode.clipboard.readText() || '').trim();
+        if (!text) { showToast('没有可朗读的内容（请先复制文本）', 'warn'); return; }
+        await speakText(text.slice(0, 2000));
+        showToast('正在朗读…（再次点击停止）', 'info');
+      } catch (e) {
+        showToast('朗读失败：' + (e && e.message || e), 'error');
+      }
+    });
+  }
+  // 首次触发时预热语音列表（部分系统 getVoices 异步填充）
+  if ('speechSynthesis' in window) {
+    window.speechSynthesis.getVoices();
+    window.speechSynthesis.onvoiceschanged = () => {};
+  }
+
+  // ===== 区域截图（对齐 Ekko regionSelection） =====
+  const regionShotBtn = document.getElementById('region-shot-btn');
+  if (regionShotBtn) {
+    regionShotBtn.addEventListener('click', async () => {
+      if (!window.LabCode.regionShot) { showToast('区域截图不可用', 'warn'); return; }
+      showToast('请拖拽框选截图区域（Esc 取消）', 'info');
+      try {
+        const r = await window.LabCode.regionShot.start();
+        if (!r || !r.success) { showToast('已取消或失败', 'info'); return; }
+        let path = null;
+        try { path = await window.LabCode.dialog.saveFile('region_' + Date.now() + '.png'); } catch (e) {}
+        if (!path) { showToast('已取消保存', 'info'); return; }
+        const ok = await window.LabCode.fs.writeFile(path, r.png);
+        showToast(ok ? '区域截图已保存：' + path : '保存失败', ok ? 'success' : 'error');
+      } catch (e) {
+        showToast('区域截图：' + (e && e.message || '已取消'), 'info');
+      }
+    });
+  }
+
   // ===== Git 面板 =====
   async function refreshGitStatus() {
     const cwd = state.projectPath;
@@ -12472,7 +12512,7 @@ function bindEvents() {
   }
 
   // ============ 首屏登录遮罩（对齐 TrieCode 显眼登录入口）============
-  document.addEventListener('DOMContentLoaded', () => {
+  __onDCL( () => {
     const ov = document.getElementById('gw-login-overlay');
     if (!ov) return;
     // 嵌入主区（对齐 TrieCode：登录卡在编辑器区域居中，侧栏照常可见）
@@ -13589,7 +13629,7 @@ function init() {
 }
 
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', init);
+  __onDCL( init);
 } else {
   init();
 }
@@ -13755,7 +13795,7 @@ if (document.readyState === 'loading') {
 
   window.selectFrame = async (frameId) => { dbgState.currentFrameId = frameId; await loadVariables(frameId); };
 
-  document.addEventListener('DOMContentLoaded', () => {
+  __onDCL( () => {
     const bind = (id, fn) => { const el = document.getElementById(id); if (el) el.addEventListener('click', fn); };
     bind('dbg-start', startDebug);
     bind('dbg-stop', stopDebug);
@@ -13864,7 +13904,7 @@ if (document.readyState === 'loading') {
     });
   }
 
-  document.addEventListener('DOMContentLoaded', () => {
+  __onDCL( () => {
     loadAIConfig();
     // 显示自定义 API 字段
     document.querySelectorAll('input[name="ai-provider"]').forEach(r => {
@@ -13933,7 +13973,7 @@ if (document.readyState === 'loading') {
     }
   }
 
-  document.addEventListener('DOMContentLoaded', () => {
+  __onDCL( () => {
     refreshOllamaStatus();
     document.querySelectorAll('.ollama-model-btn').forEach(btn => {
       btn.addEventListener('click', () => pullModel(btn.dataset.model));
@@ -13944,7 +13984,7 @@ if (document.readyState === 'loading') {
 
 // ============ 首次启动引导 ============
 (function() {
-  document.addEventListener('DOMContentLoaded', async () => {
+  __onDCL( async () => {
     try {
       const cfg = await window.LabCode.config.get();
       const shown = (cfg && cfg.ui && cfg.ui.welcomeShown);
@@ -14016,7 +14056,7 @@ if (document.readyState === 'loading') {
   // 拦截聊天输入，检查 /rollback
   const origSend = window.__sendChat;
   // 不拦截，而是在输入框加监听
-  document.addEventListener('DOMContentLoaded', () => {
+  __onDCL( () => {
     const input = document.getElementById('chat-input') || document.querySelector('input[placeholder*="问"]');
     if (input) {
       input.addEventListener('keydown', (e) => {

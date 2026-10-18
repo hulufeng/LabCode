@@ -82,6 +82,23 @@ contextBridge.exposeInMainWorld('LabCode', {
     install: () => ipcRenderer.invoke('update:install')
   },
 
+  // 看板（对齐 Ekko 看板）
+  dashboard: {
+    stats: (rootPath) => ipcRenderer.invoke('dashboard:stats', rootPath)
+  },
+
+  // 区域截图（对齐 Ekko regionSelection）
+  regionShot: {
+    start: () => ipcRenderer.invoke('screenshot:region'),
+    cancel: () => ipcRenderer.invoke('region:cancel')
+  },
+
+  // 剪贴板（朗读用）
+  clipboard: {
+    readText: () => ipcRenderer.invoke('clipboard:readText'),
+    writeText: (text) => ipcRenderer.invoke('clipboard:writeText', text)
+  },
+
   // 终端
   terminal: {
     create: (options) => ipcRenderer.invoke('terminal:create', options),

@@ -14,3 +14,7 @@ cloud-server/*.err
 # Local LLM runtime (llama.cpp, ~86MB, must never be committed).
 # Scoped to the repo root only, so desktop-app/resources stays tracked.
 /resources/
+
+# llama runtime DLLs copied into desktop-app for packaging (kept out of git).
+desktop-app/resources/llama/*.dll
+desktop-app/resources/llama/LICENSE-LLVM-OpenMP

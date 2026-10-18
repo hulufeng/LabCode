@@ -1,7 +1,7 @@
 ﻿// ============ LabCode Electron 涓昏繘绋?============
 // 鍩轰簬涓氱晫 IDE 璁捐瀹炶返锛氱獥鍙ｇ鐞?/ IPC / 鑷姩鏇存柊 / 浠ｇ悊 / 浼氳瘽瀛樺偍
 
-const { app, BrowserWindow, ipcMain, Menu, shell, dialog, net } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu, shell, dialog, net, webContents, desktopCapturer, clipboard, screen } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -1402,12 +1402,135 @@ function setupIPC() {
     }
   });
 
-  ipcMain.handle('fs:writeFile', (_, filePath, content) => {
+  // ============ 区域截图（对齐 Ekko regionSelection） ============
+  let regionOverlay = null;
+  let regionPending = null; // { resolve, reject }
+
+  ipcMain.handle('screenshot:region', async () => {
+    return new Promise((resolve, reject) => {
+      regionPending = { resolve, reject };
+      const display = screen.getPrimaryDisplay();
+      const { width, height, scaleFactor } = display;
+      if (regionOverlay && !regionOverlay.isDestroyed()) regionOverlay.destroy();
+      regionOverlay = new BrowserWindow({
+        x: display.bounds.x, y: display.bounds.y,
+        width: display.bounds.width, height: display.bounds.height,
+        frame: false, transparent: true, resizable: false,
+        alwaysOnTop: true, skipTaskbar: true, hasShadow: false,
+        backgroundColor: '#00000000',
+        webPreferences: {
+          preload: path.join(__dirname, 'region-preload.js'),
+          contextIsolation: true, nodeIntegration: false, sandbox: false
+        }
+      });
+      regionOverlay.setAlwaysOnTop(true, 'screen-saver');
+      regionOverlay.loadFile(path.join(__dirname, '..', 'renderer', 'region-capture.html'));
+      regionOverlay.show();
+      regionOverlay.focus(); // 确保键盘焦点在遮罩，Esc 可取消
+      regionOverlay.once('closed', () => {
+        regionOverlay = null;
+        if (regionPending) { regionPending.reject(new Error('已取消')); regionPending = null; }
+      });
+    });
+  });
+
+  // 遮罩框选完成 → 全屏截图并裁剪
+  ipcMain.handle('region:selected', async (_, rect) => {
+    // 先取走 pending，避免 destroy 触发 closed 事件抢先 reject
+    const pending = regionPending;
+    regionPending = null;
     try {
+      if (regionOverlay && !regionOverlay.isDestroyed()) { regionOverlay.destroy(); regionOverlay = null; }
+      if (!rect || rect.w <= 0 || rect.h <= 0) {
+        if (pending) pending.reject(new Error('选区无效'));
+        return { success: false, error: '选区无效' };
+      }
+      const display = screen.getPrimaryDisplay();
+      const scale = display.scaleFactor || 1;
+      const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: display.size.width * scale, height: display.size.height * scale } });
+      const src = sources.find(s => s.display_id === String(display.id)) || sources[0];
+      if (!src) {
+        if (pending) pending.reject(new Error('无法捕获屏幕'));
+        return { success: false, error: '无法捕获屏幕' };
+      }
+      // rect 来自遮罩页（CSS px / DIP）→ 按实际 thumbnail 与期望物理尺寸比例换算裁剪
+      const expectW = Math.round(display.size.width * scale);
+      const expectH = Math.round(display.size.height * scale);
+      const real = src.thumbnail.getSize();
+      const sx = real.width / expectW, sy = real.height / expectH;
+      const crop = {
+        x: Math.max(0, Math.round(rect.x * scale * sx)),
+        y: Math.max(0, Math.round(rect.y * scale * sy)),
+        width: Math.min(real.width, Math.round(rect.w * scale * sx)),
+        height: Math.min(real.height, Math.round(rect.h * scale * sy))
+      };
+      const img = src.thumbnail.crop(crop);
+      const png = img.toPNG();
+      if (pending) pending.resolve({ success: true, png });
+      return { success: true, png };
+    } catch (e) {
+      if (pending) pending.reject(e);
+      return { success: false, error: e.message };
+    }
+  });
+  ipcMain.handle('region:cancel', () => {
+    if (regionOverlay && !regionOverlay.isDestroyed()) regionOverlay.destroy();
+    regionOverlay = null;
+    if (regionPending) { regionPending.reject(new Error('已取消')); regionPending = null; }
+    return true;
+  });
+
+  // 剪贴板（朗读用）
+  ipcMain.handle('clipboard:readText', () => clipboard.readText());
+  ipcMain.handle('clipboard:writeText', (_, text) => { clipboard.writeText(String(text || '')); return true; });
+
+  // ============ 看板统计（对齐 Ekko 看板） ============
+  ipcMain.handle('dashboard:stats', async (_, rootPath) => {
+    const start = Date.now();
+    const result = { files: 0, dirs: 0, totalBytes: 0, extMap: {}, recent: [], skipped: 0 };
+    const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'build', '.next', '__pycache__', '.venv', 'venv', 'target', 'out', 'coverage']);
+    const MAX_FILES = 60000;
+    const walk = (dir, depth) => {
+      if (result.files > MAX_FILES || depth > 9) { result.skipped++; return; }
+      let entries;
+      try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch (e) { return; }
+      for (const en of entries) {
+        if (result.files > MAX_FILES) { result.skipped++; return; }
+        const full = path.join(dir, en.name);
+        if (en.isDirectory()) {
+          if (SKIP_DIRS.has(en.name)) { result.skipped++; continue; }
+          result.dirs++;
+          walk(full, depth + 1);
+        } else {
+          result.files++;
+          try {
+            const st = fs.statSync(full);
+            result.totalBytes += st.size;
+            if (result.recent.length < 10) result.recent.push({ name: en.name, path: full, mtime: st.mtimeMs });
+          } catch (e) {}
+          const ext = path.extname(en.name).toLowerCase() || '(无扩展名)';
+          result.extMap[ext] = (result.extMap[ext] || 0) + 1;
+        }
+      }
+    };
+    try { walk(rootPath || '', 0); } catch (e) {}
+    result.recent.sort((a, b) => b.mtime - a.mtime);
+    result.recent = result.recent.slice(0, 10).map(r => ({ name: r.name, path: String(r.path).replace(rootPath || '', '…'), mtime: r.mtime }));
+    result.elapsedMs = Date.now() - start;
+    result.topExts = Object.entries(result.extMap).sort((a, b) => b[1] - a[1]).slice(0, 10);
+    return result;
+  });
+
+  ipcMain.handle('fs:writeFile', (_, filePath, content) => {    try {
       ensureDir(path.dirname(filePath));
       // 自动快照（agent 修改前备份）
       try { snapshotFile(filePath); } catch (e) {}
-      fs.writeFileSync(filePath, content, 'utf-8');
+      // 兼容 Buffer / ArrayBuffer / TypedArray / 字符串；Buffer 或二进制按原样写，字符串按 UTF-8
+      let data = content;
+      if (content && typeof content === 'object' && !Buffer.isBuffer(content)) {
+        data = Buffer.from(content);
+      }
+      fs.writeFileSync(filePath, data, Buffer.isBuffer(data) ? undefined : 'utf-8');
       return { success: true };
     } catch (e) {
       return { success: false, error: e.message };
@@ -2874,20 +2997,21 @@ function setupAutoUpdate() {
       }
     });
 
-        // 启动后 5 秒检查更新
-    setTimeout(() => {
-      if (!isDev && !autoUpdateDisabled) autoUpdater.checkForUpdates().catch(() => {});
-    }, 5000);
+    // 自动检查更新已停用（用户要求不弹更新提示）；保留 update:check/download/install IPC 供手动触发
+    // setTimeout(() => {
+    //   if (!isDev && !autoUpdateDisabled) autoUpdater.checkForUpdates().catch(() => {});
+    // }, 5000);
 
-    // 每 1 小时定时检查
-    setInterval(() => {
-      if (!isDev && !autoUpdateDisabled) autoUpdater.checkForUpdates().catch(() => {});
-    }, 60 * 60 * 1000);
+    // 每 1 小时定时检查（已停用）
+    // setInterval(() => {
+    //   if (!isDev && !autoUpdateDisabled) autoUpdater.checkForUpdates().catch(() => {});
+    // }, 60 * 60 * 1000);
 
   } catch (e) {
     console.warn('鑷姩鏇存柊妯″潡鍔犺浇澶辫触:', e.message);
   }
 }
+
 
 // ============ 搴旂敤鐢熷懡鍛ㄦ湡 ============
 app.whenReady().then(() => {

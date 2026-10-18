@@ -61,8 +61,6 @@
         <symbol id="icon-chart-bar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></symbol>
         <!-- 通知 -->
         <symbol id="icon-bell" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></symbol>
-        <!-- 地球 -->
-        <symbol id="icon-globe" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></symbol>
         <!-- @ -->
         <symbol id="icon-at" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-3.92 7.94"/></symbol>
         <!-- 插件 -->
@@ -285,6 +283,8 @@
         <button class="toolbar-btn" id="terminal-toggle-btn" title="终端"><svg class="icon icon-xs"><use href="#icon-terminal"></use></svg></button>
         <button class="toolbar-btn" id="search-btn" title="搜索"><svg class="icon icon-xs"><use href="#icon-search"></use></svg></button>
         <button class="toolbar-btn" id="mcp-open-btn" title="MCP 服务器"><svg class="icon icon-xs"><use href="#icon-plug"></use></svg></button>
+        <button class="toolbar-btn" id="tts-btn" title="朗读剪贴板文本（对齐 Ekko TTS）">🔊</button>
+        <button class="toolbar-btn" id="region-shot-btn" title="区域截图（对齐 Ekko regionSelection）">📷</button>
       </div>
     </div>
     <div class="titlebar-right">
@@ -317,6 +317,7 @@
       <button class="activity-btn" data-panel="schedule" title="定时任务"><svg class="icon"><use href="#icon-clock"></use></svg></button>
       <button class="activity-btn" data-panel="mcp" title="MCP 服务"><svg class="icon"><use href="#icon-bolt"></use></svg></button>
       <button class="activity-btn" data-panel="plugins" title="插件市场"><svg class="icon"><use href="#icon-puzzle"></use></svg></button>
+      <button class="activity-btn" data-panel="dashboard" title="看板（项目统计，对齐 Ekko 看板）"><svg class="icon"><use href="#icon-layout"></use></svg></button>
     </div>
 
     <!-- 群聊 / 多 Agent 房间（全屏覆盖视图，对标 Ekko「群聊」） -->
@@ -425,6 +426,42 @@
       <div class="wf-props" id="wf-props"><span class="gc-hint">点选节点编辑属性</span></div>
     </div>
 
+    <!-- 看板 / 项目统计（对齐 Ekko 看板） -->
+    <style>
+      .dashboard-view{position:fixed;top:40px;left:48px;right:0;bottom:0;z-index:500;display:flex;flex-direction:column;background:var(--surface-1);}
+      .dash-toolbar{display:flex;align-items:center;gap:10px;padding:10px 16px;background:var(--surface-2);border-bottom:1px solid var(--border);}
+      .dash-toolbar h2{font-size:15px;margin:0;color:var(--text);flex:1;display:flex;align-items:center;gap:8px;}
+      .dash-toolbar .dash-action{padding:6px 14px;border:1px solid var(--border);border-radius:6px;background:var(--surface-3);color:var(--text);cursor:pointer;font-size:12px;}
+      .dash-toolbar .dash-action:hover{border-color:var(--primary);color:var(--primary);}
+      .dash-body{flex:1;overflow:auto;padding:16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px;align-content:start;}
+      .dash-card{background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:14px;min-height:120px;}
+      .dash-card h3{font-size:12px;color:var(--text-secondary);margin:0 0 10px;display:flex;align-items:center;gap:6px;letter-spacing:.5px;}
+      .dash-metrics{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+      .dash-metric{background:var(--surface-3);border-radius:8px;padding:10px;}
+      .dash-metric .v{font-size:18px;font-weight:700;color:var(--primary);line-height:1.2;}
+      .dash-metric .k{font-size:11px;color:var(--text-tertiary);margin-top:3px;}
+      .dash-ext-bar{display:flex;align-items:center;gap:8px;margin:4px 0;font-size:11px;}
+      .dash-ext-bar .lab{width:110px;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+      .dash-ext-bar .track{flex:1;height:6px;background:var(--surface-3);border-radius:3px;overflow:hidden;}
+      .dash-ext-bar .fill{height:100%;background:linear-gradient(90deg,#4f8cff,#7fb0ff);border-radius:3px;}
+      .dash-ext-bar .cnt{width:40px;text-align:right;color:var(--text-tertiary);}
+      .dash-file{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px dashed var(--border);font-size:12px;color:var(--text-secondary);}
+      .dash-file .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text);}
+      .dash-file .tm{font-size:11px;color:var(--text-tertiary);white-space:nowrap;}
+      .dash-kv{display:flex;justify-content:space-between;padding:6px 0;font-size:12px;border-bottom:1px dashed var(--border);}
+      .dash-kv .k{color:var(--text-secondary);}
+      .dash-kv .v{color:var(--text);font-weight:600;}
+      .dash-empty{display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-tertiary);font-size:13px;}
+    </style>
+    <div id="dashboard-view" class="dashboard-view" style="display:none;">
+      <div class="dash-toolbar">
+        <h2><svg class="icon icon-xs" style="width:16px;height:16px;"><use href="#icon-layout"></use></svg>看板 · 项目统计</h2>
+        <button class="dash-action" id="dash-refresh">刷新</button>
+        <button class="dash-action" id="dash-close">关闭</button>
+      </div>
+      <div class="dash-body" id="dash-body"><div class="dash-empty">正在加载…</div></div>
+    </div>
+
     <!-- 左侧列：技能/插件 + 对话 -->
     <div class="left-column">
     <!-- 侧边栏 -->
@@ -442,8 +479,8 @@
       <!-- 欢迎面板（无项目时显示，1:1 对齐 TrieCode：整体组件居中，含最近打开） -->
       <div class="welcome-panel" id="welcome-panel">
         <div class="welcome-panel-icon"><svg class="icon icon-lg"><use href="#icon-folder-open"></use></svg></div>
-        <h3 class="welcome-panel-title">项目</h3>
-        <p class="welcome-panel-desc">创建、打开或克隆一个项目，开始你的开发。</p>
+        <h3 class="welcome-panel-title">开始使用</h3>
+        <p class="welcome-panel-desc">打开或新建一个项目，开始你的开发。</p>
         <div class="welcome-panel-actions">
           <button class="btn btn-primary btn-full" id="welcome-new-project"><svg class="icon icon-xs"><use href="#icon-plus"></use></svg> 新建项目</button>
           <div style="display:flex;gap:8px;">
@@ -854,7 +891,7 @@
         <!-- 欢迎页（无消息时显示，1:1 对齐 TrieCode） -->
         <div class="ai-welcome" id="ai-welcome">
           <h1 class="ai-welcome-title">我们要一起做些什么？</h1>
-          <p class="ai-welcome-subtitle">提问、创建项目、写代码、编译上传——都可以告诉我</p>
+          <p class="ai-welcome-subtitle">提问、写代码、编译上传，随时都可以告诉我</p>
           <div class="ai-welcome-features">
             <div class="ai-feature-item"><span class="ai-feature-dot"></span>擅长项目迭代、问题修复与架构重构</div>
             <div class="ai-feature-item"><span class="ai-feature-dot"></span>智能任务规划，确认后精准推进执行</div>
@@ -1527,6 +1564,7 @@
   <script src="js/ipc-bridge.js"></script>
   <script src="js/context-panel.js"></script>
   <script src="js/schedule-panel.js"></script>
+  <script src="js/dashboard-panel.js"></script>
   <script src="js/ghost-completion.js"></script>
 
 <!-- 首次启动引导 -->
@@ -1591,7 +1629,7 @@
         <button class="btn btn-primary" id="gw-ov-register-btn" style="width:100%;">注册</button>
       </div>
       <div style="text-align:center;margin-top:16px;font-size:12px;color:var(--text-secondary);">
-        <span id="gw-ov-skip" style="color:var(--text-3);cursor:pointer;">稍后进入（本地模式）</span>
+        <span style="color:var(--text-3);">登录后可使用本地模型（免费）与云端模型（积分）</span>
       </div>
     </div>
   </div>

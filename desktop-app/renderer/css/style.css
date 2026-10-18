@@ -844,11 +844,11 @@ input, textarea {
 }
 
 /* ============================================
-   欢迎面板（侧栏下方）
+   欢迎面板（侧栏下方 · 简洁友好版）
    ============================================ */
 .welcome-panel {
   flex: 1;
-  padding: 24px 16px;
+  padding: 44px 20px 28px;
   text-align: center;
   display: flex;
   flex-direction: column;
@@ -856,48 +856,56 @@ input, textarea {
   justify-content: center;
   width: 100%;
   box-sizing: border-box;
+  gap: 8px;
 }
 
 .welcome-panel-icon {
-  width: 56px;
-  height: 56px;
-  margin: 0 auto 16px;
+  width: 42px;
+  height: 42px;
+  margin: 0 auto 10px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(59, 130, 246, 0.12);
-  border-radius: 50%;
+  background: var(--bg-hover);
+  border-radius: 12px;
   color: var(--primary, #3b82f6);
 }
-.welcome-panel-icon .icon { width: 28px; height: 28px; }
+.welcome-panel-icon .icon { width: 21px; height: 21px; }
 
 .welcome-panel-title {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--text-primary);
-  margin-bottom: 8px;
+  margin: 0;
 }
 
 .welcome-panel-desc {
-  font-size: 13px;
+  font-size: 12.5px;
   color: var(--text-tertiary);
   line-height: 1.5;
-  margin-bottom: 24px;
+  margin: 0 0 26px;
 }
 
 .welcome-panel-actions {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
   width: 100%;
+  max-width: 320px;
+}
+.welcome-panel-actions .btn {
+  height: 42px;
+  border-radius: 8px;
+  font-size: 13px;
 }
 
-/* 1:1 对齐 TrieCode：最近打开区域（欢迎组件的一部分，居中显示） */
+/* 最近打开（紧凑） */
 .recent-panel {
   width: 100%;
-  padding: 16px 12px 0;
+  max-width: 320px;
+  padding: 16px 4px 0;
   border-top: 1px solid var(--border-light);
-  margin-top: 20px;
+  margin-top: 24px;
   flex-shrink: 0;
   box-sizing: border-box;
 }
@@ -905,24 +913,25 @@ input, textarea {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
+  font-size: 11.5px;
   color: var(--text-tertiary);
-  padding: 4px 0;
+  padding: 4px 4px;
+  letter-spacing: .3px;
 }
-.recent-header .icon { width: 14px; height: 14px; }
-.recent-list { display: flex; flex-direction: column; gap: 2px; }
+.recent-header .icon { width: 13px; height: 13px; opacity: .8; }
+.recent-list { display: flex; flex-direction: column; gap: 1px; }
 .recent-item {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 8px;
-  font-size: 13px;
+  padding: 5px 8px;
+  font-size: 12.5px;
   color: var(--text-secondary);
-  border-radius: var(--radius-sm);
+  border-radius: 6px;
   cursor: pointer;
 }
 .recent-item:hover { background: var(--bg-hover); color: var(--text-primary); }
-.recent-item .icon { width: 14px; height: 14px; color: var(--text-tertiary); }
+.recent-item .icon { width: 13px; height: 13px; color: var(--text-tertiary); }
 
 /* ============================================
    编辑器容器
@@ -1032,15 +1041,15 @@ input, textarea {
 .welcome-content {
   width: 100%;
   max-width: 480px;
-  padding: 40px 24px;
+  padding: 56px 24px;
   text-align: center;
 }
 
 /* 空状态图标（对齐 TrieCode 简洁风格） */
 .welcome-empty-icon {
-  width: 56px;
-  height: 56px;
-  margin: 0 auto 16px;
+  width: 48px;
+  height: 48px;
+  margin: 0 auto 20px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1048,17 +1057,17 @@ input, textarea {
   border-radius: 14px;
   color: var(--text-tertiary);
 }
-.welcome-empty-icon .icon { width: 28px; height: 28px; }
+.welcome-empty-icon .icon { width: 24px; height: 24px; }
 .welcome-empty-title {
   font-size: 18px;
   font-weight: 600;
   color: var(--text-primary);
-  margin: 0 0 8px 0;
+  margin: 0 0 12px 0;
 }
 .welcome-empty-desc {
   font-size: 13px;
   color: var(--text-tertiary);
-  margin: 0 0 24px 0;
+  margin: 0 0 32px 0;
 }
 
 /* 欢迎页快捷操作（水平排列，对齐 TrieCode） */
@@ -1066,7 +1075,7 @@ input, textarea {
   display: flex;
   flex-direction: row;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 14px;
   justify-content: center;
   max-width: 100%;
 }
@@ -1074,7 +1083,7 @@ input, textarea {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 18px;
+  padding: 11px 20px;
   background: var(--bg-secondary);
   border: 1px solid var(--border-light);
   border-radius: 10px;
@@ -1209,7 +1218,7 @@ input, textarea {
 .ai-input-container {
   width: 100%;
   max-width: 720px;
-  padding: 16px 16px 8px;
+  padding: 20px 24px 12px;
   flex-shrink: 0;
   margin: 0 auto;
   box-sizing: border-box;
@@ -1244,56 +1253,64 @@ input, textarea {
   display: none;
 }
 
-/* 1:1 对齐 TrieCode：AI 欢迎页（整体组件垂直居中，含输入框和项目栏） */
+/* AI 欢迎页（简洁友好版） */
 .ai-welcome {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   flex: 1;
-  padding: 24px 20px 24px;
+  padding: 28px 32px;
   text-align: center;
 }
 .ai-welcome-title {
-  font-size: 32px;
-  font-weight: 700;
+  font-size: 22px;
+  font-weight: 600;
   color: var(--text-primary);
   margin: 0 0 12px 0;
-  letter-spacing: -0.5px;
+  letter-spacing: -0.3px;
 }
 .ai-welcome-subtitle {
-  font-size: 14px;
+  font-size: 13px;
   color: var(--text-tertiary);
-  margin: 0 0 20px 0;
+  margin: 0 0 24px 0;
 }
-/* LabCode 产品特性（差异化卖点，简洁灰色小字） */
+/* 特性：收敛为一行轻量提示 */
 .ai-welcome-features {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   gap: 6px;
   margin-bottom: 28px;
   width: 100%;
-  max-width: 360px;
+  max-width: 440px;
+  flex-wrap: wrap;
 }
 .ai-feature-item {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   font-size: 12px;
   color: var(--text-tertiary);
-  text-align: left;
 }
 .ai-feature-dot {
-  width: 5px;
-  height: 5px;
+  width: 4px;
+  height: 4px;
   border-radius: 50%;
   background: var(--primary, #3b82f6);
   flex-shrink: 0;
+  opacity: .85;
+}
+.ai-feature-item:not(:last-child)::after {
+  content: '·';
+  margin-left: 4px;
+  color: var(--text-tertiary);
+  opacity: .45;
 }
 .ai-quick-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 10px;
+  gap: 12px;
   max-width: 100%;
   width: 100%;
 }
@@ -1301,12 +1318,12 @@ input, textarea {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 14px;
+  padding: 11px 14px;
   background: transparent;
   border: 1px solid var(--border-light);
-  border-radius: 10px;
+  border-radius: 8px;
   color: var(--text-secondary);
-  font-size: 13px;
+  font-size: 12.5px;
   cursor: pointer;
   text-align: left;
   white-space: nowrap;
@@ -1321,32 +1338,8 @@ input, textarea {
   color: var(--text-primary);
 }
 .ai-quick-icon { color: var(--text-tertiary); display: flex; flex-shrink: 0; }
-.ai-quick-icon .icon { width: 15px; height: 15px; }
+.ai-quick-icon .icon { width: 14px; height: 14px; }
 .ai-quick-text { flex: 1; overflow: hidden; text-overflow: ellipsis; }
-
-/* AI 欢迎页特点介绍（参考 Trae） */
-.ai-welcome-features {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin: 20px 0;
-  max-width: 400px;
-  width: 100%;
-}
-.ai-feature-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 13px;
-  color: var(--text-secondary);
-  text-align: left;
-}
-.ai-feature-item .icon {
-  width: 16px;
-  height: 16px;
-  color: var(--text-tertiary);
-  flex-shrink: 0;
-}
 
 /* AI 模型状态（参考 Trae 登录按钮位置） */
 .ai-model-status {
