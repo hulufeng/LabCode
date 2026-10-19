@@ -1834,7 +1834,7 @@ function setupIPC() {
       case 'grok': return ['-p', P];
       case 'codebuddy': return ['-p', P];
       case 'pi': return ['-p', P];
-      case 'dsh': return ['-p', P];
+      case 'dsh': return ['--profile', 'headless', P]; // dsh 单轮执行：--profile headless <task>（-p 是 --profile 简写，会把 prompt 当 profile 名）
       default: return null;
     }
   }
