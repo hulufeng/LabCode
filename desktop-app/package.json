@@ -1,6 +1,6 @@
 {
   "name": "LabCode",
-  "version": "1.0.0",
+  "version": "1.1.4",
   "description": "LabCode - 通用 AI 软件开发智能体，内置真正动手的 AI 智能体：读写代码、执行命令、运行测试、联网检索。",
   "main": "main/index.js",
   "author": {
@@ -10,7 +10,9 @@
   "homepage": "https://github.com/hulufeng/LabCode",
   "license": "MIT",
   "packageManager": "pnpm@11.18.0",
-  "workspaces": ["packages/*"],
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "start": "electron .",
     "dev": "electron . --dev",
@@ -100,6 +102,7 @@
       ],
       "icon": "resources/icon.png",
       "category": "Development"
-    }
+    },
+    "artifactName": "LabCode-Setup-${version}.${ext}"
   }
 }
