@@ -8621,7 +8621,7 @@ function bindEvents() {
     'Antigravity': { provider: 'custom', model: 'gemini-2.5-pro', apiKey: '', baseURL: 'https://generativelanguage.googleapis.com/v1', thinking: 'standard' },
     'Qwen Code': { provider: 'custom', model: 'qwen-max', apiKey: '', baseURL: 'https://dashscope.aliyuncs.com/compatible-mode/v1', thinking: 'standard' },
     'Kimi Code': { provider: 'custom', model: 'kimi-k2', apiKey: '', baseURL: 'https://api.moonshot.cn/v1', thinking: 'standard' },
-    'CodeBuddy': { provider: 'custom', model: 'hunyuan-code', apiKey: '', baseURL: 'https://api.hunyuan.cloud.tencent.com/v1', thinking: 'standard' },
+    'CodeBuddy': { provider: 'cli', cli: true, model: 'codebuddy', apiKey: '', baseURL: '', thinking: 'standard' },
     'Qoder': { provider: 'custom', model: 'qoder', apiKey: '', baseURL: '', thinking: 'standard' },
     'GitHub Copilot': { provider: 'custom', model: 'gpt-4o', apiKey: '', baseURL: 'https://api.githubcopilot.com', thinking: 'standard' },
     'ZCode': { provider: 'custom', model: 'glm-4', apiKey: '', baseURL: 'https://open.bigmodel.cn/api/ai/paas/v4', thinking: 'standard' }

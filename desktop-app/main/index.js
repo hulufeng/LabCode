@@ -1846,7 +1846,7 @@ function setupIPC() {
     const cmdPath = await resolveCommandPath(def.command);
     if (!cmdPath) return { success: false, error: def.command + ' 未安装' };
     try {
-      const out = await new Promise(r => execFile(cmdPath, args, { timeout: 5 * 60 * 1000, maxBuffer: 20 * 1024 * 1024, env: process.env }, (e, so, se) => r({ code: e ? e.code : 0, out: String(so || ''), err: String(se || ''), msg: e ? e.message : '' })));
+      const out = await runCli(cmdPath, args, 5 * 60 * 1000);
       if (out.code === 0 && out.out.trim()) return { success: true, output: out.out.trim(), error: '' };
       if (out.code === 0 && !out.out.trim()) return { success: false, error: 'CLI 无输出（' + (out.err.trim().slice(0, 200) || '可能是交互模式或未登录') + '）' };
       return { success: false, error: (out.err.trim() || out.msg).slice(0, 300) };
@@ -1859,7 +1859,43 @@ function setupIPC() {
   function resolveCommandPath(command) {
     return new Promise((resolve) => {
       const cmd = process.platform === 'win32' ? 'where' : 'which';
-      execFile(cmd, [command], { timeout: 5000 }, (err, stdout) => resolve(err ? '' : String(stdout || '').trim().split('\n')[0]));
+      execFile(cmd, [command], { timeout: 5000 }, (err, stdout) => {
+        // where 输出 CRLF；Windows 上优先 .cmd/.bat/.exe（npm bin 第一行常是无扩展名 shell 脚本，无法直接 spawn）
+        const lines = err ? [] : String(stdout || '').trim().split('\n').map(s => s.trim()).filter(Boolean);
+        const line = lines.find(s => /\.(cmd|bat|exe)$/i.test(s)) || lines[0] || '';
+        resolve(line);
+      });
+    });
+  }
+  // Windows 上 npm 全局安装的 CLI 是 .cmd 批处理：execFile 无法直跑 .cmd，cmd.exe /c 又被引号/空格截断困扰。
+  // 根治：解析 npm 生成的 .cmd，提取其真实 node 入口脚本（node_modules/<pkg>/bin/*.js），用 node 直接执行。
+  function resolveNodeScriptFromCmd(cmdPath) {
+    try {
+      const txt = fs.readFileSync(cmdPath, 'utf8');
+      // npm .cmd 执行行形如 "%_prog%"  "%dp0%\node_modules\<pkg>\bin\<bin>" %* —— 匹配 %_prog% 之后的 bin 入口
+      // 注意不能匹配前面 SET "_prog=%dp0%\node.exe" 那行（第一个 %dp0% 出现）
+      const m = txt.match(/"%_prog%"\s+"%dp0%[\\/]([^"%\s]+)/i);
+      if (!m) return '';
+      return path.join(path.dirname(cmdPath), m[1].replace(/\\/g, path.sep));
+    } catch (e) { return ''; }
+  }
+  function runCli(cmdPath, args, timeoutMs) {
+    return new Promise((resolve) => {
+      const opts = { timeout: timeoutMs || 5 * 60 * 1000, maxBuffer: 20 * 1024 * 1024, env: process.env, windowsHide: true };
+      const done = (e, so, se) => resolve({ code: e ? e.code : 0, out: String(so || ''), err: String(se || ''), msg: e ? e.message : '' });
+      const lower = String(cmdPath).toLowerCase();
+      if (process.platform === 'win32' && /\.(cmd|bat|ps1)$/.test(lower)) {
+        const script = resolveNodeScriptFromCmd(cmdPath);
+        if (script) {
+          const nodeBin = path.join(path.dirname(cmdPath), 'node.exe');
+          const nodeCmd = fs.existsSync(nodeBin) ? nodeBin : 'node';
+          execFile(nodeCmd, [script, ...args], opts, done);
+        } else {
+          execFile(process.env.ComSpec || 'cmd.exe', ['/c', cmdPath, ...args], opts, done);
+        }
+      } else {
+        execFile(cmdPath, args, opts, done);
+      }
     });
   }
   function extractCliVersion(raw) {
@@ -1871,7 +1907,8 @@ function setupIPC() {
     try {
       const cmdPath = await resolveCommandPath(def.command);
       if (!cmdPath) return { id: def.id, name: def.name, installed: false, error: '未安装（可用「安装」一键 npm 安装）' };
-      const raw = await new Promise(r => execFile(cmdPath, ['--version'], { timeout: 8000, env: process.env }, (e, so, se) => r(String(so || se || '').trim())));
+      const r = await runCli(cmdPath, ['--version'], 8000);
+      const raw = (r.out || r.err || '').trim();
       return { id: def.id, name: def.name, installed: true, version: extractCliVersion(raw), path: cmdPath };
     } catch (e) {
       return { id: def.id, name: def.name, installed: false, error: e.message };
