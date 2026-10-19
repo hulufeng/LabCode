@@ -12599,6 +12599,23 @@ function bindEvents() {
     // 数据来源：前期调研（Hermes / DeepSeek 系 / 本地引擎 / 开源编码 agent）
     // 以及 Ekko 反编译得到的 coding-agent 注册表（dsh/opencode/cursor/claude-code/qwen）。
     // tier: 'model' = 选一个模型/provider；'runtime' = 选一个编码 Agent 运行时（映射到其底层 provider/model）
+    // CLI 一键安装映射（对齐 Ekko Studio Coding Agents 注册表：npm packageName + command）
+    const CLI_PKG_MAP = {
+      'Qwen Code': ['qwen', '@qwen-code/qwen-code'],
+      'Kimi Code': ['kimi', '@moonshot-ai/kimi-code'],
+      'CodeBuddy': ['codebuddy', '@tencent-ai/codebuddy-code'],
+      'Qoder': ['qoder', '@qoder-ai/qodercli'],
+      'GitHub Copilot': ['copilot', '@github/copilot'],
+      'Claude': ['claude-code', '@anthropic-ai/claude-code'],
+      'Codex': ['codex', '@openai/codex'],
+      'Pi': ['pi', '@earendil-works/pi-coding-agent'],
+      'Grok': ['grok', '@xai-official/grok'],
+      'OpenCode': ['opencode', 'opencode-ai'],
+      'DeepSeek Harness': ['dsh', '@deepseek-ai/dsh'],
+      'Cursor': ['cursor', 'cursor-agent'],
+      'DeepSeek': ['dsh', '@deepseek-ai/dsh'],
+      'Windsurf': ['windsurf', 'windsurf-cli']
+    };
     const MARKET_AGENTS = [
       { tier: 'model', name: 'DeepSeek Chat', typeLabel: '云端 API', desc: 'DeepSeek 通用对话模型，性价比高，代码与中文能力强', link: 'https://platform.deepseek.com/',
         config: { provider: 'deepseek', model: 'deepseek-chat', apiKey: '', baseURL: '', thinking: 'standard' }, selectable: true },
@@ -12751,6 +12768,53 @@ function bindEvents() {
           link.style.cssText = 'font-size:12px;color:var(--accent);white-space:nowrap;';
           link.textContent = '源码 ↗';
           actions.appendChild(link);
+        }
+        // 对齐 Ekko Agent Manager：CLI 型运行时显示安装状态 + 一键安装/更新（npm 装官方包，无需手动配置）
+        const cliMeta = CLI_PKG_MAP[a.name];
+        if (cliMeta && cliMeta[1]) {
+          const st = document.createElement('span');
+          st.style.cssText = 'font-size:11px;color:var(--text-secondary);white-space:nowrap;';
+          st.textContent = '检测中…';
+          actions.appendChild(st);
+          const ib = document.createElement('button');
+          ib.className = 'btn';
+          ib.style.cssText = 'padding:3px 8px;font-size:11px;white-space:nowrap;';
+          ib.textContent = '一键安装';
+          ib.disabled = true;
+          actions.appendChild(ib);
+          (async () => {
+            try {
+              const r = await window.LabCode.codingAgents.list();
+              const found = r && r.success && r.agents ? r.agents.find(x => x.id === cliMeta[0]) : null;
+              if (found && found.installed) {
+                st.textContent = '✅ 已装 v' + (found.version || '?');
+                st.style.color = '#22c55e';
+                ib.textContent = '更新';
+              } else {
+                st.textContent = '⬜ 未安装';
+                ib.textContent = '一键安装';
+              }
+              ib.disabled = false;
+              ib.addEventListener('click', async () => {
+                ib.disabled = true; ib.textContent = '安装中…';
+                try {
+                  const rr = await window.LabCode.codingAgents.install({ id: cliMeta[0] });
+                  if (rr && rr.success) {
+                    st.textContent = '✅ 已装 v' + ((rr.version) || (rr.agent && rr.agent.version) || '?');
+                    st.style.color = '#22c55e'; ib.textContent = '更新';
+                    showToast('「' + a.name + '」CLI 安装成功，群聊/编排里可直接选用', 'info');
+                    try { if (window.__mergeCliAgents) await window.__mergeCliAgents(); } catch (e0) {}
+                  } else {
+                    st.textContent = '✗ ' + ((rr && rr.error) || '安装失败');
+                    st.style.color = '#ef4444'; ib.textContent = '重试';
+                  }
+                } catch (e1) {
+                  st.textContent = '✗ ' + e1.message; st.style.color = '#ef4444'; ib.textContent = '重试';
+                }
+                ib.disabled = false;
+              });
+            } catch (e2) { st.textContent = '✗ 检测失败'; st.style.color = '#ef4444'; }
+          })();
         }
         card.appendChild(top); card.appendChild(dsc); card.appendChild(actions);
         list.appendChild(card);
