@@ -2532,7 +2532,7 @@ function setupIPC() {
   }
 
   function getModelsDir() {
-    // 妯″瀷缁熶竴鏀?D:\LabCode\models锛堝悗缁敼涓虹敤鎴锋暟鎹洰褰曪級
+    // 模型统一放 D:\LabCode\models（用户指定位置，不占 C 盘 SSD）
     return 'D:\\LabCode\\models';
   }
 
@@ -2574,6 +2574,21 @@ function setupIPC() {
     } catch (e) { return false; }
   }
 
+  // 获取当前引擎加载的模型名（/props 的 model_alias）
+  async function getEngineRunningModel() {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 2000);
+      const res = await net.fetch('http://127.0.0.1:8080/props', { signal: controller.signal });
+      clearTimeout(timer);
+      if (!res.ok) return '';
+      const data = await res.json().catch(() => ({}));
+      const alias = (data && data.model_alias) || '';
+      if (alias) return alias.split(/[\\/]/).pop();
+      return '';
+    } catch (e) { return ''; }
+  }
+
   // 妫€娴嬫湰鍦板ぇ妯″瀷杩愯鏃讹紙LabCode 鍐呯疆 llama 寮曟搸锛?
   let currentEngineModel = null;
   ipcMain.handle('system:checkLLMRuntime', async () => {
@@ -2600,16 +2615,12 @@ function setupIPC() {
   let engineProcess = null;
   async function startEngineInternal(modelFile) {
     try {
-      // 寮烘潃鎵€鏈夋畫鐣?llama 杩涚▼锛氳鐩栧畨瑁呭悗鏃у疄渚嬶紙鏂囦欢宸茶鏇挎崲锛変細鍋囨椿/鍗?8080锛?
-      // 瀵艰嚧 health 鎺㈡祴鎴愬姛浣嗗疄闄呰姹?ERR_CONNECTION_REFUSED銆?
-      try { execSync('taskkill /IM llama-server.exe /F', { stdio: 'ignore' }); } catch (ke) {}
-      await new Promise(r => setTimeout(r, 800));
       const engineDir = getEngineDir();
-      if (!engineDir) return { success: false, error: '鏈壘鍒板唴缃紩鎿庯紝璇烽噸鏂板畨瑁?LabCode' };
+      if (!engineDir) return { success: false, error: '鏈壘鍒板唴缃寮曟搸锛岃閲嶆柊瀹夎LabCode' };
       const serverExe = path.join(engineDir, 'llama-server.exe');
-      if (!fs.existsSync(serverExe)) return { success: false, error: '寮曟搸鏂囦欢缂哄け: llama-server.exe' };
+      if (!fs.existsSync(serverExe)) return { success: false, error: '寮曟搸鏂囦欢缂哄皯: llama-server.exe' };
 
-      // 閫夋ā鍨嬶細浼樺厛鎸囧畾锛屽惁鍒欏彇 models 鐩綍绗竴涓?
+      // 閫夋ā鍨嬶細浼樺厛鎸囧畾锛屽惁鍒欏彇 models 鐩綍绗竴涓?
       let modelPath = '';
       const modelsDir = getModelsDir();
       if (modelFile) modelPath = path.join(modelsDir, modelFile);
@@ -2617,26 +2628,43 @@ function setupIPC() {
         const models = scanLocalModels();
         if (models.length > 0) modelPath = path.join(modelsDir, models[0].file);
       }
-      if (!fs.existsSync(modelPath)) return { success: false, error: '鏈壘鍒版ā鍨嬶紝璇峰厛鍦ㄦ彃浠跺競鍦哄畨瑁呭ぇ妯″瀷' };
+      if (!fs.existsSync(modelPath)) return { success: false, error: '鏈壘鍒版ā鍨嬶紝璇峰厛鍦ㄦ彃浠跺競鍦哄畨瑁呭ぇ妯″瀷' };
+
+      // ===== 寮曟搸澶嶇敤浼樺寲 =====锛堜笉鍗犵敤 C 鐩橈紝寮曟搸宸叉墦寮€鍚屾ā鍨嬫椂鐩存帴澶嶇敤锛屽噺灏戝喎鍚姩锛?
+      if (await isEngineRunning()) {
+        const runningModel = await getEngineRunningModel();
+        if (!modelFile || runningModel === path.basename(modelPath)) {
+          currentEngineModel = runningModel || path.basename(modelPath);
+          return { success: true, model: currentEngineModel, url: 'http://127.0.0.1:8080/v1', reused: true };
+        }
+        // 妯″瀷涓嶅悓鎵嶅己鏉€閲嶅惎锛堣鐩栧畨瑁呭悗鏃у疄渚嬩細鍋囨椿鍗?8080锛?
+        try { execSync('taskkill /IM llama-server.exe /F', { stdio: 'ignore' }); } catch (ke) {}
+        await new Promise(r => setTimeout(r, 800));
+      }
 
       if (engineProcess) { try { engineProcess.kill(); } catch (e) {} engineProcess = null; }
       currentEngineModel = null;
 
       const { spawn } = require('child_process');
+      // ===== 寮曟搸鍙傛暟浼樺寲 =====锛?-fa Flash Attention / -b -ub 澧炲己 batch / -c 鏀寔 config.ai.engineCtx 鍙厤缃?
+      const engineCtx = (config.ai && config.ai.engineCtx) || 16384;
       engineProcess = spawn(serverExe, [
         '-m', modelPath,
         '--host', '127.0.0.1',
         '--port', '8080',
-        '-ngl', '99',          // 鍏ㄥ眰 GPU锛堟棤鐙樉鑷姩鍥為€€ CPU锛?
-        '-c', '16384',         // 涓婁笅鏂囷細16K锛屼负鎬濊€冩祦锛坮easoning锛? 姝ｆ枃棰勭暀绌洪棿锛?B 鍐呭瓨鍏呰冻锛?
+        '-ngl', '99',          // 鍏ㄥ眰 GPU锛堟棤鐙搴忚嚜鍔ㄥ洖閫€ CPU锛?
+        '-c', String(engineCtx), // 涓婁笅鏂囷細16K锛屼负鎬濊€冩祦锛坮easoning锛? 姝ｆ枃棰勭暀绌洪棿锛?B 鍐呭瓨鍏呰冻锛?
+        '-b', '2048',          // batch size锛歅PU 涓?512-2048 鏇翠紭
+        '-ub', '512',          // 寰皾batch锛氫笌 batch 鎼厤锛屾樉鍗″彈闄愭椂鑷姩鍥炶惤
+        '--flash-attn', 'on',      // Flash Attention锛歅PU 鍔犻€熸敞鎰忓姏锛孴TFT 鏄剧潃涓嬮檷
         '--jinja'              // 浣跨敤 GGUF 鍐呭祵鑱婂ぉ妯℃澘锛圦wen 绛夛級
       ], { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
 
-      engineProcess.stdout.on('data', d => { const s = String(d); if (s.includes('server is listening') || s.includes('HTTP server')) console.log('[LLM寮曟搸] 鍚姩鎴愬姛'); });
+      engineProcess.stdout.on('data', d => { const s = String(d); if (s.includes('server is listening') || s.includes('HTTP server')) console.log('[LLM寮曟搸] 鍚姩鎴愬姛'); });
       engineProcess.stderr.on('data', d => console.error('[LLM寮曟搸]', String(d).slice(0, 300)));
       engineProcess.on('exit', () => { engineProcess = null; currentEngineModel = null; });
 
-      // 绛夊緟寮曟搸灏辩华锛堟渶澶?60s锛屽ぇ妯″瀷鍔犺浇闇€鏃堕棿锛?
+      // 绛夊緟寮曟搸灏辩华锛堟渶澶? 60s锛屽ぇ妯″瀷鍔犺浇闇€鏃堕棿锛?
       for (let i = 0; i < 60; i++) {
         await new Promise(r => setTimeout(r, 1000));
         if (await isEngineRunning()) {
@@ -2646,7 +2674,7 @@ function setupIPC() {
       }
     return { success: false, error: 'engine start timeout (model loading slow or out of memory)' };
     } catch (e) {
-      return { success: false, error: '鍚姩寮曟搸澶辫触: ' + redactError(e.message || String(e)) };
+      return { success: false, error: '鍚姩寮曟搸澶辫触: ' + redactError(e.message || String(e)) };
     }
   }
   ipcMain.handle('system:startLLMEngine', async (_, opts) => startEngineInternal((opts || {}).modelFile));
