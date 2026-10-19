@@ -9383,6 +9383,44 @@ function bindEvents() {
     const room = { id: 'r' + Date.now(), name: name.trim(), members: ['LabCode（内置）'], messages: [] };
     gcRooms.push(room); gcSave(); gcSelect(room.id);
   }
+  // 公共：让单个 Agent 执行一次（CLI 自主执行 / API 调用），结果写回房间消息
+  // useHistory=true 时带房间历史上下文（群聊模式）；false 时用专属 prompt（编排模式）
+  async function gcExecAgent(room, m, prompt, useHistory) {
+    const cfg = AGENT_PRESETS[m]; if (!cfg) return '';
+    room.messages.push({ role: 'agent', name: m, content: '（执行中…）', ts: Date.now() }); gcRenderMessages(room);
+    try {
+      let reply;
+      if (cfg.provider === 'cli') {
+        // CLI 桥接：已安装 CLI（Codex/DeepSeek Harness/CodeBuddy 等）自主规划执行
+        const cliRes = await runCliAgent(m, prompt);
+        reply = cliRes.success ? (cliRes.output || '（无输出）') : '[CLI 失败：' + (cliRes.error || '未知') + ']';
+      } else {
+        await window.LabCode.config.set('ai.provider', cfg.provider);
+        await window.LabCode.config.set('ai.model', cfg.model || '');
+        await window.LabCode.config.set('ai.apiKey', cfg.apiKey || '');
+        await window.LabCode.config.set('ai.baseURL', cfg.baseURL || '');
+        await window.LabCode.config.set('ai.thinkingLevel', cfg.thinking || 'standard');
+        let msgs;
+        if (useHistory) {
+          const hist = room.messages.filter(x => x.content !== '（执行中…）' && x.content !== '（思考中…）').map(x => ({ role: x.role === 'user' ? 'user' : 'assistant', content: (x.name ? ('[' + x.name + '] ') : '') + x.content }));
+          msgs = [{ role: 'system', content: '你是群聊房间「' + room.name + '」里的一个 Agent（' + m + '）。房间内有多个 Agent 与用户协作，请用简洁的中文回应。' }].concat(hist);
+        } else {
+          msgs = [{ role: 'system', content: '你是 ' + m + '，一个自主执行的 AI Agent。' }, { role: 'user', content: prompt }];
+        }
+        const res = await window.LabCode.ai.chat({ messages: msgs, temperature: 0.7, maxTokens: 8192 });
+        reply = (res && res.success) ? (res.content || '') : '[调用失败：' + ((res && res.error) || '未知') + ']';
+      }
+      const idx = room.messages.findIndex(x => x.role === 'agent' && x.name === m && (x.content === '（执行中…）' || x.content === '（思考中…）'));
+      if (idx >= 0) room.messages[idx] = { role: 'agent', name: m, content: reply || '（无回复）', ts: Date.now() };
+      return reply || '';
+    } catch (e) {
+      const idx = room.messages.findIndex(x => x.role === 'agent' && x.name === m && (x.content === '（执行中…' || x.content === '（思考中…）'));
+      if (idx >= 0) room.messages[idx] = { role: 'agent', name: m, content: '[异常：' + e.message + ']', ts: Date.now() };
+      return '[异常：' + e.message + ']';
+    } finally {
+      gcRenderMessages(room);
+    }
+  }
   async function gcSend() {
     const room = gcRooms.find(r => r.id === gcActiveId); if (!room) return;
     const input = document.getElementById('gc-input'); if (!input) return;
@@ -9407,31 +9445,8 @@ function bindEvents() {
     const curCfg3 = await window.LabCode.config.get(); const saved = {}; keys.forEach(k => { try { saved[k] = (curCfg3 && curCfg3.ai) ? curCfg3.ai[k] : ''; } catch (e) { saved[k] = ''; } });
     for (const m of targets) {
       const cfg = AGENT_PRESETS[m]; if (!cfg) continue;
-      room.messages.push({ role: 'agent', name: m, content: '（思考中…）', ts: Date.now() }); gcRenderMessages(room);
-      try {
-        let reply;
-        if (cfg.provider === 'cli') {
-          // CLI 桥接：群聊成员为已安装 CLI 时直接执行
-          const cliRes = await runCliAgent(m, (room.messages.filter(x => x.role === 'user').pop() || {}).content || '你好');
-          reply = cliRes.success ? (cliRes.output || '（无输出）') : '[CLI 失败：' + (cliRes.error || '未知') + ']';
-        } else {
-          await window.LabCode.config.set('ai.provider', cfg.provider);
-          await window.LabCode.config.set('ai.model', cfg.model || '');
-          await window.LabCode.config.set('ai.apiKey', cfg.apiKey || '');
-          await window.LabCode.config.set('ai.baseURL', cfg.baseURL || '');
-          await window.LabCode.config.set('ai.thinkingLevel', cfg.thinking || 'standard');
-          const hist = room.messages.filter(x => x.content !== '（思考中…）').map(x => ({ role: x.role === 'user' ? 'user' : 'assistant', content: (x.name ? ('[' + x.name + '] ') : '') + x.content }));
-          const sys = { role: 'system', content: '你是群聊房间「' + room.name + '」里的一个 Agent（' + m + '）。房间内有多个 Agent 与用户协作，请用简洁的中文回应。' };
-          const res = await window.LabCode.ai.chat({ messages: [sys].concat(hist), temperature: 0.7, maxTokens: 8192 });
-          reply = (res && res.success) ? (res.content || '') : '[调用失败：' + ((res && res.error) || '未知') + ']';
-        }
-        const idx = room.messages.findIndex(x => x.role === 'agent' && x.name === m && x.content === '（思考中…）');
-        if (idx >= 0) room.messages[idx] = { role: 'agent', name: m, content: reply || '（无回复）', ts: Date.now() };
-      } catch (e) {
-        const idx = room.messages.findIndex(x => x.role === 'agent' && x.name === m && x.content === '（思考中…）');
-        if (idx >= 0) room.messages[idx] = { role: 'agent', name: m, content: '[异常：' + e.message + ']', ts: Date.now() };
-      }
-      gcRenderMessages(room);
+      const lastUserMsg = (room.messages.filter(x => x.role === 'user').pop() || {}).content || '你好';
+      await gcExecAgent(room, m, lastUserMsg, true);
     }
     try {
       window.LabCode.config.set('ai.provider', saved.provider); window.LabCode.config.set('ai.model', saved.model || '');
@@ -9439,6 +9454,61 @@ function bindEvents() {
       window.LabCode.config.set('ai.thinkingLevel', saved.thinkingLevel || 'standard');
     } catch (e) {}
     gcSave();
+  }
+  // ============ 任务编排（🤖 编排：拆解总任务 → 分发各 Agent 自主执行 → 汇总）============
+  // 编排器拆解：用当前配置的 AI 生成分工 JSON（容错解析）
+  async function gcPlan(task, members) {
+    try {
+      const sys = { role: 'system', content: '你是 LabCode 多智能体任务编排器。把用户任务拆解为若干子任务，分配给以下 Agent（每个 Agent 擅长不同领域、会自主规划执行）：' + members.join('、') + '。要求：1) 每个子任务边界清晰、可独立执行；2) 尽量让每个 Agent 都领到任务；3) 只返回 JSON 数组，不要任何其他文字：[{"agent":"Agent名","task":"子任务描述","rationale":"分配理由"}]' };
+      const res = await window.LabCode.ai.chat({ messages: [sys, { role: 'user', content: task }], temperature: 0.3, maxTokens: 4096 });
+      if (!res || !res.success || !res.content) return [];
+      const text = String(res.content);
+      const m = text.match(/\[[\s\S]*\]/);
+      const raw = m ? m[0] : text;
+      const arr = JSON.parse(raw);
+      if (!Array.isArray(arr)) return [];
+      return arr.filter(p => p && p.agent && members.includes(p.agent)).slice(0, members.length).map(p => ({ agent: p.agent, task: String(p.task || ''), rationale: String(p.rationale || '') }));
+    } catch (e) { console.warn('[编排器] 拆解失败:', e.message); return []; }
+  }
+  // 编排主流程：拆解 → 分工展示 → CLI 并行 / API 串行执行 → 恢复配置
+  async function gcOrchestrate() {
+    const room = gcRooms.find(r => r.id === gcActiveId); if (!room) return;
+    const input = document.getElementById('gc-input'); if (!input) return;
+    const task = input.value.trim(); if (!task) return; input.value = '';
+    const members = (room.members || []).filter(m => AGENT_PRESETS[m]);
+    if (!members.length) { showToast('房间没有可执行的 Agent，先点「+ 添加 Agent」', 'error'); return; }
+    room.messages.push({ role: 'user', name: '我', content: task, ts: Date.now() });
+    room.messages.push({ role: 'system', name: '编排器', content: '（🤖 正在拆解任务并分发给 ' + members.join('、') + ' …）', ts: Date.now() });
+    gcRenderMessages(room);
+
+    const plan = await gcPlan(task, members);
+    if (!plan.length) {
+      room.messages.push({ role: 'system', name: '编排器', content: '（⚠️ 任务拆解失败：请确认当前 AI 配置可用后重试，或直接点「发送」让全员依次回应）', ts: Date.now() });
+      gcRenderMessages(room); gcSave(); return;
+    }
+    room.messages.push({ role: 'system', name: '编排器', content: '📋 分工方案：\n' + plan.map((p, i) => (i + 1) + '. ' + p.agent + ' ← ' + p.task + (p.rationale ? '（' + p.rationale + '）' : '')).join('\n'), ts: Date.now() });
+    gcRenderMessages(room);
+
+    const keys = ['provider', 'model', 'apiKey', 'baseURL', 'thinkingLevel'];
+    const cur = await window.LabCode.config.get(); const saved = {}; keys.forEach(k => { try { saved[k] = (cur && cur.ai) ? cur.ai[k] : ''; } catch (e) { saved[k] = ''; } });
+
+    // CLI agent 并行（Codex/dsh/CodeBuddy 等自主执行型，真并行），API agent 串行（避免全局 config 冲突）
+    const cliPlan = plan.filter(p => AGENT_PRESETS[p.agent] && AGENT_PRESETS[p.agent].provider === 'cli');
+    const apiPlan = plan.filter(p => AGENT_PRESETS[p.agent] && AGENT_PRESETS[p.agent].provider !== 'cli');
+    const prompts = {};
+    plan.forEach(p => {
+      prompts[p.agent] = '你被编排器分配了子任务，请【自主规划执行步骤】并完成：\n【任务】' + p.task + '\n【分配理由】' + (p.rationale || '综合协作') + '\n\n要求：自己拆分执行步骤、可自行调用工具/CLI 能力，最后给出可交付的结果。';
+    });
+    await Promise.all(cliPlan.map(p => gcExecAgent(room, p.agent, prompts[p.agent], false)));
+    for (const p of apiPlan) await gcExecAgent(room, p.agent, prompts[p.agent], false);
+
+    try {
+      window.LabCode.config.set('ai.provider', saved.provider); window.LabCode.config.set('ai.model', saved.model || '');
+      window.LabCode.config.set('ai.apiKey', saved.apiKey || ''); window.LabCode.config.set('ai.baseURL', saved.baseURL || '');
+      window.LabCode.config.set('ai.thinkingLevel', saved.thinkingLevel || 'standard');
+    } catch (e) {}
+    gcSave();
+    showToast('🤖 编排完成', 'success');
   }
   function gcShowView() {
     gcLoad().then(() => gcRenderRooms());
@@ -9449,6 +9519,7 @@ function bindEvents() {
       gcBound = true;
       const nr = document.getElementById('gc-new-room'); if (nr) nr.addEventListener('click', gcCreateRoom);
       const sb = document.getElementById('gc-send'); if (sb) sb.addEventListener('click', gcSend);
+      const ob = document.getElementById('gc-orchestrate-btn'); if (ob) ob.addEventListener('click', gcOrchestrate);
       const inp = document.getElementById('gc-input'); if (inp) inp.addEventListener('keydown', e => { if (e.key === 'Enter') gcSend(); });
     }
   }

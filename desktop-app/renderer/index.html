@@ -356,7 +356,8 @@
         <div class="gc-room-header" id="gc-room-header"></div>
         <div class="gc-messages" id="gc-messages"></div>
         <div class="gc-input-bar">
-          <input id="gc-input" type="text" placeholder="输入消息，房间内所有 Agent 将依次回应…" />
+          <input id="gc-input" type="text" placeholder="输入消息（回车发送；编排模式会拆解任务分发给各 Agent 自主执行）…" />
+          <button class="btn btn-secondary" id="gc-orchestrate-btn" title="任务编排：拆解总任务 → 分发给房间内各 Agent → 各自自主规划执行 → 汇总结果">🤖 编排</button>
           <button class="btn btn-primary" id="gc-send">发送</button>
         </div>
       </div>
