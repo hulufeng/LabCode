@@ -249,7 +249,16 @@ async function loadProjectFromDisk(projectPath) {
     showToast(`已加载项目: ${projectPath}`, 'success');
     addOutputLog(`项目已加载: ${projectPath}`, 'success');
     addOutputLog(`共 ${Object.keys(state.files).length} 个文件`, 'info');
-    recordRecentProject(projectPath);
+    // 记录最近项目（内联实现，避免跨作用域调用局部函数 recordRecentProject 报 ReferenceError）
+    try {
+      if (window.LabCode && window.LabCode.config) {
+        const cfg = await window.LabCode.config.get();
+        const list = Array.isArray(cfg.recentProjects) ? cfg.recentProjects : [];
+        const filtered = list.filter(r => r.path !== projectPath);
+        filtered.unshift({ name: String(projectPath).split(/[\\/]/).pop(), path: projectPath });
+        await window.LabCode.config.set('recentProjects', filtered.slice(0, 8));
+      }
+    } catch (e) { console.warn('记录最近项目失败:', e); }
   } catch (e) {
     console.error('加载项目失败:', e);
     showToast('加载项目失败: ' + e.message, 'error');
@@ -710,7 +719,7 @@ function ensureMonacoEditor() {
         state.files[state.activeTab].dirty = true;
       }
     });
-    editor.onMouseDown((e) => {
+    state.editor.onMouseDown((e) => {
       if (e && e.target && e.target.type === monaco.editor.MouseTargetType.GLYPH_MARGIN && state.activeTab) {
         const ln = e.target.position ? e.target.position.lineNumber : 0;
         if (ln > 0 && window.__dbg && window.__dbg.toggleBreakpoint) window.__dbg.toggleBreakpoint(state.activeTab, ln);
