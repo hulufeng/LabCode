@@ -8622,6 +8622,7 @@ function bindEvents() {
     'Qwen Code': { provider: 'custom', model: 'qwen-max', apiKey: '', baseURL: 'https://dashscope.aliyuncs.com/compatible-mode/v1', thinking: 'standard' },
     'Kimi Code': { provider: 'custom', model: 'kimi-k2', apiKey: '', baseURL: 'https://api.moonshot.cn/v1', thinking: 'standard' },
     'CodeBuddy': { provider: 'cli', cli: true, model: 'codebuddy', apiKey: '', baseURL: '', thinking: 'standard' },
+    'ESP32 硬件编程': { provider: 'inherit', model: '', apiKey: '', baseURL: '', thinking: 'standard', builtin: true },
     'Qoder': { provider: 'custom', model: 'qoder', apiKey: '', baseURL: '', thinking: 'standard' },
     'GitHub Copilot': { provider: 'custom', model: 'gpt-4o', apiKey: '', baseURL: 'https://api.githubcopilot.com', thinking: 'standard' },
     'ZCode': { provider: 'custom', model: 'glm-4', apiKey: '', baseURL: 'https://open.bigmodel.cn/api/ai/paas/v4', thinking: 'standard' }
@@ -9399,6 +9400,13 @@ function bindEvents() {
         // CLI 桥接：已安装 CLI（Codex/DeepSeek Harness/CodeBuddy 等）自主规划执行
         const cliRes = await runCliAgent(m, prompt);
         reply = cliRes.success ? (cliRes.output || '（无输出）') : '[CLI 失败：' + (cliRes.error || '未知') + ']';
+      } else if (cfg.provider === 'inherit') {
+        // 内置 agent：复用当前 AI 配置（本地引擎/网关/API，用户无需安装任何外部 agent），带专属系统提示
+        const sysMsg = m === 'ESP32 硬件编程'
+          ? '你是 LabCode 内置的「ESP32 硬件编程」专家（品牌：深蓝不白）。你精通 Arduino/ESP32 嵌入式开发：\n1) 代码：Arduino 语法、ESP32-S3 引脚映射（GPIO 0-48）、GPIO/PWM/ADC/I2C/SPI/UART、按键消抖、中断、定时器、WiFi/蓝牙（BLE）\n2) 常见外设：超声波 HC-SR04、红外避障、L298N/TB6612 电机驱动、SG90 舵机、MPU6050、OLED/LCD、DHT11、蜂鸣器、光敏/温湿度传感器\n3) 工程要点：板型选择、引脚复用冲突、供电（电机独立电源/共地）、串口波特率、编译烧录（Arduino IDE / arduino-cli / esptool）、常见编译错误与排查\n4) 风格：先给可直接编译的完整代码（含 #include 与 setup/loop），再给接线说明与注意事项；用户是 ESP32 课程开发者，术语与 LabCode 课程（40 关闯关）保持一致\n请自主拆解用户需求并给出可交付的硬件代码方案。'
+          : '你是 ' + m + '，一个自主执行的 AI Agent。';
+        const res = await window.LabCode.ai.chat({ messages: [{ role: 'system', content: sysMsg }, { role: 'user', content: prompt }], temperature: 0.5, maxTokens: 8192 });
+        reply = (res && res.success) ? (res.content || '') : '[调用失败：' + ((res && res.error) || '未知') + ']';
       } else {
         await window.LabCode.config.set('ai.provider', cfg.provider);
         await window.LabCode.config.set('ai.model', cfg.model || '');
