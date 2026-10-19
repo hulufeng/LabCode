@@ -12152,8 +12152,12 @@ function bindEvents() {
       if (typeof credits === 'number') {
         badge.style.display = 'inline-flex';
         badge.textContent = '⚡ ' + credits.toLocaleString() + ' 积分';
+        badge.title = 'LabCode 账号（点击打开设置，管理账号与积分）';
       } else {
-        badge.style.display = 'none';
+        // 未登录：显示"登录账号"入口徽章（对齐 TrieCode 可选登录——不强制首屏遮罩，登录入口常驻 AI 面板顶部）
+        badge.style.display = 'inline-flex';
+        badge.textContent = '🔑 登录账号';
+        badge.title = '登录 LabCode 账号（云端模型按积分计费；本地模型无需登录）';
       }
     } catch (e) { console.warn('[积分徽标] 更新失败:', e); }
   }
@@ -12177,11 +12181,21 @@ function bindEvents() {
     } catch (e) { console.warn('[积分徽标] 刷新失败:', e); }
   }
 
-  // 徽标点击 → 打开设置面板
+  // 徽标点击 → 未登录弹登录卡片（对齐 TrieCode 可选登录）；已登录打开设置面板
   document.addEventListener('click', (e) => {
     const badge = document.getElementById('gw-credits-badge');
     if (badge && e.target === badge) {
-      openSettingsModal();
+      (async () => {
+        try {
+          const cfg = await window.LabCode.config.get();
+          const loggedIn = !!(cfg.ai && cfg.ai.gatewayToken);
+          if (!loggedIn && window.__showGwLoginOverlay) {
+            window.__showGwLoginOverlay();
+          } else {
+            openSettingsModal();
+          }
+        } catch (err) { openSettingsModal(); }
+      })();
     }
   });
 
@@ -12648,12 +12662,12 @@ function bindEvents() {
     const fo = document.getElementById('gw-ov-forgot'); if (fo) fo.addEventListener('click', gwForgotOverlay);
     const sk = document.getElementById('gw-ov-skip'); if (sk) sk.addEventListener('click', hideLoginOverlay);
     window.__showGwLoginOverlay = showLoginOverlay;
-    // 启动检查：未登录则显示首屏登录遮罩
+    // 启动检查：静默刷新账号徽章（对齐 TrieCode 可选登录——不再强制首屏登录遮罩，
+    // 未登录时 AI 面板顶部常驻"🔑 登录账号"入口徽章，本地模型无需登录即可使用）
     (async () => {
       try {
-        const cfg = await window.LabCode.config.get();
-        if (!(cfg && cfg.ai && cfg.ai.gatewayToken)) showLoginOverlay();
-      } catch (e) { showLoginOverlay(); }
+        await refreshCreditsBadge();
+      } catch (e) { /* 徽章刷新失败不影响主流程 */ }
     })();
   });
 
