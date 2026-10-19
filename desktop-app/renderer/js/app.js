@@ -12790,6 +12790,13 @@ function bindEvents() {
                 st.textContent = '✅ 已装 v' + (found.version || '?');
                 st.style.color = '#22c55e';
                 ib.textContent = '更新';
+                // dsh 特例：DeepSeek Harness 已装仍需用户自己的 DEEPSEEK_API_KEY（"谁安装算谁的"：软件只装不配）
+                if (cliMeta[0] === 'dsh') {
+                  const hint = document.createElement('div');
+                  hint.style.cssText = 'font-size:10px;color:#f59e0b;line-height:1.4;';
+                  hint.textContent = '⚠️ 已装但需配置 DeepSeek API Key 才能调用（环境变量 DEEPSEEK_API_KEY，或 dsh web 的 Models 页写入）';
+                  card.appendChild(hint);
+                }
               } else {
                 st.textContent = '⬜ 未安装';
                 ib.textContent = '一键安装';
