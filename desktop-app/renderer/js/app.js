@@ -9363,7 +9363,12 @@ function bindEvents() {
     (room.messages || []).forEach(m => {
       const d = document.createElement('div'); d.className = 'gc-msg ' + (m.role === 'user' ? 'gc-msg-user' : 'gc-msg-agent');
       const who = m.role === 'user' ? '我' : (m.name || 'Agent');
-      d.innerHTML = '<div class="gc-msg-name">' + gcEsc(who) + '</div><div class="gc-msg-body">' + gcEsc(m.content || '') + '</div>';
+      let html = '<div class="gc-msg-name">' + gcEsc(who) + '</div><div class="gc-msg-body">' + gcEsc(m.content || '') + '</div>';
+      // Ekko 式审批门：分工方案消息带操作按钮（确认执行/重新拆解）
+      if (m.actions && m.actions.length) {
+        html += '<div class="gc-msg-actions">' + m.actions.map(a => '<button class="gc-act-btn" data-gc-action="' + a.act + '" style="' + (a.style || '') + '">' + gcEsc(a.label) + '</button>').join(' ') + '</div>';
+      }
+      d.innerHTML = html;
       msgs.appendChild(d);
     });
     msgs.scrollTop = msgs.scrollHeight;
@@ -9470,7 +9475,7 @@ function bindEvents() {
       return arr.filter(p => p && p.agent && members.includes(p.agent)).slice(0, members.length).map(p => ({ agent: p.agent, task: String(p.task || ''), rationale: String(p.rationale || '') }));
     } catch (e) { console.warn('[编排器] 拆解失败:', e.message); return []; }
   }
-  // 编排主流程：拆解 → 分工展示 → CLI 并行 / API 串行执行 → 恢复配置
+  // 编排主流程（Ekko 式：拆解 → 分工方案 + 人工审批门 → 确认后执行 → 状态流汇总）
   async function gcOrchestrate() {
     const room = gcRooms.find(r => r.id === gcActiveId); if (!room) return;
     const input = document.getElementById('gc-input'); if (!input) return;
@@ -9483,32 +9488,104 @@ function bindEvents() {
 
     const plan = await gcPlan(task, members);
     if (!plan.length) {
-      room.messages.push({ role: 'system', name: '编排器', content: '（⚠️ 任务拆解失败：请确认当前 AI 配置可用后重试，或直接点「发送」让全员依次回应）', ts: Date.now() });
+      room.messages.push({ role: 'system', name: '编排器', content: '（⚠️ 任务拆解失败：请确认当前 AI 配置可用后重试；也可直接点「发送」让全员依次回应）', ts: Date.now() });
       gcRenderMessages(room); gcSave(); return;
     }
-    room.messages.push({ role: 'system', name: '编排器', content: '📋 分工方案：\n' + plan.map((p, i) => (i + 1) + '. ' + p.agent + ' ← ' + p.task + (p.rationale ? '（' + p.rationale + '）' : '')).join('\n'), ts: Date.now() });
-    gcRenderMessages(room);
-
+    // 结构化 run：每个子任务 = 一个 run（Ekko RunSurface=group-chat / RunMode=scoped 轻量落地）
+    plan.forEach(p => { p.status = 'pending'; });
+    room.pendingPlan = plan;
+    room.pendingPlanTask = task;
+    const ref = 'plan-' + Date.now();
+    room.pendingPlanRef = ref;
+    room.messages.push({
+      role: 'system', name: '编排器', planRef: ref,
+      content: '📋 分工方案（等待你确认后执行）\n' + plan.map((p, i) => (i + 1) + '. ' + p.agent + ' ← ' + p.task + (p.rationale ? '（' + p.rationale + '）' : '')).join('\n'),
+      actions: [{ label: '✓ 确认执行', act: 'confirm-plan', style: 'background:#2563eb;color:#fff;border:none;border-radius:6px;padding:4px 14px;cursor:pointer;margin-right:6px;' }, { label: '🔄 重新拆解', act: 'replan', style: 'background:#e5e7eb;color:#111;border:none;border-radius:6px;padding:4px 14px;cursor:pointer;' }],
+      ts: Date.now()
+    });
+    gcRenderMessages(room); gcSave();
+  }
+  // 执行状态事件流：更新分工方案消息中某一行子任务的状态（Ekko webhooks 事件聚合的轻量版）
+  function gcSetPlanStatus(room, i, status) {
+    const m = room.messages.find(x => x.planRef && x.planRef === room.pendingPlanRef); if (!m) return;
+    const plan = room.pendingPlan; if (!plan) return;
+    const lines = String(m.content).split('\n');
+    if (i < plan.length && i + 1 < lines.length) {
+      plan[i].status = status;
+      const mark = status === 'done' ? '✅' : (status === 'failed' ? '❌' : '🚀');
+      // 整行重建：按【码点】剥掉行首已有的状态标记（emoji 是代理对，slice 会切裂，故用展开数组），再剥序号
+      let line = lines[i + 1];
+      if (line.startsWith('✅') || line.startsWith('❌') || line.startsWith('🚀')) line = [...line].slice(1).join('').replace(/^\s+/, '');
+      line = line.replace(/^\d+\.\s*/, '');
+      lines[i + 1] = mark + ' ' + (i + 1) + '. ' + line;
+      m.content = lines.join('\n');
+      gcRenderMessages(room);
+    }
+  }
+  // 确认执行：按分工逐个/并行执行，实时更新状态流
+  async function gcRunPlan() {
+    const room = gcRooms.find(r => r.id === gcActiveId); if (!room) return;
+    const plan = room.pendingPlan; if (!plan || !plan.length) return;
+    const task = room.pendingPlanTask || '';
+    const ref = room.pendingPlanRef;
+    // 审批通过：移除按钮
+    const m = room.messages.find(x => x.planRef === ref); if (m) { m.actions = null; gcRenderMessages(room); }
     const keys = ['provider', 'model', 'apiKey', 'baseURL', 'thinkingLevel'];
     const cur = await window.LabCode.config.get(); const saved = {}; keys.forEach(k => { try { saved[k] = (cur && cur.ai) ? cur.ai[k] : ''; } catch (e) { saved[k] = ''; } });
-
-    // CLI agent 并行（Codex/dsh/CodeBuddy 等自主执行型，真并行），API agent 串行（避免全局 config 冲突）
-    const cliPlan = plan.filter(p => AGENT_PRESETS[p.agent] && AGENT_PRESETS[p.agent].provider === 'cli');
-    const apiPlan = plan.filter(p => AGENT_PRESETS[p.agent] && AGENT_PRESETS[p.agent].provider !== 'cli');
     const prompts = {};
-    plan.forEach(p => {
-      prompts[p.agent] = '你被编排器分配了子任务，请【自主规划执行步骤】并完成：\n【任务】' + p.task + '\n【分配理由】' + (p.rationale || '综合协作') + '\n\n要求：自己拆分执行步骤、可自行调用工具/CLI 能力，最后给出可交付的结果。';
+    plan.forEach((p, i) => {
+      prompts[i] = '你被编排器分配了子任务（来自总任务："' + task + '"），请【自主规划执行步骤】并完成：\n【任务】' + p.task + '\n【分配理由】' + (p.rationale || '综合协作') + '\n\n要求：自己拆分执行步骤、可自行调用工具/CLI 能力，最后给出可交付的结果。';
     });
-    await Promise.all(cliPlan.map(p => gcExecAgent(room, p.agent, prompts[p.agent], false)));
-    for (const p of apiPlan) await gcExecAgent(room, p.agent, prompts[p.agent], false);
-
+    // CLI run 并行（真自主执行），API run 串行（避免全局 config 冲突）
+    const cliIdx = plan.map((p, i) => i).filter(i => AGENT_PRESETS[plan[i].agent] && AGENT_PRESETS[plan[i].agent].provider === 'cli');
+    const apiIdx = plan.map((p, i) => i).filter(i => AGENT_PRESETS[plan[i].agent] && AGENT_PRESETS[plan[i].agent].provider !== 'cli');
+    await Promise.all(cliIdx.map(async i => {
+      gcSetPlanStatus(room, i, 'executing');
+      const r = await gcExecAgent(room, plan[i].agent, prompts[i], false);
+      gcSetPlanStatus(room, i, r.startsWith('[CLI 失败') || r.startsWith('[调用失败') || r.startsWith('[异常') ? 'failed' : 'done');
+    }));
+    for (const i of apiIdx) {
+      gcSetPlanStatus(room, i, 'executing');
+      const r = await gcExecAgent(room, plan[i].agent, prompts[i], false);
+      gcSetPlanStatus(room, i, r.startsWith('[CLI 失败') || r.startsWith('[调用失败') || r.startsWith('[异常') ? 'failed' : 'done');
+    }
     try {
       window.LabCode.config.set('ai.provider', saved.provider); window.LabCode.config.set('ai.model', saved.model || '');
       window.LabCode.config.set('ai.apiKey', saved.apiKey || ''); window.LabCode.config.set('ai.baseURL', saved.baseURL || '');
       window.LabCode.config.set('ai.thinkingLevel', saved.thinkingLevel || 'standard');
     } catch (e) {}
-    gcSave();
-    showToast('🤖 编排完成', 'success');
+    const failed = plan.filter(p => p.status === 'failed').length;
+    room.messages.push({ role: 'system', name: '编排器', content: failed ? '（🤖 编排完成：' + (plan.length - failed) + '/' + plan.length + ' 个子任务成功，' + failed + ' 个失败——可检查对应 Agent 配置后重试）' : '（🤖 编排完成：' + plan.length + ' 个子任务全部完成 ✅）', ts: Date.now() });
+    room.pendingPlan = null; room.pendingPlanTask = null; room.pendingPlanRef = null;
+    gcRenderMessages(room); gcSave();
+    showToast('🤖 编排完成', failed ? 'error' : 'success');
+  }
+  // 重新拆解：清掉旧方案，再次拆解（Ekko clarification 回路的轻量版）
+  async function gcReplan() {
+    const room = gcRooms.find(r => r.id === gcActiveId); if (!room) return;
+    const oldRef = room.pendingPlanRef; const task = room.pendingPlanTask;
+    const old = room.messages.find(x => x.planRef === oldRef); if (old) { old.actions = null; }
+    room.pendingPlan = null; room.pendingPlanRef = null;
+    if (!task) { gcRenderMessages(room); gcSave(); return; }
+    room.messages.push({ role: 'system', name: '编排器', content: '（🔄 正在重新拆解任务…）', ts: Date.now() });
+    gcRenderMessages(room);
+    const members = (room.members || []).filter(m => AGENT_PRESETS[m]);
+    const plan = await gcPlan(task, members);
+    if (!plan.length) {
+      room.messages.push({ role: 'system', name: '编排器', content: '（⚠️ 重新拆解失败：请确认当前 AI 配置可用后重试）', ts: Date.now() });
+      gcRenderMessages(room); gcSave(); return;
+    }
+    plan.forEach(p => { p.status = 'pending'; });
+    room.pendingPlan = plan;
+    const ref = 'plan-' + Date.now();
+    room.pendingPlanRef = ref;
+    room.messages.push({
+      role: 'system', name: '编排器', planRef: ref,
+      content: '📋 分工方案（等待你确认后执行）\n' + plan.map((p, i) => (i + 1) + '. ' + p.agent + ' ← ' + p.task + (p.rationale ? '（' + p.rationale + '）' : '')).join('\n'),
+      actions: [{ label: '✓ 确认执行', act: 'confirm-plan', style: 'background:#2563eb;color:#fff;border:none;border-radius:6px;padding:4px 14px;cursor:pointer;margin-right:6px;' }, { label: '🔄 重新拆解', act: 'replan', style: 'background:#e5e7eb;color:#111;border:none;border-radius:6px;padding:4px 14px;cursor:pointer;' }],
+      ts: Date.now()
+    });
+    gcRenderMessages(room); gcSave();
   }
   function gcShowView() {
     gcLoad().then(() => gcRenderRooms());
@@ -9521,6 +9598,15 @@ function bindEvents() {
       const sb = document.getElementById('gc-send'); if (sb) sb.addEventListener('click', gcSend);
       const ob = document.getElementById('gc-orchestrate-btn'); if (ob) ob.addEventListener('click', gcOrchestrate);
       const inp = document.getElementById('gc-input'); if (inp) inp.addEventListener('keydown', e => { if (e.key === 'Enter') gcSend(); });
+      // Ekko 审批门按钮：事件委托
+      const mbox = document.getElementById('gc-messages');
+      if (mbox) mbox.addEventListener('click', e => {
+        const btn = e.target.closest('[data-gc-action]');
+        if (!btn) return;
+        const act = btn.getAttribute('data-gc-action');
+        if (act === 'confirm-plan') gcRunPlan();
+        else if (act === 'replan') gcReplan();
+      });
     }
   }
     });
