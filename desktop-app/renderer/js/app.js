@@ -4621,7 +4621,7 @@ void loop() {
     if (!hasApiKey) {
       // 未配置 API Key → 回退模拟，但提示用户
       const mockResult = this.mock.generateResponse(userInput, messages);
-      mockResult.content = '[系统提示：当前未配置 AI API Key，使用模拟模式。请在设置中登录 LabCode 账号（云端积分）或配置 API Key / 本地模型。]\n\n' + mockResult.content;
+      mockResult.content = '[系统提示：当前未配置 AI API Key，使用模拟模式。请在设置中登录 LabCode 账号或配置 API Key / 本地模型。]\n\n' + mockResult.content;
       return mockResult;
     }
 
@@ -4663,11 +4663,11 @@ void loop() {
         console.warn('[RealAIClient] AI 请求失败:', result?.error);
         // 用量统计：调用失败
         try { usageRecord((aiCfg && aiCfg.model) || '默认', false, 0); } catch (e) {}
-        // 网关积分不足：给出升级引导
+        // 网关云端通道不可用：给出中性提示（积分系统暂不展示）
         if (result && result.creditsInsufficient) {
           const mockResult = this.mock.generateResponse(userInput, messages);
-          mockResult.content = `[积分不足：${result.error || '云端积分已用完'}。请在设置面板查看账号积分，充值或切换为本地模型（免费）后重试。]\n\n` + mockResult.content;
-          if (this.onCredits) this.onCredits({ remaining: result.creditsLeft });
+          mockResult.content = `[云端模型调用失败：${result.error || '服务暂不可用'}。请检查网络，或切换为本地模型后重试。]\n\n` + mockResult.content;
+          try { refreshCreditsBadge(); } catch (e) {}
           return mockResult;
         }
         const mockResult = this.mock.generateResponse(userInput, messages);
@@ -4770,7 +4770,7 @@ void loop() {
         } else if (evt.type === 'tool_calls') {
           toolCalls = evt.toolCalls || [];
         } else if (evt.type === 'credits') {
-          // 网关积分事件：更新余额显示（对齐 TrieCode 右侧积分显示）
+          // 网关账号事件：登录态变化时刷新账号徽标（积分暂不展示）
           if (this.onCredits) this.onCredits(evt);
         } else if (evt.type === 'done') {
           if (settled) return; settled = true; cleanup();
@@ -5585,11 +5585,9 @@ class AgentRunner {
           updateThinkingContent(this.thinkingBlockId, delta);
         }
       };
-      // 网关积分事件：实时更新 AI 面板余额徽标
+      // 网关账号事件：登录态变化时刷新账号徽标（积分暂不展示）
       this.ai.onCredits = (evt) => {
-        if (evt && typeof evt.remaining === 'number') {
-          updateCreditsBadge(evt.remaining);
-        }
+        try { refreshCreditsBadge(); } catch (e) {}
       };
       const result = await this.ai.generateResponse(lastUserMsg?.content || userInput, this.messages);
       this.ai.onStreamDelta = null;
@@ -10501,7 +10499,7 @@ function bindEvents() {
         // 写入真实配置
         try {
           if (window.LabCode && window.LabCode.config) {
-            // ===== 网关积分通道：登录 LabCode 账号后，云端模型自动走内置模型池（扣积分）=====
+            // ===== 网关云端通道：登录 LabCode 账号后，云端模型自动走内置模型池 =====
             const curCfg = await window.LabCode.config.get();
             const hasGw = !!(curCfg?.ai?.gatewayToken);
             const isCloudMapping = (mapping.provider === 'deepseek' || mapping.provider === 'custom');
@@ -10532,7 +10530,7 @@ function bindEvents() {
             // 检查 API Key 是否就绪
             const cfg = await window.LabCode.config.get();
             const ready = !!(cfg?.ai?.apiKey || cfg?.ai?.gatewayToken || mapping.provider === 'ollama' || mapping.provider === 'local');
-            const gwSuffix = (hasGw && isCloudMapping) ? '（积分通道）' : '';
+            const gwSuffix = (hasGw && isCloudMapping) ? '（云端）' : '';
             showToast(ready ? `已切换到 ${modelName}${gwSuffix}` : `已切换到 ${modelName}，请在设置中登录账号或配置 API Key`,
                       ready ? 'success' : 'warning');
           }
@@ -10643,8 +10641,8 @@ function bindEvents() {
     detectSystemInfo().then(() => { refreshLocalModelsInSelector(); }).catch(e => console.error('硬件检测失败:', e));
   } catch(e) { console.error('硬件检测启动失败:', e); }
 
-  // 启动时刷新网关积分徽标（登录态回显）
-  try { refreshCreditsBadge(); } catch (e) { console.warn('[积分徽标] 初始化失败:', e); }
+  // 启动时刷新网关账号徽标（登录态回显）
+  try { refreshCreditsBadge(); } catch (e) { console.warn('[账号徽标] 初始化失败:', e); }
   
   // 权限模式按钮
   const permissionBtn = document.getElementById('permission-btn');
@@ -12143,23 +12141,23 @@ function bindEvents() {
     modal.style.display = 'flex';
   }
 
-  // ============ 网关账号（登录/注册/余额/登出，对齐 TrieCode 账号与积分）============
-  // AI 面板顶部积分徽标（登录后显示；点击打开设置）
-  async function updateCreditsBadge(credits) {
+  // ============ 网关账号（登录/注册/登出，对齐 DeepSeek 简洁登录；暂不展示积分系统）============
+  // AI 面板顶部账号徽标：未登录显示"🔑 登录"入口；已登录显示邮箱；点击登录/管理
+  async function updateCreditsBadge(email) {
     try {
       const badge = document.getElementById('gw-credits-badge');
       if (!badge) return;
-      if (typeof credits === 'number') {
+      if (email) {
         badge.style.display = 'inline-flex';
-        badge.textContent = '⚡ ' + credits.toLocaleString() + ' 积分';
-        badge.title = 'LabCode 账号（点击打开设置，管理账号与积分）';
+        badge.textContent = email;
+        badge.title = 'LabCode 账号（点击打开设置，管理账号）';
       } else {
-        // 未登录：显示"登录账号"入口徽章（对齐 TrieCode 可选登录——不强制首屏遮罩，登录入口常驻 AI 面板顶部）
+        // 未登录：显示"登录"入口徽章（对齐 DeepSeek 可选登录——不强制首屏遮罩，入口常驻 AI 面板顶部）
         badge.style.display = 'inline-flex';
-        badge.textContent = '🔑 登录账号';
-        badge.title = '登录 LabCode 账号（云端模型按积分计费；本地模型无需登录）';
+        badge.textContent = '🔑 登录';
+        badge.title = '登录 LabCode 账号（云端模型需登录；本地模型无需登录）';
       }
-    } catch (e) { console.warn('[积分徽标] 更新失败:', e); }
+    } catch (e) { console.warn('[账号徽标] 更新失败:', e); }
   }
 
   async function refreshCreditsBadge() {
@@ -12170,15 +12168,17 @@ function bindEvents() {
       }
       const ai = cfg.ai || {};
       if (!ai.gatewayToken) { updateCreditsBadge(null); return; }
+      // 先用本地缓存邮箱回显，再校验登录态
+      if (ai.gatewayEmail) { updateCreditsBadge(ai.gatewayEmail); }
       if (window.LabCode && window.LabCode.ai && window.LabCode.ai.gatewayAuth) {
         const r = await window.LabCode.ai.gatewayAuth({ action: 'me' });
-        if (r && r.success && r.user) {
-          updateCreditsBadge(r.user.totalCredits);
+        if (r && r.success && r.user && r.user.email) {
+          updateCreditsBadge(r.user.email);
         } else {
           updateCreditsBadge(null);
         }
       }
-    } catch (e) { console.warn('[积分徽标] 刷新失败:', e); }
+    } catch (e) { console.warn('[账号徽标] 刷新失败:', e); }
   }
 
   // 徽标点击 → 未登录弹登录卡片（对齐 TrieCode 可选登录）；已登录打开设置面板
@@ -12213,14 +12213,12 @@ function bindEvents() {
         gwLoginForm.style.display = 'none';
         gwUserInfo.style.display = 'block';
         document.getElementById('gw-email-show').textContent = ai.gatewayEmail;
-        document.getElementById('gw-credits-show').textContent = '积分查询中...';
-        // 拉取余额
+        // 校验登录态：失效则回退到未登录
         if (window.LabCode && window.LabCode.ai && window.LabCode.ai.gatewayAuth) {
           const r = await window.LabCode.ai.gatewayAuth({ action: 'me' });
-          if (r && r.success && r.user) {
-            document.getElementById('gw-credits-show').textContent = '剩余额度 ' + (r.user.totalCredits ?? '?');
-          } else {
-            document.getElementById('gw-credits-show').textContent = '登录已失效';
+          if (!(r && r.success && r.user)) {
+            gwLoginForm.style.display = 'flex';
+            gwUserInfo.style.display = 'none';
           }
         }
         return;
@@ -12259,14 +12257,14 @@ function bindEvents() {
         else { document.getElementById('gw-register-password').value = ''; document.getElementById('gw-register-invite').value = ''; document.getElementById('gw-register-code').value = ''; }
         await refreshGatewayUI();
         await refreshCreditsBadge();
-        // 若当前模型是云端模型，提示切换为积分通道
+        // 登录成功：云端模型将走账号通道
         let cfg = {};
         try { cfg = await window.LabCode.config.get(); } catch (e) {}
         const ai = cfg.ai || {};
         if (ai.provider && ai.provider !== 'local' && ai.provider !== 'ollama') {
-          showToast('已登录网关，云端模型将走积分通道', 'success');
+          showToast('已登录账号，云端模型已就绪', 'success');
         } else {
-          showToast('已登录网关账号', 'success');
+          showToast('已登录账号', 'success');
         }
       } else {
         msg.textContent = (r && r.error) || '操作失败';

@@ -872,7 +872,7 @@
           <span class="ai-top-icon"><svg class="icon"><use href="#icon-sparkles"></use></svg></span>
         </div>
         <div class="ai-top-right">
-          <span id="gw-credits-badge" title="LabCode 账号积分（云端模型按积分计费）" style="display:none;align-items:center;gap:4px;font-size:11px;color:var(--text-secondary);background:rgba(155,187,244,0.12);border:1px solid rgba(155,187,244,0.35);border-radius:20px;padding:3px 10px;cursor:pointer;"></span>
+          <span id="gw-credits-badge" title="LabCode 账号（登录后可用云端模型；本地模型无需登录）" style="display:none;align-items:center;gap:4px;font-size:11px;color:var(--text-secondary);background:rgba(155,187,244,0.12);border:1px solid rgba(155,187,244,0.35);border-radius:20px;padding:3px 10px;cursor:pointer;"></span>
           <div class="safety-mode-group" id="safety-mode-group" title="安全模式：控制 AI 对写操作/命令的自动执行范围">
             <button class="safety-mode-btn active" data-mode="auto" title="自动模式：低风险操作自动执行">⚡<span class="safety-mode-label">自动</span></button>
             <button class="safety-mode-btn" data-mode="default" title="默认模式：写操作需确认">🛡️<span class="safety-mode-label">默认</span></button>
@@ -1298,9 +1298,9 @@
         <button class="modal-close" id="settings-close"><svg class="icon icon-xs"><use href="#icon-x"></use></svg></button>
       </div>
       <div class="modal-body" style="max-height:60vh;overflow-y:auto;">
-        <!-- 账号与积分（网关登录后云端模型自动走积分通道） -->
+        <!-- 账号（登录后可切换云端模型；对齐 DeepSeek 简洁登录） -->
         <div style="margin-bottom:20px;padding:14px;border:1px solid var(--border-color);border-radius:10px;background:rgba(155,187,244,0.06);">
-          <h4 style="margin:0 0 10px 0;font-size:14px;color:var(--text-color);">账号与积分</h4>
+          <h4 style="margin:0 0 10px 0;font-size:14px;color:var(--text-color);">账号</h4>
           <div id="gw-login-form" style="display:flex;flex-direction:column;gap:10px;">
             <div style="display:flex;gap:6px;">
               <button class="btn btn-secondary gw-tab" id="gw-tab-login" style="flex:1;background:var(--accent);color:#fff;">登录</button>
@@ -1325,18 +1325,16 @@
               <input type="text" id="gw-register-invite" placeholder="邀请码（选填）" style="width:100%;padding:8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size:13px;box-sizing:border-box;">
               <button class="btn btn-primary" id="gw-register-btn" style="flex:0 0 auto;align-self:flex-start;">注册</button>
             </div>
-            <div style="font-size:11px;color:var(--text-secondary);line-height:1.5;">登录后使用云端内置模型（DeepSeek / MiniMax），按积分计费：本地引擎免费，云端写码按 token × 模型系数扣积分。积分不足时提示升级。</div>
+            <div style="font-size:11px;color:var(--text-secondary);line-height:1.5;">登录后可使用云端内置模型（DeepSeek / MiniMax）；本地模型无需登录，数据不出本机。</div>
           </div>
           <div id="gw-user-info" style="display:none;font-size:13px;color:var(--text-color);">
             <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
               <div><span id="gw-email-show" style="font-weight:600;"></span></div>
               <div style="display:flex;gap:8px;align-items:center;">
-                <span id="gw-credits-show" style="font-size:15px;font-weight:600;color:var(--accent);"></span>
                 <button class="btn btn-secondary" id="gw-refresh-btn" style="flex:0 0 auto;">刷新</button>
                 <button class="btn btn-secondary" id="gw-logout-btn" style="flex:0 0 auto;">登出</button>
               </div>
             </div>
-            <div style="font-size:11px;color:var(--text-secondary);margin-top:4px;">套餐积分每月重置 · 充值积分永久有效。切换模型时云端模型将自动走账号积分通道。</div>
           </div>
         </div>
         <div style="margin-bottom:20px;">
@@ -1635,12 +1633,12 @@
         </div>
         <div>
           <label style="display:block;font-size:12px;color:var(--text-2);margin-bottom:6px;">邀请码（选填）</label>
-          <input type="text" id="gw-ov-register-invite" placeholder="填写朋友的邀请码，双方各得 200 积分" style="width:100%;padding:10px;border:1px solid var(--border-color);border-radius:8px;background:var(--card-color);color:var(--text-color);font-size:13px;box-sizing:border-box;">
+          <input type="text" id="gw-ov-register-invite" placeholder="邀请码（选填）" style="width:100%;padding:10px;border:1px solid var(--border-color);border-radius:8px;background:var(--card-color);color:var(--text-color);font-size:13px;box-sizing:border-box;">
         </div>
         <button class="btn btn-primary" id="gw-ov-register-btn" style="width:100%;">注册</button>
       </div>
       <div style="text-align:center;margin-top:16px;font-size:12px;color:var(--text-secondary);">
-        <span style="color:var(--text-3);">登录后可使用本地模型（免费）与云端模型（积分）</span>
+        <span style="color:var(--text-3);">登录后可使用本地模型与云端模型</span>
       </div>
     </div>
   </div>
