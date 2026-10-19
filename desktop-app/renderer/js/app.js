@@ -8625,7 +8625,13 @@ function bindEvents() {
     'ESP32 硬件编程': { provider: 'inherit', model: '', apiKey: '', baseURL: '', thinking: 'standard', builtin: true },
     'Qoder': { provider: 'custom', model: 'qoder', apiKey: '', baseURL: '', thinking: 'standard' },
     'GitHub Copilot': { provider: 'custom', model: 'gpt-4o', apiKey: '', baseURL: 'https://api.githubcopilot.com', thinking: 'standard' },
-    'ZCode': { provider: 'custom', model: 'glm-4', apiKey: '', baseURL: 'https://open.bigmodel.cn/api/ai/paas/v4', thinking: 'standard' }
+    'ZCode': { provider: 'custom', model: 'glm-4', apiKey: '', baseURL: 'https://open.bigmodel.cn/api/ai/paas/v4', thinking: 'standard' },
+    'OpenAI': { provider: 'openai', model: 'gpt-4o', apiKey: '', baseURL: '', thinking: 'standard' },
+    'Gemini': { provider: 'custom', model: 'gemini-2.5-pro', apiKey: '', baseURL: 'https://generativelanguage.googleapis.com/v1', thinking: 'standard' },
+    'DeepSeek': { provider: 'deepseek', model: 'deepseek-chat', apiKey: '', baseURL: '', thinking: 'standard' },
+    '豆包 MarsCode': { provider: 'custom', model: 'doubao-1-5-pro-32k', apiKey: '', baseURL: 'https://ark.cn-beijing.volces.com/api/v3', thinking: 'standard' },
+    'Windsurf': { provider: 'cli', cli: true, model: 'windsurf', apiKey: '', baseURL: '', thinking: 'standard' },
+    'Mistral': { provider: 'custom', model: 'mistral-large-latest', apiKey: '', baseURL: 'https://api.mistral.ai/v1', thinking: 'standard' }
   };
   // 暴露给全局（调度工作流执行器 wfRunScheduled 需要访问 Agent 预设）
   window.__AGENT_PRESETS = AGENT_PRESETS;
@@ -9376,13 +9382,50 @@ function bindEvents() {
   }
   function gcAddMember(roomId) {
     const room = gcRooms.find(r => r.id === roomId); if (!room) return;
+    // Electron 默认禁用原生 prompt()（点击会“无反应”）→ 自定义 Agent 选择弹窗
     const names = Object.keys(AGENT_PRESETS);
-    const pick = prompt('添加 Agent（可选：' + names.join(' / ') + '）', 'LabCode（内置）');
-    if (!pick) return;
-    if (names.indexOf(pick) < 0) { showToast('未知 Agent：' + pick, 'error'); return; }
-    room.members = room.members || [];
-    if (room.members.indexOf(pick) >= 0) { showToast('已在房间中', 'info'); return; }
-    room.members.push(pick); gcSave(); gcRenderRoom();
+    const groups = [
+      { label: '内置 Agent（开箱即用，无需安装）', keys: names.filter(n => AGENT_PRESETS[n].builtin || AGENT_PRESETS[n].provider === 'inherit') },
+      { label: 'CLI 运行时（需本机已装对应 CLI）', keys: names.filter(n => AGENT_PRESETS[n].provider === 'cli') },
+      { label: '云端 API Agent（需配置对应 API Key）', keys: names.filter(n => !AGENT_PRESETS[n].builtin && AGENT_PRESETS[n].provider !== 'inherit' && AGENT_PRESETS[n].provider !== 'cli') }
+    ].filter(g => g.keys.length);
+    const dark = (document.documentElement.getAttribute('data-theme') || 'light') === 'dark';
+    const C = dark ? { bg: '#1e1e2e', text: '#e5e7eb', sub: '#9ca3af', border: '#38384a', item: '#26263a' } : { bg: '#ffffff', text: '#1f2937', sub: '#6b7280', border: '#e5e7eb', item: '#f9fafb' };
+    let ov = document.getElementById('gc-agent-pick');
+    if (!ov) {
+      ov = document.createElement('div');
+      ov.id = 'gc-agent-pick';
+      ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:99999;display:none;align-items:center;justify-content:center;';
+      ov.innerHTML = '<div id="gc-agent-pick-panel" style="border-radius:12px;max-width:540px;width:92%;max-height:80vh;overflow:auto;padding:16px 18px;box-shadow:0 12px 40px rgba(0,0,0,.25)">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><b id="gc-agent-pick-title" style="font-size:15px">添加 Agent 到房间</b><button id="gc-agent-pick-x" style="border:none;background:none;font-size:18px;cursor:pointer">✕</button></div>' +
+        '<div id="gc-agent-pick-list"></div></div>';
+      document.body.appendChild(ov);
+      ov.addEventListener('click', e => { if (e.target === ov) ov.style.display = 'none'; });
+      ov.querySelector('#gc-agent-pick-x').addEventListener('click', () => { ov.style.display = 'none'; });
+    }
+    const panel = ov.querySelector('#gc-agent-pick-panel');
+    panel.style.background = C.bg; panel.style.color = C.text;
+    const list = ov.querySelector('#gc-agent-pick-list');
+    let html = '';
+    for (const g of groups) {
+      html += '<div style="font-size:12px;color:' + C.sub + ';margin:12px 0 4px">' + g.label + '</div>';
+      for (const n of g.keys) {
+        const added = (room.members || []).indexOf(n) >= 0;
+        html += '<div data-agent="' + n.replace(/"/g, '&quot;') + '" style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border:1px solid ' + C.border + ';border-radius:8px;margin:4px 0;cursor:pointer;background:' + C.item + ';opacity:' + (added ? 0.5 : 1) + '">' +
+          '<span style="font-size:13px">' + gcEsc(n) + (added ? ' <span style="color:#22c55e">(已在房间)</span>' : '') + '</span>' +
+          '<span style="font-size:11px;color:' + C.sub + '">' + (added ? '已添加' : '点击添加') + '</span></div>';
+      }
+    }
+    list.innerHTML = html;
+    list.querySelectorAll('[data-agent]').forEach(el => {
+      el.addEventListener('click', () => {
+        const n = el.getAttribute('data-agent');
+        if ((room.members || []).indexOf(n) >= 0) { showToast('已在房间中', 'info'); return; }
+        room.members = room.members || []; room.members.push(n); gcSave(); gcRenderRoom();
+        ov.style.display = 'none';
+      });
+    });
+    ov.style.display = 'flex';
   }
   function gcCreateRoom() {
     const name = prompt('房间名称', '新房间'); if (!name) return;
@@ -12606,15 +12649,35 @@ function bindEvents() {
         config: { provider: 'custom', model: 'gpt-4o', apiKey: '', baseURL: 'https://api.githubcopilot.com', thinking: 'standard' }, selectable: true, mcpPreset: ['filesystem', 'github'] },
       { tier: 'runtime', name: 'ZCode', typeLabel: '编码运行时', runtime: 'ZCode', desc: 'Z.ai（智谱 GLM）编码 agent，长上下文 / 推理强', link: 'https://z.ai/',
         config: { provider: 'custom', model: 'glm-4', apiKey: '', baseURL: 'https://open.bigmodel.cn/api/ai/paas/v4', thinking: 'standard' }, selectable: true, mcpPreset: ['filesystem', 'github'] },
+      { tier: 'runtime', name: 'OpenAI', typeLabel: '编码运行时', runtime: 'OpenAI', desc: 'OpenAI 官方编码 agent（ChatGPT / Codex 同源），通用能力强', link: 'https://openai.com/',
+        config: { provider: 'openai', model: 'gpt-4o', apiKey: '', baseURL: '', thinking: 'standard' }, selectable: true, mcpPreset: ['filesystem'] },
+      { tier: 'runtime', name: 'Gemini', typeLabel: '编码运行时', runtime: 'Gemini', desc: 'Google Gemini 编码 agent（Gemini CLI 同源，需 Google AI Studio Key）', link: 'https://ai.google.dev/',
+        config: { provider: 'custom', model: 'gemini-2.5-pro', apiKey: '', baseURL: 'https://generativelanguage.googleapis.com/v1', thinking: 'standard' }, selectable: true, mcpPreset: ['filesystem', 'github'] },
+      { tier: 'runtime', name: 'DeepSeek', typeLabel: '编码运行时', runtime: 'DeepSeek', desc: 'DeepSeek 官方编码 agent（dsh / DeepSeek CLI），代码与中文强、性价比高', link: 'https://platform.deepseek.com/',
+        config: { provider: 'deepseek', model: 'deepseek-chat', apiKey: '', baseURL: '', thinking: 'standard' }, selectable: true, mcpPreset: ['filesystem', 'github', 'terminal'] },
+      { tier: 'runtime', name: '豆包 MarsCode', typeLabel: '编码运行时', runtime: '豆包 MarsCode', desc: '字节跳动官方编码 agent（豆包大模型 Ark 底座），中文友好', link: 'https://www.marscode.cn/',
+        config: { provider: 'custom', model: 'doubao-1-5-pro-32k', apiKey: '', baseURL: 'https://ark.cn-beijing.volces.com/api/v3', thinking: 'standard' }, selectable: true, mcpPreset: ['filesystem', 'github'] },
+      { tier: 'runtime', name: 'Windsurf', typeLabel: '编码运行时', runtime: 'Windsurf', desc: 'Codeium Windsurf 编码 agent（CLI 通道，需本机安装）', link: 'https://windsurf.com/',
+        config: { provider: 'cli', cli: true, model: 'windsurf', apiKey: '', baseURL: '', thinking: 'standard' }, selectable: true, mcpPreset: ['filesystem', 'github'] },
+      { tier: 'runtime', name: 'Mistral', typeLabel: '编码运行时', runtime: 'Mistral', desc: 'Mistral AI 编码 agent（法语团队，代码模型欧洲领先）', link: 'https://mistral.ai/',
+        config: { provider: 'custom', model: 'mistral-large-latest', apiKey: '', baseURL: 'https://api.mistral.ai/v1', thinking: 'standard' }, selectable: true, mcpPreset: ['filesystem'] },
       // ===== 内置 Agent（对齐 Ekko 的「Ekko（内置）」：LabCode 原生 agent）=====
       { tier: 'agent', name: 'LabCode（内置）', typeLabel: '内置 Agent', desc: 'LabCode 原生 AI 编程助手，开箱即用，无需安装任何运行时', link: '',
+        agent: { builtin: true }, selectable: true },
+      { tier: 'agent', name: 'ESP32 硬件编程', typeLabel: '内置 Agent', desc: 'LabCode 内置硬件编程专家（Arduino/ESP32）：写代码 / 接线 / 排查，复用当前 AI 配置，无需安装外部 agent', link: '',
         agent: { builtin: true }, selectable: true }
     ];
 
     function applyMarketAgent(a) {
       if (a.agent && a.agent.builtin) {
-        // 内置 Agent（LabCode 原生）：还原为原生 agent，清除外部运行时与 persona（对齐 Ekko「Ekko（内置）」）
+        // 内置 Agent：LabCode（内置）还原为原生；ESP32 硬件编程选中对应内置 agent（复用当前 AI 配置）
         try {
+          if (a.name === 'ESP32 硬件编程') {
+            window.LabCode?.config?.set?.('ai.codingAgent', 'ESP32 硬件编程');
+            window.LabCode?.config?.set?.('ai.activeAgent', 'esp32-hardware');
+            showToast('已切换内置 Agent：ESP32 硬件编程（写代码/接线/排查，复用当前 AI 配置）', 'info');
+            return;
+          }
           if (state.agent && state.agent.ai) state.agent.ai.customSystemPrompt = '';
           window.LabCode?.config?.set?.('ai.codingAgent', '');
           window.LabCode?.config?.set?.('ai.activeAgent', 'labcode');
