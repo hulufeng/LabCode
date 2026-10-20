@@ -740,16 +740,15 @@ function ensureMonacoEditor() {
 }
 
 function setupMonaco() {
-  // 本地化 Monaco：解决 file:// 下 Web Worker 无法直接加载本地文件的问题
-  // The worker is created from a data: URL, whose base URL is the data: URL itself.
-  // So baseUrl / importScripts inside the bootstrap MUST be absolute file:// URLs;
-  // relative "vs/..." cannot be resolved there -> "importScripts URL is invalid".
-  const vsBaseUrl = new URL('vs/', location.href).href;
+  // 本地化 Monaco：data: URL worker 没有相对路径上下文，baseUrl / importScripts 必须用绝对 file://。
+  // 关键：baseUrl 必须指向"包含 vs 的目录"(即 renderer 根)，不能已含 vs —— 否则 AMD 加载器解析
+  // 模块 id "vs/base/..." 时会再拼一段 vs，得到 renderer/vs/vs/... 导致 NLS 文件 ERR_FILE_NOT_FOUND。
+  const monacoRoot = new URL('./', location.href).href; // .../renderer/（内含 vs 子目录）
   self.MonacoEnvironment = {
     getWorkerUrl: function (moduleId, label) {
       return 'data:text/javascript;charset=utf-8,' + encodeURIComponent(
-        'self.MonacoEnvironment={baseUrl:' + JSON.stringify(vsBaseUrl) + '};' +
-        'importScripts(' + JSON.stringify(vsBaseUrl + 'base/worker/workerMain.js') + ');'
+        'self.MonacoEnvironment={baseUrl:' + JSON.stringify(monacoRoot) + '};' +
+        'importScripts(' + JSON.stringify(monacoRoot + 'vs/base/worker/workerMain.js') + ');'
       );
     }
   };
