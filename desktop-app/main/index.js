@@ -3078,9 +3078,19 @@ function setupAutoUpdate() {
       console.error('鑷姩鏇存柊閿欒:', error.message);
     });
 
-    ipcMain.handle('update:check', () => {
-      if (autoUpdateDisabled) return { disabled: true };
-      return autoUpdater.checkForUpdates();
+    ipcMain.handle('update:check', async () => {
+      if (typeof autoUpdateDisabled !== 'undefined' && autoUpdateDisabled) return { disabled: true };
+      try {
+        const result = await autoUpdater.checkForUpdates();
+        const info = result && (result.updateInfo || result.versionInfo);
+        return {
+          version: info ? info.version : null,
+          releaseDate: info ? info.releaseDate : null,
+          files: (result && result.files ? result.files : []).map(f => ({ url: f.url, size: f.size })),
+        };
+      } catch (e) {
+        return { error: e && e.message ? e.message : String(e) };
+      }
     });
     ipcMain.handle('update:download', () => autoUpdater.downloadUpdate());
     ipcMain.handle('update:install', async () => {

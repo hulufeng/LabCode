@@ -1369,7 +1369,19 @@ function setupAutoUpdate() {
       console.error('自动更新错误:', error.message);
     });
 
-    ipcMain.handle('update:check', () => autoUpdater.checkForUpdates());
+    ipcMain.handle('update:check', async () => {
+      try {
+        const result = await autoUpdater.checkForUpdates();
+        const info = result && (result.updateInfo || result.versionInfo);
+        return {
+          version: info ? info.version : null,
+          releaseDate: info ? info.releaseDate : null,
+          files: (result && result.files ? result.files : []).map(f => ({ url: f.url, size: f.size })),
+        };
+      } catch (e) {
+        return { error: e && e.message ? e.message : String(e) };
+      }
+    });
     ipcMain.handle('update:download', () => autoUpdater.downloadUpdate());
     ipcMain.handle('update:install', () => autoUpdater.quitAndInstall());
 
