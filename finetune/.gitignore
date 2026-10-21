@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+train.jsonl
+val.jsonl
+func-calling.json
+lora_out/
+gguf_out/
