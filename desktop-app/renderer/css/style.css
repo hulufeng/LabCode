@@ -5,6 +5,29 @@
    仅改下方两个块即可换肤，业务 CSS 不动。
    ============================================ */
 
+/* 思源黑体 / Noto Sans SC（OFL 1.1，随包嵌入；本机已安装，全平台统一现代中文无衬线） */
+@font-face {
+  font-family: 'Noto Sans SC';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('../fonts/NotoSansSC-Regular.otf') format('opentype');
+}
+@font-face {
+  font-family: 'Noto Sans SC';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('../fonts/NotoSansSC-Medium.otf') format('opentype');
+}
+@font-face {
+  font-family: 'Noto Sans SC';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('../fonts/NotoSansSC-Bold.otf') format('opentype');
+}
+
 /* CSS 变量 */
 :root {
   /* ① 强调与交互（对齐 TrieCode brand #3b82f6 / #2563eb） */
@@ -72,7 +95,7 @@
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.15);
   --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.2);
-  --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', '思源黑体', 'Source Han Sans SC', sans-serif;
+  --font-family: 'Inter', 'Noto Sans SC', 'HarmonyOS Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', 'Source Han Sans SC', '思源黑体', sans-serif;
   --font-mono: 'Consolas', 'Monaco', 'Courier New', monospace;
 }
 
@@ -1321,24 +1344,25 @@ input, textarea {
   align-items: center;
   justify-content: center;
   flex: 1;
-  padding: 28px 32px;
+  padding: 28px 24px;
   text-align: center;
 }
 .ai-welcome-title {
-  font-size: 22px;
-  font-weight: 600;
+  font-size: 28px;
+  font-weight: 700;
   color: var(--text-primary);
   margin: 0 0 12px 0;
   letter-spacing: -0.3px;
 }
 .ai-welcome-subtitle {
-  font-size: 13px;
+  font-size: 14px;
   color: var(--text-tertiary);
   margin: 0 0 24px 0;
 }
 /* 特性：收敛为一行轻量提示 */
 .ai-welcome-features {
-  display: flex;
+  /* 对齐 TrieCode：欢迎页仅标题+副标题+快捷片，特性列表不展示 */
+  display: none;
   align-items: center;
   justify-content: center;
   gap: 6px;
@@ -1370,28 +1394,27 @@ input, textarea {
 }
 .ai-quick-actions {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  grid-template-columns: auto auto;
+  justify-content: center;
+  gap: 10px;
   max-width: 100%;
   width: 100%;
 }
 .ai-quick-btn {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 11px 14px;
-  background: transparent;
+  gap: 7px;
+  padding: 10px 12px;
+  white-space: nowrap;
+  background: var(--bg-primary);
   border: 1px solid var(--border-light);
-  border-radius: 8px;
+  border-radius: 10px;
   color: var(--text-secondary);
   font-size: 12.5px;
   cursor: pointer;
   text-align: left;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  transition: all 0.15s;
   min-width: 0;
+  transition: all 0.15s;
 }
 .ai-quick-btn:hover {
   background: var(--bg-hover);
@@ -1400,7 +1423,7 @@ input, textarea {
 }
 .ai-quick-icon { color: var(--text-tertiary); display: flex; flex-shrink: 0; }
 .ai-quick-icon .icon { width: 14px; height: 14px; }
-.ai-quick-text { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+.ai-quick-text { flex: 1; min-width: 0; line-height: 1.45; }
 
 /* AI 模型状态（参考 Trae 登录按钮位置） */
 .ai-model-status {
@@ -1435,8 +1458,11 @@ input, textarea {
   justify-content: space-between;
   width: 100%;
   max-width: 720px;
-  padding: 4px 0 0;
+  padding: 6px 8px 6px 12px;
+  background: var(--bg-tertiary);
+  border-radius: 10px;
   flex-shrink: 0;
+  box-sizing: border-box;
 }
 .ai-project-path {
   display: flex;
@@ -1444,16 +1470,20 @@ input, textarea {
   gap: 6px;
   font-size: 12px;
   color: var(--text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.ai-project-path .icon { width: 14px; height: 14px; }
+.ai-project-path .icon { width: 14px; height: 14px; flex-shrink: 0; }
 .ai-project-btn {
-  padding: 4px 12px;
+  padding: 5px 12px;
   font-size: 12px;
-  background: var(--bg-tertiary);
+  background: var(--bg-primary);
   border: 1px solid var(--border-light);
-  border-radius: var(--radius-sm);
+  border-radius: 8px;
   color: var(--text-secondary);
   cursor: pointer;
+  flex-shrink: 0;
 }
 .ai-project-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
 
@@ -1470,7 +1500,7 @@ input, textarea {
   box-shadow: none;
 }
 
-/* 窄面板（380px）：给输入文本与工具行留出呼吸空间，消除拥挤 */
+/* 窄面板（600px）：给输入文本与工具行留出呼吸空间，消除拥挤 */
 .ai-input-side .ai-input-textarea {
   min-height: 60px;
   max-height: 160px;
@@ -1488,6 +1518,7 @@ input, textarea {
 .ai-input-side .ai-input-left,
 .ai-input-side .ai-input-right {
   gap: 6px;
+  min-width: 0;
 }
 
 .ai-input-side .ai-input-tool-btn {
@@ -1499,14 +1530,14 @@ input, textarea {
   font-size: 11px;
   padding: 4px 8px;
   gap: 5px;
-  max-width: 96px;
+  max-width: 130px;
 }
 
 .ai-input-side .model-select-btn {
   padding: 6px 10px;
   font-size: 12px;
   gap: 5px;
-  max-width: 110px;
+  max-width: 240px;
 }
 
 .ai-input-side .ai-send-btn {
@@ -1550,6 +1581,7 @@ input, textarea {
 
 .ai-input-textarea::placeholder {
   color: var(--text-quaternary);
+  font-size: 12px;
 }
 
 .ai-input-textarea::-webkit-scrollbar {
@@ -1611,7 +1643,7 @@ input, textarea {
   border-radius: var(--radius-sm);
   white-space: nowrap;
   flex-shrink: 0;
-  max-width: 96px;
+  max-width: 130px;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -1631,17 +1663,19 @@ input, textarea {
   align-items: center;
   gap: 5px;
   padding: 6px 10px;
-  background: var(--bg-tertiary);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-light);
   border-radius: var(--radius-md);
   font-size: 12px;
   color: var(--text-secondary);
   transition: all 0.15s;
-  max-width: 110px;
+  max-width: 240px;
   overflow: hidden;
 }
 
 .model-select-btn:hover {
-  background: var(--border-medium);
+  background: var(--bg-hover);
+  border-color: var(--border-medium);
 }
 
 .model-name {
@@ -1661,7 +1695,7 @@ input, textarea {
   position: absolute;
   bottom: calc(100% + 8px);
   right: 0;
-  min-width: 200px;
+  min-width: 320px;
   background: var(--bg-primary);
   border: 1px solid var(--border-light);
   border-radius: var(--radius-lg);
@@ -1761,7 +1795,7 @@ body.no-open-file .editor-container {
   display: flex;
 }
 body.no-open-file .ai-panel {
-  flex: 0 0 380px;
+  flex: 0 0 600px;
   min-width: 0;
   border-left: 1px solid var(--border-light);
 }
@@ -2118,10 +2152,12 @@ body.no-open-file .ai-panel {
 .btn-primary {
   background: var(--primary);
   color: white;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
 }
 
 .btn-primary:hover {
   background: var(--primary-hover);
+  box-shadow: 0 3px 8px rgba(59, 130, 246, 0.28);
 }
 
 .btn-primary:active {
@@ -2823,7 +2859,7 @@ body.no-open-file .ai-panel {
   opacity: 1;
 }
 
-/* AI 输入框发送按钮（向上箭头） */
+/* AI 输入框发送按钮（对齐 TrieCode：空态灰色，输入后变品牌蓝） */
 .ai-send-btn {
   display: flex;
   align-items: center;
@@ -2831,19 +2867,24 @@ body.no-open-file .ai-panel {
   width: 32px;
   height: 32px;
   border: none;
-  background: var(--primary);
-  color: white;
+  background: var(--bg-tertiary);
+  color: var(--text-quaternary);
   border-radius: var(--radius-md);
   cursor: pointer;
   transition: all 0.15s ease;
   flex-shrink: 0;
 }
 
-.ai-send-btn:hover {
+.ai-send-btn.active {
+  background: var(--primary);
+  color: white;
+}
+
+.ai-send-btn.active:hover {
   background: var(--primary-hover);
 }
 
-.ai-send-btn:active {
+.ai-send-btn.active:active {
   background: var(--primary-active);
 }
 
@@ -4950,8 +4991,8 @@ button:disabled,
 /* AI 面板 DOM 在编辑器之前，用 order 排到最右 */
 .ai-panel {
   order: 2;
-  flex: 0 0 380px !important;
-  width: 380px;
+  flex: 0 0 600px !important;
+  width: 600px;
   min-width: 0 !important;
   border-left: 1px solid var(--border-light) !important;
   border-right: none !important;

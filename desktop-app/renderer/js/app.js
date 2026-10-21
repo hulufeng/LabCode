@@ -10512,7 +10512,13 @@ function bindEvents() {
 
   const aiInput = document.getElementById('ai-input');
   aiInput.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAISend(); } });
-  aiInput.addEventListener('input', () => { aiInput.style.height = 'auto'; aiInput.style.height = Math.min(aiInput.scrollHeight, 120) + 'px'; });
+  aiInput.addEventListener('input', () => {
+    aiInput.style.height = 'auto';
+    aiInput.style.height = Math.min(aiInput.scrollHeight, 120) + 'px';
+    // 对齐 TrieCode：空态灰色发送按钮，有内容变蓝
+    const sendBtn = document.getElementById('ai-send-btn');
+    if (sendBtn) sendBtn.classList.toggle('active', aiInput.value.trim().length > 0);
+  });
   document.getElementById('ai-send-btn').addEventListener('click', handleAISend);
 
   // 1:1 对齐 TrieCode：快捷按钮点击
@@ -10833,8 +10839,8 @@ function bindEvents() {
           opt.dataset.model = 'local-' + m.file;
           opt.dataset.provider = 'local';
           opt.dataset.modelname = m.name;
-          opt.style.cssText = 'padding:8px 12px;font-size:12px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;';
-          opt.innerHTML = '<span>' + m.name + '</span><span style="font-size:10px;color:var(--text-secondary);">' + (m.sizeGB ? m.sizeGB.toFixed(1) + 'GB' : '') + '</span>';
+          opt.style.cssText = 'padding:8px 12px;font-size:12px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:12px;';
+          opt.innerHTML = '<span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + m.name + '</span><span style="font-size:10px;color:var(--text-secondary);flex-shrink:0;">' + (m.sizeGB ? m.sizeGB.toFixed(1) + 'GB' : '') + '</span>';
           opt.addEventListener('click', async () => {
             document.getElementById('current-model-name').textContent = m.name + ' (本地)';
             document.querySelectorAll('.model-option').forEach(o => o.classList.remove('active'));
