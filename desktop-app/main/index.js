@@ -1303,7 +1303,7 @@ function setupIPC() {
   });
 
   // ============ 缃戝叧璐﹀彿锛堢櫥褰?/ 娉ㄥ唽 / 浣欓 / 鐧诲嚭锛?===========
-  ipcMain.handle('ai:gatewayAuth', async (_, { action, email, password, gatewayUrl, inviteCode, code } = {}) => {
+  ipcMain.handle('ai:gatewayAuth', async (_, { action, email, password, gatewayUrl, inviteCode, code, username } = {}) => {
     // 浼樺厛绾э細鏄惧紡浼犲叆 > 宸蹭繚瀛?config.ai.gatewayUrl > 鐜鍙橀噺 > 榛樿鐢熶骇鍩熷悕
     const savedGw = (config.ai || {}).gatewayUrl || '';
     const gwBase = (gatewayUrl || savedGw || process.env.GATEWAY_URL || AI_PROVIDERS.gateway.baseURL || 'https://bluebubai.work').replace(/\/$/, '');
@@ -1323,6 +1323,7 @@ function setupIPC() {
         if (!email || !password) return { success: false, error: '璇疯緭鍏ラ偖绠卞拰瀵嗙爜' };
         const body = { email, password };
         if (action === 'register') {
+          if (username) body.username = username;
           if (inviteCode) body.inviteCode = inviteCode;
           if (code) body.code = code;
         }

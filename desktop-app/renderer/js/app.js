@@ -10210,6 +10210,58 @@ function bindEvents() {
     }
   }
 
+  // ============ 模型安装进度弹窗（对齐 Qwen 安装界面）============
+  const INSTALL_CHEVRON_COUNT = 10;
+  let installPollTimer = null;
+  function initInstallChevrons() {
+    const wrap = document.getElementById('install-chevrons');
+    if (!wrap || wrap.childElementCount) return;
+    for (let i = 0; i < INSTALL_CHEVRON_COUNT; i++) {
+      const s = document.createElement('span');
+      s.textContent = '>';
+      s.style.animationDelay = (i * 0.09) + 's';
+      wrap.appendChild(s);
+    }
+  }
+  function showInstallModal(title) {
+    initInstallChevrons();
+    const modal = document.getElementById('install-modal');
+    if (!modal) return;
+    document.getElementById('install-title').textContent = title || '安装模型';
+    document.getElementById('install-percent').textContent = '0%';
+    document.getElementById('install-status').textContent = '安装中，请稍后';
+    modal.style.display = 'flex';
+  }
+  function setInstallProgress(pct, statusText) {
+    const p = Math.max(0, Math.min(100, Math.round(pct)));
+    const el = document.getElementById('install-percent');
+    if (el) el.textContent = p + '%';
+    if (statusText) {
+      const st = document.getElementById('install-status');
+      if (st) st.textContent = statusText;
+    }
+  }
+  function hideInstallModal() {
+    if (installPollTimer) { clearInterval(installPollTimer); installPollTimer = null; }
+    const modal = document.getElementById('install-modal');
+    if (modal) modal.style.display = 'none';
+  }
+  // 弹窗头按钮：最小化/关闭均仅隐藏弹窗，安装后台继续
+  (function bindInstallModalButtons() {
+    const minBtn = document.getElementById('install-min-btn');
+    const closeBtn = document.getElementById('install-close-btn');
+    const hide = () => {
+      hideInstallModalKeepPolling();
+      showToast('安装仍在后台继续，完成后会提示', 'info');
+    };
+    if (minBtn) minBtn.addEventListener('click', hide);
+    if (closeBtn) closeBtn.addEventListener('click', hide);
+  })();
+  function hideInstallModalKeepPolling() {
+    const modal = document.getElementById('install-modal');
+    if (modal) modal.style.display = 'none';
+  }
+
   async function installPlugin(id) {
     const plugin = getAllPlugins().find(p => p.id === id);
     if (!plugin) return;
@@ -10266,6 +10318,24 @@ function bindEvents() {
         if (fsCheckOut.includes('EXISTS')) {
           addOutputLog('模型已存在（' + fsCheckOut.replace('EXISTS ', '') + ' GB），跳过下载', 'success');
         } else {
+          // 弹出安装进度窗（对齐 Qwen 安装界面）
+          showInstallModal(plugin.name);
+          const expectedGB = plugin.minDiskGB || 0;
+          // 轮询真实进度：目标文件已下载大小 / 预期体积
+          if (installPollTimer) { clearInterval(installPollTimer); installPollTimer = null; }
+          installPollTimer = setInterval(async () => {
+            try {
+              const r = await window.LabCode.terminal.execute(
+                'powershell -NoProfile -Command "if (Test-Path ' + psPath(targetFile) + ') { $s=(Get-Item ' + psPath(targetFile) + ').Length/1GB; Write-Output ([math]::Round($s,2).ToString()) } else { Write-Output \'0\' }"',
+                null, 15000, { force: true }
+              );
+              const gb = parseFloat(String((r && r.stdout) || '0').trim());
+              if (!isNaN(gb) && gb > 0) {
+                const pct = expectedGB > 0 ? Math.min(99, (gb / expectedGB) * 100) : 50;
+                setInstallProgress(pct, expectedGB > 0 ? ('已下载 ' + gb.toFixed(2) + ' GB / 约 ' + expectedGB + ' GB') : ('已下载 ' + gb.toFixed(2) + ' GB'));
+              }
+            } catch (e) { /* 轮询失败不影响下载 */ }
+          }, 1200);
           addOutputLog('正在下载模型 ' + (plugin.ggufFile || plugin.modelName) + '（约 ' + plugin.minDiskGB + 'GB，国内直链约 15MB/s，首次需几分钟）...', 'info');
           const dlRes = await window.LabCode.terminal.execute(
             'powershell -NoProfile -Command "New-Item -ItemType Directory -Force -Path ' + psPath(modelsDir) + ' | Out-Null; curl.exe -L --retry 3 -C - -o ' + psPath(targetFile) + ' ' + psPath(plugin.downloadUrl) + '"',
@@ -10282,9 +10352,13 @@ function bindEvents() {
           );
           const sizeMB = parseFloat(String((fsVerify && fsVerify.stdout) || '0').trim());
           if (sizeMB < 100) {
+            if (installPollTimer) { clearInterval(installPollTimer); installPollTimer = null; }
+            hideInstallModal();
             addOutputLog('模型下载不完整（' + sizeMB + 'MB），请重试', 'warning');
             dlOk = false;
           } else {
+            if (installPollTimer) { clearInterval(installPollTimer); installPollTimer = null; }
+            setInstallProgress(100, '下载完成');
             addOutputLog('模型下载完成：' + (plugin.ggufFile || plugin.modelName) + '（' + sizeMB + ' MB）', 'success');
           }
         }
@@ -10296,6 +10370,7 @@ function bindEvents() {
 
     // 下载失败/不完整 → 中止安装，不标记已安装（避免「安装成功」但模型文件不存在）
     if (!dlOk) {
+      hideInstallModal();
       addOutputLog('安装中止：模型文件不可用（下载失败或不完整），未标记为已安装。可稍后重新点击安装重试', 'warning');
       return;
     }
@@ -10304,6 +10379,10 @@ function bindEvents() {
     await new Promise(r => setTimeout(r, 800));
     installedPlugins.push({ ...plugin, installedAt: Date.now() });
     saveInstalledPlugins();
+    // 安装完成：进度窗 100% 停留 0.8s 后关闭
+    setInstallProgress(100, '安装完成');
+    await new Promise(r => setTimeout(r, 800));
+    hideInstallModal();
     showToast(plugin.name + ' 安装成功', 'success');
     renderPluginsList();
     updateCompilerPluginStatus();
@@ -13023,7 +13102,7 @@ function bindEvents() {
     };
     const gatewayAuthOverlay = async (action) => {
       const msg = document.getElementById('gw-ov-msg');
-      let email, password, inviteCode = '', code = '';
+      let email, password, inviteCode = '', code = '', username = '';
       if (action === 'login') {
         email = document.getElementById('gw-ov-login-account').value.trim();
         password = document.getElementById('gw-ov-login-password').value.trim();
@@ -13032,6 +13111,7 @@ function bindEvents() {
         password = document.getElementById('gw-ov-register-password').value.trim();
         inviteCode = document.getElementById('gw-ov-register-invite').value.trim();
         code = document.getElementById('gw-ov-register-code').value.trim();
+        username = (document.getElementById('gw-ov-register-username').value || '').trim();
       }
       if (!email || !password) { msg.textContent = '请输入邮箱和密码'; msg.style.color = '#EA6668'; return; }
       if (password.length < 6) { msg.textContent = '密码至少 6 位'; msg.style.color = '#EA6668'; return; }
@@ -13039,12 +13119,12 @@ function bindEvents() {
       msg.textContent = action === 'login' ? '登录中...' : '注册中...';
       msg.style.color = 'var(--text-secondary)';
       if (window.LabCode && window.LabCode.ai && window.LabCode.ai.gatewayAuth) {
-        const r = await window.LabCode.ai.gatewayAuth({ action, email, password, inviteCode, code });
+        const r = await window.LabCode.ai.gatewayAuth({ action, email, password, inviteCode, code, username });
         if (r && r.success) {
           msg.textContent = action === 'login' ? '✓ 登录成功' : '✓ 注册成功（已自动登录）';
           msg.style.color = '#52C41A';
           if (action === 'login') document.getElementById('gw-ov-login-password').value = '';
-          else { document.getElementById('gw-ov-register-password').value = ''; document.getElementById('gw-ov-register-invite').value = ''; document.getElementById('gw-ov-register-code').value = ''; }
+          else { document.getElementById('gw-ov-register-password').value = ''; document.getElementById('gw-ov-register-invite').value = ''; document.getElementById('gw-ov-register-code').value = ''; document.getElementById('gw-ov-register-username').value = ''; }
           hideLoginOverlay();
           await refreshGatewayUI(); await refreshCreditsBadge();
           showToast('已登录网关账号', 'success');

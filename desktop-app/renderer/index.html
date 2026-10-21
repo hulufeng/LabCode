@@ -1405,6 +1405,33 @@
     </div>
   </div>
 
+  <!-- 模型安装进度弹窗（对齐 Qwen 安装界面设计） -->
+  <div class="modal-overlay" id="install-modal" style="display:none;">
+    <div class="install-dialog">
+      <div class="install-header">
+        <span class="install-title" id="install-title">安装模型</span>
+        <div class="install-header-btns">
+          <button class="install-hdr-btn" id="install-min-btn" title="最小化（后台继续安装）">—</button>
+          <button class="install-hdr-btn" id="install-close-btn" title="关闭（后台继续安装）">✕</button>
+        </div>
+      </div>
+      <div class="install-body">
+        <div class="install-logo">
+          <svg viewBox="0 0 100 100" width="88" height="88">
+            <g fill="#4E5FE1">
+              <path d="M46 26 L80 50 L46 74 L62 50 Z"/>
+              <path d="M46 26 L80 50 L46 74 L62 50 Z" transform="rotate(120 50 50)"/>
+              <path d="M46 26 L80 50 L46 74 L62 50 Z" transform="rotate(240 50 50)"/>
+            </g>
+          </svg>
+        </div>
+        <div class="install-percent" id="install-percent">0%</div>
+        <div class="install-chevrons" id="install-chevrons"></div>
+        <div class="install-status" id="install-status">安装中，请稍后</div>
+      </div>
+    </div>
+  </div>
+
   <!-- 新建项目模态框 -->
   <div class="modal-overlay" id="new-project-modal" style="display:none;">
     <div class="modal">
@@ -1602,7 +1629,7 @@
     <div style="width:100%;max-width:320px;pointer-events:auto;">
       <div style="text-align:center;margin-bottom:24px;">
         <div style="width:52px;height:52px;margin:0 auto 12px;border-radius:12px;background:linear-gradient(135deg,#2563eb,#3b82f6);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:20px;letter-spacing:.5px;">LC</div>
-        <div style="font-size:16px;font-weight:700;color:var(--text-strong);">登录 LabCode</div>
+        <div style="font-size:16px;font-weight:700;color:var(--text-strong);">登录 LabCode AI</div>
         <div style="font-size:12px;color:var(--text-3);margin-top:4px;">登录账号使用内置模型，或添加自有 API Key</div>
       </div>
       <div style="display:flex;margin-bottom:14px;background:var(--surface-3);border-radius:var(--radius-md);padding:3px;gap:2px;">
@@ -1625,6 +1652,10 @@
         <button class="btn btn-primary" id="gw-ov-login-btn" style="width:100%;">登录</button>
       </div>
       <div id="gw-ov-register-panel" style="display:none;flex-direction:column;gap:12px;">
+        <div>
+          <label style="display:block;font-size:12px;color:var(--text-2);margin-bottom:6px;">用户名（昵称，选填）</label>
+          <input type="text" id="gw-ov-register-username" placeholder="留空则使用邮箱前缀" style="width:100%;padding:10px;border:1px solid var(--border-color);border-radius:8px;background:var(--card-color);color:var(--text-color);font-size:13px;box-sizing:border-box;">
+        </div>
         <div>
           <label style="display:block;font-size:12px;color:var(--text-2);margin-bottom:6px;">邮箱</label>
           <input type="text" id="gw-ov-register-email" placeholder="user@example.com" style="width:100%;padding:10px;border:1px solid var(--border-color);border-radius:8px;background:var(--card-color);color:var(--text-color);font-size:13px;box-sizing:border-box;">
