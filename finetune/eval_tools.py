@@ -61,11 +61,40 @@ def extract_fn(src, name):
     return src[start:end]
 
 
-def load_grammar():
-    src = open(APP_MAIN, encoding='utf-8').read()
-    ns = {}
-    exec(extract_fn(src, 'buildToolGbnf'), ns)
-    return ns['buildToolGbnf'](TOOLS)
+def load_grammar(verbose=True):
+    """用 node 执行 main/index.js 里真实的 buildToolGbnf，保证测的就是上线代码。
+
+    不能用 exec() 在 Python 里跑：抽出来的 JS 函数带 `//` 行注释，Python 会当成整除
+    运算符直接 SyntaxError（main/index.js 还是历史遗留的 GBK/UTF-8 混编，中文注释是乱码，
+    但 JS 注释里的乱码字符对 node 无影响）。
+    """
+    data = open(APP_MAIN, 'rb').read()
+    src = None
+    for enc in ('utf-8', 'gb18030'):
+        try:
+            src = data.decode(enc)
+            break
+        except UnicodeDecodeError:
+            continue
+    if src is None:
+        src = data.decode('utf-8', 'ignore')
+    fn = extract_fn(src, 'buildToolGbnf')
+    tmp = os.path.join(os.path.dirname(os.path.abspath(__file__)), '_grammar_gen.tmp.js')
+    with open(tmp, 'w', encoding='utf-8') as f:
+        f.write(fn + '\nconsole.log(buildToolGbnf(' + json.dumps(TOOLS) + '));\n')
+    try:
+        r = subprocess.run(['node', tmp], capture_output=True, text=True, encoding='utf-8', errors='ignore')
+    finally:
+        try:
+            os.remove(tmp)
+        except Exception:
+            pass
+    if r.returncode != 0:
+        raise SystemExit('生成 grammar 失败（node）: ' + (r.stderr or '')[:600])
+    g = r.stdout.strip()
+    if verbose:
+        print('grammar 来自上线代码，长度', len(g))
+    return g
 
 
 def start_server(model):
