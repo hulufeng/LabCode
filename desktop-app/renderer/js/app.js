@@ -6543,6 +6543,8 @@ class AgentRunner {
     } finally {
       state._agentRunning = false;
       this._cleanupOrphanTools();
+      // 本任务期间发生过本地→云端升级 → 还原用户原本的模型通道
+      if (this._cloudEscalated) await this._restoreLocalProvider();
       // ===== 2026-09-15 对齐 TrieCode：给最后一条 assistant message 补元数据 =====
       const lastAsst = [...this.messages].reverse().find(m => m.role === 'assistant');
       if (lastAsst) {
@@ -6597,6 +6599,7 @@ class AgentRunner {
       }
       const prevProvider = ai.provider;
       const prevModel = ai.model || '';
+      this._escalatePrev = { provider: prevProvider, model: prevModel };
       await window.LabCode.config.set('ai.provider', 'gateway');
       await window.LabCode.config.set('ai.model', (prevModel && !/\.gguf$/i.test(prevModel)) ? prevModel : 'deepseek-pro');
       // 立即刷新 AI 客户端配置（本 runner 实例 + 全局实例）
@@ -6610,6 +6613,24 @@ class AgentRunner {
       console.warn('[escalate] 云端升级失败:', e);
       return false;
     }
+  }
+
+  // 任务收尾：本次任务期间发生过云端升级 → 把模型通道还原成本地（不永久占用用户配置）
+  async _restoreLocalProvider() {
+    try {
+      const prev = this._escalatePrev;
+      if (!prev || !window.LabCode || !window.LabCode.config) return;
+      const cfg = await window.LabCode.config.get();
+      const ai = (cfg && cfg.ai) || {};
+      // 只在仍是本次升级写入的 gateway 时还原，用户手动改过就不动
+      if (ai.provider !== 'gateway') return;
+      await window.LabCode.config.set('ai.provider', prev.provider);
+      await window.LabCode.config.set('ai.model', prev.model || '');
+      if (this.ai && typeof this.ai._loadConfig === 'function') await this.ai._loadConfig();
+      if (state.agent && state.agent.ai && typeof state.agent.ai._loadConfig === 'function') await state.agent.ai._loadConfig();
+      this._escalatePrev = null;
+      this._stream('\n[系统] 本任务已结束，模型通道已还原为本地（' + prev.provider + '）。\n', false);
+    } catch (e) { /* 还原失败不影响收尾 */ }
   }
 
   _cleanupOrphanTools() {
