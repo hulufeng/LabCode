@@ -5296,6 +5296,63 @@ ${findings.filter(f => f.type === 'finding').map((f, i) => `${i + 1}. **${f.step
 
 // ---------- 6. AgentRunner（智能体主循环）----------
 // 参考业界 agent-runner.js: 统一 turn 循环
+
+// ===== 项目经验记忆（mem0 思路的轻量本地版）=====
+// 存 <项目>/.labcode/agent-memory.json：把「编译/运行错误特征 → 修复方式」沉淀下来，
+// 下次遇到相同特征错误时注入上下文，避免同一坑踩两次（治「笨」的第三招：让模型有经验）。
+const AGENT_MEMORY_FILE = '.labcode/agent-memory.json';
+const ERROR_SIG_RE = /(error|错误|失败|Traceback|Exception|No such file|undefined reference|fatal)/i;
+
+function errorSignature(text) {
+  // 取错误首行做特征签名（去路径/行号等易变部分）
+  const line = String(text || '').split('\n').find(l => ERROR_SIG_RE.test(l)) || '';
+  return line.replace(/[A-Za-z]:\\[^\s:]+/g, '<PATH>')
+    .replace(/:\d+(:\d+)?/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 160);
+}
+
+async function agentMemoryLoad(projectPath) {
+  try {
+    if (!projectPath) return { fixes: [] };
+    const p = projectPath.replace(/[\\/]+$/, '') + '/' + AGENT_MEMORY_FILE;
+    const exists = await window.LabCode.fs.exists(p);
+    if (!exists) return { fixes: [] };
+    const raw = await window.LabCode.fs.readFile(p, 'utf8');
+    const data = JSON.parse(raw);
+    return Array.isArray(data.fixes) ? data : { fixes: [] };
+  } catch (e) { return { fixes: [] }; }
+}
+
+async function agentMemoryRecord(projectPath, entry) {
+  try {
+    if (!projectPath || !entry || !entry.sig) return;
+    const dir = projectPath.replace(/[\\/]+$/, '') + '/.labcode';
+    const p = dir + '/agent-memory.json';
+    if (!(await window.LabCode.fs.exists(dir))) await window.LabCode.fs.mkdir(dir);
+    const data = await agentMemoryLoad(projectPath);
+    // 同签名更新而非堆积
+    data.fixes = data.fixes.filter(f => f.sig !== entry.sig);
+    data.fixes.unshift({ sig: entry.sig, fix: entry.fix, tool: entry.tool || '', ts: Date.now() });
+    data.fixes = data.fixes.slice(0, 50);
+    await window.LabCode.fs.writeFile(p, JSON.stringify(data, null, 2));
+  } catch (e) { /* 记忆失败不影响主流程 */ }
+}
+
+function agentMemoryRecall(mem, errorText, limit = 2) {
+  if (!mem || !mem.fixes || !mem.fixes.length || !errorText) return [];
+  const sig = errorSignature(errorText);
+  if (!sig) return [];
+  const words = sig.split(/[^\u4e00-\u9fa5a-zA-Z0-9_]+/).filter(w => w.length >= 3);
+  const scored = mem.fixes.map(f => {
+    const fw = String(f.sig || '').split(/[^\u4e00-\u9fa5a-zA-Z0-9_]+/).filter(w => w.length >= 3);
+    const overlap = words.filter(w => fw.some(x => x.includes(w) || w.includes(x))).length;
+    return { f, score: overlap / Math.max(1, words.length) };
+  }).filter(s => s.score >= 0.34).sort((a, b) => b.score - a.score);
+  return scored.slice(0, limit).map(s => s.f);
+}
+
 class AgentRunner {
   constructor({ onStream, onToolStep, onPlanRequest, onThinking, onToolFlow, onDiffSummary, onWorkStatus, mode='default' }) {
     this.onStream = onStream;
@@ -5321,6 +5378,13 @@ class AgentRunner {
     this.planPendingResolve = null;   // 计划确认 Promise resolve
     // ===== diff 验收：记录本轮文件变更（before/after）=====
     this.fileChanges = {};
+    // ===== 经验记忆 / 无进展闸 / 本地→云端升级 状态（3a/3b/4）=====
+    this.noProgressRounds = 0;      // 连续「有失败且无成功动作」轮数
+    this.localFailNudges = 0;       // 撞闸次数（第 2 次触发云端升级）
+    this._cloudEscalated = false;   // 本任务是否已升级过（只升一次）
+    this._mem = null;               // 项目经验记忆（懒加载）
+    this._pendingMem = null;        // 待沉淀的记忆条目
+    this._replanDoneFor = -1;       // 已做过计划回顾的轮次
     // ===== 2026-09-14 对齐 TrieCode 会话持久化：workLog 全程记录 + 会话 JSON 落盘 =====
     this.workLog = [];
     this.sessionId = (state.currentSessionId) || ('session_' + Date.now().toString(36));
@@ -6398,11 +6462,65 @@ class AgentRunner {
       });
       if (hasFailure && !hasActionSuccess) this.noProgressRounds++;
       else if (hasActionSuccess) this.noProgressRounds = 0;
+
+      // ===== 经验记忆（3b）：错误出现时召回历史修复；修复成功后沉淀 =====
+      try {
+        const projectPath = state.projectPath;
+        if (projectPath) {
+          if (hasFailure) {
+            const errTexts = result.toolCalls
+              .map((tc, i) => ({ tc, r: this.messages.filter(m => m.role === 'tool' && m.tool_call_id === tc.id)[0] }))
+              .filter(x => x.r && ERROR_SIG_RE.test(x.r.content))
+              .map(x => x.r.content);
+            if (errTexts.length && !this._mem) this._mem = await agentMemoryLoad(projectPath);
+            if (errTexts.length && this._mem) {
+              const hits = agentMemoryRecall(this._mem, errTexts[0]);
+              if (hits.length) {
+                this.messages.push({ role: 'system', content: '【项目经验】本项目曾修过类似问题，供参考：\n' +
+                  hits.map(h => `- 错误特征：${h.sig}\n  修复方式：${h.fix}`).join('\n') });
+                this._stream('\n[系统] 已注入 ' + hits.length + ' 条项目历史修复经验\n', false);
+              }
+              // 记录「当前错误特征 + 最近一次修改动作」，供下一轮成功时沉淀
+              const lastEdit = [...this.messages].reverse().find(m => m.role === 'assistant' && Array.isArray(m.tool_calls) &&
+                m.tool_calls.some(t => ['write_file', 'edit_file'].includes((t.function && t.function.name) || t.name)));
+              const editCall = lastEdit && lastEdit.tool_calls.find(t => ['write_file', 'edit_file'].includes((t.function && t.function.name) || t.name));
+              if (editCall) {
+                const fn = editCall.function || editCall;
+                this._pendingMem = {
+                  sig: errorSignature(errTexts[0]),
+                  fix: `调用 ${fn.name || 'edit'}：${String(fn.arguments || '').slice(0, 300)}`,
+                  tool: fn.name || ''
+                };
+              }
+            }
+          }
+          // 上一轮记了待沉淀记忆，且本轮验证通过 → 落盘
+          if (hasActionSuccess && this._pendingMem) {
+            await agentMemoryRecord(projectPath, this._pendingMem);
+            this._pendingMem = null;
+          }
+        }
+      } catch (memErr) { /* 记忆异常不影响主循环 */ }
+
       if (this.noProgressRounds >= 3) {
         this.noProgressRounds = 0;
+        this.localFailNudges = (this.localFailNudges || 0) + 1;
+        // ===== 本地→云端自动升级（3a）：第 2 次仍无进展 + 本地模型 + 已登录网关 =====
+        if (this.localFailNudges >= 2 && !this._cloudEscalated) {
+          this._cloudEscalated = true;
+          const escalated = await this._escalateToCloud();
+          if (escalated) continue;
+        }
         this.messages.push({ role: 'user', content: '【系统提示】检测到连续多轮工具执行失败且无进展。请停止重复尝试相同做法：先诊断根因（重读错误信息 / 查文档 / 向用户确认），换一种策略，或直接询问用户下一步方向。' });
         this._stream('\n[系统] 检测到连续失败无进展，请换策略或向用户确认。\n', false);
         continue;
+      }
+
+      // ===== 定期重规划（4）：每 6 轮回顾计划（SWE-agent 式 trajectory review）=====
+      if (turn > 0 && turn % 6 === 0 && this._replanDoneFor !== turn) {
+        this._replanDoneFor = turn;
+        this.messages.push({ role: 'user', content: `【系统提示·计划回顾】已执行 ${turn} 轮。请对照最初目标快速复盘：1) 已完成哪些；2) 当前卡在哪；3) 下一步调不调整计划。然后继续。` });
+        this._stream('\n[系统] 阶段性计划回顾…\n', false);
       }
 
       // auto 模式自动验证
@@ -6460,6 +6578,37 @@ class AgentRunner {
       if (typeof addOutputLog === 'function') addOutputLog('会话已持久化: ' + session.id + '（' + session.messages.length + ' 条消息 / ' + session.workLog.length + ' 条工具记录）', 'debug');
     } catch (e) {
       if (typeof addOutputLog === 'function') addOutputLog('会话持久化失败: ' + e.message, 'error');
+    }
+  }
+
+  // ===== 本地→云端自动升级（3a）=====
+  // 触发条件由主循环判断：本地模型连续 2 次撞上「无进展闸」。
+  // 返回 true 表示已切到云端，主循环 continue 后按云端模型继续跑（不再重复本地尝试）。
+  async _escalateToCloud() {
+    try {
+      if (!window.LabCode || !window.LabCode.config) return false;
+      const cfg = await window.LabCode.config.get();
+      const ai = (cfg && cfg.ai) || {};
+      // 只升级本地通道（local = 自带 llama-server，ollama = 外部本地引擎）
+      if (ai.provider !== 'local' && ai.provider !== 'ollama') return false;
+      if (!ai.gatewayToken) {
+        this._stream('\n[系统] 本地模型连续无进展；未登录云端账号，无法自动升级。可在设置里登录 LabCode 账号后由云端接管。\n', false);
+        return false;
+      }
+      const prevProvider = ai.provider;
+      const prevModel = ai.model || '';
+      await window.LabCode.config.set('ai.provider', 'gateway');
+      await window.LabCode.config.set('ai.model', (prevModel && !/\.gguf$/i.test(prevModel)) ? prevModel : 'deepseek-pro');
+      // 立即刷新 AI 客户端配置（本 runner 实例 + 全局实例）
+      if (this.ai && typeof this.ai._loadConfig === 'function') await this.ai._loadConfig();
+      if (state.agent && state.agent.ai && typeof state.agent.ai._loadConfig === 'function') await state.agent.ai._loadConfig();
+      if (typeof addOutputLog === 'function') addOutputLog('[本地→云端升级] 本地模型连续无进展，已切换云端通道：' + prevProvider + ' → gateway', 'warn');
+      this.messages.push({ role: 'system', content: '【系统】已自动切换为云端模型继续本任务（本地模型连续多轮无进展）。请基于上面已有的上下文与分析继续，不要重新开始，也不要重复刚才失败的做法。' });
+      this._stream('\n[系统] 本地模型连续无进展，已自动切换到云端模型继续任务。\n', false);
+      return true;
+    } catch (e) {
+      console.warn('[escalate] 云端升级失败:', e);
+      return false;
     }
   }
 
