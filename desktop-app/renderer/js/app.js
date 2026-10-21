@@ -12516,6 +12516,12 @@ function bindEvents() {
     document.getElementById('ai-baseurl').value = ai.baseURL || ai.baseUrl || '';
     document.getElementById('ai-model').value = ai.model || '';
     document.getElementById('ai-thinking').value = ai.thinkingLevel || 'standard';
+    // 本地工具调用约束开关：on/off/auto（auto=按模型大小自动：7B/9B 开、3B 关）
+    {
+      const ltg = ai.localToolGrammar;
+      document.getElementById('ai-local-tool-grammar').value =
+        (ltg === true || ltg === 'on') ? 'on' : (ltg === false || ltg === 'off') ? 'off' : 'auto';
+    }
     document.getElementById('ai-test-result').textContent = '';
     updateAiSettingsVisibility();
     renderAgentMarket();
@@ -12769,6 +12775,7 @@ function bindEvents() {
         if (provider === 'custom') await window.LabCode.config.set('ai.baseURL', baseURL);
         if (model) await window.LabCode.config.set('ai.model', model);
       await window.LabCode.config.set('ai.thinkingLevel', document.getElementById('ai-thinking').value || 'standard');
+      await window.LabCode.config.set('ai.localToolGrammar', document.getElementById('ai-local-tool-grammar').value || 'auto');
         // 刷新 RealAIClient 配置，使新设置立即生效
         if (state.agent && state.agent.ai && typeof state.agent.ai._loadConfig === 'function') {
           await state.agent.ai._loadConfig();

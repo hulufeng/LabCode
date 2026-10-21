@@ -961,6 +961,88 @@ function setupIPC() {
     }
   }
 
+  // ===== Phase1：本地模型 GBNF 约束工具决策轮（借鉴 DeepInfer 约束解码）=====
+  // 实测（内置 llama-server 0.4.0-dev + RTX 5060 Ti，2026-10-21）：
+  //   grammar 非流式 9/9 全部合法 JSON；response_format=json_object 成功也输出 ```json 围巾且流式偶发 socket hang up；
+  //   原生 tools API 直接打挂连接。故仅 local + 有工具 + 开关允许时，先用「非流式 + GBNF」做一次工具决策；
+  //   选到工具 → 回传 tool_calls 事件；选 none / 超时 / 解析失败 → 落回原有流式无约束路径（零回归）。
+  function localToolGrammarEnabled(aiCfg) {
+    const v = aiCfg && aiCfg.localToolGrammar;
+    if (v === true || v === 'on') return true;
+    if (v === false || v === 'off') return false;
+    // 自动：7B/9B/14B+ 默认开；1.5B/3B 默认关（learnings：3B 工具循环局限）；未知大小保守关闭
+    const m = String((aiCfg && aiCfg.model) || '').toLowerCase();
+    if (/(^|[^0-9a-z])(1\.5b|3b)([^0-9a-z]|$)/.test(m)) return false;
+    return /(^|[^0-9a-z])(7b|9b|14b|32b|70b)([^0-9a-z]|$)/.test(m);
+  }
+
+  // 由工具清单生成 GBNF：{"tool":<工具名枚举>,"arguments":<通用 JSON 对象>}
+  // arguments 用通用 JSON 语法（含字符串转义），无需逐工具生成 schema；"none" 表示不需要工具。
+  function buildToolGbnf(toolNames) {
+    // 注意：GBNF 字符串字面量 "x" 表示无引号的 x；JSON 里的 "read_file" 必须写成 "\"read_file\""（内嵌引号），
+    // 否则拼出的 JSON 缺引号 → 非法 → 模型只能退到 "none"（2026-10-21 实测教训）。
+    const alts = toolNames.map(n => `"\\"${n}\\""`).join(' | ');
+    return [
+      'root ::= "{" ws "\\"tool\\"" ws ":" ws tool ws "," ws "\\"arguments\\"" ws ":" ws obj ws "}"',
+      `tool ::= "\\"none\\"" | ${alts}`,
+      'obj ::= "{" ws (pair (ws "," ws pair)*)? ws "}"',
+      'pair ::= "\\"" key "\\"" ws ":" ws value',
+      'key ::= [a-zA-Z0-9_]+',
+      'value ::= string | number | boolean | obj | arr | "null"',
+      'string ::= "\\"" chars "\\""',
+      'chars ::= (esc | [^"\\\\])*',
+      'esc ::= "\\\\" .',
+      'number ::= [0-9]+ ("." [0-9]+)?',
+      'boolean ::= "true" | "false"',
+      'arr ::= "[" ws (value (ws "," ws value)*)? ws "]"',
+      'ws ::= [ \\t\\n\\r]*'
+    ].join('\n');
+  }
+
+  // 非流式 + GBNF 工具决策。返回 { toolCalls: [{id,name,arguments}] } 或 null（none/失败，调用方落回原路径）。
+  async function toolDecisionWithGrammar({ messages, tools, model, baseURL, maxTokens }) {
+    const names = [...new Set((tools || [])
+      .map(t => (t && t.function && t.function.name) || '')
+      .filter(n => /^[a-z0-9_]+$/i.test(n)))];
+    if (!names.length) return null;
+    const grammar = buildToolGbnf(names);
+    const decisionMessages = (messages || []).concat([{
+      role: 'system',
+      content: '【工具决策】现在只决定是否调用工具：按 {"tool":"工具名","arguments":{...}} 输出；不需要工具时输出 {"tool":"none","arguments":{}}。不要输出任何其他内容。'
+    }]);
+    const url = String(baseURL || '').replace(/\/$/, '') + '/chat/completions';
+    const controller = new AbortController();
+    const timer = setTimeout(() => { try { controller.abort(); } catch (e) {} }, 60000);
+    try {
+      const resp = await net.fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model,
+          messages: decisionMessages,
+          temperature: 0.1,
+          max_tokens: maxTokens || 4096,
+          stream: false,
+          grammar,
+          chat_template_kwargs: { enable_thinking: false }
+        }),
+        signal: controller.signal
+      });
+      if (!resp.ok) return null;
+      const data = await resp.json().catch(() => null);
+      const content = data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+      if (!content) return null;
+      const parsed = JSON.parse(String(content).trim());
+      if (!parsed || typeof parsed !== 'object' || parsed.tool === 'none' || !names.includes(parsed.tool)) return null;
+      const args = (parsed.arguments && typeof parsed.arguments === 'object' && !Array.isArray(parsed.arguments)) ? parsed.arguments : {};
+      return { toolCalls: [{ id: 'call_grammar_' + Date.now().toString(36), name: parsed.tool, arguments: args }] };
+    } catch (e) {
+      return null;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   // 鍗曡疆娴佸紡璋冪敤锛堟敮鎸?tools / function calling锛涘け璐ヨ嚜鍔ㄥ洖閫€闈炴祦寮忥級
   async function streamChatCompletion(sender, runId, { messages, model, temperature, maxTokens, tools, aiCfg }) {
     const provider = AI_PROVIDERS[aiCfg.provider] || AI_PROVIDERS.deepseek;
@@ -1031,6 +1113,25 @@ function setupIPC() {
     const send = (type, data) => {
       try { if (sender && !sender.isDestroyed()) sender.send('ai:stream', { runId, type, ...data }); } catch (e) {}
     };
+
+    // ===== Phase1：本地模型 GBNF 约束工具决策轮 =====
+    // 条件：provider=local + 有工具 + 开关允许（自动：7B/9B 开、3B 关）。
+    // 选到工具 → 发 tool_calls 事件 + done，渲染层直接执行；选 none/超时/失败 → 继续下面原有流式路径。
+    if (aiCfg.provider === 'local' && Array.isArray(tools) && tools.length > 0 && localToolGrammarEnabled(aiCfg)) {
+      const decision = await toolDecisionWithGrammar({ messages, tools, model: useModel, baseURL, maxTokens: 4096 });
+      if (activeAiStreams.get(runId)) {
+        // 决策期间用户取消：不再发起新请求，直接结束
+        send('done', { content: '', toolCalls: [], usage: null });
+        return { success: true, content: '', toolCalls: [], cancelled: true };
+      }
+      if (decision && decision.toolCalls.length > 0) {
+        console.log('[grammar] 本地工具决策:', decision.toolCalls.map(t => t.name).join(', '));
+        send('tool_calls', { toolCalls: decision.toolCalls });
+        send('done', { content: '', toolCalls: decision.toolCalls, usage: null });
+        return { success: true, content: '', toolCalls: decision.toolCalls };
+      }
+      console.log('[grammar] 本地工具决策: none（落回流式无约束路径）');
+    }
 
     // 鍗曟璇锋眰 + 娴佽В鏋愶紙渚涢娆′笌寮曟搸閲嶅惎鍚庨噸璇曞叡鐢級
     async function doStreamOnce(enableThinking) {

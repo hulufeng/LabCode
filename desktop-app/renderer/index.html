@@ -1385,6 +1385,15 @@
                 <option value="deep">深度（复杂任务，消耗更多 token）</option>
               </select>
             </div>
+            <div>
+              <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">本地模型工具调用约束（实验性）</label>
+              <select id="ai-local-tool-grammar" style="width:100%;padding:8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size:13px;box-sizing:border-box;">
+                <option value="auto">自动（7B/9B 开启，3B 及更小关闭）</option>
+                <option value="on">始终开启</option>
+                <option value="off">始终关闭</option>
+              </select>
+              <div style="font-size:11px;color:var(--text-tertiary);margin-top:4px;line-height:1.5;">开启后本地模型通过语法约束可靠输出工具调用（读文件/写文件/编译等），不再依赖格式猜测。仅对本地模型生效，云端模型不受影响。</div>
+            </div>
             <div style="display:flex;gap:8px;align-items:center;">
               <button class="btn btn-secondary" id="ai-test-btn" style="flex:0 0 auto;">测试连接</button>
               <span id="ai-test-result" style="font-size:12px;color:var(--text-secondary);"></span>
