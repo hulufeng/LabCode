@@ -3,7 +3,48 @@
 目标：把 Qwen2.5-Coder-7B（本地 GGUF）微调成**会选工具、会填参数**的决策模型，治「笨」的本。
 与线上 GBNF 约束解码（`desktop-app/main/index.js` 的 `buildToolGbnf`）配合：约束保格式，微调保选择质量。
 
-## 工作流（四步）
+## 实测基线（2026-10-22，本机 RTX 5060 Ti / eval_tools.py x3）
+
+| 模型 | 工具决策准确率 |
+|---|---|
+| qwen2.5-coder-**3B**-instruct Q4_K_M | **31.0%**（13/42） |
+| qwen2.5-coder-**7B**-instruct Q4_K_M | **66.7%**（28/42） |
+
+7B 的典型错法：`edit_file("串口波特率从9600改成115200")` 判错、`run_test("编译一下看看有没有报错")` 判错、
+`none("I2C 和 SPI 有什么区别")` 误触发工具 —— 正是本套件要治的「选择质量」问题。
+
+## 工作流 A：Windows 原生（本机路线，推荐）
+
+本机没有 WSL（`wsl` 命令不存在），Unsloth 依赖 triton、官方只支持 Linux/WSL，**跑不起来**。
+所以走 transformers + peft 的原生 LoRA/QLoRA。
+
+```bat
+:: 0) 环境（已实测：torch 2.7.1+cu128 / transformers 4.52.4 / peft 0.21.2 / bitsandbytes 0.50.2）
+pip install --index-url https://download.pytorch.org/whl/cu128 torch==2.7.1+cu128
+pip install transformers==4.52.4 peft accelerate datasets bitsandbytes
+
+:: 1) 基座模型（HF 直连被封，走 hf-mirror）
+set HF_ENDPOINT=https://hf-mirror.com
+python -c "from huggingface_hub import snapshot_download; print(snapshot_download('Qwen/Qwen2.5-Coder-3B-Instruct'))"
+
+:: 2) 数据准备（Hermes 多轮 -> 决策 JSON；labcode 真实样本 5 倍加权）
+python prepare_data.py --hermes func-calling.json --labcode labcode_tools_examples.jsonl --out .
+
+:: 3) 训练（先 dry-run 看数据管线）
+python train_win.py --base Qwen/Qwen2.5-Coder-3B-Instruct --dry-run
+python train_win.py --base Qwen/Qwen2.5-Coder-3B-Instruct --epochs 3 --bs 1 --accum 8
+::    8GB 显存跑 7B：加 --load-4bit（bitsandbytes NF4）
+::    产出 out_win/lora（适配器）+ out_win/merged（合并后的 HF 模型）
+
+:: 4) 验收（GBNF 取自上线代码 main/index.js，由 node 求值生成）
+python eval_tools.py --model <微调后GGUF> --repeat 3
+python eval_tools.py --baseline <原GGUF> --model <微调后GGUF> --repeat 3
+```
+
+待解决：HF → GGUF 转换需要 llama.cpp 的 `convert_hf_to_gguf.py`，
+github raw 在本机被 RST（WinError 10054），目前只能离线拷贝该脚本或用其它通道获取。
+
+## 工作流 B：Linux / WSL（Unsloth，更快但本机不可用）
 
 ```bash
 # 0) 环境（Python 3.10+，NVIDIA 8GB+）
@@ -32,8 +73,9 @@ python eval_tools.py --baseline "D:\LabCode\models\qwen2.5-coder-7b-instruct-q4_
 |---|---|
 | `labcode_tools_examples.jsonl` | 22 条 LabCode 真实工具场景（读/写/改/编译/搜索/装插件 + 多轮循环 + none） |
 | `prepare_data.py` | ShareGPT → 决策 JSON；自动抽取每个工具调用轮作为训练目标，带完整上文 |
-| `train_unsloth.py` | Unsloth QLoRA（r16, 4bit, seq4096）；合并 + 导出 GGUF |
-| `eval_tools.py` | 启动 llama-server 跑 14 类工具决策题，输出准确率；支持基线对比 |
+| `train_unsloth.py` | Unsloth QLoRA（r16, 4bit, seq4096）；合并 + 导出 GGUF（Linux/WSL） |
+| `train_win.py` | **Windows 原生** LoRA/QLoRA（transformers+peft）；`--load-4bit` 走 bnb NF4；输出 lora + merged |
+| `eval_tools.py` | 启动 llama-server 跑 14 类工具决策题，输出准确率；grammar 由 **node 执行上线 `buildToolGbnf`** 生成，支持基线对比 |
 
 ## 设计要点
 
