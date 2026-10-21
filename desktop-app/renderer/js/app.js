@@ -10733,8 +10733,10 @@ function bindEvents() {
               document.querySelectorAll('.model-option').forEach(o =>
                 o.classList.toggle('active', o.dataset.model === matchedKey));
             } else {
-              // 未匹配到，默认显示 Ollama
+              // 未匹配到，默认显示 Ollama（同步下拉高亮，避免按钮与列表状态不一致）
               document.getElementById('current-model-name').textContent = 'Ollama 本地模型';
+              document.querySelectorAll('.model-option').forEach(o =>
+                o.classList.toggle('active', o.dataset.model === 'ollama'));
             }
           }
         } else {

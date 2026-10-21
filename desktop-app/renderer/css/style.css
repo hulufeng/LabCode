@@ -1556,7 +1556,8 @@ input, textarea {
   border: 1px solid var(--border-light);
   border-radius: 16px;
   box-shadow: none;
-  overflow: hidden;
+  /* visible：模型下拉向上弹出，hidden 会把下拉裁得只剩两条 */
+  overflow: visible;
   transition: all 0.2s;
 }
 
@@ -1696,6 +1697,8 @@ input, textarea {
   bottom: calc(100% + 8px);
   right: 0;
   min-width: 320px;
+  max-height: 420px;
+  overflow-y: auto;
   background: var(--bg-primary);
   border: 1px solid var(--border-light);
   border-radius: var(--radius-lg);
@@ -1710,6 +1713,7 @@ input, textarea {
   color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.1s;
+  text-align: left;
 }
 
 .model-option:hover {
@@ -2924,15 +2928,16 @@ body.no-open-file .ai-panel {
 
 .model-dropdown {
   position: absolute;
-  bottom: calc(100% + 4px);
+  bottom: calc(100% + 8px);
   right: 0;
-  min-width: 180px;
+  min-width: 320px;
+  max-height: 420px;
+  overflow-y: auto;
   background: var(--bg-primary);
   border: 1px solid var(--border-light);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
   z-index: 1000;
-  overflow: hidden;
 }
 
 .model-option {
@@ -2941,6 +2946,7 @@ body.no-open-file .ai-panel {
   color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.15s ease;
+  text-align: left;
 }
 
 .model-option:hover {
