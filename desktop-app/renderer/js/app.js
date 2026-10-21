@@ -5319,9 +5319,13 @@ async function agentMemoryLoad(projectPath) {
     const p = projectPath.replace(/[\\/]+$/, '') + '/' + AGENT_MEMORY_FILE;
     const exists = await window.LabCode.fs.exists(p);
     if (!exists) return { fixes: [] };
-    const raw = await window.LabCode.fs.readFile(p, 'utf8');
+    // 注意：fs:readFile 的 IPC 返回 {success, content}（不是裸字符串），两种形态都要兼容
+    const r = await window.LabCode.fs.readFile(p, 'utf8');
+    const raw = (r && typeof r === 'object' && typeof r.content === 'string') ? r.content
+              : (typeof r === 'string' ? r : '');
+    if (!raw) return { fixes: [] };
     const data = JSON.parse(raw);
-    return Array.isArray(data.fixes) ? data : { fixes: [] };
+    return (data && Array.isArray(data.fixes)) ? data : { fixes: [] };
   } catch (e) { return { fixes: [] }; }
 }
 
