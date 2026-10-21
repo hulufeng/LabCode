@@ -72,7 +72,7 @@
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.15);
   --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.2);
-  --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', '思源黑体', 'Source Han Sans SC', sans-serif;
   --font-mono: 'Consolas', 'Monaco', 'Courier New', monospace;
 }
 
@@ -337,12 +337,26 @@ html, body {
   background: var(--bg-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: 'liga' 1, 'calt' 1;
+  line-height: 1.6;
   display: flex;
   flex-direction: column;
 }
 
 *, *::before, *::after {
   box-sizing: border-box;
+}
+
+/* 选中与键盘聚焦：统一的品牌色质感 */
+::selection {
+  background: var(--primary-light);
+  color: var(--text-primary);
+}
+
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }
 
 button {
@@ -791,6 +805,53 @@ input, textarea {
   border-radius: 4px;
 }
 
+/* ===== 文件树节点：充足的行高与留白，消除默认密排拥挤 ===== */
+.file-tree-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  margin: 1px 6px;
+  padding-top: 0;
+  padding-bottom: 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+  border-radius: var(--radius-sm);
+  box-sizing: border-box;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.1s;
+  user-select: none;
+}
+
+.file-tree-item:hover {
+  background: var(--bg-hover);
+}
+
+.file-tree-item.selected {
+  background: var(--bg-selected);
+  color: var(--primary);
+}
+
+.file-tree-item .file-icon {
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.file-tree-item .file-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.file-tree-item .chevron {
+  width: 12px;
+  font-size: 9px;
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+  text-align: center;
+}
+
 .file-item {
   display: flex;
   align-items: center;
@@ -1218,7 +1279,7 @@ input, textarea {
 .ai-input-container {
   width: 100%;
   max-width: 720px;
-  padding: 20px 24px 12px;
+  padding: 10px 12px 12px;
   flex-shrink: 0;
   margin: 0 auto;
   box-sizing: border-box;
@@ -1399,7 +1460,7 @@ input, textarea {
 /* 右侧面板内的输入框（窄面板适配） */
 .ai-input-container.ai-input-side {
   max-width: 100%;
-  padding: 8px 10px 10px;
+  padding: 10px 12px 12px;
   border-top: 1px solid var(--border-light);
   background: var(--bg-primary);
 }
@@ -1409,32 +1470,48 @@ input, textarea {
   box-shadow: none;
 }
 
+/* 窄面板（380px）：给输入文本与工具行留出呼吸空间，消除拥挤 */
 .ai-input-side .ai-input-textarea {
-  min-height: 48px;
+  min-height: 60px;
   max-height: 160px;
-  padding: 10px 12px;
+  padding: 12px 14px;
   font-size: 13px;
+  line-height: 1.55;
 }
 
 .ai-input-side .ai-input-toolbar {
-  padding: 6px 8px;
+  padding: 8px 10px;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: 6px;
 }
 
 .ai-input-side .ai-input-left,
 .ai-input-side .ai-input-right {
-  gap: 4px;
+  gap: 6px;
+}
+
+.ai-input-side .ai-input-tool-btn {
+  width: 28px;
+  height: 28px;
 }
 
 .ai-input-side .ai-input-project-status {
   font-size: 11px;
-  padding: 3px 6px;
+  padding: 4px 8px;
+  gap: 5px;
+  max-width: 96px;
 }
 
 .ai-input-side .model-select-btn {
-  padding: 4px 8px;
-  font-size: 11px;
+  padding: 6px 10px;
+  font-size: 12px;
+  gap: 5px;
+  max-width: 110px;
+}
+
+.ai-input-side .ai-send-btn {
+  width: 30px;
+  height: 30px;
 }
 
 .ai-input-side .model-dropdown {
@@ -1461,11 +1538,11 @@ input, textarea {
   width: 100%;
   min-height: 64px;
   max-height: 200px;
-  padding: 14px 16px;
+  padding: 12px 14px;
   border: none;
   resize: none;
-  font-size: 15px;
-  line-height: 1.5;
+  font-size: 13px;
+  line-height: 1.55;
   color: var(--text-primary);
   background: transparent;
   font-family: var(--font-family);
@@ -1484,27 +1561,29 @@ input, textarea {
   border-radius: 3px;
 }
 
-/* AI 输入框工具栏 */
+/* AI 输入框工具栏（窄面板：允许换行防重叠，加大间距与触控目标） */
 .ai-input-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 6px 8px;
+  padding: 8px 10px;
   border-top: 1px solid var(--bg-tertiary);
-  gap: 4px;
+  gap: 6px;
+  row-gap: 6px;
+  flex-wrap: wrap;
 }
 
 .ai-input-left,
 .ai-input-right {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   min-width: 0;
 }
 
 .ai-input-tool-btn {
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1524,15 +1603,15 @@ input, textarea {
 .ai-input-project-status {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
   font-size: 11px;
   color: var(--text-tertiary);
-  padding: 3px 6px;
+  padding: 4px 8px;
   background: var(--bg-tertiary);
   border-radius: var(--radius-sm);
   white-space: nowrap;
   flex-shrink: 0;
-  max-width: 80px;
+  max-width: 96px;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -1550,14 +1629,14 @@ input, textarea {
 .model-select-btn {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 4px 8px;
+  gap: 5px;
+  padding: 6px 10px;
   background: var(--bg-tertiary);
   border-radius: var(--radius-md);
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-secondary);
   transition: all 0.15s;
-  max-width: 100px;
+  max-width: 110px;
   overflow: hidden;
 }
 
@@ -1612,8 +1691,8 @@ input, textarea {
 
 /* 发送按钮 */
 .ai-send-btn {
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3868,6 +3947,26 @@ body.no-open-file .ai-panel {
   background: none;
   padding: 0;
 }
+
+/* ===== AI 消息 Markdown 排版（修复内容过挤：行高/标题/列表/段落间距）===== */
+.chat-bubble { line-height: 1.7; }
+.chat-bubble h1, .chat-bubble h2, .chat-bubble h3, .chat-bubble h4, .chat-bubble h5, .chat-bubble h6 {
+  margin: 16px 0 6px;
+  line-height: 1.35;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.chat-bubble h1 { font-size: 17px; }
+.chat-bubble h2 { font-size: 15.5px; }
+.chat-bubble h3 { font-size: 14px; }
+.chat-bubble h4, .chat-bubble h5, .chat-bubble h6 { font-size: 13px; }
+.chat-bubble > :first-child { margin-top: 0; }
+.chat-bubble > :last-child { margin-bottom: 0; }
+.chat-bubble ul, .chat-bubble ol { margin: 6px 0 10px; padding-left: 22px; }
+.chat-bubble li { margin: 3px 0; }
+.chat-bubble li > ul, .chat-bubble li > ol { margin: 2px 0; }
+.chat-bubble hr { border: none; border-top: 1px solid var(--border-light); margin: 12px 0; }
+.chat-bubble strong { font-weight: 600; }
 
 /* 思考过程 - 豆包式深度思考（浅紫柔和块） */
 .thinking-block {

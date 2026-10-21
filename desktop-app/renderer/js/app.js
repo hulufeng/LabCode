@@ -6790,6 +6790,51 @@ let streamLastCodeEnd = 0;
 // AI 自动诊断运行中标记（防止诊断与用户消息互相打断）
 let __labcodeAiRunning = false;
 
+// ============ AI 消息 Markdown 渲染（轻量安全版：先整体转义再解析，防注入）============
+function escapeChatHtml(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function inlineChatMd(s) {
+  // s 已转义；仅支持 `code` 与 **粗体**，不做斜体（避免与乘号/星号正文冲突）
+  return s
+    .replace(/`([^`\n]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>');
+}
+function chatMarkdownToHtml(text) {
+  const lines = escapeChatHtml(text).split('\n');
+  const out = [];
+  let inCode = false, codeBuf = [], listType = null, para = [];
+  const closeList = () => { if (listType) { out.push(listType === 'ul' ? '</ul>' : '</ol>'); listType = null; } };
+  const flushPara = () => { if (para.length) { out.push('<p>' + inlineChatMd(para.join('<br>')) + '</p>'); para = []; } };
+  for (const raw of lines) {
+    const fence = raw.match(/^\s*```(.*)$/);
+    if (fence) {
+      if (inCode) { out.push('<pre><code>' + codeBuf.join('\n') + '</code></pre>'); codeBuf = []; inCode = false; }
+      else { flushPara(); closeList(); inCode = true; }
+      continue;
+    }
+    if (inCode) { codeBuf.push(raw); continue; }
+    const t = raw.trim();
+    if (!t) { flushPara(); closeList(); continue; }
+    const h = t.match(/^(#{1,6})\s+(.*)$/);
+    if (h) { flushPara(); closeList(); const lv = Math.min(h[1].length, 4); out.push('<h' + lv + '>' + inlineChatMd(h[2]) + '</h' + lv + '>'); continue; }
+    if (/^(-{3,}|\*{3,})$/.test(t)) { flushPara(); closeList(); out.push('<hr>'); continue; }
+    const ul = t.match(/^[-*+]\s+(.*)$/);
+    if (ul) { flushPara(); if (listType !== 'ul') { closeList(); out.push('<ul>'); listType = 'ul'; } out.push('<li>' + inlineChatMd(ul[1]) + '</li>'); continue; }
+    const ol = t.match(/^\d+[.、)]\s+(.*)$/);
+    if (ol) { flushPara(); if (listType !== 'ol') { closeList(); out.push('<ol>'); listType = 'ol'; } out.push('<li>' + inlineChatMd(ol[1]) + '</li>'); continue; }
+    para.push(t);
+  }
+  if (inCode && codeBuf.length) out.push('<pre><code>' + codeBuf.join('\n') + '</code></pre>');
+  flushPara(); closeList();
+  return out.join('');
+}
+function renderChatMarkdown(bubble, text) {
+  if (!bubble) return;
+  bubble.innerHTML = chatMarkdownToHtml(text);
+  bubble.style.whiteSpace = 'normal';
+}
+
 function addChatMessage(role, content) {
   const area = document.getElementById('ai-chat-area');
   const msg = document.createElement('div');
@@ -6799,8 +6844,12 @@ function addChatMessage(role, content) {
   avatar.textContent = role === 'ai' ? 'AI' : '你';
   const bubble = document.createElement('div');
   bubble.className = 'chat-bubble';
-  bubble.textContent = content;
-  bubble.style.whiteSpace = 'pre-wrap';
+  if (role === 'ai') {
+    renderChatMarkdown(bubble, content);
+  } else {
+    bubble.textContent = content;
+    bubble.style.whiteSpace = 'pre-wrap';
+  }
   msg.appendChild(avatar); msg.appendChild(bubble);
   area.appendChild(msg);
   area.scrollTop = area.scrollHeight;
@@ -8039,8 +8088,10 @@ function ensureAgent() {
           textOnly = textOnly.replace(/^\s*```[\w+-]*\s*$/gm, '').replace(/^\s*```\s*$/gm, '').trim();
           const fileList = createdFiles.map(f => '📄 ' + f).join('\n');
           const displayText = textOnly + '\n\n**已生成代码文件（已在编辑器打开）：**\n' + fileList;
-          currentAIBubble.textContent = displayText;
-          currentAIBubble.style.whiteSpace = 'pre-wrap';
+          renderChatMarkdown(currentAIBubble, displayText);
+        } else if (currentAIBubble) {
+          // 纯文字回答（无代码文件产出）：结束后整体渲染 Markdown
+          renderChatMarkdown(currentAIBubble, currentAIStream);
         }
         currentAIBubble = null;
         currentAIStream = '';
@@ -8255,8 +8306,9 @@ ${outText || errText}
             for (const _b of _dFlt) textOnly = textOnly.split('```' + (_b.lang || '') + '\n' + _b.code + '\n```').join('');
             textOnly = textOnly.replace(/^\s*```[\w+-]*\s*$/gm, '').replace(/^\s*```\s*$/gm, '').trim();
             const fileList = createdFiles.map(f => '📄 ' + f).join('\n');
-            currentAIBubble.textContent = textOnly + '\n\n**已自动修复并保存：**\n' + fileList + '\n\n（可重新运行验证）';
-            currentAIBubble.style.whiteSpace = 'pre-wrap';
+            renderChatMarkdown(currentAIBubble, textOnly + '\n\n**已自动修复并保存：**\n' + fileList + '\n\n（可重新运行验证）');
+          } else if (currentAIBubble) {
+            renderChatMarkdown(currentAIBubble, currentAIStream);
           }
           currentAIBubble = null;
           currentAIStream = '';
