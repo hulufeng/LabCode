@@ -1361,6 +1361,9 @@
                 <option value="custom">自定义（OpenAI 兼容）</option>
               </select>
             </div>
+            <div id="ai-key-warning" style="display:none;padding:8px 10px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.35);border-radius:6px;font-size:12px;color:#ef4444;line-height:1.5;">
+              ⚠️ <strong>未配置 API Key 且未登录账号</strong>：当前选择的是云端模型，无法发送消息。请填写下方 API Key、登录 LabCode 账号使用内置模型池，或切换到「本地 AI 引擎 / 本地模型（兼容模式）」离线使用。
+            </div>
             <div id="ai-apikey-row">
               <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">API Key</label>
               <input type="password" id="ai-apikey" placeholder="sk-..." style="width:100%;padding:8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size:13px;box-sizing:border-box;">

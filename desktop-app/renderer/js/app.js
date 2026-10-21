@@ -10714,8 +10714,18 @@ function bindEvents() {
         if (window.LabCode && window.LabCode.config) {
           const cfg = await window.LabCode.config.get();
           const ai = cfg?.ai || {};
-          // 本地模型：直接显示模型名（下拉选项由 refreshLocalModelsInSelector 异步添加）
-          if ((ai.provider === 'ollama' || ai.provider === 'local') && ai.model) {
+          // 网关已登录（云端通道）：按 ai.model 显示对应云端模型（与切换逻辑 GATEWAY_MODEL_MAP 对齐）
+          if (ai.gatewayToken && (ai.provider === 'gateway' || !ai.provider)) {
+            const GW_LABELS = { 'deepseek-flash': 'DeepSeek FLASH', 'deepseek-pro': 'DeepSeek V4', 'minimax-m3': 'MiniMax M2.7' };
+            const GW_KEYS = { 'deepseek-flash': 'deepseek-flash', 'deepseek-pro': 'deepseek-v4', 'minimax-m3': 'minimax' };
+            const gwLabel = GW_LABELS[ai.model] || '云端模型';
+            const gwKey = GW_KEYS[ai.model];
+            document.getElementById('current-model-name').textContent = gwLabel + '（云端）';
+            document.querySelectorAll('.model-option').forEach(o =>
+              o.classList.toggle('active', !!gwKey && o.dataset.model === gwKey));
+            const wsGw = document.querySelector('.model-status-text');
+            if (wsGw) wsGw.textContent = `当前模型：${gwLabel}（云端）`;
+          } else if ((ai.provider === 'ollama' || ai.provider === 'local') && ai.model) {
             const friendly = (ai.model.replace(/\.gguf$/i, '')).replace('Qwen_Qwen3.5-9B-Q4_K_M', 'Qwen3.5-9B (Q4_K_M)');
             document.getElementById('current-model-name').textContent = friendly + ' (本地)';
             // 同步欢迎页模型状态显示（对齐 TrieCode 欢迎区）
@@ -10749,9 +10759,35 @@ function bindEvents() {
       }
     })();
 
-    modelSelectBtn.addEventListener('click', (e) => {
+    modelSelectBtn.addEventListener('click', async (e) => {
       e.stopPropagation();
-      modelDropdown.style.display = modelDropdown.style.display === 'none' ? 'block' : 'none';
+      const willOpen = modelDropdown.style.display === 'none';
+      modelDropdown.style.display = willOpen ? 'block' : 'none';
+      if (willOpen) {
+        // 云端选项标注：未登录账号且未配 Key → 「未配置 Key」红签，避免选了发不出去
+        let gw = false, key = '';
+        try {
+          const c = await window.LabCode.config.get();
+          gw = !!(c?.ai?.gatewayToken);
+          key = (c?.ai?.apiKey || '').trim();
+        } catch (err) {}
+        document.querySelectorAll('.model-option[data-model]').forEach(opt => {
+          const m = MODEL_MAP[opt.dataset.model];
+          if (!m) return;
+          const isCloud = m.provider === 'deepseek' || m.provider === 'custom';
+          let tag = opt.querySelector('.model-key-tag');
+          if (isCloud && !gw && !key) {
+            if (!tag) {
+              tag = document.createElement('span');
+              tag.className = 'model-key-tag';
+              tag.textContent = '未配置 Key';
+              opt.appendChild(tag);
+            }
+          } else if (tag) {
+            tag.remove();
+          }
+        });
+      }
     });
     document.querySelectorAll('.model-option').forEach(option => {
       option.addEventListener('click', async () => {
@@ -12395,6 +12431,7 @@ function bindEvents() {
       try { cfg = await window.LabCode.config.get(); } catch (e) {}
     }
     const ai = cfg.ai || {};
+    aiSettingsGwLoggedIn = !!(ai.gatewayToken);
     document.getElementById('ai-provider').value = ai.provider || 'deepseek';
     document.getElementById('ai-apikey').value = ai.apiKey || '';
     document.getElementById('ai-baseurl').value = ai.baseURL || ai.baseUrl || '';
@@ -12476,6 +12513,9 @@ function bindEvents() {
         try { cfg = await window.LabCode.config.get(); } catch (e) {}
       }
       const ai = cfg.ai || {};
+      // 同步网关登录态到「未配置 Key」横幅（登录/登出后即时刷新）
+      aiSettingsGwLoggedIn = !!ai.gatewayToken;
+      updateAiSettingsVisibility();
       if (ai.gatewayEmail) {
         gwLoginForm.style.display = 'none';
         gwUserInfo.style.display = 'block';
@@ -12612,6 +12652,9 @@ function bindEvents() {
     }
   }
 
+  // 设置页内网关登录态（决定云端模型「未配置 Key」横幅是否显示：已登录账号可走内置模型池）
+  let aiSettingsGwLoggedIn = false;
+
   function updateAiSettingsVisibility() {
     const provider = document.getElementById('ai-provider').value;
     const apiKeyRow = document.getElementById('ai-apikey-row');
@@ -12620,6 +12663,13 @@ function bindEvents() {
     apiKeyRow.style.display = (provider === 'ollama' || provider === 'local') ? 'none' : 'block';
     // 自定义需要 Base URL
     baseUrlRow.style.display = (provider === 'custom') ? 'block' : 'none';
+    // 未配置 Key 明确提示：云端提供商 + 无 Key + 未登录网关账号 → 显示警告横幅
+    const warning = document.getElementById('ai-key-warning');
+    if (warning) {
+      const needsKey = provider !== 'ollama' && provider !== 'local';
+      const keyVal = (document.getElementById('ai-apikey').value || '').trim();
+      warning.style.display = (needsKey && !keyVal && !aiSettingsGwLoggedIn) ? 'block' : 'none';
+    }
   }
 
   // 设置模态框事件
@@ -12628,6 +12678,7 @@ function bindEvents() {
     document.getElementById('settings-close').addEventListener('click', () => { settingsModal.style.display = 'none'; });
     document.getElementById('settings-cancel').addEventListener('click', () => { settingsModal.style.display = 'none'; });
     document.getElementById('ai-provider').addEventListener('change', updateAiSettingsVisibility);
+    document.getElementById('ai-apikey').addEventListener('input', updateAiSettingsVisibility);
     document.getElementById('settings-save').addEventListener('click', async () => {
       const provider = document.getElementById('ai-provider').value;
       const apiKey = document.getElementById('ai-apikey').value.trim();

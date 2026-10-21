@@ -1714,6 +1714,8 @@ input, textarea {
   cursor: pointer;
   transition: all 0.1s;
   text-align: left;
+  display: flex;
+  align-items: center;
 }
 
 .model-option:hover {
@@ -1725,6 +1727,19 @@ input, textarea {
   background: var(--bg-selected);
   color: var(--primary);
   font-weight: 500;
+}
+
+/* 云端模型「未配置 Key」红签 */
+.model-key-tag {
+  font-size: 10px;
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  border-radius: 4px;
+  padding: 0 4px;
+  margin-left: auto;
+  flex-shrink: 0;
+  white-space: nowrap;
+  line-height: 1.5;
 }
 
 /* 发送按钮 */
@@ -2947,6 +2962,8 @@ body.no-open-file .ai-panel {
   cursor: pointer;
   transition: all 0.15s ease;
   text-align: left;
+  display: flex;
+  align-items: center;
 }
 
 .model-option:hover {
