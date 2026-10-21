@@ -91,6 +91,13 @@ class DecisionDataset(torch.utils.data.Dataset):
         ids, labels = self.items[i]
         return {'input_ids': ids, 'labels': labels}
 
+    @property
+    def length(self):
+        """供 Trainer 的 group_by_length 使用（避免它自己遍历整个数据集猜长度）"""
+        if getattr(self, '_lengths', None) is None:
+            self._lengths = [len(x[0]) for x in self.items]
+        return self._lengths
+
 
 def collate(batch, pad_id):
     n = max(len(b['input_ids']) for b in batch)
@@ -189,7 +196,12 @@ def main():
         lr_scheduler_type='cosine',
         warmup_ratio=0.05,
         logging_steps=5,
-        save_strategy='no',
+        # 每个 epoch 结束都存一份 LoRA：可以只跑 1 个 epoch 就先验收，不必等全部跑完
+        save_strategy='epoch',
+        save_total_limit=3,
+        # 长度分组：p50=763 而 max=1917，不分组会有大量 padding 白算（实测明显省时间）
+        group_by_length=True,
+        length_column_name='length',
         bf16=True,
         gradient_checkpointing=True,
         gradient_checkpointing_kwargs={'use_reentrant': False},
