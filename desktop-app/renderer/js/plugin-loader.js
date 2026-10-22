@@ -287,16 +287,194 @@ async function loadPluginsFromRemote(marketURL) {
   return results;
 }
 
+// ============================================================
+// 安装 / 卸载 / 启用禁用（真落盘，重启后仍生效）
+// ------------------------------------------------------------
+// 插件根目录：<userData>/plugins/<id>/plugin.json
+// 启用禁用状态：config.pluginStates.disabled[]（字符串数组）
+// ============================================================
+const PLUGIN_DISABLED = new Set();
+let PLUGIN_ROOT_CACHE = '';
+
+async function getPluginsRoot() {
+  if (PLUGIN_ROOT_CACHE) return PLUGIN_ROOT_CACHE;
+  try {
+    if (window.LabCode && window.LabCode.app && window.LabCode.app.getPath) {
+      const userData = await window.LabCode.app.getPath('userData');
+      if (userData) {
+        PLUGIN_ROOT_CACHE = String(userData).replace(/[\\\/]+$/, '') + '/plugins';
+        return PLUGIN_ROOT_CACHE;
+      }
+    }
+  } catch (e) { /* 忽略 */ }
+  return '';
+}
+
+function joinPath(a, b) {
+  const sep = String(a).includes('/') ? '/' : '\\';
+  return String(a).replace(/[\\\/]+$/, '') + sep + String(b).replace(/^[\\\/]+/, '');
+}
+
+/** 从 config 读取禁用列表（启动时调用一次） */
+async function loadPluginStates() {
+  try {
+    const cfg = await window.LabCode?.config?.get?.() || {};
+    const disabled = cfg?.pluginStates?.disabled;
+    PLUGIN_DISABLED.clear();
+    if (Array.isArray(disabled)) disabled.forEach(id => PLUGIN_DISABLED.add(String(id)));
+    return Array.from(PLUGIN_DISABLED);
+  } catch (e) { return []; }
+}
+
+async function savePluginStates() {
+  try {
+    await window.LabCode?.config?.set?.('pluginStates', { disabled: Array.from(PLUGIN_DISABLED) });
+    return true;
+  } catch (e) { return false; }
+}
+
+/** 递归拷贝目录（跳过 node_modules / .git / 隐藏目录） */
+async function copyDir(fsApi, src, dst) {
+  const r = await fsApi.listDir(src);
+  const files = (r && r.success && Array.isArray(r.files)) ? r.files : [];
+  await fsApi.mkdir(dst);
+  let n = 0;
+  for (const f of files) {
+    if (!f || !f.name || f.name.startsWith('.')) continue;
+    if (f.name === 'node_modules' || f.name === '.git') continue;
+    const s = joinPath(src, f.name);
+    const d = joinPath(dst, f.name);
+    if (f.isDirectory) {
+      n += await copyDir(fsApi, s, d);
+    } else {
+      const cr = await fsApi.copyFile(s, d);
+      if (cr && cr.success) n++;
+    }
+  }
+  return n;
+}
+
+/**
+ * 安装本地插件目录：把 srcDir 拷进插件目录并立即注册。
+ * @param {string} srcDir 含 plugin.json 的目录
+ * @returns {Promise<{success:boolean, id?:string, tools?:number, error?:string}>}
+ */
+async function installFromDir(srcDir) {
+  const fsApi = (typeof window !== 'undefined' && window.LabCode && window.LabCode.fs) || null;
+  if (!fsApi) return { success: false, error: 'window.LabCode.fs 不可用' };
+  if (!srcDir) return { success: false, error: '缺插件目录路径' };
+  try {
+    const manifestPath = joinPath(srcDir, 'plugin.json');
+    const exists = await fsApi.exists(manifestPath);
+    if (!exists) return { success: false, error: '目录内没有 plugin.json: ' + manifestPath };
+    const rr = await fsApi.readFile(manifestPath);
+    if (!rr || !rr.success) return { success: false, error: '读 plugin.json 失败: ' + (rr && rr.error) };
+    let manifest;
+    try {
+      manifest = JSON.parse(rr.content);
+    } catch (e) {
+      return { success: false, error: 'plugin.json 不是合法 JSON: ' + e.message };
+    }
+    if (!manifest || !manifest.id) return { success: false, error: 'plugin.json 缺 id' };
+    const root = await getPluginsRoot();
+    if (!root) return { success: false, error: '拿不到插件目录（userData）' };
+    const dst = joinPath(root, String(manifest.id));
+    const copied = await copyDir(fsApi, srcDir, dst);
+    if (!copied) return { success: false, error: '没有拷贝到任何文件' };
+    const r2 = loadPluginManifest(manifest);
+    return { success: true, id: manifest.id, name: manifest.name || manifest.id, path: dst, tools: r2.loaded.tools, skills: r2.loaded.skills, errors: r2.loaded.errors };
+  } catch (e) {
+    return { success: false, error: '安装失败: ' + e.message };
+  }
+}
+
+/**
+ * 直接用 manifest 对象安装（内置插件走这条：写成 plugin.json 落盘后注册）
+ * @param {object} manifest
+ */
+async function installManifest(manifest) {
+  const fsApi = (typeof window !== 'undefined' && window.LabCode && window.LabCode.fs) || null;
+  if (!fsApi) return { success: false, error: 'window.LabCode.fs 不可用' };
+  if (!manifest || !manifest.id) return { success: false, error: 'manifest 缺 id' };
+  try {
+    const root = await getPluginsRoot();
+    if (!root) return { success: false, error: '拿不到插件目录（userData）' };
+    const dir = joinPath(root, String(manifest.id));
+    await fsApi.mkdir(dir);
+    const wr = await fsApi.writeFile(joinPath(dir, 'plugin.json'), JSON.stringify(manifest, null, 2));
+    if (wr && wr.success === false) return { success: false, error: '写 plugin.json 失败: ' + (wr.error || '') };
+    const r2 = loadPluginManifest(manifest);
+    return { success: true, id: manifest.id, name: manifest.name || manifest.id, path: dir, tools: r2.loaded.tools, skills: r2.loaded.skills };
+  } catch (e) {
+    return { success: false, error: '安装失败: ' + e.message };
+  }
+}
+
+/** 卸载：删目录 + 从运行时注销工具/skills/views */
+async function uninstall(id) {
+  const fsApi = (typeof window !== 'undefined' && window.LabCode && window.LabCode.fs) || null;
+  // 1) 运行时注销
+  for (let i = PLUGIN_TOOL_DEFS.length - 1; i >= 0; i--) {
+    if (PLUGIN_TOOL_DEFS[i]._pluginId === id) PLUGIN_TOOL_DEFS.splice(i, 1);
+  }
+  for (let i = PLUGIN_SKILLS.length - 1; i >= 0; i--) {
+    if (PLUGIN_SKILLS[i].pluginId === id) PLUGIN_SKILLS.splice(i, 1);
+  }
+  for (const k of Array.from(PLUGIN_VIEWS.keys())) {
+    if (k.startsWith(id + ':')) PLUGIN_VIEWS.delete(k);
+  }
+  PLUGIN_REGISTRY.delete(id);
+  PLUGIN_DISABLED.delete(id);
+  await savePluginStates();
+  // 2) 删目录（deleteFile 对目录是递归删）
+  if (fsApi) {
+    try {
+      const root = await getPluginsRoot();
+      if (root) {
+        const dir = joinPath(root, String(id));
+        const ex = await fsApi.exists(dir);
+        if (ex) await fsApi.deleteFile(dir);
+      }
+    } catch (e) { /* 删目录失败不影响运行时卸载 */ }
+  }
+  return { success: true, id };
+}
+
+/** 启用 / 禁用（禁用后工具不再注入给 AI，但插件仍在磁盘上） */
+async function setActive(id, active) {
+  if (!id) return { success: false, error: '缺 id' };
+  if (active) PLUGIN_DISABLED.delete(id); else PLUGIN_DISABLED.add(id);
+  await savePluginStates();
+  return { success: true, id, active: !!active };
+}
+
+function isActive(id) {
+  return !PLUGIN_DISABLED.has(id);
+}
+
 // 暴露到 window 供 app.js 调用
 window.PluginSystem = {
   registerInternalService,
   loadPluginManifest,
   loadPluginsFromDir,
   loadPluginsFromRemote,
-  getToolDef: (name) => PLUGIN_TOOL_DEFS.find(t => t.name === name),
-  allTools: () => PLUGIN_TOOL_DEFS.slice(),
-  allSkills: () => PLUGIN_SKILLS.slice(),
-  listPlugins: () => Array.from(PLUGIN_REGISTRY.values()),
+  // ---- 安装 / 卸载 / 启用禁用 ----
+  getPluginsRoot,
+  installFromDir,
+  installManifest,
+  uninstall,
+  setActive,
+  isActive,
+  loadPluginStates,
+  // 禁用的插件：工具/技能不再注入给 AI（listPlugins 里仍可见，active=false）
+  getToolDef: (name) => {
+    const t = PLUGIN_TOOL_DEFS.find(x => x.name === name);
+    if (!t) return undefined;
+    return PLUGIN_DISABLED.has(t._pluginId) ? undefined : t;
+  },
+  allTools: () => PLUGIN_TOOL_DEFS.filter(t => !PLUGIN_DISABLED.has(t._pluginId)),
+  allSkills: () => PLUGIN_SKILLS.filter(s => !PLUGIN_DISABLED.has(s.pluginId)),
+  listPlugins: () => Array.from(PLUGIN_REGISTRY.values()).map(p => Object.assign({}, p, { active: !PLUGIN_DISABLED.has(p.id) })),
   listViews: () => Array.from(PLUGIN_VIEWS.values()),
   getView: (key) => PLUGIN_VIEWS.get(key),
   // 2026-09-15 对齐 TrieCode settings：插件声明 settings 项 → UI 自动渲染

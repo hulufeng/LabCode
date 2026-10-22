@@ -9915,8 +9915,42 @@ function bindEvents() {
     { id: 'qwen25-coder-3b', name: 'Qwen2.5-Coder 3B（平衡）', description: '通义千问代码模型 3B 量化版，约 2GB 体积，4GB 显存或 8GB 内存即可跑，代码补全和单文件修改的甜点档', version: '1.0.0', author: 'LabCode', icon: '🔧', category: 'ai-model', channels: ['http'], capabilities: ['llm-model', 'code'], requires: 'llama-runtime', modelName: 'qwen2.5-coder-3b-instruct-q4_k_m.gguf', ggufFile: 'qwen2.5-coder-3b-instruct-q4_k_m.gguf', downloadUrl: 'https://modelscope.cn/models/Qwen/Qwen2.5-Coder-3B-Instruct-GGUF/resolve/master/qwen2.5-coder-3b-instruct-q4_k_m.gguf', minRamGB: 6, minDiskGB: 3, recommendedFor: 'entry' },
     { id: 'qwen25-coder-7b', name: 'Qwen2.5-Coder 7B（推荐）', description: '通义千问代码模型 7B，代码生成和调试能力强，AI 编程主力模型，6GB+ 显存或 16GB 内存', version: '1.0.0', author: 'LabCode', icon: '🌟', category: 'ai-model', channels: ['http'], capabilities: ['llm-model', 'code'], requires: 'llama-runtime', modelName: 'qwen2.5-coder-7b-instruct-q4_k_m.gguf', ggufFile: 'qwen2.5-coder-7b-instruct-q4_k_m.gguf', downloadUrl: 'https://modelscope.cn/models/Qwen/Qwen2.5-Coder-7B-Instruct-GGUF/resolve/master/qwen2.5-coder-7b-instruct-q4_k_m.gguf', minRamGB: 8, minDiskGB: 5, recommendedFor: 'medium' },
     { id: 'qwen25-coder-14b', name: 'Qwen2.5-Coder 14B（高性能）', description: '通义千问代码模型 14B，更强的代码理解和生成能力，需 12GB+ 显存或 32GB 内存', version: '1.0.0', author: 'LabCode', icon: '🚀', category: 'ai-model', channels: ['http'], capabilities: ['llm-model', 'code'], requires: 'llama-runtime', modelName: 'qwen2.5-coder-14b-instruct-q4_k_m.gguf', ggufFile: 'qwen2.5-coder-14b-instruct-q4_k_m.gguf', downloadUrl: 'https://modelscope.cn/models/Qwen/Qwen2.5-Coder-14B-Instruct-GGUF/resolve/master/qwen2.5-coder-14b-instruct-q4_k_m.gguf', minRamGB: 16, minDiskGB: 9, recommendedFor: 'high' },
-    { id: 'qwen35-9b', name: 'Qwen3.5-9B（强推理）', description: '通义千问 3.5 系列 9B，代码理解与多步推理更强，支持思考模式，需 10GB+ 显存或 24GB 内存', version: '1.0.0', author: 'LabCode', icon: '🧠', category: 'ai-model', channels: ['http'], capabilities: ['llm-model', 'code', 'reasoning'], requires: 'llama-runtime', modelName: 'Qwen_Qwen3.5-9B-Q4_K_M.gguf', ggufFile: 'Qwen_Qwen3.5-9B-Q4_K_M.gguf', downloadUrl: 'https://modelscope.cn/models/bartowski/Qwen_Qwen3.5-9B-GGUF/resolve/main/Qwen_Qwen3.5-9B-Q4_K_M.gguf', minRamGB: 10, minDiskGB: 7, recommendedFor: 'strong' }
+    { id: 'qwen35-9b', name: 'Qwen3.5-9B（强推理）', description: '通义千问 3.5 系列 9B，代码理解与多步推理更强，支持思考模式，需 10GB+ 显存或 24GB 内存', version: '1.0.0', author: 'LabCode', icon: '🧠', category: 'ai-model', channels: ['http'], capabilities: ['llm-model', 'code', 'reasoning'], requires: 'llama-runtime', modelName: 'Qwen_Qwen3.5-9B-Q4_K_M.gguf', ggufFile: 'Qwen_Qwen3.5-9B-Q4_K_M.gguf', downloadUrl: 'https://modelscope.cn/models/bartowski/Qwen_Qwen3.5-9B-GGUF/resolve/main/Qwen_Qwen3.5-9B-Q4_K_M.gguf', minRamGB: 10, minDiskGB: 7, recommendedFor: 'strong' },
+    { id: 'serial-monitor', name: '串口监视器', description: '列出本机串口、打开/读取/发送数据、崩溃日志分析；装好后 AI 可直接查串口日志', version: '1.0.0', author: 'LabCode', icon: '📟', category: 'tool', channels: ['internal'], capabilities: ['serial', 'debug', 'tool'] },
+    // 工程统计暂不上架：加载该插件会导致渲染进程崩溃，定位前不上线
+    { id: 'demo-echo', name: '插件开发示例', description: '插件系统自带示例（回显参数），验证 manifest → 工具注册 → AI 调用整条链路', version: '1.0.0', author: 'LabCode', icon: '🧩', category: 'tool', channels: ['internal'], capabilities: ['demo', 'tool'] }
   ];
+
+  // ============ 内置可安装插件的真 manifest ============
+  // 与「假安装」说再见：装这些插件时会把 plugin.json 真写到 <userData>/plugins/<id>/，
+  // 并通过 PluginSystem 注册工具（重启后由 loadPluginsFromDir 重新加载，依然生效）。
+  const BUILTIN_PLUGIN_MANIFESTS = {
+    'serial-monitor': {
+      id: 'serial-monitor', name: '串口监视器', version: '1.0.0', icon: '📟', category: 'tool',
+      description: '列出串口、打开/读取/发送数据、崩溃日志分析（走 LabCode 内置串口桥）',
+      tools: [
+        { name: 'list_ports', description: '列出本机可用串口（端口号、VID/PID、板卡名）', parameters: { type: 'object', properties: {} }, category: 'query', transport: 'internal', internal: { service: 'serialport', method: 'list' } },
+        { name: 'open', description: '打开串口开始监听', parameters: { type: 'object', properties: { port: { type: 'string', description: '串口号，如 COM30' }, baud: { type: 'number', description: '波特率，默认 115200' } }, required: ['port'] }, category: 'execute', transport: 'internal', internal: { service: 'serialLog', method: 'open' } },
+        { name: 'tail', description: '读取串口日志末尾 N 行（默认 50）', parameters: { type: 'object', properties: { line: { type: 'number', description: '行数，默认 50' } } }, category: 'query', transport: 'internal', internal: { service: 'serialLog', method: 'tail' } },
+        { name: 'grep', description: '在串口日志中搜索匹配行', parameters: { type: 'object', properties: { pattern: { type: 'string', description: '正则表达式' }, max: { type: 'number', description: '最多返回行数，默认 30' } }, required: ['pattern'] }, category: 'query', transport: 'internal', internal: { service: 'serialLog', method: 'grep' } },
+        { name: 'send', description: '向串口发送数据', parameters: { type: 'object', properties: { data: { type: 'string', description: '要发送的内容' } }, required: ['data'] }, category: 'execute', transport: 'internal', internal: { service: 'serialLog', method: 'send' } },
+        { name: 'close', description: '关闭已打开的串口', parameters: { type: 'object', properties: {} }, category: 'execute', transport: 'internal', internal: { service: 'serialLog', method: 'close' } },
+        { name: 'analyze_crash', description: '分析串口日志中的崩溃信息（重启原因、调用栈线索）', parameters: { type: 'object', properties: {} }, category: 'query', transport: 'internal', internal: { service: 'serialLog', method: 'analyzeCrash' } }
+      ],
+      skills: [
+        { name: 'serial-debug', description: '串口调试流程', prompt: '调试串口问题：先 list_ports 确认端口 → open 打开（波特率按代码里的设置）→ tail/grep 看日志 → 异常重启时 analyze_crash。结束记得 close。', metadata: { keywords: ['串口', 'serial', '日志', '崩溃'] } }
+      ]
+    },
+    // 注意：project-stats 暂不内置 —— 实测加载该插件会让渲染进程崩溃（对照实验确认：
+    // 清空插件目录正常、只放 serial-monitor 正常、放进 project-stats 必崩），原因未定位前不上线。
+    'demo-echo': {
+      id: 'demo-echo', name: '插件开发示例', version: '1.0.0', icon: '🧩', category: 'tool',
+      description: '插件系统自带示例：回显参数，验证 manifest → 工具注册 → AI 调用整条链路',
+      tools: [
+        { name: 'ping', description: '回显传入的参数，用于验证插件链路是否通', parameters: { type: 'object', properties: { text: { type: 'string', description: '任意文本' } } }, category: 'query', transport: 'internal', internal: { service: 'demo', method: 'ping' } }
+      ]
+    }
+  };
 
   // ============ 远程插件市场（真实化：从服务端拉取，内置目录作离线兜底）============
   let remotePlugins = [];
@@ -10040,6 +10074,22 @@ function bindEvents() {
 
   function saveInstalledPlugins() {
     localStorage.setItem('labcode_installed_plugins', JSON.stringify(installedPlugins));
+  }
+
+  /** 插件是否真的在插件系统里注册了（有 manifest 且已加载） */
+  function pluginRegistered(id) {
+    try {
+      return !!(window.PluginSystem && typeof window.PluginSystem.listPlugins === 'function' &&
+        window.PluginSystem.listPlugins().some(p => p.id === id));
+    } catch (e) { return false; }
+  }
+
+  /** 插件是否处于启用状态（禁用后工具不注入给 AI） */
+  function pluginActive(id) {
+    try {
+      if (!window.PluginSystem || typeof window.PluginSystem.isActive !== 'function') return true;
+      return window.PluginSystem.isActive(id);
+    } catch (e) { return true; }
   }
 
   function isPluginInstalled(id) {
@@ -10200,6 +10250,9 @@ function bindEvents() {
         '</div>' +
         '<div style="display:flex;justify-content:flex-end;margin-top:8px;gap:6px;">' +
           (installed ? '<button class="btn btn-danger btn-sm" data-action="uninstall" data-id="' + p.id + '" style="padding:4px 10px;font-size:11px;">卸载</button>' : '') +
+          (installed && pluginRegistered(p.id)
+            ? '<button class="btn btn-secondary btn-sm" data-action="toggle" data-id="' + p.id + '" style="padding:4px 10px;font-size:11px;">' + (pluginActive(p.id) ? '禁用' : '启用') + '</button>'
+            : '') +
           '<button class="btn ' + btnClass + ' btn-sm" data-action="install" data-id="' + p.id + '" ' + btnDisabled + ' style="padding:4px 10px;font-size:11px;">' + btnLabel + '</button>' +
         '</div>' +
       '</div>';
@@ -10216,6 +10269,16 @@ function bindEvents() {
     });
     listEl.querySelectorAll('[data-action="uninstall"]').forEach(btn => {
       btn.addEventListener('click', () => uninstallPlugin(btn.dataset.id));
+    });
+    // 绑定启用/禁用按钮（禁用后插件工具不再注入给 AI）
+    listEl.querySelectorAll('[data-action="toggle"]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.dataset.id;
+        const next = !pluginActive(id);
+        await window.PluginSystem.setActive(id, next);
+        showToast((next ? '已启用：' : '已禁用：') + id, next ? 'success' : 'info');
+        renderPluginsList();
+      });
     });
     } catch (e) {
       console.error('renderPluginsList error:', e);
@@ -10436,16 +10499,20 @@ function bindEvents() {
     if (modal) modal.style.display = 'none';
   }
 
+  /**
+   * 安装插件。返回 {success, error?} —— 调用方（含 AI 工具 install_plugin）必须按返回值汇报，
+   * 不能再靠「是不是刚 push 进 installedPlugins」来判断成功（那是假成功，会骗到 AI）。
+   */
   async function installPlugin(id) {
     const plugin = getAllPlugins().find(p => p.id === id);
-    if (!plugin) return;
-    if (isPluginInstalled(id)) return;
+    if (!plugin) return { success: false, error: '插件不存在: ' + id };
+    if (isPluginInstalled(id)) return { success: false, error: '插件已安装: ' + id };
 
     // 大模型插件：检查依赖
     if (plugin.category === 'ai-model' && plugin.requires) {
       if (!isPluginInstalled(plugin.requires)) {
         showToast('请先安装 LabCode AI 引擎插件', 'warning');
-        return;
+        return { success: false, error: '缺少依赖: 请先安装 ' + plugin.requires };
       }
     }
 
@@ -10546,12 +10613,34 @@ function bindEvents() {
     if (!dlOk) {
       hideInstallModal();
       addOutputLog('安装中止：模型文件不可用（下载失败或不完整），未标记为已安装。可稍后重新点击安装重试', 'warning');
-      return;
+      return { success: false, error: '模型文件不可用（下载失败或不完整）' };
+    }
+
+    // ============================================================
+    // 真安装：把 manifest 落盘到 <userData>/plugins/<id>/plugin.json 并注册工具。
+    // 只有这一步成功，才算「装好了」—— 之后 AI 才能真的调到插件工具。
+    // ============================================================
+    const manifest = BUILTIN_PLUGIN_MANIFESTS[id] || plugin.manifest;
+    let installedTools = 0;
+    if (manifest && window.PluginSystem && typeof window.PluginSystem.installManifest === 'function') {
+      const r = await window.PluginSystem.installManifest(manifest);
+      if (!r || !r.success) {
+        hideInstallModal();
+        const err = (r && r.error) || '未知原因';
+        addOutputLog('插件安装失败：' + err, 'warning');
+        showToast(plugin.name + ' 安装失败：' + err, 'error');
+        return { success: false, error: '插件注册失败: ' + err };
+      }
+      installedTools = r.tools || 0;
+      addOutputLog('插件「' + (r.name || id) + '」已安装：注册 ' + installedTools + ' 个工具、' + (r.skills || 0) + ' 条技能', 'success');
+    } else {
+      // 没有 manifest 的目录条目（如引擎/模型类）：不伪造工具，只做登记，并在日志里说清
+      addOutputLog('注：「' + plugin.name + '」无可安装的插件包（manifest 缺失），仅登记为已安装，不提供插件工具', 'warning');
     }
 
     // 模拟安装过程
     await new Promise(r => setTimeout(r, 800));
-    installedPlugins.push({ ...plugin, installedAt: Date.now() });
+    installedPlugins.push({ ...plugin, installedAt: Date.now(), tools: installedTools });
     saveInstalledPlugins();
     // 安装完成：进度窗 100% 停留 0.8s 后关闭
     setInstallProgress(100, '安装完成');
@@ -10564,15 +10653,21 @@ function bindEvents() {
     if (plugin.category === 'ai-model') {
       refreshLocalModelsInSelector();
     }
+    return { success: true, id, name: plugin.name, tools: installedTools };
   }
 
-  function uninstallPlugin(id) {
+  async function uninstallPlugin(id) {
     const plugin = getAllPlugins().find(p => p.id === id);
+    // 真卸载：删插件目录 + 注销运行时工具/skills
+    if (window.PluginSystem && typeof window.PluginSystem.uninstall === 'function') {
+      await window.PluginSystem.uninstall(id);
+    }
     installedPlugins = installedPlugins.filter(p => p.id !== id);
     saveInstalledPlugins();
     showToast((plugin ? plugin.name : id) + ' 已卸载', 'info');
     renderPluginsList();
     updateCompilerPluginStatus();
+    return { success: true, id };
   }
 
   // ============ 暴露插件 API 给 AI 工具（agent 自主插件管理）============
@@ -10592,11 +10687,29 @@ function bindEvents() {
         return { success: false, error: '缺少依赖: 请先安装 ' + plugin.requires + '（LabCode AI 引擎）' };
       }
       try {
-        await installPlugin(id);
+        // 用 installPlugin 的真实返回值，不再用 isPluginInstalled 兜底（那会掩盖失败、骗过 AI）
+        const r = await installPlugin(id);
+        if (!r || !r.success) return { success: false, id, error: (r && r.error) || '安装失败（未知原因）' };
+        return { success: true, id, name: plugin.name, tools: r.tools || 0 };
       } catch (e) {
         return { success: false, error: '安装执行异常: ' + e.message };
       }
-      return { success: isPluginInstalled(id), id, name: plugin.name, installed: isPluginInstalled(id) };
+    },
+    uninstall: async (id) => {
+      if (!isPluginInstalled(id)) return { success: false, error: '插件未安装: ' + id };
+      return await uninstallPlugin(id);
+    },
+    setActive: async (id, active) => {
+      if (!window.PluginSystem || typeof window.PluginSystem.setActive !== 'function') {
+        return { success: false, error: '插件系统未就绪' };
+      }
+      const r = await window.PluginSystem.setActive(id, !!active);
+      renderPluginsList();
+      return r;
+    },
+    tools: () => {
+      if (!window.PluginSystem || typeof window.PluginSystem.allTools !== 'function') return [];
+      return window.PluginSystem.allTools().map(t => ({ name: t.name, description: t.description, plugin: t._pluginId }));
     }
   };
 
@@ -14145,6 +14258,70 @@ function init() {
           return found ? '已选择 ' + found.port : '未找到匹配端口';
         }
       });
+      // 工程统计服务（project-stats 插件用）：真扫目录，不算行数骗人
+      window.PluginSystem.registerInternalService('projectStats', {
+        summary: async (a) => {
+          try {
+            const root = (a && a.path)
+              ? (a.path.replace(/[\\\/]+$/, '') )
+              : (window.LabCodeUI && window.LabCodeUI.state && window.LabCodeUI.state.projectPath) || (state && state.projectPath);
+            if (!root) return 'Error: 未打开工程，且未传 path';
+            const fsApi = window.LabCode && window.LabCode.fs;
+            if (!fsApi) return 'Error: fs 不可用';
+            const maxFiles = (a && a.maxFiles) || 800;
+            const skipDirs = new Set(['node_modules', '.git', 'build', 'dist', '.pio', '.vscode', '__pycache__', '.labcode']);
+            const byExt = Object.create(null);
+            let files = 0, dirs = 0, bytes = 0, lines = 0, truncated = false;
+            const stack = [root];
+            const sep = String(root).includes('/') ? '/' : '\\';
+            while (stack.length) {
+              const dir = stack.pop();
+              if (files >= maxFiles) { truncated = true; break; }
+              let r;
+              try { r = await fsApi.listDir(dir); } catch (e) { continue; }
+              const items = (r && r.success && Array.isArray(r.files)) ? r.files : [];
+              for (const it of items) {
+                if (!it || !it.name || it.name.startsWith('.')) continue;
+                if (it.isDirectory) {
+                  if (skipDirs.has(it.name)) continue;
+                  dirs++;
+                  stack.push(dir.replace(/[\\\/]+$/, '') + sep + it.name);
+                  continue;
+                }
+                files++;
+                const ext = (it.name.split('.').pop() || '').toLowerCase();
+                const full = dir.replace(/[\\\/]+$/, '') + sep + it.name;
+                try {
+                  const rr = await fsApi.readFile(full);
+                  const content = (rr && rr.content) || '';
+                  const n = content ? content.split('\n').length : 0;
+                  byExt[ext] = byExt[ext] || { files: 0, lines: 0 };
+                  byExt[ext].files++;
+                  byExt[ext].lines += n;
+                  bytes += content.length;
+                  lines += n;
+                } catch (e) {
+                  byExt[ext] = byExt[ext] || { files: 0, lines: 0 };
+                  byExt[ext].files++;
+                }
+                if (files >= maxFiles) { truncated = true; break; }
+              }
+            }
+            const top = Object.entries(byExt).sort((x, y) => y[1].lines - x[1].lines).slice(0, 12);
+            const out = [
+              '工程统计：' + root,
+              `- 文件 ${files} 个 / 目录 ${dirs} 个 / 代码约 ${lines} 行 / 体积约 ${(bytes / 1024).toFixed(1)} KB`,
+              truncated ? `（已达扫描上限 ${maxFiles} 个文件，结果截断）` : '',
+              '',
+              '按类型：'
+            ].concat(top.map(([ext, v]) => `  .${ext}: ${v.files} 个文件，${v.lines} 行`));
+            return out.join('\n');
+          } catch (e) {
+            return 'Error: 统计失败: ' + e.message;
+          }
+        }
+      });
+
       // clangd LSP 客户端（真接 LSP over stdio）
       const clangdSvc = {
         async _ensureStarted() {
@@ -14322,6 +14499,11 @@ function init() {
       const userData = await window.LabCode.app.getPath('userData');
       if (!userData) { addOutputLog('插件系统：拿不到 userData 路径，跳过', 'warn'); return; }
       const pluginsRoot = userData.replace(/[\\\/]$/, '') + '/plugins';
+      // 先读启用/禁用状态，再加载插件（禁用插件的工具不会被注入给 AI）
+      if (typeof window.PluginSystem.loadPluginStates === 'function') {
+        const disabled = await window.PluginSystem.loadPluginStates();
+        if (disabled && disabled.length) addOutputLog('插件系统：已禁用 ' + disabled.length + ' 个插件（' + disabled.join(', ') + '）', 'warn');
+      }
       const r = await window.PluginSystem.loadPluginsFromDir(pluginsRoot);
       // 远程市场（GitHub raw）—— 优先于本地，覆盖同 id
       let marketURL = '';
