@@ -2833,13 +2833,19 @@ function setupIPC() {
       engineProcess.on('exit', () => { engineProcess = null; currentEngineModel = null; });
 
       // 绛夊緟寮曟搸灏辩华锛堟渶澶? 60s锛屽ぇ妯″瀷鍔犺浇闇€鏃堕棿锛?
-      for (let i = 0; i < 60; i++) {
+      // Wait up to 180s: first load of a cold model (plus a LoRA adapter) can take well
+      // over the old 60s window, e.g. when the disk is busy.
+      for (let i = 0; i < 180; i++) {
         await new Promise(r => setTimeout(r, 1000));
         if (await isEngineRunning()) {
           currentEngineModel = path.basename(modelPath);
           return { success: true, model: path.basename(modelPath), url: 'http://127.0.0.1:8080/v1' };
         }
       }
+      // Timeout: kill the half-started process, otherwise it keeps holding port 8080
+      // and every later start attempt fails the same way.
+      if (engineProcess) { try { engineProcess.kill(); } catch (e) {} engineProcess = null; }
+      currentEngineModel = null;
     return { success: false, error: 'engine start timeout (model loading slow or out of memory)' };
     } catch (e) {
       return { success: false, error: '鍚姩寮曟搸澶辫触: ' + redactError(e.message || String(e)) };
