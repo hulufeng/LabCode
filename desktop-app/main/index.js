@@ -876,7 +876,7 @@ function setupIPC() {
           }
           return { success: false, error: `网关返回 ${gwResp.status}: ${(gwData.error || '')}` };
         }
-        return { success: true, content: gwData.content || '', creditsLeft: gwData.creditsLeft, cost: gwData.cost, totalTokens: gwData.totalTokens, model: useModel, gateway: true };
+        return { success: true, content: gwData.content || '', creditsLeft: gwData.creditsLeft, dailyRemaining: gwData.dailyRemaining, cost: gwData.cost, totalTokens: gwData.totalTokens, model: useModel, gateway: true };
       }
 
       const url = baseURL.replace(/\/$/, '') + '/chat/completions';
@@ -1166,7 +1166,7 @@ function setupIPC() {
         if (activeAiStreams.get(runId)) { activeAiStreams.delete(runId); break; }
         // 网关事件行（event: credits / event: error锛夐€忎紶缁?renderer
         if (evt._event === 'credits') {
-          send('credits', { used: evt.used, totalTokens: evt.totalTokens, remaining: evt.remaining });
+          send('credits', { used: evt.used, totalTokens: evt.totalTokens, remaining: evt.remaining, dailyRemaining: evt.dailyRemaining });
           continue;
         }
         if (evt._event === 'error') {
@@ -1322,7 +1322,7 @@ function setupIPC() {
             if (isGateway) {
               // 网关非流式响应：{ content, creditsLeft, cost, totalTokens }
               const gwContent = data?.content || '';
-              send('credits', { used: data?.cost || 0, totalTokens: data?.totalTokens || 0, remaining: data?.creditsLeft || 0 });
+              send('credits', { used: data?.cost || 0, totalTokens: data?.totalTokens || 0, remaining: data?.creditsLeft || 0, dailyRemaining: data?.dailyRemaining });
               send('done', { content: gwContent, toolCalls: [] });
               return { success: true, content: gwContent, toolCalls: [] };
             }
@@ -1447,7 +1447,7 @@ function setupIPC() {
         return {
           success: true,
           action,
-          user: { email: u.email, totalCredits: u.totalCredits, planCredits: u.planCredits, rechargeCredits: u.rechargeCredits }
+          user: { email: u.email, totalCredits: u.totalCredits, planCredits: u.planCredits, rechargeCredits: u.rechargeCredits, dailyRemaining: u.dailyRemaining, dailyUsed: u.dailyUsed }
         };
       }
       if (action === 'me') {
@@ -1457,7 +1457,7 @@ function setupIPC() {
         const data = await res.json().catch(() => ({}));
         if (!res.ok) return { success: false, error: data.error || `网关返回 ${res.status}` };
         const u = data.user || {};
-        return { success: true, user: { email: u.email, totalCredits: u.totalCredits, planCredits: u.planCredits, rechargeCredits: u.rechargeCredits } };
+        return { success: true, user: { email: u.email, totalCredits: u.totalCredits, planCredits: u.planCredits, rechargeCredits: u.rechargeCredits, dailyRemaining: u.dailyRemaining, dailyUsed: u.dailyUsed } };
       }
       if (action === 'logout') {
         const aiCfg = config.ai || {};

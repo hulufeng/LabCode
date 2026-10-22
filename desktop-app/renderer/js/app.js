@@ -5665,15 +5665,23 @@ class AgentRunner {
           updateThinkingContent(this.thinkingBlockId, delta);
         }
       };
-      // 网关账号事件：登录态变化时刷新账号徽标（积分暂不展示）
+      // 网关流式 credits 事件：直接用服务端下发的今日剩余积分更新徽标（不再多打一次 /api/me）
       this.ai.onCredits = (evt) => {
-        try { refreshCreditsBadge(); } catch (e) {}
+        if (evt && typeof evt.dailyRemaining === 'number') {
+          try { updateDailyCredits(evt.dailyRemaining); } catch (e) {}
+        } else {
+          try { refreshCreditsBadge(); } catch (e) {}
+        }
       };
       const result = await this.ai.generateResponse(lastUserMsg?.content || userInput, this.messages);
       this.ai.onStreamDelta = null;
       this.ai.onStreamDeltaReset = null;
       this.ai.onThinkingDelta = null;
       this.ai.onCredits = null;
+      // 非流式路径：从响应里直接取今日剩余积分
+      if (result && typeof result.dailyRemaining === 'number') {
+        try { updateDailyCredits(result.dailyRemaining); } catch (e) {}
+      }
       const duration = ((Date.now() - startTime) / 1000).toFixed(1);
 
       // 思考块：只展示模型真实推理。没有真实推理（或 AI 已降级）时不再伪造「分析用户需求」模板，
@@ -13033,15 +13041,17 @@ function bindEvents() {
         try { cfg = await window.LabCode.config.get(); } catch (e) {}
       }
       const ai = cfg.ai || {};
-      if (!ai.gatewayToken) { updateCreditsBadge(null); return; }
+      if (!ai.gatewayToken) { updateCreditsBadge(null); updateDailyCredits(null); return; }
       // 先用本地缓存邮箱回显，再校验登录态
       if (ai.gatewayEmail) { updateCreditsBadge(ai.gatewayEmail); }
       if (window.LabCode && window.LabCode.ai && window.LabCode.ai.gatewayAuth) {
         const r = await window.LabCode.ai.gatewayAuth({ action: 'me' });
         if (r && r.success && r.user && r.user.email) {
           updateCreditsBadge(r.user.email);
+          updateDailyCredits(r.user.dailyRemaining);
         } else {
           updateCreditsBadge(null);
+          updateDailyCredits(null);
         }
       }
     } catch (e) { console.warn('[账号徽标] 刷新失败:', e); }
@@ -15191,6 +15201,33 @@ if (document.readyState === 'loading') {
 
 })();
 
+
+// ============ 今日剩余积分徽标（顶层作用域：AI 顶栏与聊天回调都要调用）============
+// remaining 为数字时更新徽标；非数字（未登录 / 本地 / 自带 Key）则隐藏
+function updateDailyCredits(remaining) {
+  try {
+    const badge = document.getElementById('gw-daily-badge');
+    if (!badge) return;
+    if (typeof remaining !== 'number') { badge.style.display = 'none'; return; }
+    badge.style.display = 'inline-flex';
+    if (remaining <= 0) {
+      badge.textContent = '今日积分已用完 · 填 Key 继续';
+      badge.style.color = '#EA6668';
+      badge.style.background = 'rgba(234,102,104,0.12)';
+      badge.style.borderColor = 'rgba(234,102,104,0.35)';
+    } else if (remaining <= 20) {
+      badge.textContent = '今日剩余 ' + remaining + ' 积分（快用完）';
+      badge.style.color = '#E8A33D';
+      badge.style.background = 'rgba(232,163,61,0.12)';
+      badge.style.borderColor = 'rgba(232,163,61,0.35)';
+    } else {
+      badge.textContent = '今日剩余 ' + remaining + ' 积分';
+      badge.style.color = '#059669';
+      badge.style.background = 'rgba(5,150,105,0.12)';
+      badge.style.borderColor = 'rgba(5,150,105,0.35)';
+    }
+  } catch (e) {}
+}
 
 // ============ 自带 Key（BYOK）引导卡：AI 不可用时在对话区给出一键入口 ============
 function appendByokCard(title) {
