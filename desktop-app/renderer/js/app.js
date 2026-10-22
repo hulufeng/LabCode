@@ -5669,8 +5669,8 @@ class AgentRunner {
       this.ai.onCredits = (evt) => {
         if (evt && typeof evt.dailyRemaining === 'number') {
           try { updateDailyCredits(evt.dailyRemaining); } catch (e) {}
-        } else {
-          try { refreshCreditsBadge(); } catch (e) {}
+        } else if (typeof window.__labCreditsRefresh === 'function') {
+          try { window.__labCreditsRefresh(); } catch (e) {}
         }
       };
       const result = await this.ai.generateResponse(lastUserMsg?.content || userInput, this.messages);
@@ -5682,6 +5682,8 @@ class AgentRunner {
       if (result && typeof result.dailyRemaining === 'number') {
         try { updateDailyCredits(result.dailyRemaining); } catch (e) {}
       }
+      // 兜底：对话结束后统一同步一次徽标，不依赖 SSE credits 事件是否送达（异步，不阻塞）
+      try { if (typeof window.__labCreditsRefresh === 'function') window.__labCreditsRefresh(); } catch (e) {}
       const duration = ((Date.now() - startTime) / 1000).toFixed(1);
 
       // 思考块：只展示模型真实推理。没有真实推理（或 AI 已降级）时不再伪造「分析用户需求」模板，
@@ -13057,6 +13059,9 @@ function bindEvents() {
       }
     } catch (e) { console.warn('[账号徽标] 刷新失败:', e); }
   }
+  // 暴露到全局：聊天回调在 IIFE 外部，直接引用会因作用域报错被吞掉
+  // （这正是历史上"积分暂不展示"的根因，之前那句 refreshCreditsBadge() 一直是静默失败）
+  try { window.__labCreditsRefresh = refreshCreditsBadge; } catch (e) {}
 
   // 徽标点击 → 未登录弹登录卡片（对齐 TrieCode 可选登录）；已登录打开设置面板
   document.addEventListener('click', (e) => {
