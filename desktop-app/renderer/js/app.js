@@ -11245,13 +11245,8 @@ function bindEvents() {
   
   // 模型选择器（修复：写入真实配置 ai.provider/ai.model，初始化从配置回显）
   const MODEL_MAP = {
+    // 云端：只保留网关真实可用的模型（其余未配上游 Key，选了只会报"暂未配置"，已下架）
     'siliconflow':    { provider: 'custom',   model: 'Qwen/Qwen3-8B',       baseURL: 'https://api.siliconflow.cn/v1', label: '硅基流动 Qwen3-8B（免费）' },
-    'deepseek-flash': { provider: 'deepseek', model: 'deepseek-chat',      label: 'DeepSeek FLASH' },
-    'deepseek-v4':    { provider: 'deepseek', model: 'deepseek-reasoner',  label: 'DeepSeek V4' },
-    'qwen':           { provider: 'custom',   model: 'qwen-plus',          baseURL: 'https://dashscope.aliyuncs.com/compatible-mode/v1', label: '通义千问 Qwen' },
-    'minimax':        { provider: 'custom',   model: 'MiniMax-M2',         baseURL: 'https://api.minimax.chat/v1', label: 'MiniMax M3' },
-    'glm':            { provider: 'custom',   model: 'glm-4-plus',         baseURL: 'https://open.bigmodel.cn/api/paas/v4', label: '智谱 GLM-5.2' },
-    'doubao':         { provider: 'custom',   model: 'doubao-pro-4k',      baseURL: 'https://ark.cn-beijing.volces.com/api/v3', label: '豆包' },
     'ollama':         { provider: 'ollama',   model: 'qwen2.5-coder:7b',   label: 'Ollama 本地模型' },
     'local':          { provider: 'local',    model: '',                   label: '本地 AI 引擎' }
   };
@@ -11266,8 +11261,9 @@ function bindEvents() {
           const ai = cfg?.ai || {};
           // 网关已登录（云端通道）：按 ai.model 显示对应云端模型（与切换逻辑 GATEWAY_MODEL_MAP 对齐）
           if (ai.gatewayToken && (ai.provider === 'gateway' || !ai.provider)) {
-            const GW_LABELS = { 'deepseek-flash': 'DeepSeek FLASH', 'deepseek-pro': 'DeepSeek V4', 'minimax-m3': 'MiniMax M2.7', 'qwen3-8b': '硅基流动 Qwen3-8B（免费）' };
-            const GW_KEYS = { 'deepseek-flash': 'deepseek-flash', 'deepseek-pro': 'deepseek-v4', 'minimax-m3': 'minimax', 'qwen3-8b': 'siliconflow' };
+            // 网关云端通道：只保留真实可用的模型；旧配置里残留的其它 ai.model 一律回退到 qwen3-8b
+            const GW_LABELS = { 'qwen3-8b': '硅基流动 Qwen3-8B（免费）' };
+            const GW_KEYS = { 'qwen3-8b': 'siliconflow' };
             // 网关用户默认选中硅基流动 Qwen3-8B（免费，开箱即用）；其余模型未配 Key 时回退到此
             const mdl = (ai.model && GW_KEYS[ai.model]) ? ai.model : 'qwen3-8b';
             const gwLabel = GW_LABELS[mdl];
@@ -11297,6 +11293,10 @@ function bindEvents() {
               document.getElementById('current-model-name').textContent = MODEL_MAP[matchedKey].label;
               document.querySelectorAll('.model-option').forEach(o =>
                 o.classList.toggle('active', o.dataset.model === matchedKey));
+            } else if (ai.provider === 'custom' && ai.model) {
+              // 自带 Key（BYOK）用户：显示自己配置的模型名，避免误显示成"Ollama 本地模型"
+              document.getElementById('current-model-name').textContent = ai.model + '（自定义）';
+              document.querySelectorAll('.model-option').forEach(o => o.classList.remove('active'));
             } else {
               // 未匹配到，默认显示 Ollama（同步下拉高亮，避免按钮与列表状态不一致）
               document.getElementById('current-model-name').textContent = 'Ollama 本地模型';
@@ -11361,19 +11361,13 @@ function bindEvents() {
             const curCfg = await window.LabCode.config.get();
             const hasGw = !!(curCfg?.ai?.gatewayToken);
             const isCloudMapping = (mapping.provider === 'deepseek' || mapping.provider === 'custom');
-            // 云端模型 → 网关模型 id 映射（对齐网关 models.json）
+            // 云端模型 → 网关模型 id 映射（对齐网关 models.json；只保留真实可用的）
             const GATEWAY_MODEL_MAP = {
-              'siliconflow': 'qwen3-8b',
-              'deepseek-flash': 'deepseek-flash',
-              'deepseek-v4': 'deepseek-pro',
-              'qwen': 'deepseek-flash',
-              'minimax': 'minimax-m3',
-              'glm': 'deepseek-pro',
-              'doubao': 'deepseek-flash'
+              'siliconflow': 'qwen3-8b'
             };
             if (hasGw && isCloudMapping) {
               await window.LabCode.config.set('ai.provider', 'gateway');
-              await window.LabCode.config.set('ai.model', GATEWAY_MODEL_MAP[modelKey] || 'deepseek-flash');
+              await window.LabCode.config.set('ai.model', GATEWAY_MODEL_MAP[modelKey] || 'qwen3-8b');
             } else {
               await window.LabCode.config.set('ai.provider', mapping.provider);
               await window.LabCode.config.set('ai.model', mapping.model);
