@@ -11457,6 +11457,10 @@ function bindEvents() {
 
       dropdown.appendChild(group);
 
+      // 本地模型分组重新渲染后，把「＋ 添加模型」入口挪回末尾
+      const addEntry = document.getElementById('model-add-entry');
+      if (addEntry) dropdown.appendChild(addEntry);
+
       // 回显配置中的本地模型：如果当前配置是 local，选中对应选项
       try {
         if (window.LabCode && window.LabCode.config) {
@@ -15135,6 +15139,15 @@ if (document.readyState === 'loading') {
     if (byokCancel) byokCancel.addEventListener('click', closeByokModal);
     if (byokSave) byokSave.addEventListener('click', applyByok);
     if (byokModal) byokModal.addEventListener('click', (e) => { if (e.target === byokModal) closeByokModal(); });
+
+    // 模型下拉菜单末尾的「＋ 添加模型」：直接弹一步配置弹窗
+    const modelAdd = document.getElementById('model-add-entry');
+    if (modelAdd) modelAdd.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const dd = document.getElementById('model-dropdown');
+      if (dd) dd.style.display = 'none';
+      openByokModal();
+    });
 
     // 服务商快捷填充：填好 baseURL 与模型名，并给出申请 Key 的官网链接
     document.querySelectorAll('.byok-preset').forEach(b => {
