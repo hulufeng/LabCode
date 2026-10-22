@@ -11235,6 +11235,7 @@ function bindEvents() {
   
   // 模型选择器（修复：写入真实配置 ai.provider/ai.model，初始化从配置回显）
   const MODEL_MAP = {
+    'siliconflow':    { provider: 'custom',   model: 'Qwen/Qwen3-8B',       baseURL: 'https://api.siliconflow.cn/v1', label: '硅基流动 Qwen3-8B（免费）' },
     'deepseek-flash': { provider: 'deepseek', model: 'deepseek-chat',      label: 'DeepSeek FLASH' },
     'deepseek-v4':    { provider: 'deepseek', model: 'deepseek-reasoner',  label: 'DeepSeek V4' },
     'qwen':           { provider: 'custom',   model: 'qwen-plus',          baseURL: 'https://dashscope.aliyuncs.com/compatible-mode/v1', label: '通义千问 Qwen' },
@@ -11255,13 +11256,18 @@ function bindEvents() {
           const ai = cfg?.ai || {};
           // 网关已登录（云端通道）：按 ai.model 显示对应云端模型（与切换逻辑 GATEWAY_MODEL_MAP 对齐）
           if (ai.gatewayToken && (ai.provider === 'gateway' || !ai.provider)) {
-            const GW_LABELS = { 'deepseek-flash': 'DeepSeek FLASH', 'deepseek-pro': 'DeepSeek V4', 'minimax-m3': 'MiniMax M2.7' };
-            const GW_KEYS = { 'deepseek-flash': 'deepseek-flash', 'deepseek-pro': 'deepseek-v4', 'minimax-m3': 'minimax' };
-            const gwLabel = GW_LABELS[ai.model] || '云端模型';
-            const gwKey = GW_KEYS[ai.model];
+            const GW_LABELS = { 'deepseek-flash': 'DeepSeek FLASH', 'deepseek-pro': 'DeepSeek V4', 'minimax-m3': 'MiniMax M2.7', 'qwen3-8b': '硅基流动 Qwen3-8B（免费）' };
+            const GW_KEYS = { 'deepseek-flash': 'deepseek-flash', 'deepseek-pro': 'deepseek-v4', 'minimax-m3': 'minimax', 'qwen3-8b': 'siliconflow' };
+            // 网关用户默认选中硅基流动 Qwen3-8B（免费，开箱即用）；其余模型未配 Key 时回退到此
+            const mdl = (ai.model && GW_KEYS[ai.model]) ? ai.model : 'qwen3-8b';
+            const gwLabel = GW_LABELS[mdl];
+            const gwKey = GW_KEYS[mdl];
             document.getElementById('current-model-name').textContent = gwLabel + '（云端）';
             document.querySelectorAll('.model-option').forEach(o =>
               o.classList.toggle('active', !!gwKey && o.dataset.model === gwKey));
+            if (mdl === 'qwen3-8b' && ai.model !== 'qwen3-8b') {
+              try { window.LabCode.config.set('ai.model', 'qwen3-8b'); } catch (e) {}
+            }
             const wsGw = document.querySelector('.model-status-text');
             if (wsGw) wsGw.textContent = `当前模型：${gwLabel}（云端）`;
           } else if ((ai.provider === 'ollama' || ai.provider === 'local') && ai.model) {
@@ -11347,6 +11353,7 @@ function bindEvents() {
             const isCloudMapping = (mapping.provider === 'deepseek' || mapping.provider === 'custom');
             // 云端模型 → 网关模型 id 映射（对齐网关 models.json）
             const GATEWAY_MODEL_MAP = {
+              'siliconflow': 'qwen3-8b',
               'deepseek-flash': 'deepseek-flash',
               'deepseek-v4': 'deepseek-pro',
               'qwen': 'deepseek-flash',
