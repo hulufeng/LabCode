@@ -10785,7 +10785,7 @@ function bindEvents() {
           showToast('解压失败：' + ((uz && uz.error) || '未知原因'), 'error');
           return;
         }
-        const dir = await findManifestDir(tmpDir, 3);
+        const dir = await window.PluginSystem.findManifestDir(tmpDir, 3);
         if (!dir) {
           showToast('ZIP 里没找到 plugin.json', 'error');
           addOutputLog('ZIP 安装失败：包内没有 plugin.json', 'warning');
@@ -10806,28 +10806,6 @@ function bindEvents() {
         if (tmpDir) { try { await window.LabCode.fs.deleteFile(tmpDir); } catch (e) { /* 清理失败无所谓 */ } }
       }
     });
-  }
-
-  /** 在解压目录里递归找含 plugin.json 的目录（ZIP 常把内容包在一层子目录里） */
-  async function findManifestDir(dir, maxDepth) {
-    const fsApi = window.LabCode && window.LabCode.fs;
-    if (!fsApi) return null;
-    const sep = String(dir).includes('/') ? '/' : '\\';
-    const walk = async (d, depth) => {
-      let r;
-      try { r = await fsApi.listDir(d); } catch (e) { return null; }
-      const items = (r && r.success && Array.isArray(r.files)) ? r.files : [];
-      if (items.some(it => it && it.name === 'plugin.json')) return d;
-      if (depth >= (maxDepth || 3)) return null;
-      for (const it of items) {
-        if (it && it.isDirectory && !String(it.name).startsWith('.')) {
-          const found = await walk(d.replace(/[\\\/]+$/, '') + sep + it.name, depth + 1);
-          if (found) return found;
-        }
-      }
-      return null;
-    };
-    try { return await walk(dir, 0); } catch (e) { return null; }
   }
 
   /** 安装成功后把插件登记进「已安装」列表（市场里没有的第三方插件也要能显示） */

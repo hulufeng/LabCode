@@ -431,6 +431,33 @@ async function installFromDir(srcDir) {
 }
 
 /**
+ * 在目录里递归找含 plugin.json 的目录（ZIP 解压后常多包一层目录）
+ * @param {string} dir 起始目录
+ * @param {number} maxDepth 最大递归深度
+ * @returns {Promise<string|null>}
+ */
+async function findManifestDir(dir, maxDepth) {
+  const fsApi = (typeof window !== 'undefined' && window.LabCode && window.LabCode.fs) || null;
+  if (!fsApi || !dir) return null;
+  const sep = String(dir).includes('/') ? '/' : '\\';
+  const walk = async (d, depth) => {
+    let r;
+    try { r = await fsApi.listDir(d); } catch (e) { return null; }
+    const items = (r && r.success && Array.isArray(r.files)) ? r.files : [];
+    if (items.some(it => it && it.name === 'plugin.json')) return d;
+    if (depth >= (maxDepth || 3)) return null;
+    for (const it of items) {
+      if (it && it.isDirectory && !String(it.name).startsWith('.')) {
+        const found = await walk(String(d).replace(/[\\\/]+$/, '') + sep + it.name, depth + 1);
+        if (found) return found;
+      }
+    }
+    return null;
+  };
+  try { return await walk(dir, 0); } catch (e) { return null; }
+}
+
+/**
  * 直接用 manifest 对象安装（内置插件走这条：写成 plugin.json 落盘后注册）
  * @param {object} manifest
  */
@@ -502,6 +529,7 @@ window.PluginSystem = {
   loadPluginsFromRemote,
   // ---- 安装 / 卸载 / 启用禁用 ----
   getPluginsRoot,
+  findManifestDir,
   getViews: () => Array.from(PLUGIN_VIEWS.values()),
   installFromDir,
   installManifest,
