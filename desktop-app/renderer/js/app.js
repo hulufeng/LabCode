@@ -5702,6 +5702,8 @@ class AgentRunner {
       if (result.degraded) {
         this._emitDiffSummary();
         this._emitWorkStatus('done');
+        // 给出自带 Key 的一键入口（BYOK），用户不用自己去设置里翻
+        try { appendByokCard('用自己的 API Key 继续'); } catch (e) {}
         return;
       }
 
@@ -15016,6 +15018,34 @@ if (document.readyState === 'loading') {
     });
   }
 
+  // ===== BYOK 引导：从对话区一键跳到「自定义 API」并聚焦 Key 输入框 =====
+  function openByokSetup() {
+    try {
+      // AI 引擎设置在**左侧栏的设备面板**里（不是底部面板）。设备面板默认 display:none，
+      // 不先切过去的话整条祖先链是隐藏的，focus() 会静默失败。
+      try { if (typeof switchPanel === 'function') switchPanel('device', 'byok'); } catch (e) {}
+      const dp = document.getElementById('device-panel');
+      if (dp && dp.style.display !== 'flex') dp.style.display = 'flex';
+      const tab = document.querySelector('.device-tab[data-tab="settings"]');
+      if (tab) tab.click();
+      const radio = document.getElementById('ai-prov-custom');
+      if (radio) { radio.checked = true; }
+      const fields = document.getElementById('custom-api-fields');
+      if (fields) fields.style.display = 'block';
+      const keyInput = document.getElementById('custom-apikey');
+      const anchor = document.getElementById('ai-prov-custom');
+      // 底部面板切换有渲染延迟，分几次重试聚焦，确保光标落在 Key 输入框
+      [60, 200, 500].forEach(ms => setTimeout(() => {
+        if (anchor && anchor.scrollIntoView) anchor.scrollIntoView({ block: 'center' });
+        if (keyInput && keyInput.offsetParent !== null) keyInput.focus();
+      }, ms));
+      showToast('填入你自己的 API Key 即可使用（只保存在本机）', 'info');
+    } catch (e) {
+      console.warn('[BYOK] 打开引导失败:', e.message);
+    }
+  }
+  window.__labByok = { open: openByokSetup };
+
   __onDCL( () => {
     loadAIConfig();
     // 显示自定义 API 字段
@@ -15027,9 +15057,64 @@ if (document.readyState === 'loading') {
     });
     const btn = document.getElementById('save-ai-config');
     if (btn) btn.addEventListener('click', saveAIConfig);
+
+    // 服务商快捷填充：填好 baseURL 与模型名，并给出申请 Key 的官网链接
+    document.querySelectorAll('.byok-preset').forEach(b => {
+      b.addEventListener('click', () => {
+        const bu = document.getElementById('custom-baseurl');
+        const md = document.getElementById('custom-model');
+        if (bu) bu.value = b.dataset.base || '';
+        if (md) md.value = b.dataset.model || '';
+        const radio = document.getElementById('ai-prov-custom');
+        if (radio) radio.checked = true;
+        const fields = document.getElementById('custom-api-fields');
+        if (fields) fields.style.display = 'block';
+        const hint = document.getElementById('byok-home-link');
+        if (hint) {
+          hint.innerHTML = '去 <a href="#" class="byok-home" data-url="' + (b.dataset.home || '') + '" style="color:#4caf50;text-decoration:none;">' +
+            b.textContent + ' 官网</a> 申请 API Key，粘贴到上面的 Key 输入框后保存。';
+          const a = hint.querySelector('.byok-home');
+          if (a) a.addEventListener('click', (ev) => {
+            ev.preventDefault();
+            try { window.LabCode.shell.openExternal(a.dataset.url); } catch (e) {}
+          });
+        }
+        const keyInput = document.getElementById('custom-apikey');
+        if (keyInput) keyInput.focus();
+      });
+    });
+
+    const pl = document.getElementById('privacy-link');
+    if (pl) pl.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      try { window.LabCode.shell.openExternal('https://bluebubai.work/privacy.html'); } catch (e) {}
+    });
   });
 
 })();
+
+
+// ============ 自带 Key（BYOK）引导卡：AI 不可用时在对话区给出一键入口 ============
+function appendByokCard(title) {
+  const area = document.getElementById('ai-chat-area');
+  if (!area || !window.__labByok) return;
+  const card = document.createElement('div');
+  card.className = 'chat-message ai';
+  card.innerHTML =
+    '<div class="chat-avatar" style="background:linear-gradient(135deg,#059669,#10b981);">🔑</div>' +
+    '<div class="chat-bubble" style="max-width:420px;">' +
+      '<div style="font-size:13px;font-weight:600;margin-bottom:6px;">' + (title || '用自己的 API Key 继续') + '</div>' +
+      '<div style="font-size:12px;opacity:.85;line-height:1.7;margin-bottom:10px;">' +
+        '填一个你自己的模型 API Key 就能直接用，密钥只存本机，不经过 LabCode 服务器。' +
+        '智谱 GLM、硅基流动都有免费模型。' +
+      '</div>' +
+      '<button id="byok-cta-btn" style="padding:7px 14px;background:#059669;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">填写我的 API Key</button>' +
+    '</div>';
+  area.appendChild(card);
+  area.scrollTop = area.scrollHeight;
+  const b = card.querySelector('#byok-cta-btn');
+  if (b) b.addEventListener('click', () => window.__labByok.open());
+}
 
 
 // ============ Ollama 一键安装流程 ============
