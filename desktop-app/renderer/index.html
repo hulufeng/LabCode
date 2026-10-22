@@ -1624,25 +1624,6 @@
   <script src="js/dashboard-panel.js"></script>
   <script src="js/ghost-completion.js"></script>
 
-<!-- 首次启动引导 -->
-<div id="welcome-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:var(--modal-backdrop);z-index:10000;align-items:center;justify-content:center;">
-  <div style="background:var(--surface-1);border:1px solid var(--border);border-radius:12px;padding:32px;max-width:480px;width:90%;text-align:center;">
-    <div style="font-size:24px;margin-bottom:8px;">👋</div>
-    <div style="font-size:18px;font-weight:600;color:var(--text-primary);margin-bottom:8px;">欢迎使用 LabCode</div>
-    <div style="font-size:13px;color:var(--text-secondary);margin-bottom:24px;line-height:1.6;">你的 AI 编程助手。选择一个模型开始：</div>
-    <div style="display:flex;flex-direction:column;gap:10px;">
-      <button id="welcome-cloud" style="padding:14px;background:linear-gradient(135deg,#4caf50,#2e7d32);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;">
-        ☁️ 直接开始（推荐）
-        <div style="font-size:11px;font-weight:400;opacity:0.9;margin-top:2px;">零配置，云端算力，立即体验</div>
-      </button>
-      <button id="welcome-local" style="padding:14px;background:var(--surface-3);color:var(--text-primary);border:1px solid var(--border-medium);border-radius:8px;font-size:14px;cursor:pointer;">
-        🖥️ 配置本地模型
-        <div style="font-size:11px;opacity:0.7;margin-top:2px;">数据不出本机，需下载 Ollama</div>
-      </button>
-    </div>
-    <div style="font-size:11px;color:var(--text-tertiary);margin-top:16px;">之后可以在 设置 → AI 引擎 中随时切换</div>
-  </div>
-</div>
   <!-- 首屏登录（对齐 TrieCode 登录界面：内容居中、无卡片盒子、max-width 320、字段带 label、标签 pill） -->
   <div id="gw-login-overlay" style="display:none;position:absolute;inset:0;z-index:60;background:transparent;align-items:center;justify-content:center;padding:24px 24px 24px 452px;overflow:auto;pointer-events:none;">
     <div style="width:100%;max-width:320px;pointer-events:auto;">
