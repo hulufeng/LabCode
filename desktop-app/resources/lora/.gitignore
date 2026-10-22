@@ -1,0 +1,4 @@
+# LoRA 适配器是 114MB 二进制，不入库（github 上传极慢）。
+# 生成方式见 finetune/README.md：
+#   python convert_lora_to_gguf.py out_win2\lora --outfile resources\lora\tools-lora-f16.gguf --outtype f16
+*.gguf

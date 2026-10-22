@@ -97,11 +97,15 @@ def load_grammar(verbose=True):
     return g
 
 
-def start_server(model):
+def start_server(model, lora=None):
+    """lora：可选，GGUF 格式的 LoRA 适配器（llama.cpp 挂载到基座模型上，省 1.8GB 体积）"""
     subprocess.run(['taskkill', '/F', '/IM', 'llama-server.exe'], capture_output=True)
     time.sleep(1)
-    subprocess.Popen([LLAMA_SERVER, '--model', model, '--port', '8080',
-                      '-ngl', '99', '-c', '4096', '--jinja'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    cmd = [LLAMA_SERVER, '--model', model, '--port', '8080',
+           '-ngl', '99', '-c', '4096', '--jinja']
+    if lora:
+        cmd += ['--lora', lora]
+    subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     for _ in range(300):
         try:
             c = http.client.HTTPConnection('127.0.0.1', 8080, timeout=2)
@@ -145,9 +149,9 @@ def decide(grammar, user_msg):
     return None
 
 
-def run_eval(model, grammar, repeat):
-    print('启动引擎:', model)
-    if not start_server(model):
+def run_eval(model, grammar, repeat, lora=None):
+    print('启动引擎:', model, ('+ LoRA: ' + lora) if lora else '')
+    if not start_server(model, lora):
         raise SystemExit('引擎启动失败')
     correct = total = 0
     fails = []
@@ -173,6 +177,7 @@ def main():
     ap.add_argument('--model', required=True, help='待测 GGUF 路径')
     ap.add_argument('--baseline', help='（可选）基线 GGUF，先跑基线再跑目标')
     ap.add_argument('--repeat', type=int, default=3)
+    ap.add_argument('--lora', help='（可选）GGUF LoRA 适配器，挂到 --model/--baseline 之上')
     args = ap.parse_args()
 
     grammar = load_grammar()
@@ -180,14 +185,14 @@ def main():
         print('===== 基线 =====')
         b_acc, b_fails = run_eval(args.baseline, grammar, args.repeat)
         print('\n===== 微调后 =====')
-        f_acc, f_fails = run_eval(args.model, grammar, args.repeat)
+        f_acc, f_fails = run_eval(args.model, grammar, args.repeat, args.lora)
         print(f'\n提升: {b_acc * 100:.1f}% -> {f_acc * 100:.1f}%  (+{(f_acc - b_acc) * 100:.1f}pp)')
         if f_fails:
             print('仍失败用例:')
             for e, m, ok, rep in f_fails:
                 print(f'  {e} {ok}/{rep} {m}')
     else:
-        run_eval(args.model, grammar, args.repeat)
+        run_eval(args.model, grammar, args.repeat, args.lora)
 
 
 if __name__ == '__main__':

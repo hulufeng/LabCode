@@ -2752,6 +2752,32 @@ function setupIPC() {
 
   // 鍚姩 llama 寮曟搸锛堝姞杞芥寚瀹氭ā鍨嬶級
   let engineProcess = null;
+
+  // ===== Optional LoRA adapter for local model (tool-decision fine-tune) =====
+  // Mounts a GGUF LoRA on top of the base model so the local model picks tools correctly.
+  // config.ai.localLora: 'off' | 'auto' (default) | 'on' | absolute path to a .gguf adapter
+  // Only mounted for the matching base model (qwen2.5-coder-3b); other bases are left alone.
+  function resolveLocalLora(modelFile) {
+    try {
+      const setting = (config.ai && config.ai.localLora) || 'auto';
+      if (setting === 'off') return null;
+      if (setting !== 'auto' && setting !== 'on') {
+        return fs.existsSync(setting) ? setting : null;
+      }
+      if (!/qwen2\.5-coder-3b/i.test(modelFile || '')) return null;
+      const candidates = [];
+      const engineDir = getEngineDir();
+      if (engineDir) candidates.push(path.join(engineDir, '..', 'lora', 'tools-lora-f16.gguf'));
+      try {
+        const md = getModelsDir();
+        if (md) candidates.push(path.join(md, 'lora', 'tools-lora-f16.gguf'));
+      } catch (e) { /* ignore */ }
+      for (const c of candidates) {
+        if (fs.existsSync(c)) return c;
+      }
+      return null;
+    } catch (e) { return null; }
+  }
   async function startEngineInternal(modelFile) {
     try {
       const engineDir = getEngineDir();
@@ -2785,10 +2811,13 @@ function setupIPC() {
       currentEngineModel = null;
 
       const { spawn } = require('child_process');
+      const loraPath = resolveLocalLora(path.basename(modelPath));
+      if (loraPath) console.log('[LLM engine] LoRA adapter mounted:', loraPath);
       // ===== 寮曟搸鍙傛暟浼樺寲 =====锛?-fa Flash Attention / -b -ub 澧炲己 batch / -c 鏀寔 config.ai.engineCtx 鍙厤缃?
       const engineCtx = (config.ai && config.ai.engineCtx) || 16384;
       engineProcess = spawn(serverExe, [
         '-m', modelPath,
+        ...(loraPath ? ['--lora', loraPath] : []),
         '--host', '127.0.0.1',
         '--port', '8080',
         '-ngl', '99',          // 鍏ㄥ眰 GPU锛堟棤鐙搴忚嚜鍔ㄥ洖閫€ CPU锛?

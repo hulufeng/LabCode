@@ -1394,6 +1394,14 @@
               </select>
               <div style="font-size:11px;color:var(--text-tertiary);margin-top:4px;line-height:1.5;">开启后本地模型通过语法约束可靠输出工具调用（读文件/写文件/编译等），不再依赖格式猜测。仅对本地模型生效，云端模型不受影响。</div>
             </div>
+            <div>
+              <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">本地模型工具决策增强（LoRA）</label>
+              <select id="ai-local-lora" style="width:100%;padding:8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size:13px;box-sizing:border-box;">
+                <option value="auto">自动（3B 基座加载增强适配器）</option>
+                <option value="off">关闭</option>
+              </select>
+              <div style="font-size:11px;color:var(--text-tertiary);margin-top:4px;line-height:1.5;">挂载内置的“工具决策”微调适配器，让本地模型更会选工具（实测 3B 准确率 23.8% → 78.6%）。仅对配套的 3B 本地模型生效，切换模型后需重启本地引擎。</div>
+            </div>
             <div style="display:flex;gap:8px;align-items:center;">
               <button class="btn btn-secondary" id="ai-test-btn" style="flex:0 0 auto;">测试连接</button>
               <span id="ai-test-result" style="font-size:12px;color:var(--text-secondary);"></span>
