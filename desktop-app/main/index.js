@@ -1536,6 +1536,8 @@ function setupIPC() {
       });
       try {
         child.stdin.write(JSON.stringify(req) + '\n');
+        // must close stdin: most plugins read until EOF, otherwise they never reply
+        child.stdin.end();
       } catch (e) {
         return { success: false, error: 'write stdin failed: ' + e.message };
       }
