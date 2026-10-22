@@ -13048,7 +13048,8 @@ function bindEvents() {
         const r = await window.LabCode.ai.gatewayAuth({ action: 'me' });
         if (r && r.success && r.user && r.user.email) {
           updateCreditsBadge(r.user.email);
-          updateDailyCredits(r.user.dailyRemaining);
+          // 上限 = 剩余 + 已用（服务端额度可调，不写死）
+          updateDailyCredits(r.user.dailyRemaining, (r.user.dailyRemaining || 0) + (r.user.dailyUsed || 0));
         } else {
           updateCreditsBadge(null);
           updateDailyCredits(null);
@@ -15204,18 +15205,23 @@ if (document.readyState === 'loading') {
 
 // ============ 今日剩余积分徽标（顶层作用域：AI 顶栏与聊天回调都要调用）============
 // remaining 为数字时更新徽标；非数字（未登录 / 本地 / 自带 Key）则隐藏
-function updateDailyCredits(remaining) {
+// 每日上限用「剩余 + 已用」推算（服务端额度会调，不能写死判断阈值）
+let dailyLimitCache = 0
+function updateDailyCredits(remaining, limit) {
   try {
     const badge = document.getElementById('gw-daily-badge');
     if (!badge) return;
     if (typeof remaining !== 'number') { badge.style.display = 'none'; return; }
+    if (typeof limit === 'number' && limit > 0) dailyLimitCache = limit
+    const cap = dailyLimitCache > 0 ? dailyLimitCache : 200
+    const warnAt = Math.max(1, Math.ceil(cap * 0.2)) // 剩余不足两成才转橙，避免满额也报"快用完"
     badge.style.display = 'inline-flex';
     if (remaining <= 0) {
       badge.textContent = '今日积分已用完 · 填 Key 继续';
       badge.style.color = '#EA6668';
       badge.style.background = 'rgba(234,102,104,0.12)';
       badge.style.borderColor = 'rgba(234,102,104,0.35)';
-    } else if (remaining <= 20) {
+    } else if (remaining <= warnAt) {
       badge.textContent = '今日剩余 ' + remaining + ' 积分（快用完）';
       badge.style.color = '#E8A33D';
       badge.style.background = 'rgba(232,163,61,0.12)';
