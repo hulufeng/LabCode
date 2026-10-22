@@ -4140,6 +4140,8 @@ class RealAIClient {
       if (window.LabCode && window.LabCode.config) {
         this.config = await window.LabCode.config.get();
       }
+      // 记录当前引擎标签，供底栏状态条显示真实模型（原来硬编码「本地模型 · 免费」，云端模式会误导）
+      try { window.__labAiLabel = describeAiModel(this.config && this.config.ai); } catch (e) {}
       // 恢复内置 Agent 的 persona（持久化的是提示词文本本身，避免跨作用域依赖）
       const p = (this.config && this.config.ai && this.config.ai.activeAgentPrompt) || '';
       if (p) this.customSystemPrompt = p;
@@ -4582,6 +4584,12 @@ void loop() {
     return builtin.concat(pluginTools, mcpTools);
   }
 
+  // AI 不可用时的降级回复：只给清晰提示，绝不带 toolCalls
+  // （历史行为会返回 mock 生成的 terminal/write_file 工具调用，导致真实执行 `python src/main.py` 并循环 10 轮）
+  _degradedReply(reason) {
+    return { content: reason, toolCalls: [], streamed: false, thinking: null, degraded: true };
+  }
+
   async generateResponse(userInput, messages) {
     // 没有 Electron 环境或没有 AI API → 回退模拟
     if (!window.LabCode || !window.LabCode.ai || !window.LabCode.ai.chat) {
@@ -4600,9 +4608,10 @@ void loop() {
           if (this.onEngineStarting) this.onEngineStarting();
           const startRes = await window.LabCode.system.startLLMEngine({ modelFile: aiCfg.model });
           if (!startRes || !startRes.success) {
-            const mockResult = this.mock.generateResponse(userInput, messages);
-            mockResult.content = `[本地 AI 引擎启动失败: ${(startRes && startRes.error) || '未知错误'}]\n\n` + mockResult.content;
-            return mockResult;
+            return this._degradedReply(
+              `⚠️ 本地 AI 引擎启动失败：${(startRes && startRes.error) || '未知错误'}\n\n` +
+              `请在 设置 → AI 引擎 确认本地模型已下载，或改用云端模型后重试。`
+            );
           }
           if (this.onEngineStarted) this.onEngineStarted();
         }
@@ -4618,10 +4627,14 @@ void loop() {
     const hasApiKey = !!(aiCfg.apiKey || aiCfg.gatewayToken || aiCfg.provider === 'ollama' || aiCfg.provider === 'local' || (aiCfg.provider === 'custom' && localEndpoint));
 
     if (!hasApiKey) {
-      // 未配置 API Key → 回退模拟，但提示用户
-      const mockResult = this.mock.generateResponse(userInput, messages);
-      mockResult.content = '[系统提示：当前未配置 AI API Key，使用模拟模式。请在设置中登录 LabCode 账号或配置 API Key / 本地模型。]\n\n' + mockResult.content;
-      return mockResult;
+      // 未配置 API Key → 明确降级提示，不再伪造工具调用
+      return this._degradedReply(
+        '⚠️ 尚未连接 AI 模型\n\n' +
+        '请任选一种方式配置后再提问：\n' +
+        '1. 设置 → AI 引擎 → 登录 LabCode 账号（使用内置云端模型）\n' +
+        '2. 填入自有 API Key（DeepSeek / 通义千问 / 智谱 / 豆包 等）\n' +
+        '3. 切换到本地模型（Ollama 或内置本地引擎）'
+      );
     }
 
     try {
@@ -4664,14 +4677,16 @@ void loop() {
         try { usageRecord((aiCfg && aiCfg.model) || '默认', false, 0); } catch (e) {}
         // 网关云端通道不可用：给出中性提示（积分系统暂不展示）
         if (result && result.creditsInsufficient) {
-          const mockResult = this.mock.generateResponse(userInput, messages);
-          mockResult.content = `[云端模型调用失败：${result.error || '服务暂不可用'}。请检查网络，或切换为本地模型后重试。]\n\n` + mockResult.content;
           try { refreshCreditsBadge(); } catch (e) {}
-          return mockResult;
+          return this._degradedReply(
+            `⚠️ 云端模型调用失败：${result.error || '服务暂不可用'}\n\n` +
+            `请检查网络，或切换到本地模型 / 自有 API Key 后重试。`
+          );
         }
-        const mockResult = this.mock.generateResponse(userInput, messages);
-        mockResult.content = `[AI 请求失败: ${result?.error || '未知错误'}，回退模拟模式]\n\n` + mockResult.content;
-        return mockResult;
+        return this._degradedReply(
+          `⚠️ AI 请求失败：${result?.error || '未知错误'}\n\n` +
+          `请在 设置 → AI 引擎 检查模型与网络配置后重试。`
+        );
       }
 
       // 解析工具调用
@@ -4694,9 +4709,7 @@ void loop() {
       };
     } catch (e) {
       console.error('[RealAIClient] 异常:', e);
-      const mockResult = this.mock.generateResponse(userInput, messages);
-      mockResult.content = `[AI 异常: ${e.message}，回退模拟模式]\n\n` + mockResult.content;
-      return mockResult;
+      return this._degradedReply(`⚠️ AI 异常：${e.message}\n\n请在 设置 → AI 引擎 检查配置后重试。`);
     }
   }
 
@@ -5663,20 +5676,33 @@ class AgentRunner {
       this.ai.onCredits = null;
       const duration = ((Date.now() - startTime) / 1000).toFixed(1);
 
-      // 生成思考过程并展示（优先模型真实推理 thinkingAcc/result.thinking，否则模板兜底）
+      // 思考块：只展示模型真实推理。没有真实推理（或 AI 已降级）时不再伪造「分析用户需求」模板，
+      // 直接移除占位思考块，避免把编造的推理过程当成 AI 的思考展示给用户。
       if (this.onThinking) {
         const realThinking = String((this.thinkingAcc || '').trim() || (result && result.thinking ? String(result.thinking).trim() : ''));
-        const thinkingContent = realThinking || this._generateThinking(lastUserMsg?.content || userInput, result);
-        if (this.thinkingBlockId && typeof updateThinkingBlock === 'function') {
-          updateThinkingBlock(this.thinkingBlockId, thinkingContent, duration);
-        } else {
-          this.thinkingBlockId = this.onThinking({ content: thinkingContent, duration });
+        if (realThinking && !(result && result.degraded)) {
+          if (this.thinkingBlockId && typeof updateThinkingBlock === 'function') {
+            updateThinkingBlock(this.thinkingBlockId, realThinking, duration);
+          } else {
+            this.thinkingBlockId = this.onThinking({ content: realThinking, duration });
+          }
+        } else if (this.thinkingBlockId && typeof removeThinkingBlock === 'function') {
+          removeThinkingBlock(this.thinkingBlockId);
+          this.thinkingBlockId = null;
         }
       }
 
       // 流式输出文本（流式调用已在过程中实时上屏，此处仅非流式时补输出）
       if (result.content && !result.streamed) {
         await this._streamText(result.content);
+      }
+
+      // AI 不可用（未配置 / 请求失败 / 引擎启动失败）→ 直接收尾，
+      // 不再进入"思路兜底 / 强制写码 / 重复追问"等基于模型输出的补救逻辑
+      if (result.degraded) {
+        this._emitDiffSummary();
+        this._emitWorkStatus('done');
+        return;
       }
 
       // 无工具调用 → 结束（先过验证硬闸门）
@@ -7337,6 +7363,13 @@ function updateThinkingContent(id, delta) {
   if (area) area.scrollTop = area.scrollHeight;
 }
 
+function removeThinkingBlock(id) {
+  const block = document.getElementById(id);
+  if (!block) return;
+  const wrap = block.closest('.chat-message');
+  (wrap || block).remove();
+}
+
 function updateThinkingBlock(id, content, duration) {
   const block = document.getElementById(id);
   if (!block) return;
@@ -7432,6 +7465,17 @@ function addToolCallBlock(tool, status, summary, args, result) {
 }
 
 // ============ 工作状态条（对齐 TrieCode：▶ 已工作 Xs · 思考 · N 个工具 · 📚 已收集上下文）============
+
+/** 根据当前 AI 配置生成引擎标签（云端 / 本地 / 自有 API） */
+function describeAiModel(ai) {
+  const p = (ai && ai.provider) || '';
+  const m = (ai && ai.model) || '';
+  if (p === 'gateway') return '云端模型 · ' + (m || '默认');
+  if (p === 'local' || p === 'ollama') return '本地模型 · 免费';
+  if (p === 'custom' || p === 'deepseek' || p === 'openai') return '自有 API · ' + (m || '自定义');
+  return '本地模型 · 免费';
+}
+
 let workStatusBarEl = null;
 let workStatusTimer = null;
 let workStatusStart = 0;
@@ -7446,7 +7490,7 @@ function updateWorkStatusBar({ state, elapsed, tools, context }) {
         <div class="chat-avatar" style="background:linear-gradient(135deg,#6366f1,#8b5cf6);">▶</div>
         <div class="chat-bubble work-status-bubble">
           <span class="work-status-line">已工作 <b class="work-elapsed">0</b>s · 思考 · <b class="work-tools">0</b> 个工具 · 📚 已收集上下文 <b class="work-context">0</b> 次</span>
-          <span class="work-status-meta">▍ 本地模型 · 实时</span>
+          <span class="work-status-meta">▍ ${window.__labAiLabel || '本地模型'} · 实时</span>
         </div>`;
       const welcome = document.getElementById('ai-welcome');
       if (welcome && welcome.style.display !== 'none') {
@@ -7483,7 +7527,7 @@ function updateWorkStatusBar({ state, elapsed, tools, context }) {
       }
       workStatusBarEl.classList.add('work-status-done');
       const meta = workStatusBarEl.querySelector('.work-status-meta');
-      if (meta) meta.textContent = '▍ 本地模型 · 免费';
+      if (meta) meta.textContent = '▍ ' + (window.__labAiLabel || '本地模型 · 免费');
     }
     workStatusBarEl = null;
   }
