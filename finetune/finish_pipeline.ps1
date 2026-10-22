@@ -7,10 +7,12 @@
 #  - Conversion needs ~7GB RAM. Do NOT run it while training is running (it got killed before).
 #  - llama-quantize.exe comes from the packaged LabCode (dist\win-unpacked\resources\llama).
 
+param([string]$OutDir = 'out_win')
+
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repo = Split-Path -Parent $root
-$merged = Join-Path $root 'out_win\merged'
+$merged = Join-Path $root "$OutDir\merged"
 $quant = Join-Path $repo 'desktop-app\dist\win-unpacked\resources\llama\llama-quantize.exe'
 $outDir = 'D:\work\tmp'
 $f16 = Join-Path $outDir 'tools3b_f16.gguf'

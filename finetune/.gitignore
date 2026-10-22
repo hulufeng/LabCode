@@ -2,6 +2,10 @@ __pycache__/
 *.pyc
 train.jsonl
 val.jsonl
+train2.jsonl
+val2.jsonl
 func-calling.json
 lora_out/
 gguf_out/
+out_win/
+out_win2/
