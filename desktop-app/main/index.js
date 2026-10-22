@@ -1501,6 +1501,8 @@ function setupIPC() {
     const result = await dialog.showSaveDialog(mainWindow, {
       defaultPath: defaultPath || 'untitled'
     });
+    return result.canceled ? null : result.filePath;
+  });
 
   // ===== Plugin transports: stdio / grpc / mqtt =====
   // These need OS level access (child process, sockets), so they live in the main
@@ -1638,9 +1640,6 @@ function setupIPC() {
     } catch (e) {
       return { success: false, error: e.message };
     }
-  });
-
-    return result.canceled ? null : result.filePath;
   });
 
   // 鏂囦欢璇诲啓锛堝甫缂栫爜鑷姩妫€娴嬶細UTF-8 BOM / 绾疷TF-8 / GBK 鍥為€€锛?
