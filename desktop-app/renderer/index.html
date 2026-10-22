@@ -294,7 +294,8 @@
       </button>
       <button class="titlebar-btn icon-only" id="notification-btn" title="通知">
         <svg class="icon"><use href="#icon-bell"></use></svg>
-        <span class="notification-badge" id="notification-badge">1</span>
+        <!-- 默认隐藏：没有真实通知系统，不要常驻一个假的未读角标 -->
+        <span class="notification-badge" id="notification-badge" style="display:none;">0</span>
       </button>
       <button class="titlebar-btn icon-only" id="settings-btn" title="设置"><svg class="icon"><use href="#icon-settings"></use></svg></button>
       <div class="window-controls">
@@ -474,8 +475,8 @@
       <div class="sidebar-header">
         <span>文件</span>
         <div class="sidebar-actions">
+          <!-- 已移除无实现的「新建文件夹」按钮，避免点了没反应 -->
           <button class="icon-btn" id="open-folder-btn" title="打开文件夹"><svg class="icon"><use href="#icon-folder-open"></use></svg></button>
-          <button class="icon-btn" id="new-folder-btn" title="新建文件夹"><svg class="icon"><use href="#icon-folder-plus"></use></svg></button>
         </div>
       </div>
       <div class="file-tree" id="file-tree">
@@ -647,47 +648,17 @@
         <div class="device-tab-content" id="device-tab-platform" style="flex:1;overflow-y:auto;padding:16px;display:none;">
           <div class="device-section">
             <div class="device-section-title">已安装平台</div>
+            <!-- 真实数据由 refreshCores() 填充；此处不再写死假平台（失败时会残留误导） -->
             <div class="platform-list" id="installed-platforms">
-              <div class="platform-item">
-                <div class="platform-info">
-                  <span class="platform-name">ESP32</span>
-                  <span class="platform-version">v2.0.14</span>
-                </div>
-                <button class="platform-btn uninstall" data-platform="esp32">卸载</button>
-              </div>
-              <div class="platform-item">
-                <div class="platform-info">
-                  <span class="platform-name">Arduino AVR Boards</span>
-                  <span class="platform-version">v1.8.6</span>
-                </div>
-                <button class="platform-btn uninstall" data-platform="arduino-avr">卸载</button>
-              </div>
+              <div style="padding:12px;color:#999;font-size:12px;">加载中…</div>
             </div>
           </div>
           <div class="device-section" style="margin-top:16px;">
             <div class="device-section-title">可安装平台</div>
+            <!-- 已移除写死的假平台条目（此前永久显示，无任何代码会替换）。
+                 可安装列表需 arduino-cli 检索支持，当前用上方「已安装平台」查看真实状态。 -->
             <div class="platform-list" id="available-platforms">
-              <div class="platform-item">
-                <div class="platform-info">
-                  <span class="platform-name">ESP32-S3</span>
-                  <span class="platform-version">v2.0.14</span>
-                </div>
-                <button class="platform-btn install" data-platform="esp32-s3">安装</button>
-              </div>
-              <div class="platform-item">
-                <div class="platform-info">
-                  <span class="platform-name">STM32F103C8</span>
-                  <span class="platform-version">v2.3.0</span>
-                </div>
-                <button class="platform-btn install" data-platform="stm32">安装</button>
-              </div>
-              <div class="platform-item">
-                <div class="platform-info">
-                  <span class="platform-name">Raspberry Pi Pico</span>
-                  <span class="platform-version">v3.0.0</span>
-                </div>
-                <button class="platform-btn install" data-platform="rp2040">安装</button>
-              </div>
+              <div style="padding:12px;color:#999;font-size:12px;">暂不可列出可安装平台（需 arduino-cli 检索支持）</div>
             </div>
           </div>
         </div>
@@ -699,39 +670,9 @@
             <div class="device-form-group">
               <input type="text" class="device-select" id="library-search" placeholder="搜索库..." style="margin-bottom:12px;">
             </div>
+            <!-- 真实数据由 refreshLibraries() 填充；此处不再写死假库条目 -->
             <div class="library-list" id="library-list">
-              <div class="library-item">
-                <div class="library-info">
-                  <span class="library-name">WiFi</span>
-                  <span class="library-version">v2.0.0</span>
-                  <span class="library-desc">ESP32 WiFi 库</span>
-                </div>
-                <button class="platform-btn uninstall" data-library="wifi">卸载</button>
-              </div>
-              <div class="library-item">
-                <div class="library-info">
-                  <span class="library-name">Adafruit SSD1306</span>
-                  <span class="library-version">v2.5.7</span>
-                  <span class="library-desc">OLED 显示屏驱动</span>
-                </div>
-                <button class="platform-btn install" data-library="adafruit-ssd1306">安装</button>
-              </div>
-              <div class="library-item">
-                <div class="library-info">
-                  <span class="library-name">DHT sensor library</span>
-                  <span class="library-version">v1.4.4</span>
-                  <span class="library-desc">温湿度传感器库</span>
-                </div>
-                <button class="platform-btn install" data-library="dht">安装</button>
-              </div>
-              <div class="library-item">
-                <div class="library-info">
-                  <span class="library-name">PubSubClient</span>
-                  <span class="library-version">v2.8.0</span>
-                  <span class="library-desc">MQTT 客户端库</span>
-                </div>
-                <button class="platform-btn install" data-library="pubsubclient">安装</button>
-              </div>
+              <div style="padding:12px;color:#999;font-size:12px;">加载中…</div>
             </div>
           </div>
         </div>
@@ -971,7 +912,7 @@
                       <div class="model-option model-add-entry" id="model-add-entry" data-model="__add_model__" style="color:#059669;font-weight:600;border-top:1px solid var(--border-color);margin-top:4px;">＋ 添加模型（填 API Key）</div>
                     </div>
                   </div>
-                  <button class="ai-input-tool-btn" id="mic-btn" title="语音输入（即将上线）"><svg class="icon"><use href="#icon-mic"></use></svg></button>
+                  <!-- 已移除「语音输入」按钮：功能未实现，此前点了没反应 -->
                   <button class="ai-send-btn" id="ai-send-btn" title="发送">
                     <svg class="icon"><use href="#icon-arrow-up"></use></svg>
                   </button>
@@ -1237,7 +1178,8 @@
       <span class="status-item" id="cursor-position">Ln 1, Col 1</span>
       <span class="status-item">UTF-8</span>
       <span class="status-item" id="language-mode" style="display:none;">纯文本</span>
-      <span class="status-item" id="user-account-status">🔵 1205415012</span>
+      <!-- 账号状态由 JS 按真实登录态填充（此前 HTML 里写死了一个号码） -->
+      <span class="status-item" id="user-account-status"></span>
     </div>
     <div class="statusbar-right"></div>
   </div>

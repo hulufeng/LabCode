@@ -1086,7 +1086,8 @@ const TOOL_DEFS = [
       if (!cmd) return '错误：命令为空';
       if (state.terminal) { state.terminal.writeln('$ ' + cmd); }
       if (!isElectron || !window.LabCode || !window.LabCode.terminal) {
-        return `$ ${cmd}\n(非 Electron 环境，模拟执行完成，退出码 0)`;
+        // 不再谎报"执行完成，退出码 0"——命令根本没跑
+        return `Error: 当前环境无法执行命令（非 Electron 或未连接终端），命令未执行: ${cmd}`;
       }
       // ===== 2026-09-13 安全护栏（对齐 TrieCode terminal-exec 三层防线）=====
       // deny：危险命令硬拦截，不可绕过；confirm：高风险命令弹确认窗，用户同意后 force 放行
@@ -6252,9 +6253,14 @@ class AgentRunner {
               userChoice === 'session' ? '用户批准本会话执行' : 
               '用户修改权限规则，自动允许');
           } else {
-            // 没有权限回调，模拟用户批准
-            await new Promise(r => setTimeout(r, 300));
-            approvalAudit.recordOutcome(tc.name, 'allowed-once', '用户批准执行');
+            // 没有权限确认通道：安全默认 = 拒绝执行。
+            // 此前这里是"模拟用户批准"——会静默放行并把审计日志写成"用户批准执行"，
+            // 等于绕过确认还能留下假的同意记录。改为拒绝并如实记录。
+            const err = 'Error: 无权限确认通道，已拒绝执行此操作（安全默认）';
+            this.messages.push({ role: 'tool', tool_call_id: tc.id, content: err });
+            this._toolStep(tc.id, tc.name, 'rejected', '无权限确认通道，已拒绝执行');
+            approvalAudit.recordOutcome(tc.name, 'denied', '无权限确认通道，安全默认拒绝执行');
+            continue;
           }
         }
 
@@ -10689,7 +10695,9 @@ function bindEvents() {
     // ============================================================
     const manifest = BUILTIN_PLUGIN_MANIFESTS[id] || plugin.manifest;
     let installedTools = 0;
+    let hasManifest = false;
     if (manifest && window.PluginSystem && typeof window.PluginSystem.installManifest === 'function') {
+      hasManifest = true;
       const r = await window.PluginSystem.installManifest(manifest);
       if (!r || !r.success) {
         hideInstallModal();
@@ -10705,15 +10713,19 @@ function bindEvents() {
       addOutputLog('注：「' + plugin.name + '」无可安装的插件包（manifest 缺失），仅登记为已安装，不提供插件工具', 'warning');
     }
 
-    // 模拟安装过程
+    // 真实安装（installManifest）已在上面完成；这里只是让进度条走完，不是"模拟安装"
     await new Promise(r => setTimeout(r, 800));
     installedPlugins.push({ ...plugin, installedAt: Date.now(), tools: installedTools });
     saveInstalledPlugins();
-    // 安装完成：进度窗 100% 停留 0.8s 后关闭
-    setInstallProgress(100, '安装完成');
+    setInstallProgress(100, hasManifest ? '安装完成' : '登记完成');
     await new Promise(r => setTimeout(r, 800));
     hideInstallModal();
-    showToast(plugin.name + ' 安装成功', 'success');
+    // 无可安装包的条目只是登记，不能报"安装成功"（此前会误导用户以为真的装上了）
+    if (hasManifest) {
+      showToast(plugin.name + ' 安装成功', 'success');
+    } else {
+      showToast(plugin.name + ' 已登记（无插件包，不提供工具）', 'warning');
+    }
     renderPluginsList();
     updateCompilerPluginStatus();
     // 大模型安装后刷新模型选择器
@@ -10937,38 +10949,51 @@ function bindEvents() {
     });
   });
 
-  // 平台安装/卸载按钮
+  // 平台/库安装卸载按钮：真实调用 arduino-cli
+  // 此前是 setTimeout(1500) 假装安装后直接报「安装成功」，实际什么都没装
   document.querySelectorAll('.platform-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', async () => {
       const isInstall = btn.classList.contains('install');
       const action = isInstall ? '安装' : '卸载';
+      const isLib = !btn.dataset.platform;
       const target = btn.dataset.platform || btn.dataset.library;
-      
-      // 禁用按钮，显示进度
+      if (!target) { showToast('缺少目标名称，无法' + action, 'error'); return; }
+
+      if (typeof runArduinoCli !== 'function') {
+        showToast('arduino-cli 不可用，无法' + action + '（请先在工具链中安装 arduino-cli）', 'error');
+        return;
+      }
+
+      const args = isLib
+        ? ['lib', isInstall ? 'install' : 'uninstall', target]
+        : ['core', isInstall ? 'install' : 'uninstall', target];
+
+      const original = btn.textContent;
       btn.disabled = true;
       btn.textContent = action + '中...';
       btn.style.opacity = '0.6';
-      
-      showToast(action + ' ' + target + '...', 'info');
-      
-      // 模拟安装/卸载过程
-      setTimeout(() => {
-        btn.disabled = false;
-        btn.style.opacity = '1';
-        
-        // 切换按钮状态
-        if (isInstall) {
-          btn.classList.remove('install');
-          btn.classList.add('uninstall');
-          btn.textContent = '卸载';
-          showToast(target + ' 安装成功', 'success');
+      showToast(action + ' ' + target + '...（正在调用 arduino-cli）', 'info');
+
+      try {
+        const r = await runArduinoCli(args, 600000);
+        const ok = !!r && r.ok !== false && r.code === 0;
+        if (ok) {
+          showToast(target + ' ' + action + '成功', 'success');
+          // 成功后刷新真实列表（失败时不刷新，避免状态错乱）。
+          // refreshCores/refreshLibraries 定义在设备面板的作用域内，外部取不到，
+          // 所以触发该面板自己的「刷新」按钮（device-refresh）来重绘。
+          const devRefresh = document.getElementById('device-refresh');
+          if (devRefresh) { try { devRefresh.click(); } catch (e) {} }
         } else {
-          btn.classList.remove('uninstall');
-          btn.classList.add('install');
-          btn.textContent = '安装';
-          showToast(target + ' 已卸载', 'success');
+          const msg = (r && r.out) ? String(r.out).slice(0, 200) : '未知错误';
+          showToast(target + ' ' + action + '失败：' + msg, 'error');
         }
-      }, 1500);
+      } catch (e) {
+        showToast(target + ' ' + action + '失败：' + ((e && e.message) || e), 'error');
+      }
+      btn.disabled = false;
+      btn.style.opacity = '1';
+      btn.textContent = original;
     });
   });
 
@@ -12375,9 +12400,9 @@ function bindEvents() {
                 state.terminal.write('user@labcode:~/project$ ');
               }
             } else if (cmd) {
-              state.terminal.writeln('(模拟运行输出)');
-              state.terminal.writeln('✓ 完成');
-              addOutputLog('运行完成（模拟）', 'info');
+              // 不再假装运行成功：环境不支持时如实报错
+              state.terminal.writeln('✗ 无法运行：当前环境不支持执行命令（非 Electron 或未连接终端）');
+              addOutputLog('运行失败：当前环境不支持执行命令', 'error');
               state.terminal.write('user@labcode:~/project$ ');
             }
           } catch (e) {
@@ -12828,6 +12853,26 @@ function bindEvents() {
     });
   }
 
+  // 侧边栏「打开文件夹」按钮：此前完全没有绑定，点了没反应
+  const sidebarOpenFolder = document.getElementById('open-folder-btn');
+  if (sidebarOpenFolder) {
+    sidebarOpenFolder.addEventListener('click', async () => {
+      if (!(isElectron && window.LabCode && window.LabCode.dialog)) {
+        showToast('当前环境不支持打开文件夹', 'error');
+        return;
+      }
+      try {
+        const dirPath = await window.LabCode.dialog.openDirectory();
+        if (dirPath) {
+          await loadProjectFromDisk(dirPath);
+          showToast('已打开文件夹: ' + dirPath, 'success');
+        }
+      } catch (e) {
+        showToast('打开文件夹失败: ' + ((e && e.message) || e), 'error');
+      }
+    });
+  }
+
   // 快速打开文件夹按钮
   const quickOpenFolder = document.getElementById('quick-open-folder');
   if (quickOpenFolder) {
@@ -13027,6 +13072,9 @@ function bindEvents() {
         badge.textContent = '🔑 登录';
         badge.title = '登录 LabCode 账号（云端模型需登录；本地模型无需登录）';
       }
+      // 状态栏账号：同步真实登录态（此前 HTML 里写死了一个号码，且无人更新）
+      const acct = document.getElementById('user-account-status');
+      if (acct) acct.textContent = email ? ('🔵 ' + email) : '';
     } catch (e) { console.warn('[账号徽标] 更新失败:', e); }
   }
 
@@ -13074,6 +13122,16 @@ function bindEvents() {
       })();
     }
   });
+
+  // 标题栏用户头像：此前完全无绑定（点了没反应），复用账号徽标的同一套行为
+  const avatarBtn = document.getElementById('user-avatar-btn');
+  if (avatarBtn) {
+    avatarBtn.addEventListener('click', () => {
+      const badge = document.getElementById('gw-credits-badge');
+      if (badge) badge.click();
+      else { try { openSettingsModal(); } catch (e) {} }
+    });
+  }
 
   async function refreshGatewayUI() {
     try {
