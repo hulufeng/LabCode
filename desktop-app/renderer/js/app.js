@@ -10754,11 +10754,7 @@ function bindEvents() {
         if (r && r.success) {
           showToast('已安装 ' + r.name + '（' + r.tools + ' 个工具）', 'success');
           addOutputLog('从文件夹安装插件：' + r.name + ' → ' + r.path, 'success');
-          if (!isPluginInstalled(r.id)) {
-            const meta = BUILTIN_PLUGIN_MANIFESTS[r.id] || { id: r.id, name: r.name, version: '1.0.0', icon: '🧩', category: 'tool', description: '本地安装', capabilities: [] };
-            installedPlugins.push({ ...meta, installedAt: Date.now(), tools: r.tools });
-            saveInstalledPlugins();
-          }
+          markPluginInstalled(r);
         } else {
           showToast('安装失败：' + ((r && r.error) || '未知原因'), 'error');
           addOutputLog('从文件夹安装失败：' + ((r && r.error) || '未知原因'), 'warning');
@@ -10768,6 +10764,78 @@ function bindEvents() {
         showToast('安装失败：' + e.message, 'error');
       }
     });
+  }
+
+  // 从 ZIP 安装：解压 → 找 plugin.json（可能在子目录）→ installFromDir → 清理临时目录
+  const installZipBtn = document.getElementById('plugins-install-zip');
+  if (installZipBtn) {
+    installZipBtn.addEventListener('click', async () => {
+      let tmpDir = '';
+      try {
+        const zip = await window.LabCode.dialog.openFile();
+        if (!zip) return;
+        if (!/\.zip$/i.test(zip)) { showToast('请选择 .zip 插件包', 'warning'); return; }
+        const root = await window.PluginSystem.getPluginsRoot();
+        if (!root) { showToast('拿不到插件目录', 'error'); return; }
+        const sep = String(root).includes('/') ? '/' : '\\';
+        tmpDir = root.replace(/[\\\/]+$/, '') + sep + '.tmp-zip-' + Date.now();
+        showToast('正在解压 ' + zip.split(/[\\\/]/).pop() + ' ...', 'info');
+        const uz = await window.LabCode.plugin.unzip({ zipPath: zip, destDir: tmpDir });
+        if (!uz || !uz.success) {
+          showToast('解压失败：' + ((uz && uz.error) || '未知原因'), 'error');
+          return;
+        }
+        const dir = await findManifestDir(tmpDir, 3);
+        if (!dir) {
+          showToast('ZIP 里没找到 plugin.json', 'error');
+          addOutputLog('ZIP 安装失败：包内没有 plugin.json', 'warning');
+          return;
+        }
+        const r = await window.PluginSystem.installFromDir(dir);
+        if (r && r.success) {
+          showToast('已安装 ' + r.name + '（' + r.tools + ' 个工具）', 'success');
+          addOutputLog('从 ZIP 安装插件：' + r.name + ' → ' + r.path, 'success');
+          markPluginInstalled(r);
+        } else {
+          showToast('安装失败：' + ((r && r.error) || '未知原因'), 'error');
+        }
+        renderPluginsList();
+      } catch (e) {
+        showToast('安装失败：' + e.message, 'error');
+      } finally {
+        if (tmpDir) { try { await window.LabCode.fs.deleteFile(tmpDir); } catch (e) { /* 清理失败无所谓 */ } }
+      }
+    });
+  }
+
+  /** 在解压目录里递归找含 plugin.json 的目录（ZIP 常把内容包在一层子目录里） */
+  async function findManifestDir(dir, maxDepth) {
+    const fsApi = window.LabCode && window.LabCode.fs;
+    if (!fsApi) return null;
+    const sep = String(dir).includes('/') ? '/' : '\\';
+    const walk = async (d, depth) => {
+      let r;
+      try { r = await fsApi.listDir(d); } catch (e) { return null; }
+      const items = (r && r.success && Array.isArray(r.files)) ? r.files : [];
+      if (items.some(it => it && it.name === 'plugin.json')) return d;
+      if (depth >= (maxDepth || 3)) return null;
+      for (const it of items) {
+        if (it && it.isDirectory && !String(it.name).startsWith('.')) {
+          const found = await walk(d.replace(/[\\\/]+$/, '') + sep + it.name, depth + 1);
+          if (found) return found;
+        }
+      }
+      return null;
+    };
+    try { return await walk(dir, 0); } catch (e) { return null; }
+  }
+
+  /** 安装成功后把插件登记进「已安装」列表（市场里没有的第三方插件也要能显示） */
+  function markPluginInstalled(r) {
+    if (!r || !r.id || isPluginInstalled(r.id)) return;
+    const meta = BUILTIN_PLUGIN_MANIFESTS[r.id] || { id: r.id, name: r.name || r.id, version: '1.0.0', icon: '🧩', category: 'tool', description: '本地安装', capabilities: [] };
+    installedPlugins.push({ ...meta, installedAt: Date.now(), tools: r.tools || 0 });
+    saveInstalledPlugins();
   }
 
   // ============ 插件自定义面板（manifest.views）============

@@ -1644,6 +1644,29 @@ function setupIPC() {
     }
   });
 
+  // unzip: plugins are usually distributed as a ZIP; extraction needs OS access
+  ipcMain.handle('plugin:unzip', async (_, opts) => {
+    try {
+      const o = opts || {};
+      if (!o.zipPath || !o.destDir) return { success: false, error: 'zipPath/destDir are required' };
+      const { execFile } = require('child_process');
+      await fs.promises.rm(o.destDir, { recursive: true, force: true }).catch(() => {});
+      await fs.promises.mkdir(o.destDir, { recursive: true });
+      const q = (s) => "'" + String(s).replace(/'/g, "''") + "'";
+      await new Promise((resolve, reject) => {
+        execFile('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command',
+          'Expand-Archive -Path ' + q(o.zipPath) + ' -DestinationPath ' + q(o.destDir) + ' -Force'],
+          { windowsHide: true, timeout: 180000, maxBuffer: 1024 * 1024 }, (err, stdout, stderr) => {
+            if (err) reject(new Error(String(stderr || stdout || err.message).slice(0, 600)));
+            else resolve();
+          });
+      });
+      return { success: true, destDir: o.destDir };
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
+  });
+
   // 鏂囦欢璇诲啓锛堝甫缂栫爜鑷姩妫€娴嬶細UTF-8 BOM / 绾疷TF-8 / GBK 鍥為€€锛?
   ipcMain.handle('fs:readFile', (_, filePath) => {
     try {
