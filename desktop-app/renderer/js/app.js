@@ -15058,6 +15058,10 @@ if (document.readyState === 'loading') {
     const btn = document.getElementById('save-ai-config');
     if (btn) btn.addEventListener('click', saveAIConfig);
 
+    // 设备面板标签栏常驻的「＋ 添加模型」入口：直接打开「自定义 API」并聚焦 Key
+    const addModel = document.getElementById('add-model-btn');
+    if (addModel) addModel.addEventListener('click', () => { try { window.__labByok.open(); } catch (e) {} });
+
     // 服务商快捷填充：填好 baseURL 与模型名，并给出申请 Key 的官网链接
     document.querySelectorAll('.byok-preset').forEach(b => {
       b.addEventListener('click', () => {

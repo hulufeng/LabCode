@@ -4827,6 +4827,22 @@ body.no-open-file .ai-panel {
   border-bottom-color: var(--accent, #007acc);
   font-weight: 600;
 }
+/* 常驻「添加模型」入口：绿色高亮，区别于普通 tab */
+.device-tab-cta {
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding: 5px 12px;
+  background: transparent;
+  border: 1px solid #059669;
+  color: #059669;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s;
+}
+.device-tab-cta:hover { background: rgba(5,150,105,0.12); }
 .device-content {
   flex: 1;
   overflow-y: auto;
