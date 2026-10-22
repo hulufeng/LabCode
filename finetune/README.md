@@ -77,6 +77,26 @@ python eval_tools.py --baseline "D:\LabCode\models\qwen2.5-coder-7b-instruct-q4_
 | `train_win.py` | **Windows 原生** LoRA/QLoRA（transformers+peft）；`--load-4bit` 走 bnb NF4；输出 lora + merged |
 | `eval_tools.py` | 启动 llama-server 跑 14 类工具决策题，输出准确率；grammar 由 **node 执行上线 `buildToolGbnf`** 生成，支持基线对比 |
 
+## 踩坑：第一轮训完塌缩成「永远 none」
+
+现象：3 epoch 训完（train_loss 0.127），转 Q4_K_M 后验收 —— **工具调用类全部 0/3，none 类全部 3/3**，
+准确率 31% → 28.6%，比不微调还差。
+
+排查：先把转出的 GGUF 用 llama-server **无约束**跑一句中文问答，回答通顺 → GGUF/tokenizer 没问题，
+锅在训练数据。
+
+根因：**训练分布与线上候选集不匹配**。Hermes 原始数据里 200+ 种工具名（`buy_bitcoin`、`mintNFT`、
+`search_hotels`…），而线上 GBNF 只认 LabCode 的 9 个名字。模型学到的「该调工具」在线上全部非法，
+唯一恒合法又高频的退路是 `none`（占 40%）→ 塌缩。
+
+所以**不要直接拿通用工具调用数据微调** —— 必须先用 `remap_to_labcode.py` 把工具名映射回线上那 9 个：
+
+```bat
+python remap_to_labcode.py --src train.jsonl --labcode labcode_tools_examples.jsonl --out .
+::  -> train2.jsonl / val2.jsonl（工具名全在 GBNF 候选内，none 下采样到 25%，labcode 样本 x10）
+python train_win.py --base <3B> --train train2.jsonl --val val2.jsonl --out out_win2 --epochs 2
+```
+
 ## 设计要点
 
 1. **训练形状 = 线上形状**：assistant 目标就是 `{"tool":..., "arguments":{...}}`，与 GBNF 约束逐字节一致，训完直接受益，不丢分在格式上。
