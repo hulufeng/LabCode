@@ -15018,33 +15018,97 @@ if (document.readyState === 'loading') {
     });
   }
 
-  // ===== BYOK 引导：从对话区一键跳到「自定义 API」并聚焦 Key 输入框 =====
-  function openByokSetup() {
-    try {
-      // AI 引擎设置在**左侧栏的设备面板**里（不是底部面板）。设备面板默认 display:none，
-      // 不先切过去的话整条祖先链是隐藏的，focus() 会静默失败。
-      try { if (typeof switchPanel === 'function') switchPanel('device', 'byok'); } catch (e) {}
-      const dp = document.getElementById('device-panel');
-      if (dp && dp.style.display !== 'flex') dp.style.display = 'flex';
-      const tab = document.querySelector('.device-tab[data-tab="settings"]');
-      if (tab) tab.click();
-      const radio = document.getElementById('ai-prov-custom');
-      if (radio) { radio.checked = true; }
-      const fields = document.getElementById('custom-api-fields');
-      if (fields) fields.style.display = 'block';
-      const keyInput = document.getElementById('custom-apikey');
-      const anchor = document.getElementById('ai-prov-custom');
-      // 底部面板切换有渲染延迟，分几次重试聚焦，确保光标落在 Key 输入框
-      [60, 200, 500].forEach(ms => setTimeout(() => {
-        if (anchor && anchor.scrollIntoView) anchor.scrollIntoView({ block: 'center' });
-        if (keyInput && keyInput.offsetParent !== null) keyInput.focus();
-      }, ms));
-      showToast('填入你自己的 API Key 即可使用（只保存在本机）', 'info');
-    } catch (e) {
-      console.warn('[BYOK] 打开引导失败:', e.message);
-    }
+  // ===== BYOK 一键配置：弹窗内选服务商 + 粘 Key + 保存，一步到位 =====
+  const BYOK_PROVIDERS = [
+    { id: 'zhipu', label: '智谱 GLM（免费）', base: 'https://open.bigmodel.cn/api/paas/v4', model: 'glm-4.7-flash', home: 'https://open.bigmodel.cn/usercenter/apikeys' },
+    { id: 'siliconflow', label: '硅基流动（免费）', base: 'https://api.siliconflow.cn/v1', model: 'Qwen/Qwen3-8B', home: 'https://cloud.siliconflow.cn/account/ak' },
+    { id: 'deepseek', label: 'DeepSeek', base: 'https://api.deepseek.com/v1', model: 'deepseek-chat', home: 'https://platform.deepseek.com/api_keys' },
+    { id: 'bailian', label: '阿里百炼', base: 'https://dashscope.aliyuncs.com/compatible-mode/v1', model: 'qwen-plus', home: 'https://bailian.console.aliyun.com/?tab=model#/api-key' },
+    { id: 'kimi', label: '月之暗面 Kimi', base: 'https://api.moonshot.cn/v1', model: 'kimi-k2-0905', home: 'https://platform.moonshot.cn/console/api-keys' }
+  ];
+
+  function renderByokChips() {
+    const wrap = document.getElementById('byok-chips');
+    if (!wrap) return;
+    wrap.innerHTML = '';
+    BYOK_PROVIDERS.forEach((p, i) => {
+      const b = document.createElement('button');
+      b.className = 'byok-chip' + (i === 0 ? ' active' : '');
+      b.textContent = p.label;
+      b.dataset.id = p.id;
+      b.addEventListener('click', () => {
+        wrap.querySelectorAll('.byok-chip').forEach(c => c.classList.remove('active'));
+        b.classList.add('active');
+        setByokHome(p);
+      });
+      wrap.appendChild(b);
+    });
+    setByokHome(BYOK_PROVIDERS[0]);
   }
-  window.__labByok = { open: openByokSetup };
+
+  function setByokHome(p) {
+    const home = document.getElementById('byok-home');
+    if (!home) return;
+    home.innerHTML = '去 <a href="#" class="byok-home" data-url="' + p.home + '" style="color:#059669;text-decoration:none;">' + p.label + ' 官网</a> 申请 Key';
+    const a = home.querySelector('.byok-home');
+    if (a) a.addEventListener('click', (e) => { e.preventDefault(); try { window.LabCode.shell.openExternal(a.dataset.url); } catch (_) {} });
+  }
+
+  function openByokModal() {
+    const modal = document.getElementById('byok-modal');
+    if (!modal) return;
+    renderByokChips(); // 默认选中第 0 个（智谱 GLM 免费）
+    // 若已配置过自定义 Key，预填服务商与 Key，方便修改
+    try {
+      const cfg = window.LabCode && window.LabCode.config ? (window.LabCode.config.get() || {}) : {};
+      const ai = cfg.ai || {};
+      const keyEl = document.getElementById('byok-key');
+      if (keyEl && ai.apiKey) keyEl.value = ai.apiKey;
+      if (ai.baseURL) {
+        const match = BYOK_PROVIDERS.find(p => p.base === ai.baseURL);
+        if (match) {
+          const wrap = document.getElementById('byok-chips');
+          if (wrap) {
+            wrap.querySelectorAll('.byok-chip').forEach(c => c.classList.toggle('active', c.dataset.id === match.id));
+            setByokHome(match);
+          }
+        }
+      }
+    } catch (e) {}
+    modal.style.display = 'flex';
+    setTimeout(() => { const k = document.getElementById('byok-key'); if (k) k.focus(); }, 60);
+  }
+
+  function applyByok() {
+    const keyEl = document.getElementById('byok-key');
+    const key = (keyEl && keyEl.value || '').trim();
+    if (!key) { showToast('请先粘贴 API Key', 'error'); return; }
+    const active = document.querySelector('#byok-chips .byok-chip.active');
+    const p = BYOK_PROVIDERS.find(x => x.id === (active && active.dataset.id)) || BYOK_PROVIDERS[0];
+    // 直接落到设置页的「自定义 API」字段并保存
+    const radio = document.getElementById('ai-prov-custom');
+    if (radio) radio.checked = true;
+    const fields = document.getElementById('custom-api-fields');
+    if (fields) fields.style.display = 'block';
+    const bu = document.getElementById('custom-baseurl');
+    const md = document.getElementById('custom-model');
+    const ki = document.getElementById('custom-apikey');
+    if (bu) bu.value = p.base;
+    if (md) md.value = p.model;
+    if (ki) ki.value = key;
+    try { saveAIConfig(); } catch (e) {}
+    closeByokModal();
+    showToast('已配置「' + p.label + '」，可以直接提问了', 'success');
+    try { if (typeof switchPanel === 'function') switchPanel('chat'); } catch (_) {}
+  }
+
+  function closeByokModal() {
+    const modal = document.getElementById('byok-modal');
+    if (modal) modal.style.display = 'none';
+  }
+
+  // 对外暴露：对话区引导卡 / 常驻按钮都走这个
+  window.__labByok = { open: openByokModal };
 
   __onDCL( () => {
     loadAIConfig();
@@ -15058,9 +15122,19 @@ if (document.readyState === 'loading') {
     const btn = document.getElementById('save-ai-config');
     if (btn) btn.addEventListener('click', saveAIConfig);
 
-    // 设备面板标签栏常驻的「＋ 添加模型」入口：直接打开「自定义 API」并聚焦 Key
+    // 设备面板标签栏常驻的「＋ 添加模型」入口：弹一步到位配置弹窗
     const addModel = document.getElementById('add-model-btn');
     if (addModel) addModel.addEventListener('click', () => { try { window.__labByok.open(); } catch (e) {} });
+
+    // BYOK 弹窗按钮绑定
+    const byokModal = document.getElementById('byok-modal');
+    const byokClose = document.getElementById('byok-modal-close');
+    const byokCancel = document.getElementById('byok-cancel');
+    const byokSave = document.getElementById('byok-save');
+    if (byokClose) byokClose.addEventListener('click', closeByokModal);
+    if (byokCancel) byokCancel.addEventListener('click', closeByokModal);
+    if (byokSave) byokSave.addEventListener('click', applyByok);
+    if (byokModal) byokModal.addEventListener('click', (e) => { if (e.target === byokModal) closeByokModal(); });
 
     // 服务商快捷填充：填好 baseURL 与模型名，并给出申请 Key 的官网链接
     document.querySelectorAll('.byok-preset').forEach(b => {
