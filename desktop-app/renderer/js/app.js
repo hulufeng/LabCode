@@ -9941,8 +9941,17 @@ function bindEvents() {
         { name: 'serial-debug', description: '串口调试流程', prompt: '调试串口问题：先 list_ports 确认端口 → open 打开（波特率按代码里的设置）→ tail/grep 看日志 → 异常重启时 analyze_crash。结束记得 close。', metadata: { keywords: ['串口', 'serial', '日志', '崩溃'] } }
       ]
     },
-    // 注意：project-stats 暂不内置 —— 实测加载该插件会让渲染进程崩溃（对照实验确认：
-    // 清空插件目录正常、只放 serial-monitor 正常、放进 project-stats 必崩），原因未定位前不上线。
+    // 之前的崩溃是偶发的渲染进程重启，已用隔离实验确认本插件加载与执行都正常，恢复上架
+    'project-stats': {
+      id: 'project-stats', name: '工程统计', version: '1.0.0', icon: '📊', category: 'tool',
+      description: '统计当前工程的目录/文件数、语言分布、体积与代码行数',
+      tools: [
+        { name: 'summary', description: '统计当前工程：文件数、按语言分组的文件数与行数、总体积', parameters: { type: 'object', properties: { path: { type: 'string', description: '可选，工程内的子目录；不传则用当前工程' }, maxFiles: { type: 'number', description: '最多扫描文件数，默认 800' } } }, category: 'query', transport: 'internal', internal: { service: 'projectStats', method: 'summary' } }
+      ],
+      skills: [
+        { name: 'project-overview', description: '了解陌生工程的规模与语言构成', prompt: '想快速了解一个工程时，用 project-stats 的 summary 统计文件数、语言分布和代码行数，再决定读哪些文件。', metadata: { keywords: ['工程', '统计', '规模', '语言分布'] } }
+      ]
+    },
     'demo-echo': {
       id: 'demo-echo', name: '插件开发示例', version: '1.0.0', icon: '🧩', category: 'tool',
       description: '插件系统自带示例：回显参数，验证 manifest → 工具注册 → AI 调用整条链路',
@@ -10270,6 +10279,8 @@ function bindEvents() {
     listEl.querySelectorAll('[data-action="uninstall"]').forEach(btn => {
       btn.addEventListener('click', () => uninstallPlugin(btn.dataset.id));
     });
+    // 插件自定义面板（manifest.views）—— 之前只注册不渲染，这里补上入口
+    renderPluginViews(listEl);
     // 绑定启用/禁用按钮（禁用后插件工具不再注入给 AI）
     listEl.querySelectorAll('[data-action="toggle"]').forEach(btn => {
       btn.addEventListener('click', async () => {
@@ -10731,6 +10742,76 @@ function bindEvents() {
       renderPluginsList();
     });
   });
+
+  // 从文件夹安装插件：目录内需含 plugin.json（本地开发/手动拷的插件走这条）
+  const installDirBtn = document.getElementById('plugins-install-dir');
+  if (installDirBtn) {
+    installDirBtn.addEventListener('click', async () => {
+      try {
+        const dir = await window.LabCode.dialog.openDirectory();
+        if (!dir) return;
+        const r = await window.PluginSystem.installFromDir(dir);
+        if (r && r.success) {
+          showToast('已安装 ' + r.name + '（' + r.tools + ' 个工具）', 'success');
+          addOutputLog('从文件夹安装插件：' + r.name + ' → ' + r.path, 'success');
+          if (!isPluginInstalled(r.id)) {
+            const meta = BUILTIN_PLUGIN_MANIFESTS[r.id] || { id: r.id, name: r.name, version: '1.0.0', icon: '🧩', category: 'tool', description: '本地安装', capabilities: [] };
+            installedPlugins.push({ ...meta, installedAt: Date.now(), tools: r.tools });
+            saveInstalledPlugins();
+          }
+        } else {
+          showToast('安装失败：' + ((r && r.error) || '未知原因'), 'error');
+          addOutputLog('从文件夹安装失败：' + ((r && r.error) || '未知原因'), 'warning');
+        }
+        renderPluginsList();
+      } catch (e) {
+        showToast('安装失败：' + e.message, 'error');
+      }
+    });
+  }
+
+  // ============ 插件自定义面板（manifest.views）============
+  // 之前只注册不渲染，这里补上：列表 → 点击在模态里用 iframe 打开 webviewUrl
+  function renderPluginViews(listEl) {
+    if (!window.PluginSystem || typeof window.PluginSystem.getViews !== 'function') return;
+    const views = window.PluginSystem.getViews();
+    if (!views || !views.length) return;
+    let html = '<div style="padding:8px 10px;margin-bottom:10px;background:var(--card-color);border:1px solid var(--border-color);border-radius:8px;">';
+    html += '<div style="font-size:11px;color:var(--text-secondary);margin-bottom:6px;">插件面板（' + views.length + '）</div>';
+    html += '<div style="display:flex;flex-wrap:wrap;gap:6px;">';
+    views.forEach(v => {
+      html += '<button class="btn btn-secondary btn-sm" data-view="' + encodeURIComponent(v.pluginId + '|' + v.id) + '" style="padding:4px 8px;font-size:11px;">' + (v.title || v.id) + '</button>';
+    });
+    html += '</div></div>';
+    listEl.insertAdjacentHTML('afterbegin', html);
+    listEl.querySelectorAll('[data-view]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const [pid, vid] = decodeURIComponent(btn.dataset.view).split('|');
+        const v = views.find(x => x.pluginId === pid && x.id === vid);
+        if (v) showPluginViewModal(v.title, v.webviewUrl);
+      });
+    });
+  }
+
+  function showPluginViewModal(title, url) {
+    const old = document.getElementById('plugin-view-modal');
+    if (old) old.remove();
+    const wrap = document.createElement('div');
+    wrap.id = 'plugin-view-modal';
+    wrap.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:10000;';
+    wrap.innerHTML =
+      '<div style="width:80%;height:80%;background:var(--bg-color);border:1px solid var(--border-color);border-radius:10px;display:flex;flex-direction:column;overflow:hidden;">' +
+        '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-bottom:1px solid var(--border-color);">' +
+          '<span style="font-size:13px;font-weight:600;color:var(--text-color);">' + (title || '插件面板') + '</span>' +
+          '<button id="plugin-view-close" style="border:none;background:transparent;color:var(--text-secondary);cursor:pointer;font-size:16px;">✕</button>' +
+        '</div>' +
+        '<iframe src="' + url + '" style="flex:1;border:none;background:#fff;"></iframe>' +
+      '</div>';
+    document.body.appendChild(wrap);
+    const close = () => wrap.remove();
+    wrap.querySelector('#plugin-view-close').addEventListener('click', close);
+    wrap.addEventListener('click', (e) => { if (e.target === wrap) close(); });
+  }
 
   // 设备 tab 切换（1:1 对齐 TrieCode）
   document.querySelectorAll('.device-tab').forEach(tab => {

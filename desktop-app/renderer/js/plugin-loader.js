@@ -165,13 +165,55 @@ function loadPluginManifest(manifest) {
               return typeof r === 'string' ? r : JSON.stringify(r);
             }
             if (transport === 'grpc') {
-              return 'Error: gRPC transport 尚未实现（插件 ' + id + '）。规划：插件自带 daemon，主进程拉起 grpc.Server，插件通过 grpc.Client 调用。';
+              // t.grpc = { protoPath, service, method, host, request, insecure, timeoutMs }
+              // 由主进程加载 proto 并发起 unary 调用（需要 socket，渲染层做不了）
+              const bridge = window.LabCode && window.LabCode.plugin;
+              if (!bridge || !bridge.grpcCall) return 'Error: plugin bridge 不可用（grpc）';
+              const g = t.grpc || {};
+              const r = await bridge.grpcCall({
+                protoPath: g.protoPath, service: g.service, method: g.method,
+                host: g.host, request: Object.assign({}, g.request || {}, a),
+                insecure: g.insecure !== false, timeoutMs: g.timeoutMs || 30000
+              });
+              if (!r || !r.success) return 'Error: grpc 调用失败: ' + ((r && r.error) || 'unknown');
+              return typeof r.result === 'string' ? r.result : JSON.stringify(r.result);
             }
             if (transport === 'stdio') {
-              return 'Error: stdio transport 尚未实现（插件 ' + id + '）。规划：spawn 子进程，按 JSON-RPC over stdio 通信。';
+              // t.stdio = { command, args, cwd, timeoutMs }；参数以 {argName} 模板注入 args
+              const bridge = window.LabCode && window.LabCode.plugin;
+              if (!bridge || !bridge.stdioCall) return 'Error: plugin bridge 不可用（stdio）';
+              const sd = t.stdio || {};
+              const projectPath = (window.LabCodeUI && window.LabCodeUI.state && window.LabCodeUI.state.projectPath) || '';
+              const ctx = Object.assign({}, a, { projectPath });
+              const args = Array.isArray(sd.args) ? sd.args.map(x => String(x).replace(/\{(\w+)\}/g, (m, k) => (ctx[k] != null ? String(ctx[k]) : m))) : [];
+              const r = await bridge.stdioCall({
+                command: sd.command, args,
+                cwd: (sd.cwd || '').replace(/\{projectPath\}/g, projectPath) || undefined,
+                request: a, timeoutMs: sd.timeoutMs || 30000
+              });
+              if (!r || !r.success) return 'Error: stdio 调用失败: ' + ((r && r.error) || 'unknown') + ((r && r.stderr) ? '\n' + r.stderr : '');
+              if (r.result !== undefined) return typeof r.result === 'string' ? r.result : JSON.stringify(r.result);
+              return r.raw || '';
             }
             if (transport === 'mqtt') {
-              return 'Error: MQTT transport 尚未实现（插件 ' + id + '）。规划：通过 EMQX/Mosquitto broker 桥接 IoT 设备。';
+              // t.mqtt = { brokerUrl, topic, responseTopic, payload, qos, username, password, timeoutMs }
+              const bridge = window.LabCode && window.LabCode.plugin;
+              if (!bridge || !bridge.mqttCall) return 'Error: plugin bridge 不可用（mqtt）';
+              const mq = t.mqtt || {};
+              const projectPath = (window.LabCodeUI && window.LabCodeUI.state && window.LabCodeUI.state.projectPath) || '';
+              const ctx = Object.assign({}, a, { projectPath });
+              const fill = (s) => String(s || '').replace(/\{(\w+)\}/g, (m, k) => (ctx[k] != null ? String(ctx[k]) : m));
+              const r = await bridge.mqttCall({
+                brokerUrl: fill(mq.brokerUrl), topic: fill(mq.topic),
+                responseTopic: mq.responseTopic ? fill(mq.responseTopic) : '',
+                payload: Object.assign({}, mq.payload || {}, a),
+                qos: mq.qos || 0, username: mq.username, password: mq.password,
+                timeoutMs: mq.timeoutMs || 15000
+              });
+              if (!r || !r.success) return 'Error: mqtt 调用失败: ' + ((r && r.error) || 'unknown');
+              if (r.published) return 'OK: 已发布到 ' + fill(mq.topic);
+              if (r.result !== undefined) return typeof r.result === 'string' ? r.result : JSON.stringify(r.result);
+              return r.raw || '';
             }
             return `Error: transport "${transport}" 尚未实现（插件 ${id}）`;
           } catch (e) {
@@ -460,6 +502,7 @@ window.PluginSystem = {
   loadPluginsFromRemote,
   // ---- 安装 / 卸载 / 启用禁用 ----
   getPluginsRoot,
+  getViews: () => Array.from(PLUGIN_VIEWS.values()),
   installFromDir,
   installManifest,
   uninstall,

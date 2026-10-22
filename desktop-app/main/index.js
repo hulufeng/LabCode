@@ -1501,6 +1501,145 @@ function setupIPC() {
     const result = await dialog.showSaveDialog(mainWindow, {
       defaultPath: defaultPath || 'untitled'
     });
+
+  // ===== Plugin transports: stdio / grpc / mqtt =====
+  // These need OS level access (child process, sockets), so they live in the main
+  // process; the renderer calls them through preload -> window.LabCode.plugin.*.
+
+  // stdio: spawn a child process and speak JSON-RPC over stdin/stdout (one JSON per line)
+  ipcMain.handle('plugin:stdioCall', async (_, opts) => {
+    try {
+      const o = opts || {};
+      const command = o.command || '';
+      if (!command) return { success: false, error: 'command is required' };
+      const args = Array.isArray(o.args) ? o.args : [];
+      const timeoutMs = o.timeoutMs || 30000;
+      const req = o.request || {};
+      const { spawn } = require('child_process');
+      const child = spawn(command, args, {
+        cwd: o.cwd || undefined,
+        windowsHide: true,
+        stdio: ['pipe', 'pipe', 'pipe']
+      });
+      let out = '';
+      let err = '';
+      child.stdout.on('data', d => { out += d.toString(); });
+      child.stderr.on('data', d => { err += d.toString(); });
+      const done = new Promise((resolve) => {
+        let finished = false;
+        const finish = (r) => { if (!finished) { finished = true; resolve(r); } };
+        child.on('exit', (code) => finish({ exitCode: code }));
+        child.on('error', (e) => finish({ error: e.message }));
+        setTimeout(() => { try { child.kill(); } catch (e) {} finish({ timeout: true }); }, timeoutMs);
+      });
+      try {
+        child.stdin.write(JSON.stringify(req) + '\n');
+      } catch (e) {
+        return { success: false, error: 'write stdin failed: ' + e.message };
+      }
+      const r = await done;
+      if (r.error) return { success: false, error: r.error };
+      if (r.timeout) return { success: false, error: 'timeout after ' + timeoutMs + 'ms', stderr: err.slice(0, 2000) };
+      // pick the last valid JSON line from stdout
+      const lines = out.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+      for (let k = lines.length - 1; k >= 0; k--) {
+        try { return { success: true, result: JSON.parse(lines[k]), exitCode: r.exitCode }; } catch (e) { /* not json */ }
+      }
+      return { success: true, raw: out.slice(0, 8000), stderr: err.slice(0, 2000), exitCode: r.exitCode };
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
+  });
+
+  // grpc: load the plugin's .proto dynamically and make a unary call
+  ipcMain.handle('plugin:grpcCall', async (_, opts) => {
+    try {
+      const o = opts || {};
+      if (!o.protoPath || !o.service || !o.method || !o.host) {
+        return { success: false, error: 'protoPath/service/method/host are required' };
+      }
+      const grpc = require('@grpc/grpc-js');
+      const protoLoader = require('@grpc/proto-loader');
+      const packageDefinition = await protoLoader.load(o.protoPath, {
+        keepCase: false, longs: String, enums: String, defaults: true, oneofs: true
+      });
+      const proto = grpc.loadPackageDefinition(packageDefinition);
+      // supports "pkg.Service" style names
+      const parts = String(o.service).split('.');
+      let Service = proto;
+      for (const part of parts) { Service = Service && Service[part]; }
+      if (!Service) return { success: false, error: 'service not found in proto: ' + o.service };
+      const client = new Service(o.host, o.insecure === false
+        ? grpc.credentials.createSsl()
+        : grpc.credentials.createInsecure());
+      const deadline = Date.now() + (o.timeoutMs || 30000);
+      const result = await new Promise((resolve, reject) => {
+        client[o.method](o.request || {}, { deadline }, (e, resp) => {
+          if (e) reject(e); else resolve(resp);
+        });
+      });
+      return { success: true, result };
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
+  });
+
+  // mqtt: publish to a topic and (optionally) wait for a reply on responseTopic
+  ipcMain.handle('plugin:mqttCall', async (_, opts) => {
+    try {
+      const o = opts || {};
+      if (!o.brokerUrl || !o.topic) return { success: false, error: 'brokerUrl/topic are required' };
+      const mqtt = require('mqtt');
+      const timeoutMs = o.timeoutMs || 15000;
+      const client = mqtt.connect(o.brokerUrl, {
+        username: o.username || undefined,
+        password: o.password || undefined,
+        clientId: o.clientId || ('labcode-plugin-' + Math.random().toString(16).slice(2, 10)),
+        reconnectPeriod: 0,
+        connectTimeout: Math.min(timeoutMs, 10000)
+      });
+      const payload = typeof o.payload === 'string' ? o.payload : JSON.stringify(o.payload || {});
+      const result = await new Promise((resolve, reject) => {
+        const timer = setTimeout(() => {
+          try { client.end(true); } catch (e) {}
+          resolve({ success: false, error: 'timeout waiting for response (' + timeoutMs + 'ms)' });
+        }, timeoutMs);
+        const finish = (r) => {
+          clearTimeout(timer);
+          try { client.end(true); } catch (e) {}
+          resolve(r);
+        };
+        client.on('error', (e) => finish({ success: false, error: e.message }));
+        client.on('connect', () => {
+          if (o.responseTopic) {
+            client.subscribe(o.responseTopic, (se) => {
+              if (se) return finish({ success: false, error: 'subscribe failed: ' + se.message });
+              client.publish(o.topic, payload, { qos: o.qos || 0 }, (pe) => {
+                if (pe) return finish({ success: false, error: 'publish failed: ' + pe.message });
+              });
+            });
+          } else {
+            client.publish(o.topic, payload, { qos: o.qos || 0 }, (pe) => {
+              if (pe) finish({ success: false, error: 'publish failed: ' + pe.message });
+              else finish({ success: true, published: true });
+            });
+          }
+        });
+        if (o.responseTopic) {
+          client.on('message', (topic, message) => {
+            if (topic !== o.responseTopic) return;
+            const text = message.toString();
+            try { finish({ success: true, result: JSON.parse(text), topic }); }
+            catch (e) { finish({ success: true, raw: text.slice(0, 8000), topic }); }
+          });
+        }
+      });
+      return result;
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
+  });
+
     return result.canceled ? null : result.filePath;
   });
 

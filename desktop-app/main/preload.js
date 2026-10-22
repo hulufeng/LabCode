@@ -37,6 +37,12 @@ contextBridge.exposeInMainWorld('LabCode', {
   },
 
   // 文件系统
+  // Plugin transports that need OS access (child process / sockets)
+  plugin: {
+    stdioCall: (opts) => ipcRenderer.invoke('plugin:stdioCall', opts),
+    grpcCall: (opts) => ipcRenderer.invoke('plugin:grpcCall', opts),
+    mqttCall: (opts) => ipcRenderer.invoke('plugin:mqttCall', opts)
+  },
   fs: {
     readFile: (filePath, encoding) => ipcRenderer.invoke('fs:readFile', filePath, encoding),
     writeFile: (filePath, content) => ipcRenderer.invoke('fs:writeFile', filePath, content),
