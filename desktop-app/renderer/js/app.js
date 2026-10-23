@@ -11617,6 +11617,12 @@ function bindEvents() {
   }
   // 暴露给同作用域内其它刷新入口调用
   window.__labRefreshAvailableCores = refreshAvailableCores;
+  // 调试钩子：强制触发降级清单渲染（用于 E2E 验证容错分支，不影响正常逻辑）
+  window.__labForceFallbackCores = function () {
+    _availableCoresNote = '⚠️ 无法连接官方索引（调试钩子模拟），以下为常用平台，点击将真实调用 arduino-cli 安装（仍需索引可达）：';
+    _availableCoresCache = FALLBACK_CORES;
+    renderAvailableCores(FALLBACK_CORES.slice(0, 60), FALLBACK_CORES.length);
+  };
 
   async function refreshLibraries() {
     const el = document.getElementById('library-list');
@@ -15291,6 +15297,8 @@ function applyCompileProblems(output) {
     try { updateProblemsPanel(); } catch (e) {} // 兜底刷新（setModelMarkers 也会经 onDidChangeMarkers 触发）
   } catch (e) {}
 }
+// 调试钩子：注入编译输出以验证问题面板（E2E 用）
+try { window.__labApplyCompileProblems = applyCompileProblems; } catch (e) {}
 
 // ============ 自带 Key（BYOK）引导卡：AI 不可用时在对话区给出一键入口 ============
 function appendByokCard(title) {

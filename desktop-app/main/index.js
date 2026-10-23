@@ -70,7 +70,7 @@ function getDefaultConfig() {
   return {
     ai: {
       provider: 'gateway',
-      model: 'deepseek-flash',
+      model: 'qwen3-8b',
       apiKey: '',
       thinkingLevel: 'standard',
       agentMode: 'default'
@@ -822,12 +822,17 @@ function setupIPC() {
 
   const AI_PROVIDERS = {
     deepseek: { baseURL: 'https://api.deepseek.com/v1', defaultModel: 'deepseek-chat' },
-    gateway:  { baseURL: process.env.GATEWAY_URL || 'https://bluebubai.work', defaultModel: 'deepseek-flash' },
+    gateway:  { baseURL: process.env.GATEWAY_URL || 'https://bluebubai.work', defaultModel: 'qwen3-8b' },
     local:    { baseURL: 'http://127.0.0.1:8080/v1', defaultModel: 'qwen2.5-coder-7b-instruct-q4_k_m.gguf' },
     ollama:   { baseURL: 'http://localhost:11434/v1', defaultModel: 'qwen2.5-coder:7b' },
     openai:   { baseURL: 'https://api.openai.com/v1', defaultModel: 'gpt-4o-mini' },
     custom:   { baseURL: '', defaultModel: '' }
   };
+
+  // 网关可用模型白名单。旧版默认/残留的 deepseek-flash 等模型在网关上不存在，
+  // 会导致对话请求 404 静默失败（用户表现为"发消息没反应"）。统一矫正为真实可用的模型。
+  const GW_AVAILABLE_MODELS = ['qwen3-8b'];
+  const normalizeGwModel = (m) => (GW_AVAILABLE_MODELS.includes(m) ? m : GW_AVAILABLE_MODELS[0]);
 
   // 兼容历史配置的 baseURL/baseUrl 大小写字段（旧版 UI 写入 ai.baseUrl，新版读 ai.baseURL）。
   // 优先大写 baseURL；为空时回退小写 baseUrl；custom provider 下 baseUrl 指向本地 127.0.0.1 优先。
@@ -863,11 +868,12 @@ function setupIPC() {
       if (aiCfg.provider === 'gateway') {
         const gwToken = aiCfg.gatewayToken || '';
     if (!gwToken) return { success: false, error: 'not logged in, please login in settings' };
+        const gwModel = normalizeGwModel(useModel); // 矫正旧配置残留的不可用模型
         const gwUrl = baseURL.replace(/\/$/, '') + '/api/chat';
         const gwResp = await net.fetch(gwUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + gwToken },
-          body: JSON.stringify({ model: useModel, messages, temperature })
+          body: JSON.stringify({ model: gwModel, messages, temperature })
         });
         const gwData = await gwResp.json().catch(() => ({}));
         if (!gwResp.ok) {
@@ -876,7 +882,7 @@ function setupIPC() {
           }
           return { success: false, error: `网关返回 ${gwResp.status}: ${(gwData.error || '')}` };
         }
-        return { success: true, content: gwData.content || '', creditsLeft: gwData.creditsLeft, dailyRemaining: gwData.dailyRemaining, cost: gwData.cost, totalTokens: gwData.totalTokens, model: useModel, gateway: true };
+        return { success: true, content: gwData.content || '', creditsLeft: gwData.creditsLeft, dailyRemaining: gwData.dailyRemaining, cost: gwData.cost, totalTokens: gwData.totalTokens, model: gwModel, gateway: true };
       }
 
       const url = baseURL.replace(/\/$/, '') + '/chat/completions';
@@ -1062,6 +1068,8 @@ function setupIPC() {
     }
     const apiKey = aiCfg.apiKey || '';
     const isGateway = aiCfg.provider === 'gateway';
+    // 网关模式：矫正旧配置残留的不可用模型（deepseek-flash 等），否则对话 404 静默失败
+    if (isGateway) useModel = normalizeGwModel(useModel);
     // 缃戝叧妯″紡锛氳蛋鍐呯疆妯″瀷姹?+ 绉垎鎵ｈ垂锛涜姹備綋鍙彂妯″瀷 id 涓庢秷鎭紙Key 鍦ㄦ湇鍔＄锛?
     const url = isGateway
       ? (baseURL || '').replace(/\/$/, '') + '/api/chat/stream'

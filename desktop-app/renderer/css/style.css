@@ -4844,20 +4844,22 @@ body.no-open-file .ai-panel {
 }
 .device-tab-cta:hover { background: rgba(5,150,105,0.12); }
 
-/* BYOK 一步配置弹窗里的服务商选择 chip */
+/* BYOK 一步配置弹窗里的服务商选择 chip（跟随主题变量，不再硬编码深色） */
 .byok-chip {
   flex: 0 0 auto;
-  padding: 5px 11px;
-  background: #2d2d2d;
-  border: 1px solid #3c3c3c;
-  color: #ccc;
-  border-radius: 14px;
+  padding: 6px 13px;
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  border-radius: 16px;
   font-size: 12px;
   cursor: pointer;
   transition: all 0.15s;
 }
-.byok-chip:hover { border-color: #059669; color: #059669; }
-.byok-chip.active { background: #059669; border-color: #059669; color: #fff; }
+.byok-chip:hover { border-color: #059669; color: #059669; background: rgba(5,150,105,0.06); }
+.byok-chip.active { background: #059669; border-color: #059669; color: #fff; box-shadow: 0 1px 4px rgba(5,150,105,0.3); }
+#byok-key:focus { border-color: #059669; outline: none; box-shadow: 0 0 0 3px rgba(5,150,105,0.15); }
+#byok-save:hover { background: #047857; }
 .device-content {
   flex: 1;
   overflow-y: auto;

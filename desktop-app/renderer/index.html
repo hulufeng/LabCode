@@ -1290,7 +1290,7 @@
               <input type="text" id="gw-register-invite" placeholder="邀请码（选填）" style="width:100%;padding:8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size:13px;box-sizing:border-box;">
               <button class="btn btn-primary" id="gw-register-btn" style="flex:0 0 auto;align-self:flex-start;">注册</button>
             </div>
-            <div style="font-size:11px;color:var(--text-secondary);line-height:1.5;">登录后可使用云端内置模型（DeepSeek / MiniMax）；本地模型无需登录，数据不出本机。</div>
+            <div style="font-size:11px;color:var(--text-secondary);line-height:1.5;">登录后可使用云端模型（硅基流动 Qwen3-8B，免费）；本地模型无需登录，数据不出本机。</div>
           </div>
           <div id="gw-user-info" style="display:none;font-size:13px;color:var(--text-color);">
             <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
@@ -1640,21 +1640,28 @@
     </div>
   </div>
 
-  <!-- BYOK 一键配置弹窗：选服务商 + 粘 Key + 保存，一步到位 -->
-  <div id="byok-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:10001;align-items:center;justify-content:center;">
-    <div style="background:var(--surface-1);border:1px solid var(--border);border-radius:14px;padding:24px;width:440px;max-width:92%;box-shadow:0 12px 40px rgba(0,0,0,.45);">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-        <div style="font-size:16px;font-weight:600;color:var(--text-primary);">添加你的模型</div>
-        <button id="byok-modal-close" style="background:none;border:none;color:var(--text-secondary);font-size:22px;cursor:pointer;line-height:1;">×</button>
+  <!-- BYOK 一键配置弹窗：选服务商 + 粘 Key + 保存，一步到位（浅色主题统一风格） -->
+  <div id="byok-modal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.5);backdrop-filter:blur(2px);z-index:10001;align-items:center;justify-content:center;">
+    <div style="background:var(--surface-1);border:1px solid var(--border);border-radius:16px;padding:24px 26px 22px;width:460px;max-width:92%;box-shadow:0 20px 60px rgba(0,0,0,.25);">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px;">
+        <div>
+          <div style="font-size:17px;font-weight:700;color:var(--text-primary);letter-spacing:.2px;">添加你的模型</div>
+          <div style="font-size:12px;color:var(--text-secondary);margin-top:6px;line-height:1.6;">选择服务商，粘贴你的 API Key 即可用</div>
+        </div>
+        <button id="byok-modal-close" style="background:var(--surface-3);border:none;color:var(--text-secondary);width:26px;height:26px;border-radius:50%;cursor:pointer;line-height:1;font-size:16px;">×</button>
       </div>
-      <div style="font-size:12px;color:var(--text-secondary);margin-bottom:14px;line-height:1.6;">选择服务商，粘贴你的 API Key 即可用。密钥只存在本机，不经过 LabCode 服务器。</div>
-      <div id="byok-chips" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;"></div>
-      <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:5px;">API Key</div>
-      <input id="byok-key" type="password" placeholder="粘贴你的 API Key" style="width:100%;background:#2d2d2d;border:1px solid #3c3c3c;color:#ccc;padding:9px 10px;border-radius:6px;font-size:13px;box-sizing:border-box;">
-      <div id="byok-home" style="font-size:11px;color:var(--text-tertiary);margin-top:6px;line-height:1.6;"></div>
-      <div style="display:flex;gap:8px;margin-top:16px;">
-        <button id="byok-save" style="flex:1;padding:9px;background:#059669;color:#fff;border:none;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;">保存并使用</button>
-        <button id="byok-cancel" style="padding:9px 14px;background:var(--surface-3);color:var(--text-primary);border:1px solid var(--border);border-radius:7px;font-size:13px;cursor:pointer;">取消</button>
+      <div style="height:1px;background:var(--border);margin:14px 0 16px;"></div>
+      <div id="byok-chips" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;"></div>
+      <label for="byok-key" style="display:block;font-size:11px;font-weight:600;color:var(--text-secondary);letter-spacing:.5px;margin-bottom:6px;">API KEY</label>
+      <input id="byok-key" type="password" placeholder="粘贴你的 API Key" autocomplete="off" style="width:100%;background:var(--bg-secondary);border:1px solid var(--border);color:var(--text-primary);padding:11px 12px;border-radius:8px;font-size:13px;box-sizing:border-box;transition:border-color .15s, box-shadow .15s;">
+      <div id="byok-home" style="font-size:11px;color:var(--text-tertiary);margin-top:8px;line-height:1.6;"></div>
+      <div style="display:flex;align-items:center;gap:6px;margin-top:12px;padding:8px 10px;background:rgba(5,150,105,0.06);border-radius:8px;">
+        <span style="font-size:12px;">🔒</span>
+        <span style="font-size:11px;color:var(--text-secondary);">密钥只保存在本机，不经过 LabCode 服务器</span>
+      </div>
+      <div style="display:flex;gap:10px;margin-top:18px;">
+        <button id="byok-save" style="flex:1;padding:10px;background:#059669;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;transition:background .15s;">保存并使用</button>
+        <button id="byok-cancel" style="padding:10px 16px;background:var(--surface-3);color:var(--text-primary);border:1px solid var(--border);border-radius:8px;font-size:13px;cursor:pointer;">取消</button>
       </div>
     </div>
   </div>
