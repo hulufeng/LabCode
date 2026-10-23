@@ -6,15 +6,24 @@
   const CTX_SOFT_LIMIT = 128000; // 进度条满刻度（可按真实窗口调整）
   let panelEl = null, built = false;
 
-  // TODO: 接入 app.js 真实 estimateTokens（TrieCode contextUsage）。当前前端近似：字符/4。
+  // token 估算：前端近似（没有服务端 tokenizer）。
+  // 经验值：CJK（中/日/韩）约 1 字 ≈ 1 token；其余（英文/代码）约 4 字符 ≈ 1 token。
+  // 比统一「字符/4」贴近真实——中文为主的工程原来会低估约 4 倍。
+  const CJK_RE = /[\u3400-\u4dbf\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af\uf900-\ufaff]/g;
   function estimateTokensFromState() {
-    let chars = 0;
-    if (state && state.files) for (const k in state.files) { const f = state.files[k]; if (f && typeof f.content === 'string') chars += f.content.length; }
+    let chars = 0, cjk = 0;
+    const add = (s) => {
+      if (!s) return;
+      chars += s.length;
+      const m = s.match(CJK_RE);
+      if (m) cjk += m.length;
+    };
+    if (state && state.files) for (const k in state.files) { const f = state.files[k]; if (f && typeof f.content === 'string') add(f.content); }
     if (state && state.editor && typeof state.editor.getValue === 'function') {
       const v = state.editor.getValue() || '';
-      if (!(state.activeTab && state.files[state.activeTab])) chars += v.length;
+      if (!(state.activeTab && state.files[state.activeTab])) add(v);
     }
-    return { chars, tokens: Math.round(chars / 4) };
+    return { chars, tokens: Math.round(cjk + (chars - cjk) / 4) };
   }
 
   function buildPanel() {

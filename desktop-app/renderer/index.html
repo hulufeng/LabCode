@@ -1210,7 +1210,7 @@
         <p>AI 智能体提交了以下执行计划：</p>
         <div class="plan-text" id="plan-text" style="font-size:13px;color:var(--text-secondary);margin-bottom:12px;"></div>
         <div class="plan-steps" id="plan-steps" style="margin-bottom:12px;"></div>
-        <div class="plan-content" id="plan-content"></div>
+        <!-- 已移除从未被写入的 plan-content 空容器（真实内容写在 plan-text / plan-steps） -->
         <textarea class="plan-feedback-input" id="plan-feedback-input" rows="2" placeholder="如需修改计划，在此填写修改意见后点击「拒绝」…"></textarea>
         <p class="plan-warning"><svg class="icon icon-xs"><use href="#icon-alert-triangle"></use></svg> 批准后 AI 将自动执行计划中的所有操作（包括修改文件、执行命令等）。</p>
       </div>
@@ -1233,7 +1233,7 @@
           <span>AI 请求执行以下操作，请确认：</span>
         </div>
         <div class="permission-command" id="permission-command"></div>
-        <div class="permission-detail" id="permission-detail"></div>
+        <!-- 已移除从未被写入的 permission-detail 空容器（真实权限确认走内联卡片） -->
         <div class="permission-tips">
           <p><strong>提示：</strong></p>
           <ul>

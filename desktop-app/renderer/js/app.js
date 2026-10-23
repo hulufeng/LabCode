@@ -725,6 +725,8 @@ function ensureMonacoEditor() {
         if (ln > 0 && window.__dbg && window.__dbg.toggleBreakpoint) window.__dbg.toggleBreakpoint(state.activeTab, ln);
       }
     });
+    // 编辑器诊断变化 → 实时刷新问题面板（此前问题面板没有任何数据源，永远"暂无问题"）
+    try { monaco.editor.onDidChangeMarkers(() => updateProblemsPanel()); } catch (e) {}
     // 若已有待打开文件则补渲染（覆盖"Monaco 加载晚于 AI 写文件"的竞态）
     if (state.activeTab && state.files[state.activeTab]) {
       state.editor.setValue(state.files[state.activeTab].content);
@@ -9957,6 +9959,8 @@ function bindEvents() {
       tab.classList.add('active');
       const panelEl = document.getElementById(tab.dataset.panel + '-panel');
       if (panelEl) panelEl.classList.add('active');
+      // 切到「问题」时按当前真实诊断重绘
+      if (tab.dataset.panel === 'problems') { try { updateProblemsPanel(); } catch (e) {} }
     });
   });
 
@@ -15289,6 +15293,57 @@ function updateDailyCredits(remaining, limit) {
       badge.style.background = 'rgba(5,150,105,0.12)';
       badge.style.borderColor = 'rgba(5,150,105,0.35)';
     }
+  } catch (e) {}
+}
+
+// ============ 问题面板：接入编辑器真实诊断（此前永远显示"暂无问题"）============
+// 数据源是 monaco 的 model markers（TS/JS/HTML/JSON 等语言服务产生的真实诊断）
+function updateProblemsPanel() {
+  try {
+    const box = document.getElementById('problems-content');
+    if (!box) return;
+    const badge = document.getElementById('problem-count');
+    if (typeof monaco === 'undefined' || !monaco.editor || !monaco.editor.getModelMarkers) {
+      box.innerHTML = '<div class="empty-state">编辑器未就绪</div>';
+      if (badge) badge.textContent = '0';
+      return;
+    }
+    const markers = monaco.editor.getModelMarkers({}) || [];
+    if (badge) badge.textContent = String(markers.length);
+    box.innerHTML = '';
+    if (!markers.length) {
+      const empty = document.createElement('div');
+      empty.className = 'empty-state';
+      empty.textContent = '暂无问题';
+      box.appendChild(empty);
+      return;
+    }
+    const ICON = { 8: '❌', 4: '⚠️', 2: 'ℹ️' }; // monaco MarkerSeverity: Error/Warning/Info
+    markers.forEach((m) => {
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;gap:8px;padding:4px 10px;font-size:12px;cursor:pointer;align-items:flex-start;';
+      row.title = '点击跳转到该问题';
+      const sev = document.createElement('span');
+      sev.textContent = ICON[m.severity] || '•';
+      const msg = document.createElement('span');
+      msg.style.flex = '1';
+      msg.textContent = m.message || '';
+      const loc = document.createElement('span');
+      loc.style.cssText = 'color:var(--text-secondary);white-space:nowrap;';
+      const p = m.resource ? String(m.resource.path || m.resource) : '';
+      loc.textContent = (p ? p.split('/').pop() : '') + ' [' + m.startLineNumber + ':' + m.startColumn + ']';
+      row.append(sev, msg, loc);
+      row.addEventListener('click', () => {
+        try {
+          if (!state.editor) return;
+          if (p && state.activeTab !== p && typeof openFileInEditor === 'function') openFileInEditor(p);
+          state.editor.revealLineInCenter(m.startLineNumber);
+          state.editor.setPosition({ lineNumber: m.startLineNumber, column: m.startColumn });
+          state.editor.focus();
+        } catch (e) {}
+      });
+      box.appendChild(row);
+    });
   } catch (e) {}
 }
 
