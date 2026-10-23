@@ -1413,6 +1413,17 @@ function setupIPC() {
 
   // ============ 缃戝叧璐﹀彿锛堢櫥褰?/ 娉ㄥ唽 / 浣欓 / 鐧诲嚭锛?===========
   ipcMain.handle('ai:gatewayAuth', async (_, { action, email, password, gatewayUrl, inviteCode, code, username } = {}) => {
+    // 使用上报：登录/活跃后异步上报 email+版本+平台到网关（谁在用；失败静默）
+    const reportUsage = async (gw, em) => {
+      try {
+        if (!em) return;
+        await net.fetch(`${gw}/api/usage/active`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: em, version: (app && app.getVersion ? app.getVersion() : ''), platform: process.platform })
+        });
+      } catch (e) { /* 静默 */ }
+    };
     // 浼樺厛绾э細鏄惧紡浼犲叆 > 宸蹭繚瀛?config.ai.gatewayUrl > 鐜变量 > 榛樿生产域名
     const savedGw = (config.ai || {}).gatewayUrl || '';
     const gwBase = (gatewayUrl || savedGw || process.env.GATEWAY_URL || AI_PROVIDERS.gateway.baseURL || 'https://bluebubai.work').replace(/\/$/, '');
@@ -1452,6 +1463,7 @@ function setupIPC() {
         aiCfg.gatewayUrl = gwBase;
         config.ai = aiCfg;
         saveConfig(config);
+        reportUsage(gwBase, email);
         return {
           success: true,
           action,
@@ -1465,6 +1477,7 @@ function setupIPC() {
         const data = await res.json().catch(() => ({}));
         if (!res.ok) return { success: false, error: data.error || `网关返回 ${res.status}` };
         const u = data.user || {};
+        reportUsage(gwBase, (config.ai || {}).gatewayEmail);
         return { success: true, user: { email: u.email, totalCredits: u.totalCredits, planCredits: u.planCredits, rechargeCredits: u.rechargeCredits, dailyRemaining: u.dailyRemaining, dailyUsed: u.dailyUsed } };
       }
       if (action === 'logout') {

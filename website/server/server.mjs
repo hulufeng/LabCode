@@ -63,6 +63,8 @@ function defaultDb() {
       },
     ],
     sessions: {}, // token -> { userId, createdAt }
+    codes: {}, // email -> { code, expires }（验证码；开发态 consoleMode 直接回显，生产应接入邮件/短信）
+    activeUsers: {}, // email -> { email, firstSeen, lastActive, count, platform, version }（谁在用）
     plugins: seedPlugins(now),
     contacts: [],
     content: {}, // key -> { title, body, updatedAt }
@@ -110,6 +112,8 @@ async function loadDb() {
     db.content ||= {};
     db.downloads ||= [];
     db.version ||= { latest: '0.1.9', notes: '', updatedAt: Date.now() };
+    db.codes ||= {};
+    db.activeUsers ||= {};
   } catch {
     db = defaultDb();
     await saveDbNow();
@@ -151,6 +155,21 @@ function verifyPassword(pw, stored) {
 
 function randomToken(n = 24) {
   return crypto.randomBytes(n).toString('hex');
+}
+
+// 对外暴露的用户对象（桌面端按此结构取 credits / 活跃时间）
+function publicUser(u) {
+  return {
+    email: u.email,
+    username: u.username || '',
+    totalCredits: u.totalCredits != null ? u.totalCredits : 999999,
+    planCredits: u.planCredits != null ? u.planCredits : 999999,
+    rechargeCredits: u.rechargeCredits != null ? u.rechargeCredits : 0,
+    dailyRemaining: u.dailyRemaining != null ? u.dailyRemaining : 999999,
+    dailyUsed: u.dailyUsed != null ? u.dailyUsed : 0,
+    lastActive: u.lastActive || u.createdAt || null,
+    registeredAt: u.createdAt || null,
+  };
 }
 
 // ---------- HTTP 工具 ----------
@@ -363,6 +382,82 @@ async function handleApi(req, res, pathname, query) {
     return sendJson(res, 201, { ok: true, id: item.id });
   }
 
+  // ---- 桌面端账号体系（合并登录网关：注册 / 登录 / 验证码 / 当前用户 / 使用上报）----
+  // 发送验证码：开发态直接回显 devCode；生产应在下方接入邮件/短信发送
+  if (pathname === '/api/auth/send-code' && method === 'POST') {
+    const b = await parseJsonBody(req);
+    if (!b || !b.email) return sendJson(res, 400, { error: '邮箱必填' });
+    const email = String(b.email).trim().toLowerCase();
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    db.codes[email] = { code, expires: Date.now() + 10 * 60 * 1000 };
+    console.log(`[auth] send-code for ${email}: ${code}`); // TODO: 生产接入邮件/短信
+    return sendJson(res, 200, { success: true, consoleMode: true, devCode: code });
+  }
+
+  // 注册
+  if (pathname === '/api/auth/register' && method === 'POST') {
+    const b = await parseJsonBody(req);
+    if (!b || !b.email || !b.password) return sendJson(res, 400, { error: '邮箱和密码必填' });
+    const email = String(b.email).trim().toLowerCase();
+    if (db.users.find((x) => x.email === email)) return sendJson(res, 409, { error: '该邮箱已注册' });
+    const user = {
+      id: 'u_' + randomToken(10),
+      email,
+      pass: hashPassword(b.password),
+      role: 'user',
+      username: b.username ? String(b.username) : email.split('@')[0],
+      inviteCode: b.inviteCode || '',
+      createdAt: Date.now(),
+      lastActive: Date.now(),
+      platform: b.platform || '',
+      version: b.version || '',
+    };
+    db.users.push(user);
+    const token = randomToken(24);
+    db.sessions[token] = { userId: user.id, createdAt: Date.now() };
+    saveDb();
+    return sendJson(res, 200, { token, user: publicUser(user) });
+  }
+
+  // 登录
+  if (pathname === '/api/auth/login' && method === 'POST') {
+    const b = await parseJsonBody(req);
+    if (!b || !b.email || !b.password) return sendJson(res, 400, { error: '邮箱和密码必填' });
+    const email = String(b.email).trim().toLowerCase();
+    const u = db.users.find((x) => x.email === email);
+    if (!u || !verifyPassword(b.password || '', u.pass)) return sendJson(res, 401, { error: '邮箱或密码错误' });
+    u.lastActive = Date.now();
+    const token = randomToken(24);
+    db.sessions[token] = { userId: u.id, createdAt: Date.now() };
+    saveDb();
+    return sendJson(res, 200, { token, user: publicUser(u) });
+  }
+
+  // 当前用户（Bearer token）
+  if (pathname === '/api/me' && method === 'GET') {
+    const u = currentUser(req);
+    if (!u) return sendJson(res, 401, { error: '未授权' });
+    u.lastActive = Date.now();
+    saveDb();
+    return sendJson(res, 200, { user: publicUser(u) });
+  }
+
+  // 使用上报（谁在用）：桌面端登录/活跃时上报 email + 版本 + 平台
+  if (pathname === '/api/usage/active' && method === 'POST') {
+    const b = await parseJsonBody(req);
+    if (!b || !b.email) return sendJson(res, 400, { error: 'email 必填' });
+    const email = String(b.email).trim().toLowerCase();
+    const now = Date.now();
+    const rec = db.activeUsers[email] || { email, firstSeen: now, count: 0, platform: '', version: '' };
+    rec.lastActive = now;
+    rec.count = (rec.count || 0) + 1;
+    if (b.version) rec.version = String(b.version);
+    if (b.platform) rec.platform = String(b.platform);
+    db.activeUsers[email] = rec;
+    saveDb();
+    return sendJson(res, 200, { ok: true });
+  }
+
   // ---- 管理员登录（免鉴权）----
   if (pathname === '/api/admin/login' && method === 'POST') {
     const body = await parseJsonBody(req);
@@ -500,6 +595,24 @@ async function handleApi(req, res, pathname, query) {
       }
       const recent = [...db.downloads].sort((a, b) => b.ts - a.ts).slice(0, 50);
       return sendJson(res, 200, { total: db.downloads.length, byPlatform, byVersion, recent });
+    }
+
+    // 用户 / 谁在用 统计（基于使用上报聚合）
+    if (pathname === '/api/admin/users' && method === 'GET') {
+      const list = Object.values(db.activeUsers)
+        .sort((a, b) => (b.lastActive || 0) - (a.lastActive || 0))
+        .map((r) => ({
+          email: r.email,
+          firstSeen: r.firstSeen,
+          lastActive: r.lastActive,
+          version: r.version || '',
+          platform: r.platform || '',
+          count: r.count || 0,
+        }));
+      const now = Date.now();
+      const active7d = list.filter((r) => now - (r.lastActive || 0) < 7 * 864e5).length;
+      const active30d = list.filter((r) => now - (r.lastActive || 0) < 30 * 864e5).length;
+      return sendJson(res, 200, { total: list.length, active7d, active30d, users: list });
     }
 
     // 仪表盘概览
