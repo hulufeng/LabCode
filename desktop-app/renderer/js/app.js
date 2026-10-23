@@ -15011,7 +15011,8 @@ if (document.readyState === 'loading') {
     { id: 'siliconflow', label: '硅基流动（免费）', base: 'https://api.siliconflow.cn/v1', model: 'Qwen/Qwen3-8B', home: 'https://cloud.siliconflow.cn/account/ak' },
     { id: 'deepseek', label: 'DeepSeek', base: 'https://api.deepseek.com/v1', model: 'deepseek-chat', home: 'https://platform.deepseek.com/api_keys' },
     { id: 'bailian', label: '阿里百炼', base: 'https://dashscope.aliyuncs.com/compatible-mode/v1', model: 'qwen-plus', home: 'https://bailian.console.aliyun.com/?tab=model#/api-key' },
-    { id: 'kimi', label: '月之暗面 Kimi', base: 'https://api.moonshot.cn/v1', model: 'kimi-k2-0905', home: 'https://platform.moonshot.cn/console/api-keys' }
+    { id: 'kimi', label: '月之暗面 Kimi', base: 'https://api.moonshot.cn/v1', model: 'kimi-k2-0905', home: 'https://platform.moonshot.cn/console/api-keys' },
+    { id: 'custom', label: '自定义 / 其他', base: '', model: '', home: '' }
   ];
 
   function renderByokChips() {
@@ -15026,16 +15027,29 @@ if (document.readyState === 'loading') {
       b.addEventListener('click', () => {
         wrap.querySelectorAll('.byok-chip').forEach(c => c.classList.remove('active'));
         b.classList.add('active');
+        toggleByokCustom(p);
         setByokHome(p);
       });
       wrap.appendChild(b);
     });
-    setByokHome(BYOK_PROVIDERS[0]);
+    const first = BYOK_PROVIDERS[0];
+    toggleByokCustom(first);
+    setByokHome(first);
+  }
+
+  // 选中「自定义 / 其他」时显示自由填写的 baseURL + 模型名，否则隐藏
+  function toggleByokCustom(p) {
+    const f = document.getElementById('byok-custom-fields');
+    if (f) f.style.display = (p && p.id === 'custom') ? 'block' : 'none';
   }
 
   function setByokHome(p) {
     const home = document.getElementById('byok-home');
     if (!home) return;
+    if (p.id === 'custom') {
+      home.innerHTML = '填写你自己的 OpenAI 兼容接口地址与模型名，任意厂商均可';
+      return;
+    }
     home.innerHTML = '去 <a href="#" class="byok-home" data-url="' + p.home + '" style="color:#059669;text-decoration:none;">' + p.label + ' 官网</a> 申请 Key';
     const a = home.querySelector('.byok-home');
     if (a) a.addEventListener('click', (e) => { e.preventDefault(); try { window.LabCode.shell.openExternal(a.dataset.url); } catch (_) {} });
@@ -15059,6 +15073,18 @@ if (document.readyState === 'loading') {
             wrap.querySelectorAll('.byok-chip').forEach(c => c.classList.toggle('active', c.dataset.id === match.id));
             setByokHome(match);
           }
+        } else {
+          // 已配置的是自定义接口（不在预设列表）→ 选中「自定义 / 其他」并预填字段
+          const wrap = document.getElementById('byok-chips');
+          if (wrap) {
+            wrap.querySelectorAll('.byok-chip').forEach(c => c.classList.toggle('active', c.dataset.id === 'custom'));
+            toggleByokCustom({ id: 'custom' });
+            setByokHome({ id: 'custom' });
+            const bu = document.getElementById('byok-baseurl');
+            const md = document.getElementById('byok-model');
+            if (bu) bu.value = ai.baseURL;
+            if (md) md.value = ai.model || '';
+          }
         }
       }
     } catch (e) {}
@@ -15066,13 +15092,22 @@ if (document.readyState === 'loading') {
     setTimeout(() => { const k = document.getElementById('byok-key'); if (k) k.focus(); }, 60);
   }
 
-  function applyByok() {
+  async function applyByok() {
     const keyEl = document.getElementById('byok-key');
     const key = (keyEl && keyEl.value || '').trim();
     if (!key) { showToast('请先粘贴 API Key', 'error'); return; }
     const active = document.querySelector('#byok-chips .byok-chip.active');
+    const isCustom = active && active.dataset.id === 'custom';
     const p = BYOK_PROVIDERS.find(x => x.id === (active && active.dataset.id)) || BYOK_PROVIDERS[0];
-    // 直接落到设置页的「自定义 API」字段并保存
+    let base = p.base, model = p.model, label = p.label;
+    if (isCustom) {
+      base = (document.getElementById('byok-baseurl') || {}).value || '';
+      model = (document.getElementById('byok-model') || {}).value || '';
+      base = base.trim(); model = model.trim();
+      if (!base || !model) { showToast('请填写接口地址和模型名称', 'error'); return; }
+      label = '自定义配置';
+    }
+    // 落到设置页的「自定义 API」字段并保存
     const radio = document.getElementById('ai-prov-custom');
     if (radio) radio.checked = true;
     const fields = document.getElementById('custom-api-fields');
@@ -15080,12 +15115,21 @@ if (document.readyState === 'loading') {
     const bu = document.getElementById('custom-baseurl');
     const md = document.getElementById('custom-model');
     const ki = document.getElementById('custom-apikey');
-    if (bu) bu.value = p.base;
-    if (md) md.value = p.model;
+    if (bu) bu.value = base;
+    if (md) md.value = model;
     if (ki) ki.value = key;
+    // 自定义通道确保 ai.model 被正确写入（AI 客户端按 ai.model 选模型，否则填了也不生效）
+    if (isCustom) {
+      try {
+        await window.LabCode.config.set('ai.provider', 'custom');
+        await window.LabCode.config.set('ai.baseURL', base);
+        await window.LabCode.config.set('ai.apiKey', key);
+        await window.LabCode.config.set('ai.model', model);
+      } catch (e) {}
+    }
     try { saveAIConfig(); } catch (e) {}
     closeByokModal();
-    showToast('已配置「' + p.label + '」，可以直接提问了', 'success');
+    showToast('已配置「' + label + '」，可以直接提问了', 'success');
     try { if (typeof switchPanel === 'function') switchPanel('chat'); } catch (_) {}
   }
 

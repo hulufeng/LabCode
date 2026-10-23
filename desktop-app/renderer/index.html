@@ -1655,6 +1655,12 @@
       <label for="byok-key" style="display:block;font-size:11px;font-weight:600;color:var(--text-secondary);letter-spacing:.5px;margin-bottom:6px;">API KEY</label>
       <input id="byok-key" type="password" placeholder="粘贴你的 API Key" autocomplete="off" style="width:100%;background:var(--bg-secondary);border:1px solid var(--border);color:var(--text-primary);padding:11px 12px;border-radius:8px;font-size:13px;box-sizing:border-box;transition:border-color .15s, box-shadow .15s;">
       <div id="byok-home" style="font-size:11px;color:var(--text-tertiary);margin-top:8px;line-height:1.6;"></div>
+      <div id="byok-custom-fields" style="display:none;margin-top:12px;padding:12px;background:var(--surface-3);border-radius:8px;">
+        <label for="byok-baseurl" style="display:block;font-size:11px;font-weight:600;color:var(--text-secondary);letter-spacing:.5px;margin-bottom:5px;">接口地址 (Base URL)</label>
+        <input id="byok-baseurl" type="text" placeholder="https://你的接口地址/v1" autocomplete="off" style="width:100%;background:var(--bg-secondary);border:1px solid var(--border);color:var(--text-primary);padding:9px 10px;border-radius:7px;font-size:13px;box-sizing:border-box;">
+        <label for="byok-model" style="display:block;font-size:11px;font-weight:600;color:var(--text-secondary);letter-spacing:.5px;margin:10px 0 5px;">模型名称 (Model)</label>
+        <input id="byok-model" type="text" placeholder="例如 gpt-4o / claude-... / 你的模型名" autocomplete="off" style="width:100%;background:var(--bg-secondary);border:1px solid var(--border);color:var(--text-primary);padding:9px 10px;border-radius:7px;font-size:13px;box-sizing:border-box;">
+      </div>
       <div style="display:flex;align-items:center;gap:6px;margin-top:12px;padding:8px 10px;background:rgba(5,150,105,0.06);border-radius:8px;">
         <span style="font-size:12px;">🔒</span>
         <span style="font-size:11px;color:var(--text-secondary);">密钥只保存在本机，不经过 LabCode 服务器</span>
