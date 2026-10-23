@@ -11265,6 +11265,25 @@ function bindEvents() {
     document.addEventListener('click', () => {
       modelDropdown.style.display = 'none';
     });
+
+    // 「ⓘ 本地 AI 引擎 是什么」帮助弹窗
+    document.querySelectorAll('.model-info-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        modelDropdown.style.display = 'none';
+        const modal = document.getElementById('local-engine-help-modal');
+        if (modal) modal.style.display = 'flex';
+      });
+    });
+    const helpModal = document.getElementById('local-engine-help-modal');
+    if (helpModal) {
+      const closeHelp = () => { helpModal.style.display = 'none'; };
+      const hc = document.getElementById('local-engine-help-close');
+      const hok = document.getElementById('local-engine-help-ok');
+      if (hc) hc.addEventListener('click', closeHelp);
+      if (hok) hok.addEventListener('click', closeHelp);
+      helpModal.addEventListener('click', (e) => { if (e.target === helpModal) closeHelp(); });
+    }
   }
 
   // 刷新本地模型到选择器（安装大模型插件后调用；本地引擎 = 内置 llama.cpp + models 目录 GGUF）

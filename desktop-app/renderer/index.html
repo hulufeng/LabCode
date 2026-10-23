@@ -908,7 +908,7 @@
                       <svg class="icon icon-xs"><use href="#icon-chevron-down"></use></svg>
                     </button>
                     <div class="model-dropdown" id="model-dropdown" style="display:none;">
-                      <div class="model-option" data-model="local">本地 AI 引擎</div>
+                      <div class="model-option" data-model="local">本地 AI 引擎 <span class="model-info-btn" data-info="local" title="这是什么？" style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:var(--surface-3);color:var(--text-secondary);font-size:11px;margin-left:6px;cursor:help;">ⓘ</span></div>
                       <div class="model-option" data-model="ollama">Ollama 本地模型</div>
                       <div class="model-option" data-model="siliconflow">硅基流动 Qwen3-8B（免费）</div>
                       <div class="model-option model-add-entry" id="model-add-entry" data-model="__add_model__" style="color:#059669;font-weight:600;border-top:1px solid var(--border-color);margin-top:4px;">＋ 添加模型（填 API Key）</div>
@@ -1662,6 +1662,33 @@
       <div style="display:flex;gap:10px;margin-top:18px;">
         <button id="byok-save" style="flex:1;padding:10px;background:#059669;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;transition:background .15s;">保存并使用</button>
         <button id="byok-cancel" style="padding:10px 16px;background:var(--surface-3);color:var(--text-primary);border:1px solid var(--border);border-radius:8px;font-size:13px;cursor:pointer;">取消</button>
+      </div>
+    </div>
+  </div>
+  <!-- 本地 AI 引擎 说明弹窗（ⓘ 触发，新手友好大白话） -->
+  <div id="local-engine-help-modal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.5);backdrop-filter:blur(2px);z-index:10002;align-items:center;justify-content:center;">
+    <div style="background:var(--surface-1);border:1px solid var(--border);border-radius:16px;padding:22px 24px 20px;width:480px;max-width:92%;max-height:86vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.25);">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px;">
+        <div style="font-size:17px;font-weight:700;color:var(--text-primary);">「本地 AI 引擎」是什么？</div>
+        <button id="local-engine-help-close" style="background:var(--surface-3);border:none;color:var(--text-secondary);width:26px;height:26px;border-radius:50%;cursor:pointer;line-height:1;font-size:16px;">×</button>
+      </div>
+      <div style="height:1px;background:var(--border);margin:12px 0 14px;"></div>
+      <div style="font-size:13px;color:var(--text-primary);line-height:1.75;">
+        <p style="margin:0 0 10px;"><b>一句话：</b>把 AI 装在你<strong>自己的电脑</strong>上跑，不依赖别人的云端服务器。你说话、写代码都在本机处理。</p>
+        <p style="margin:0 0 10px;"><b>打个比方：</b>云端 AI 像"打电话问远方厨师"——得联网、对方知道你问了啥；本地 AI 像"家里有本菜谱书自己翻"——<strong>断网也能用、只有你自己知道查了什么</strong>。</p>
+        <div style="margin:0 0 10px;"><b>它有什么好：</b>
+          <ul style="margin:6px 0 0;padding-left:18px;color:var(--text-secondary);">
+            <li>数据不出本机，隐私更高</li>
+            <li>离线可用（没网也能聊）</li>
+            <li>不联网、不耗积分、随便用</li>
+            <li>快慢取决于你电脑的显卡和内存</li>
+          </ul>
+        </div>
+        <p style="margin:0 0 10px;"><b>代价：</b>得先在「设置 → AI 引擎」下载一个模型文件（约 2~6GB），而且聪明程度一般略低于顶级云端模型。</p>
+        <p style="margin:0;color:var(--text-secondary);font-size:12px;line-height:1.7;">三个选项一句话：<br>· <b style="color:var(--text-primary);">本地 AI 引擎</b>（你现在看的）：本机跑，LabCode 内置，不用另装软件<br>· <b style="color:var(--text-primary);">Ollama 本地模型</b>：也是本地跑，但用你另装的 Ollama<br>· <b style="color:var(--text-primary);">硅基流动 Qwen3-8B</b>：云端跑，最聪明、开箱即用，但要联网、耗免费积分</p>
+      </div>
+      <div style="display:flex;justify-content:flex-end;margin-top:16px;">
+        <button id="local-engine-help-ok" style="padding:9px 18px;background:#059669;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">知道了</button>
       </div>
     </div>
   </div>
