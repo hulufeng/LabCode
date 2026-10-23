@@ -165,7 +165,7 @@
       </div>
       <!-- 用户 / 谁在用 -->
       <div class="page" id="page-users">
-        <h2>用户 / 谁在用</h2><div class="sub">桌面端登录后上报聚合（邮箱 / 首次 / 最近活跃 / 版本 / 平台 / 次数）</div>
+        <h2>注册用户 / 谁在用</h2><div class="sub">强制登录后，每个使用者都会在此注册账号——这份名单就是「谁在用」（邮箱 / 注册时间 / 最近活跃 / 版本 / 平台）</div>
         <div class="card"><div id="userStats"></div></div>
       </div>
       <!-- 版本 -->
@@ -336,19 +336,18 @@ async function loadUsers(){
   const total=data.total||0, a7=data.active7d||0, a30=data.active30d||0;
   const rows=(data.users||[]).map(u=>`<tr>
     <td>${escapeHtml(u.email)}</td>
-    <td>${u.firstSeen?new Date(u.firstSeen).toLocaleString('zh-CN'):''}</td>
+    <td>${u.registeredAt?new Date(u.registeredAt).toLocaleString('zh-CN'):''}</td>
     <td>${u.lastActive?new Date(u.lastActive).toLocaleString('zh-CN'):''}</td>
     <td>${u.version||'-'}</td>
     <td>${u.platform||'-'}</td>
-    <td><span class="badge on">${u.count||0}</span></td>
   </tr>`).join('');
   document.getElementById('userStats').innerHTML=`
     <div class="grid" style="margin-bottom:16px">
-      <div class="stat"><div class="n">${total}</div><div class="l">累计使用用户</div></div>
+      <div class="stat"><div class="n">${total}</div><div class="l">累计注册用户</div></div>
       <div class="stat"><div class="n">${a7}</div><div class="l">近 7 天活跃</div></div>
       <div class="stat"><div class="n">${a30}</div><div class="l">近 30 天活跃</div></div>
     </div>
-    <table><thead><tr><th>邮箱</th><th>首次</th><th>最近活跃</th><th>版本</th><th>平台</th><th>上报次数</th></tr></thead><tbody>${rows||'<tr><td colspan=6 class="empty">暂无使用记录</td></tr>'}</tbody></table>`;
+    <table><thead><tr><th>邮箱</th><th>注册时间</th><th>最近活跃</th><th>版本</th><th>平台</th></tr></thead><tbody>${rows||'<tr><td colspan=5 class="empty">暂无注册用户</td></tr>'}</tbody></table>`;
 }
 
 // 版本

@@ -597,21 +597,22 @@ async function handleApi(req, res, pathname, query) {
       return sendJson(res, 200, { total: db.downloads.length, byPlatform, byVersion, recent });
     }
 
-    // 用户 / 谁在用 统计（基于使用上报聚合）
+    // 注册用户 / 谁在用（直接读网关已存的用户账户名单 db.users）
     if (pathname === '/api/admin/users' && method === 'GET') {
-      const list = Object.values(db.activeUsers)
-        .sort((a, b) => (b.lastActive || 0) - (a.lastActive || 0))
-        .map((r) => ({
-          email: r.email,
-          firstSeen: r.firstSeen,
-          lastActive: r.lastActive,
-          version: r.version || '',
-          platform: r.platform || '',
-          count: r.count || 0,
+      const list = db.users
+        .filter((u) => u.role !== 'admin')
+        .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+        .map((u) => ({
+          email: u.email,
+          username: u.username || '',
+          registeredAt: u.createdAt || null,
+          lastActive: u.lastActive || null,
+          version: u.version || '',
+          platform: u.platform || '',
         }));
       const now = Date.now();
-      const active7d = list.filter((r) => now - (r.lastActive || 0) < 7 * 864e5).length;
-      const active30d = list.filter((r) => now - (r.lastActive || 0) < 30 * 864e5).length;
+      const active7d = list.filter((u) => now - (u.lastActive || 0) < 7 * 864e5).length;
+      const active30d = list.filter((u) => now - (u.lastActive || 0) < 30 * 864e5).length;
       return sendJson(res, 200, { total: list.length, active7d, active30d, users: list });
     }
 
