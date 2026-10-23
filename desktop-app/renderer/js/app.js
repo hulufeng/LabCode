@@ -4468,13 +4468,33 @@ void loop() {
     if (aiCfg.provider === 'local' && window.LabCode.system) {
       try {
         const rt = await window.LabCode.system.checkLLMRuntime();
+        if (!rt.engine) {
+          // 引擎都没装：新手最易踩的坑——直接告诉ta怎么走、并推荐更省事的云端
+          return this._degradedReply(
+            '⚠️ 本地 AI 引擎还没安装\n\n' +
+            '本地 AI 引擎（内置 llama.cpp）需要单独安装，装完还要下载一个"模型文件"才能用。\n\n' +
+            '想马上用 AI，推荐先用云端：设置 → AI 引擎 → 登录 LabCode 账号（免费，用的是硅基流动 Qwen3-8B，不用下载、不耗积分）。\n' +
+            '想用本地引擎（不联网、不花钱），去「设置 → AI 引擎」先安装引擎、再下载模型，推荐 Qwen2.5-Coder 7B（写代码专用，约 4.4GB）。'
+          );
+        }
+        if (rt.engine && (!rt.models || rt.models.length === 0)) {
+          // 引擎装了但没模型：用大白话讲清"本地模型是啥、推荐下哪个、怎么下"
+          return this._degradedReply(
+            '💡 本地 AI 引擎已装好，但还没下载模型\n\n' +
+            '本地模型是什么？就是一份"让电脑自己跑 AI"的文件（约 4GB）。下载后不联网、不花钱就能写代码、聊天。\n\n' +
+            '推荐下载：Qwen2.5-Coder 7B（写代码专用，速度和质量最平衡，约 4.4GB）\n' +
+            '· 更大的 Qwen3.5-9B：更聪明，但更慢、更占内存\n' +
+            '· 更小的 3B：最快，但能力弱一些\n\n' +
+            '去「设置 → AI 引擎」下载其中一个，下完回到这里直接就能用。'
+          );
+        }
         if (rt.engine && !rt.engineRunning) {
           if (this.onEngineStarting) this.onEngineStarting();
           const startRes = await window.LabCode.system.startLLMEngine({ modelFile: aiCfg.model });
           if (!startRes || !startRes.success) {
             return this._degradedReply(
-              `⚠️ 本地 AI 引擎启动失败：${(startRes && startRes.error) || '未知错误'}\n\n` +
-              `请在 设置 → AI 引擎 确认本地模型已下载，或改用云端模型后重试。`
+              `⚠️ 本地模型启动失败：${(startRes && startRes.error) || '未知错误'}\n\n` +
+              `可能是模型文件损坏或引擎异常。可到「设置 → AI 引擎」重新下载模型，或先改用云端模型。`
             );
           }
           if (this.onEngineStarted) this.onEngineStarted();
@@ -11226,6 +11246,15 @@ function bindEvents() {
             const gwSuffix = (hasGw && isCloudMapping) ? '（云端）' : '';
             showToast(ready ? `已切换到 ${modelName}${gwSuffix}` : `已切换到 ${modelName}，请在设置中登录账号或配置 API Key`,
                       ready ? 'success' : 'warning');
+            // 选中本地引擎但本机还没模型 → 立刻给具体指引（避免用户以为"选中就能直接聊"）
+            if (modelKey === 'local') {
+              try {
+                const rt = await window.LabCode.system.checkLLMRuntime();
+                if (rt.engine && (!rt.models || rt.models.length === 0)) {
+                  showToast('本地 AI 引擎需先下载模型（推荐 Qwen2.5-Coder 7B，约 4.4GB），去「设置 → AI 引擎」下载后即可使用', 'warning');
+                }
+              } catch (e) {}
+            }
           }
         } catch (e) {
           console.warn('[模型选择器] 写入配置失败:', e);
