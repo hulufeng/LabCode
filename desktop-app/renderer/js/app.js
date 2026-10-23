@@ -3121,8 +3121,8 @@ class WebTools {
     if (cached) return { success: true, results: cached, fromCache: true };
 
     // ===== 真实联网优先：主进程 web-search.js（Bing HTML 端点，无 API Key）=====
-    // 2026-10-17：此前完全返回 mock，AI 拿到的是假搜索结果；现优先走真实通道，
-    // 真实搜索失败时才降级 mock，并在结果中明确标注 [降级]，防止 AI 把假结果当事实。
+    // 此前完全返回 mock（假搜索结果），AI 会当事实引用；现优先走真实通道，
+    // 真实搜索失败则如实返回失败，绝不返回模拟结果（宁可让 AI 知道"搜不到"）。
     if (isElectron && window.LabCode && window.LabCode.web) {
       try {
         const real = await window.LabCode.web.search(query, options);
@@ -3134,10 +3134,10 @@ class WebTools {
           return { success: false, error: real.error || '搜索无结果', results: [] };
         }
         this._lastLiveError = (real && real.error) || '未知错误';
-        addOutputLog(`web_search 真实搜索不可用(${this._lastLiveError})，降级为模拟结果（仅供演示，AI 不应引用）`, 'warn');
+        addOutputLog(`web_search 真实搜索不可用(${this._lastLiveError})，未返回结果（不提供模拟结果）`, 'warn');
       } catch (e) {
         this._lastLiveError = e.message;
-        addOutputLog(`web_search 真实搜索异常(${e.message})，降级为模拟结果（仅供演示，AI 不应引用）`, 'warn');
+        addOutputLog(`web_search 真实搜索异常(${e.message})，未返回结果（不提供模拟结果）`, 'warn');
       }
     }
 
@@ -3160,8 +3160,8 @@ class WebTools {
     if (cached) return { success: true, content: cached, fromCache: true, url };
 
     // ===== 真实抓取优先：主进程 web-search.js =====
-    // 2026-10-17：此前 web_fetch 直接返回模拟内容；现优先走主进程真实抓取，
-    // 失败才降级 mock，且降级内容明确标注 [降级模拟]，防止 AI 引用假信息。
+    // 此前 web_fetch 直接返回模拟内容（编造的 Markdown）；现优先走主进程真实抓取，
+    // 失败则如实返回失败，绝不返回模拟内容。
     if (isElectron && window.LabCode && window.LabCode.web) {
       try {
         const real = await window.LabCode.web.fetch(url, options);
@@ -3170,10 +3170,10 @@ class WebTools {
           return { success: true, content: real.content, fromCache: !!real.fromCache, url, source: 'live' };
         }
         this._lastLiveError = (real && real.error) || '未知错误';
-        addOutputLog(`web_fetch 真实抓取失败(${this._lastLiveError})，降级为模拟内容`, 'warn');
+        addOutputLog(`web_fetch 真实抓取失败(${this._lastLiveError})，未返回内容（不提供模拟内容）`, 'warn');
       } catch (e) {
         this._lastLiveError = e.message;
-        addOutputLog(`web_fetch 真实抓取异常(${e.message})，降级为模拟内容`, 'warn');
+        addOutputLog(`web_fetch 真实抓取异常(${e.message})，未返回内容（不提供模拟内容）`, 'warn');
       }
     }
 
