@@ -11526,12 +11526,31 @@ function bindEvents() {
 
   // 可安装平台：真实检索 arduino-cli 索引（此前该列表是写死的假数据，且无人替换）
   let _availableCoresCache = [];
+  // _availableCoresNote：官方索引不可达时给出诚实的降级说明（非假数据，是真实可安装的常用平台）
+  let _availableCoresNote = '';
+  // 容错清单：真实 arduino 核心 ID，点击会真实调用 arduino-cli core install。
+  // 仅当官方索引检索失败（401/网络/超时）时作为降级展示，绝不作为常态数据。
+  const FALLBACK_CORES = [
+    { id: 'esp32:esp32', name: 'ESP32（Espressif）' },
+    { id: 'arduino:avr', name: 'Arduino AVR Boards' },
+    { id: 'arduino:samd', name: 'Arduino SAMD Boards' },
+    { id: 'rp2040:rp2040', name: 'Raspberry Pi Pico / RP2040' },
+    { id: 'stm32:stm32', name: 'STM32 Cores（ST）' },
+    { id: 'esp8266:esp8266', name: 'ESP8266（Espressif）' },
+    { id: 'adafruit:samd', name: 'Adafruit SAMD' }
+  ];
   function renderAvailableCores(list, total) {
     const el = document.getElementById('available-platforms');
     if (!el) return;
     const kw = String((document.getElementById('platform-search') || {}).value || '').trim().toLowerCase();
     const filtered = kw ? list.filter(c => (c.name + ' ' + c.id).toLowerCase().indexOf(kw) >= 0) : list;
     el.innerHTML = '';
+    if (_availableCoresNote) {
+      const note = document.createElement('div');
+      note.style.cssText = 'padding:8px 12px;color:#E8A33D;font-size:11px;background:rgba(232,163,61,0.08);border-radius:6px;margin-bottom:8px;';
+      note.textContent = _availableCoresNote;
+      el.appendChild(note);
+    }
     if (!filtered.length) {
       const d = document.createElement('div');
       d.style.cssText = 'padding:12px;color:#999;font-size:12px;';
@@ -11573,7 +11592,10 @@ function bindEvents() {
     try {
       const r = await runArduinoCli(['core', 'search'], 60000);
       if (!r || r.ok === false || r.code !== 0) {
-        hint('无法检索可安装平台：' + String((r && r.out) || 'arduino-cli 调用失败').slice(0, 160));
+        // 官方索引不可达（401/网络/超时）→ 诚实降级：展示常用真实平台，点击真实安装
+        _availableCoresNote = '⚠️ 无法连接官方索引（' + String((r && r.out) || 'arduino-cli 调用失败').slice(0, 80) + '），以下为常用平台，点击将真实调用 arduino-cli 安装（仍需索引可达）：';
+        _availableCoresCache = FALLBACK_CORES;
+        renderAvailableCores(FALLBACK_CORES.slice(0, 60), FALLBACK_CORES.length);
         return;
       }
       const lines = String(r.out || '').split('\n');
@@ -11586,6 +11608,7 @@ function bindEvents() {
         }
       }
       // 官方索引平台很多，默认只渲染前 60，配合搜索框过滤
+      _availableCoresNote = ''; // 检索成功则清除降级说明
       _availableCoresCache = items;
       renderAvailableCores(items.slice(0, 60), items.length);
     } catch (e) {
@@ -11693,9 +11716,13 @@ function bindEvents() {
         if (result.success) {
           addOutputLog('编译成功，耗时 ' + duration + ' 秒', 'success');
           showToast('编译成功', 'success');
+          // 编译通过 → 清除上一轮的编译错误标记（编辑器语言服务诊断仍保留）
+          try { applyCompileProblems(''); } catch (e) {}
         } else {
           addOutputLog('编译失败: ' + (result.error || ''), 'error');
           showToast('编译失败', 'error');
+          // 把真实编译错误/警告注入问题面板（编辑器语言服务之外，新增编译层诊断）
+          try { applyCompileProblems((result.output || '') + '\n' + (result.error || '')); } catch (e) {}
           // 像豆包一样：自动唤起 AI 诊断根因并尝试修复
           autoDiagnoseWithAI({ phase: '编译', error: result.error, output: result.output, file: state.activeTab });
         }
@@ -11706,6 +11733,7 @@ function bindEvents() {
         }
         addOutputLog('编译异常: ' + e.message, 'error');
         showToast('编译异常', 'error');
+        try { applyCompileProblems(''); } catch (e) {} // 编译未产生输出，清除上一轮残留标记
         autoDiagnoseWithAI({ phase: '编译', error: e.message, file: state.activeTab });
       }
     });
@@ -15226,6 +15254,41 @@ function updateProblemsPanel() {
       });
       box.appendChild(row);
     });
+  } catch (e) {}
+}
+
+// ============ 编译错误 → 问题面板 ============
+// 把 arduino-cli 编译输出里的真实错误/警告转成编辑器诊断标记（owner: 'arduino-compile'）。
+// updateProblemsPanel 读 getModelMarkers({}) 会一并展示，且代码上直接出红波浪线、可点击跳转。
+// 仅收集当前文件自己的错误（含 arduino 由 .ino 生成的 .cpp），依赖库内部告警不混入，避免误导。
+function applyCompileProblems(output) {
+  try {
+    if (typeof monaco === 'undefined' || !state.editor || !state.editor.getModel) return;
+    const model = state.editor.getModel();
+    if (!model) return;
+    const re = /^(.+?):(\d+):(\d+):\s*(fatal error|error|warning):\s*(.+?)\s*$/;
+    const base = (state.activeTab || '').split('/').pop().toLowerCase();
+    const baseStem = base.replace(/\.(cpp|c|ino|h|hpp)$/, '');
+    const markers = [];
+    String(output || '').split('\n').forEach((line) => {
+      const m = line.match(re);
+      if (!m) return;
+      const file = m[1], ln = parseInt(m[2], 10), col = parseInt(m[3], 10), sev = m[4].toLowerCase(), msg = m[5];
+      const fb = file.split(/[\\/]/).pop().toLowerCase();
+      const fbStem = fb.replace(/\.(cpp|c|ino|h|hpp)$/, '');
+      // 只收集当前文件自己的错误/警告（含 arduino 由 .ino 生成的同名 .cpp）
+      if (baseStem && fbStem && fbStem !== baseStem) return;
+      const severity = /warning/.test(sev) ? 4 : 8; // monaco MarkerSeverity: Warning=4, Error=8
+      markers.push({
+        resource: model.uri,
+        startLineNumber: ln, startColumn: col,
+        endLineNumber: ln, endColumn: col + 1,
+        message: (/warning/.test(sev) ? '编译警告: ' : '编译错误: ') + msg,
+        severity
+      });
+    });
+    monaco.editor.setModelMarkers(model, 'arduino-compile', markers);
+    try { updateProblemsPanel(); } catch (e) {} // 兜底刷新（setModelMarkers 也会经 onDidChangeMarkers 触发）
   } catch (e) {}
 }
 
