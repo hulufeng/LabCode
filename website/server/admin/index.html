@@ -99,7 +99,6 @@
       <div class="navitem" data-page="contacts" onclick="go('contacts')">✉️ 联系留言</div>
       <div class="navitem" data-page="content" onclick="go('content')">📝 内容管理</div>
       <div class="navitem" data-page="downloads" onclick="go('downloads')">📥 下载统计</div>
-      <div class="navitem" data-page="users" onclick="go('users')">👥 用户/使用</div>
       <div class="navitem" data-page="version" onclick="go('version')">🏷️ 版本设置</div>
     </div>
     <div class="content">
@@ -163,11 +162,6 @@
         <h2>下载统计</h2><div class="sub">访客点击下载按钮（/d/:platform）自动计数</div>
         <div class="card"><div id="dlStats"></div></div>
       </div>
-      <!-- 用户 / 谁在用 -->
-      <div class="page" id="page-users">
-        <h2>注册用户 / 谁在用</h2><div class="sub">强制登录后，每个使用者都会在此注册账号——这份名单就是「谁在用」（邮箱 / 注册时间 / 最近活跃 / 版本 / 平台）</div>
-        <div class="card"><div id="userStats"></div></div>
-      </div>
       <!-- 版本 -->
       <div class="page" id="page-version">
         <h2>版本设置</h2><div class="sub">设置官网展示的最新版本号与更新说明（/api/version）</div>
@@ -220,7 +214,6 @@ function go(page){
   if(page==='contacts')loadContacts();
   if(page==='content')loadContent();
   if(page==='downloads')loadDownloads();
-  if(page==='users')loadUsers();
   if(page==='version')loadVersion();
 }
 
@@ -327,27 +320,6 @@ async function loadDownloads(){
     <p class="muted" style="margin:14px 0 6px">按版本</p><div>${ver||'<span class="muted">暂无</span>'}</div>
     <p class="muted" style="margin:14px 0 6px">最近记录</p>
     <table><thead><tr><th>平台</th><th>版本</th><th>IP</th><th>时间</th></tr></thead><tbody>${recent||'<tr><td colspan=4 class="empty">暂无</td></tr>'}</tbody></table>`;
-}
-
-// 用户 / 谁在用
-async function loadUsers(){
-  const {res,data}=await api('/api/admin/users');
-  if(!res.ok)return;
-  const total=data.total||0, a7=data.active7d||0, a30=data.active30d||0;
-  const rows=(data.users||[]).map(u=>`<tr>
-    <td>${escapeHtml(u.email)}</td>
-    <td>${u.registeredAt?new Date(u.registeredAt).toLocaleString('zh-CN'):''}</td>
-    <td>${u.lastActive?new Date(u.lastActive).toLocaleString('zh-CN'):''}</td>
-    <td>${u.version||'-'}</td>
-    <td>${u.platform||'-'}</td>
-  </tr>`).join('');
-  document.getElementById('userStats').innerHTML=`
-    <div class="grid" style="margin-bottom:16px">
-      <div class="stat"><div class="n">${total}</div><div class="l">累计注册用户</div></div>
-      <div class="stat"><div class="n">${a7}</div><div class="l">近 7 天活跃</div></div>
-      <div class="stat"><div class="n">${a30}</div><div class="l">近 30 天活跃</div></div>
-    </div>
-    <table><thead><tr><th>邮箱</th><th>注册时间</th><th>最近活跃</th><th>版本</th><th>平台</th></tr></thead><tbody>${rows||'<tr><td colspan=5 class="empty">暂无注册用户</td></tr>'}</tbody></table>`;
 }
 
 // 版本
