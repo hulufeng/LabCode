@@ -3141,14 +3141,13 @@ class WebTools {
       }
     }
 
-    // ===== 降级：mock 结果（明确标注 [降级]，防止被当作真实信息）=====
-    const mockResults = [
-      { title: `[降级] ${query} - 搜索结果1`, url: `https://example.com/search?q=${encodeURIComponent(query)}&r=1`, snippet: `[降级模拟，非真实搜索结果] 关于「${query}」的搜索结果摘要。`, source: 'example.com' },
-      { title: `[降级] ${query} - 搜索结果2`, url: `https://example.org/search?q=${encodeURIComponent(query)}&r=2`, snippet: `[降级模拟，非真实搜索结果] 关于「${query}」的深入分析和实现指南。`, source: 'example.org' },
-      { title: `[降级] ${query} - 搜索结果3`, url: `https://example.net/search?q=${encodeURIComponent(query)}&r=3`, snippet: `[降级模拟，非真实搜索结果] 「${query}」的最新动态和社区讨论。`, source: 'example.net' }
-    ];
-    this.setCache(cacheKey, mockResults);
-    return { success: true, results: mockResults, fromCache: false, source: 'mock' };
+    // 真实搜索不可用 → 如实返回失败，绝不返回模拟结果。
+    // 历史行为：降级返回 example.com 的假结果，AI 会把假信息当事实引用。宁可让 AI 知道"搜不到"。
+    return {
+      success: false,
+      error: `联网搜索不可用：${this._lastLiveError || '当前环境不支持联网搜索'}`,
+      results: []
+    };
   }
 
   async fetch(url, options = {}) {
@@ -3178,20 +3177,14 @@ class WebTools {
       }
     }
 
-    // ===== 降级：mock 内容（明确标注 [降级]）=====
-    const mockContent = `# ${url}
-
->[降级模拟] 真实网页抓取不可用，以下为模拟内容，请勿作为事实引用。
-
-## 主要内容
-- 详细介绍
-- 技术实现
-- 最佳实践
-
-## 总结
-网页内容已获取并转换为 Markdown。`;
-    this.setCache(cacheKey, mockContent);
-    return { success: true, content: mockContent, fromCache: false, url, source: 'mock' };
+    // 真实抓取失败 → 如实返回失败，绝不返回模拟内容。
+    // 历史行为：降级返回编造的 Markdown，AI 会把假网页内容当事实引用。
+    return {
+      success: false,
+      error: `网页抓取失败：${this._lastLiveError || '当前环境不支持网页抓取'}`,
+      content: '',
+      url
+    };
   }
 
   clearCache() { this.cache.clear(); this.searchCount = 0; }
@@ -3994,145 +3987,11 @@ function parsePlanSteps(planText) {
   return steps;
 }
 
-// ---------- 5. 模拟 AI 客户端（MockAIClient）----------
-class MockAIClient {
-  constructor() { this.responseIndex = 0; }
-
-  generateResponse(userInput, messages) {
-    const input = String(userInput || '').toLowerCase();
-
-    // 写代码类需求 → write_file
-    if (/写|创建|生成|实现|quick.?sort|快速排序|函数|组件/.test(input)) {
-      const hasQuickSort = Object.keys(state.files).some(f => f.includes('quick_sort'));
-      if (!hasQuickSort) {
-        return {
-          content: '好的，我来为你创建快速排序函数。',
-          toolCalls: [{
-            id: 'call_1', name: 'write_file',
-            arguments: {
-              file_path: 'src/quick_sort.py',
-              content: `def quick_sort(arr):\n    """快速排序算法"""\n    if len(arr) <= 1:\n        return arr\n    pivot = arr[len(arr) // 2]\n    left = [x for x in arr if x < pivot]\n    middle = [x for x in arr if x == pivot]\n    right = [x for x in arr if x > pivot]\n    return quick_sort(left) + middle + quick_sort(right)\n\n\ndef quick_sort_with_steps(arr):\n    """带步骤输出的快速排序"""\n    if len(arr) <= 1:\n        return arr\n    pivot = arr[len(arr) // 2]\n    print(f"基准元素: {pivot}, 数组: {arr}")\n    left = [x for x in arr if x < pivot]\n    middle = [x for x in arr if x == pivot]\n    right = [x for x in arr if x > pivot]\n    print(f"  左: {left}, 中: {middle}, 右: {right}")\n    return quick_sort_with_steps(left) + middle + quick_sort_with_steps(right)\n\n\n# 测试\nif __name__ == "__main__":\n    data = [64, 34, 25, 12, 22, 11, 90]\n    print("原始数据:", data)\n    print("排序结果:", quick_sort(data))\n    print("\\n带步骤:")\n    quick_sort_with_steps(data)\n`
-            }
-          }]
-        };
-      }
-    }
-
-    // 运行/执行类需求 → terminal
-    if (/运行|执行|跑|run|start|python|测试|test/.test(input)) {
-      const target = state.activeTab || 'src/main.py';
-      return {
-        content: '好的，我来运行当前文件。',
-        toolCalls: [{ id: 'call_1', name: 'terminal', arguments: { command: `python ${target}` } }]
-      };
-    }
-
-    // 解释/分析类需求 → 纯文本
-    if (/解释|说明|分析|这是什么|代码|explain|what/.test(input)) {
-      const target = state.activeTab || 'src/main.py';
-      const f = state.files[target];
-      if (f) {
-        return {
-          content: `当前文件 **${target}** 包含以下内容：\n\n${f.content.split('\n').slice(0,15).join('\n')}...\n\n这个文件实现了快速排序算法和数据处理器类。核心逻辑：\n1. **quick_sort()** - 采用分治策略，平均时间复杂度 O(n log n)\n2. **binary_search()** - 二分查找，时间复杂度 O(log n)\n3. **DataProcessor** 类 - 封装排序和查找操作\n\n你想让我优化哪个部分？`,
-          toolCalls: []
-        };
-      }
-    }
-
-    // 安装依赖 → terminal
-    if (/安装|依赖|install|npm|pip/.test(input)) {
-      return {
-        content: '好的，我来安装项目依赖。',
-        toolCalls: [{ id: 'call_1', name: 'terminal', arguments: { command: 'pip install requests numpy' } }]
-      };
-    }
-
-    // 计划模式 → submit_plan
-    if (/计划|规划|plan|步骤|方案/.test(input)) {
-      return {
-        content: '好的，我来制定执行计划。',
-        toolCalls: [{
-          id: 'call_1', name: 'submit_plan',
-          arguments: {
-            plan: `## 执行计划\n\n1. 读取当前项目结构和文件内容\n2. 分析需求并设计实现方案\n3. 创建/修改源代码文件\n4. 运行测试验证功能\n5. 优化代码并总结`
-          }
-        }]
-      };
-    }
-
-    // 任务清单 → todo_write
-    if (/任务|清单|todo|待办/.test(input)) {
-      return {
-        content: '好的，我来创建任务清单。',
-        toolCalls: [{
-          id: 'call_1', name: 'todo_write',
-          arguments: { todos: [
-            { id: 't1', title: '分析需求', status: 'completed' },
-            { id: 't2', title: '编写代码', status: 'in_progress' },
-            { id: 't3', title: '运行测试', status: 'pending' },
-            { id: 't4', title: '优化总结', status: 'pending' },
-          ]}
-        }]
-      };
-    }
-
-    // ===== 新增：联网搜索 → web_search =====
-    if (/搜索|联网|查一下|查找资料|搜索一下|web.?search|google|baidu/.test(input)) {
-      const query = userInput.replace(/(搜索|联网|查一下|查找资料|搜索一下|帮我)/g, '').trim() || 'AI 编程助手';
-      return {
-        content: `好的，我来联网搜索「${query}」相关信息。`,
-        toolCalls: [{ id: 'call_1', name: 'web_search', arguments: { query } }]
-      };
-    }
-
-    // ===== 新增：获取网页 → web_fetch =====
-    if (/获取网页|打开网页|抓取|fetch|url|网址|链接.*内容|网页内容/.test(input)) {
-      const urlMatch = userInput.match(/https?:\/\/[^\s]+/);
-      const url = urlMatch ? urlMatch[0] : 'https://example.com';
-      return {
-        content: `好的，我来获取网页内容：${url}`,
-        toolCalls: [{ id: 'call_1', name: 'web_fetch', arguments: { url } }]
-      };
-    }
-
-    // ===== 新增：询问用户 → ask_user =====
-    if (/询问|确认一下|问用户|需要确认|你希望|你想要|你倾向|ask.?user/.test(input)) {
-      return {
-        content: '这个需求有多种实现方式，让我先确认一下你的偏好。',
-        toolCalls: [{
-          id: 'call_1', name: 'ask_user',
-          arguments: {
-            question: '你希望用哪种方式实现？',
-            options: ['简单实现（功能少但快）', '完整实现（功能全但慢）', '先做原型再迭代'],
-            header: '实现方式'
-          }
-        }]
-      };
-    }
-
-    // ===== 新增：深度研究 → run_subagent =====
-    if (/研究|调研|深度分析|子智能体|subagent|深入了解|全面分析|做个研究/.test(input)) {
-      const task = userInput.replace(/(帮我|请|研究一下|调研一下|深度分析|深入了解)/g, '').trim() || '当前项目的技术架构';
-      return {
-        content: `好的，我派一个只读子智能体来深度研究「${task}」。子智能体只能使用只读工具，不会修改任何文件。`,
-        toolCalls: [{ id: 'call_1', name: 'run_subagent', arguments: { task, focus: '技术实现和最佳实践' } }]
-      };
-    }
-
-    // 默认：纯文本
-    return {
-      content: `我理解你的需求是："${userInput}"\n\n作为 AI 编程助手，我可以帮你：\n• 生成新代码文件（试试"写一个快速排序"）\n• 运行代码和测试（试试"运行"）\n• 解释当前代码（试试"解释代码"）\n• 安装依赖（试试"安装依赖"）\n• 制定执行计划（试试"制定计划"）\n• 联网搜索信息（试试"搜索 XXX"）\n• 派子智能体研究（试试"深度研究 XXX"）\n\n请更具体地描述你的需求。`,
-      toolCalls: []
-    };
-  }
-}
-
 // ============ 真实 AI 客户端（RealAIClient）============
 // 支持 DeepSeek / Ollama / 自定义 OpenAI 兼容 API
 // 通过系统提示词引导 AI 输出 <|tool_calls|> 格式的工具调用
 class RealAIClient {
   constructor() {
-    this.mock = new MockAIClient();
     this.config = null;
     this._loadConfig();
   }
@@ -4594,9 +4453,11 @@ void loop() {
   }
 
   async generateResponse(userInput, messages) {
-    // 没有 Electron 环境或没有 AI API → 回退模拟
+    // 没有 Electron 环境或 AI 通道 → 如实说明。
+    // 历史行为会回退到 MockAIClient，返回编造的回复和**伪造的工具调用**（write_file/terminal/...），
+    // 这些假调用会被真实执行。改为明确降级，绝不再伪造。
     if (!window.LabCode || !window.LabCode.ai || !window.LabCode.ai.chat) {
-      return this.mock.generateResponse(userInput, messages);
+      return this._degradedReply('⚠️ 当前环境未连接 AI 能力（非 Electron 环境或 AI 通道未就绪），无法生成回复。');
     }
 
     // 刷新配置
@@ -6726,68 +6587,6 @@ class AgentRunner {
     if (!this.onWorkStatus) return;
     const elapsed = this.workStartTime ? Math.max(0, Math.round((Date.now() - this.workStartTime) / 1000)) : 0;
     this.onWorkStatus({ state, elapsed, tools: this.toolCount, context: this.contextCollect });
-  }
-
-  // 生成思考过程（模拟 AI 的推理过程）
-  _generateThinking(userInput, result) {
-    const input = String(userInput || '');
-    const toolNames = (result.toolCalls || []).map(tc => tc.name);
-    const hasToolCalls = toolNames.length > 0;
-
-    let thinking = `分析用户需求："${input}"\n\n`;
-    thinking += `1. 需求识别：`;
-
-    if (/写|创建|生成|实现|函数|组件/.test(input)) {
-      thinking += `用户需要创建新代码。需要使用 write_file 工具写入文件。\n`;
-      thinking += `2. 方案设计：先确定文件路径和代码结构，然后生成完整代码。\n`;
-      thinking += `3. 工具选择：使用 write_file 工具创建文件。\n`;
-      thinking += `4. 执行计划：调用 write_file 写入代码，完成后告知用户。\n`;
-    } else if (/运行|执行|跑|run|start|python|测试|test/.test(input)) {
-      thinking += `用户需要运行代码。需要使用 terminal 工具执行命令。\n`;
-      thinking += `2. 方案设计：确定要运行的文件和命令，然后在终端中执行。\n`;
-      thinking += `3. 工具选择：使用 terminal 工具执行命令。\n`;
-      thinking += `4. 执行计划：调用 terminal 运行代码，捕获输出并展示给用户。\n`;
-    } else if (/解释|说明|分析|这是什么|代码|explain/.test(input)) {
-      thinking += `用户需要解释代码。需要先读取文件内容，然后分析并解释。\n`;
-      thinking += `2. 方案设计：先读取当前文件，然后分析代码结构和逻辑。\n`;
-      thinking += `3. 工具选择：使用 read_file 工具读取文件内容。\n`;
-      thinking += `4. 执行计划：读取文件 → 分析代码 → 给出详细解释。\n`;
-    } else if (/安装|依赖|install|npm|pip/.test(input)) {
-      thinking += `用户需要安装依赖。需要使用 terminal 工具执行安装命令。\n`;
-      thinking += `2. 方案设计：确定包管理器和要安装的包，然后执行安装命令。\n`;
-      thinking += `3. 工具选择：使用 terminal 工具执行安装命令。\n`;
-      thinking += `4. 执行计划：调用 terminal 执行安装，等待完成并验证。\n`;
-    } else if (/计划|规划|plan|步骤|方案/.test(input)) {
-      thinking += `用户需要制定执行计划。需要使用 submit_plan 工具提交计划。\n`;
-      thinking += `2. 方案设计：分析需求，拆解为多个步骤，形成完整计划。\n`;
-      thinking += `3. 工具选择：使用 submit_plan 工具提交计划供用户审批。\n`;
-      thinking += `4. 执行计划：提交计划 → 等待用户审批 → 批准后执行。\n`;
-    } else if (/搜索|联网|查一下|查找资料|web.?search|google/.test(input)) {
-      thinking += `用户需要联网搜索信息。需要使用 web_search 工具搜索。\n`;
-      thinking += `2. 方案设计：提取搜索关键词，然后调用搜索工具获取结果。\n`;
-      thinking += `3. 工具选择：使用 web_search 工具进行联网搜索。\n`;
-      thinking += `4. 执行计划：调用 web_search → 整理结果 → 展示给用户。\n`;
-    } else if (/研究|调研|深度分析|子智能体|subagent/.test(input)) {
-      thinking += `用户需要深度研究。需要派子智能体进行只读调研。\n`;
-      thinking += `2. 方案设计：确定研究主题和重点，派子智能体进行深度调研。\n`;
-      thinking += `3. 工具选择：使用 run_subagent 工具派子智能体。\n`;
-      thinking += `4. 执行计划：派子智能体 → 等待调研结果 → 整理并展示。\n`;
-    } else {
-      thinking += `用户需求为一般性对话或咨询。需要直接回复，无需调用工具。\n`;
-      thinking += `2. 方案设计：理解用户意图，直接给出有帮助的回复。\n`;
-      thinking += `3. 工具选择：无需调用工具，纯文本回复。\n`;
-      thinking += `4. 执行计划：直接生成回复内容。\n`;
-    }
-
-    if (hasToolCalls) {
-      thinking += `\n5. 即将调用工具：${toolNames.join(', ')}\n`;
-      thinking += `6. 预期结果：工具执行完成后，根据结果给出最终回复。\n`;
-    } else {
-      thinking += `\n5. 无需调用工具，直接生成回复。\n`;
-    }
-
-    thinking += `\n思考完成，开始执行...`;
-    return thinking;
   }
 
   // ===== 计划先行：判定代码任务（写/创建/生成/修复等，非提问）=====
@@ -10948,14 +10747,17 @@ function bindEvents() {
       if (targetContent) {
         targetContent.style.display = 'block';
         if (deviceTab === 'library') refreshLibraries();
-        if (deviceTab === 'platform') refreshCores();
+        // 已安装 + 可安装都走真实检索（此前"可安装"是写死的假数据）
+        if (deviceTab === 'platform') { refreshCores(); refreshAvailableCores(); }
       }
     });
   });
 
   // 平台/库安装卸载按钮：真实调用 arduino-cli
-  // 此前是 setTimeout(1500) 假装安装后直接报「安装成功」，实际什么都没装
-  document.querySelectorAll('.platform-btn').forEach(btn => {
+  // 此前是 setTimeout(1500) 假装安装后直接报「安装成功」，实际什么都没装。
+  // 抽成函数：动态渲染出的条目（如"可安装平台"检索结果）也要绑，
+  // 只绑页面加载时存在的那一批会导致新按钮点了没反应。
+  function bindPlatformBtn(btn) {
     btn.addEventListener('click', async () => {
       const isInstall = btn.classList.contains('install');
       const action = isInstall ? '安装' : '卸载';
@@ -10984,7 +10786,7 @@ function bindEvents() {
         if (ok) {
           showToast(target + ' ' + action + '成功', 'success');
           // 成功后刷新真实列表（失败时不刷新，避免状态错乱）。
-          // refreshCores/refreshLibraries 定义在设备面板的作用域内，外部取不到，
+          // refreshCores 等定义在设备面板作用域内，外部取不到，
           // 所以触发该面板自己的「刷新」按钮（device-refresh）来重绘。
           const devRefresh = document.getElementById('device-refresh');
           if (devRefresh) { try { devRefresh.click(); } catch (e) {} }
@@ -10999,7 +10801,8 @@ function bindEvents() {
       btn.style.opacity = '1';
       btn.textContent = original;
     });
-  });
+  }
+  document.querySelectorAll('.platform-btn').forEach(bindPlatformBtn);
 
   // 库搜索
   const librarySearch = document.getElementById('library-search');
@@ -11015,6 +10818,14 @@ function bindEvents() {
           item.style.display = 'none';
         }
       });
+    });
+  }
+
+  // 可安装平台搜索：按已检索结果过滤（数据源是 arduino-cli core search 的真实输出）
+  const platformSearch = document.getElementById('platform-search');
+  if (platformSearch) {
+    platformSearch.addEventListener('input', () => {
+      try { renderAvailableCores(_availableCoresCache.slice(0, 60), _availableCoresCache.length); } catch (e) {}
     });
   }
 
@@ -11713,6 +11524,77 @@ function bindEvents() {
     } catch (e) { /* 忽略 */ }
   }
 
+  // 可安装平台：真实检索 arduino-cli 索引（此前该列表是写死的假数据，且无人替换）
+  let _availableCoresCache = [];
+  function renderAvailableCores(list, total) {
+    const el = document.getElementById('available-platforms');
+    if (!el) return;
+    const kw = String((document.getElementById('platform-search') || {}).value || '').trim().toLowerCase();
+    const filtered = kw ? list.filter(c => (c.name + ' ' + c.id).toLowerCase().indexOf(kw) >= 0) : list;
+    el.innerHTML = '';
+    if (!filtered.length) {
+      const d = document.createElement('div');
+      d.style.cssText = 'padding:12px;color:#999;font-size:12px;';
+      d.textContent = kw ? '没有匹配的平台' : '未检索到可安装平台（可先执行 arduino-cli core update-index 更新索引）';
+      el.appendChild(d);
+      return;
+    }
+    if (total && total > list.length) {
+      const tip = document.createElement('div');
+      tip.style.cssText = 'padding:8px 12px;color:#999;font-size:11px;';
+      tip.textContent = '索引共 ' + total + ' 个平台，当前显示前 ' + list.length + ' 个，可用搜索框过滤';
+      el.appendChild(tip);
+    }
+    filtered.forEach(c => {
+      const item = document.createElement('div');
+      item.className = 'platform-item';
+      const info = document.createElement('div');
+      info.className = 'platform-info';
+      const n = document.createElement('span'); n.className = 'platform-name'; n.textContent = c.name;
+      const v = document.createElement('span'); v.className = 'platform-version'; v.textContent = 'v' + c.version;
+      info.append(n, v);
+      const btn = document.createElement('button');
+      btn.className = 'platform-btn install';
+      btn.dataset.platform = c.id;
+      btn.textContent = '安装';
+      // 动态生成的按钮必须单独绑定，否则点了没反应
+      bindPlatformBtn(btn);
+      item.append(info, btn);
+      el.appendChild(item);
+    });
+  }
+
+  async function refreshAvailableCores() {
+    const el = document.getElementById('available-platforms');
+    if (!el) return;
+    const hint = (msg) => { el.innerHTML = '<div style="padding:12px;color:#999;font-size:12px;">' + msg + '</div>'; };
+    if (typeof runArduinoCli !== 'function') { hint('arduino-cli 不可用'); return; }
+    hint('正在检索可安装平台…');
+    try {
+      const r = await runArduinoCli(['core', 'search'], 60000);
+      if (!r || r.ok === false || r.code !== 0) {
+        hint('无法检索可安装平台：' + String((r && r.out) || 'arduino-cli 调用失败').slice(0, 160));
+        return;
+      }
+      const lines = String(r.out || '').split('\n');
+      const items = [];
+      for (const line of lines) {
+        if (!line.trim() || /^\s*ID\b/.test(line)) continue; // 跳过表头
+        const parts = line.split(/\s{2,}/).map(s => s.trim()).filter(Boolean);
+        if (parts.length >= 2 && /^[A-Za-z0-9_\-]+:[A-Za-z0-9_\-]+/.test(parts[0])) {
+          items.push({ id: parts[0], version: parts[1], name: parts[2] || parts[0] });
+        }
+      }
+      // 官方索引平台很多，默认只渲染前 60，配合搜索框过滤
+      _availableCoresCache = items;
+      renderAvailableCores(items.slice(0, 60), items.length);
+    } catch (e) {
+      hint('检索可安装平台失败：' + String((e && e.message) || e).slice(0, 160));
+    }
+  }
+  // 暴露给同作用域内其它刷新入口调用
+  window.__labRefreshAvailableCores = refreshAvailableCores;
+
   async function refreshLibraries() {
     const el = document.getElementById('library-list');
     if (!el) return;
@@ -11750,7 +11632,7 @@ function bindEvents() {
   const devRefreshBtn = document.getElementById('device-refresh');
   if (devRefreshBtn) devRefreshBtn.addEventListener('click', () => {
     showToast('正在刷新设备与端口...', 'info');
-    Promise.all([refreshPorts(), refreshBoards(), refreshCores()]).catch(() => {});
+    Promise.all([refreshPorts(), refreshBoards(), refreshCores(), refreshAvailableCores()]).catch(() => {});
   });
 
   // ============ 编译按钮（真实 arduino-cli）============

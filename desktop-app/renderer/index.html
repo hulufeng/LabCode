@@ -655,10 +655,12 @@
           </div>
           <div class="device-section" style="margin-top:16px;">
             <div class="device-section-title">可安装平台</div>
-            <!-- 已移除写死的假平台条目（此前永久显示，无任何代码会替换）。
-                 可安装列表需 arduino-cli 检索支持，当前用上方「已安装平台」查看真实状态。 -->
+            <!-- 已移除写死的假平台条目；现在由 refreshAvailableCores() 走 arduino-cli core search 真实检索 -->
+            <div class="device-form-group">
+              <input type="text" class="device-select" id="platform-search" placeholder="搜索可安装平台..." style="margin-bottom:12px;">
+            </div>
             <div class="platform-list" id="available-platforms">
-              <div style="padding:12px;color:#999;font-size:12px;">暂不可列出可安装平台（需 arduino-cli 检索支持）</div>
+              <div style="padding:12px;color:#999;font-size:12px;">加载中…</div>
             </div>
           </div>
         </div>
