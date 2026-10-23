@@ -4474,7 +4474,7 @@ void loop() {
             '⚠️ 本地 AI 引擎还没安装\n\n' +
             '本地 AI 引擎（内置 llama.cpp）需要单独安装，装完还要下载一个"模型文件"才能用。\n\n' +
             '想马上用 AI，推荐先用云端：设置 → AI 引擎 → 登录 LabCode 账号（免费，用的是硅基流动 Qwen3-8B，不用下载、不耗积分）。\n' +
-            '想用本地引擎（不联网、不花钱），去「设置 → AI 引擎」先安装引擎、再下载模型，推荐 Qwen2.5-Coder 7B（写代码专用，约 4.4GB）。'
+            '想用本地引擎（不联网、不花钱），去「插件市场」先装「LabCode AI 引擎」，再装一个模型（推荐 Qwen2.5-Coder 7B，写代码专用，约 4.4GB）。'
           );
         }
         if (rt.engine && (!rt.models || rt.models.length === 0)) {
@@ -4485,7 +4485,7 @@ void loop() {
             '推荐下载：Qwen2.5-Coder 7B（写代码专用，速度和质量最平衡，约 4.4GB）\n' +
             '· 更大的 Qwen3.5-9B：更聪明，但更慢、更占内存\n' +
             '· 更小的 3B：最快，但能力弱一些\n\n' +
-            '去「设置 → AI 引擎」下载其中一个，下完回到这里直接就能用。'
+            '去「插件市场」装一个模型（推荐 Qwen2.5-Coder 7B），装完回到这里直接就能用。'
           );
         }
         if (rt.engine && !rt.engineRunning) {
@@ -4494,7 +4494,7 @@ void loop() {
           if (!startRes || !startRes.success) {
             return this._degradedReply(
               `⚠️ 本地模型启动失败：${(startRes && startRes.error) || '未知错误'}\n\n` +
-              `可能是模型文件损坏或引擎异常。可到「设置 → AI 引擎」重新下载模型，或先改用云端模型。`
+              `可能是模型文件损坏或引擎异常。可到「插件市场」重新安装模型，或先改用云端模型。`
             );
           }
           if (this.onEngineStarted) this.onEngineStarted();
@@ -13611,12 +13611,16 @@ function bindEvents() {
     const fo = document.getElementById('gw-ov-forgot'); if (fo) fo.addEventListener('click', gwForgotOverlay);
     const sk = document.getElementById('gw-ov-skip'); if (sk) sk.addEventListener('click', hideLoginOverlay);
     window.__showGwLoginOverlay = showLoginOverlay;
-    // 启动检查：静默刷新账号徽章（对齐 TrieCode 可选登录——不再强制首屏登录遮罩，
-    // 未登录时 AI 面板顶部常驻"🔑 登录账号"入口徽章，本地模型无需登录即可使用）
+    // 启动检查：强制登录门禁（参考 Trea / TrieCode——启动即要求登录，未登录弹全屏遮罩，不登录不能用任何功能，以便按账号统计使用）
     (async () => {
       try {
+        const cfg = await window.LabCode.config.get();
+        const loggedIn = !!(cfg.ai && cfg.ai.gatewayToken);
+        if (!loggedIn && window.__showGwLoginOverlay) {
+          window.__showGwLoginOverlay();
+        }
         await refreshCreditsBadge();
-      } catch (e) { /* 徽章刷新失败不影响主流程 */ }
+      } catch (e) { /* 不影响主流程 */ }
     })();
   });
 
