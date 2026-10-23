@@ -1427,6 +1427,8 @@ function setupIPC() {
     // 浼樺厛绾э細鏄惧紡浼犲叆 > 宸蹭繚瀛?config.ai.gatewayUrl > 鐜变量 > 榛樿生产域名
     const savedGw = (config.ai || {}).gatewayUrl || '';
     const gwBase = (gatewayUrl || savedGw || process.env.GATEWAY_URL || AI_PROVIDERS.gateway.baseURL || 'https://bluebubai.work').replace(/\/$/, '');
+    // 使用上报独立指向 USAGE_URL（解耦：与登录/对话网关分离，互不影响）；未配置则回退到 gwBase
+    const usageUrl = (process.env.USAGE_URL || gwBase).replace(/\/$/, '');
     try {
       if (action === 'send-code') {
         if (!email) return { success: false, error: '璇疯緭鍏ラ偖绠' };
@@ -1463,7 +1465,7 @@ function setupIPC() {
         aiCfg.gatewayUrl = gwBase;
         config.ai = aiCfg;
         saveConfig(config);
-        reportUsage(gwBase, email);
+        reportUsage(usageUrl, email);
         return {
           success: true,
           action,
@@ -1477,7 +1479,7 @@ function setupIPC() {
         const data = await res.json().catch(() => ({}));
         if (!res.ok) return { success: false, error: data.error || `网关返回 ${res.status}` };
         const u = data.user || {};
-        reportUsage(gwBase, (config.ai || {}).gatewayEmail);
+        reportUsage(usageUrl, (config.ai || {}).gatewayEmail);
         return { success: true, user: { email: u.email, totalCredits: u.totalCredits, planCredits: u.planCredits, rechargeCredits: u.rechargeCredits, dailyRemaining: u.dailyRemaining, dailyUsed: u.dailyUsed } };
       }
       if (action === 'logout') {
