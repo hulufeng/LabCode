@@ -11251,81 +11251,21 @@ function bindEvents() {
       const dropdown = document.getElementById('model-dropdown');
       if (!dropdown) return;
 
-      // 移除旧的本地模型分组
+      // 移除旧的本地模型分组（保持下拉干净）
       dropdown.querySelectorAll('.local-model-group').forEach(el => el.remove());
 
-      // 添加本地模型分组（引擎状态 + 模型列表）
-      const group = document.createElement('div');
-      group.className = 'local-model-group';
-      const engineStatus = runtime.engineRunning ? '运行中' : '未启动';
-      group.innerHTML = '<div style="padding:6px 12px;font-size:10px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;border-top:1px solid var(--border-color);margin-top:4px;">本地模型（LabCode 引擎 · ' + engineStatus + '）</div>';
-
-      if (hasLocalModels) {
-        modelList.forEach(m => {
-          const opt = document.createElement('div');
-          opt.className = 'model-option';
-          opt.dataset.model = 'local-' + m.file;
-          opt.dataset.provider = 'local';
-          opt.dataset.modelname = m.name;
-          opt.style.cssText = 'padding:8px 12px;font-size:12px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:12px;';
-          opt.innerHTML = '<span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + m.name + '</span><span style="font-size:10px;color:var(--text-secondary);flex-shrink:0;">' + (m.sizeGB ? m.sizeGB.toFixed(1) + 'GB' : '') + '</span>';
-          opt.addEventListener('click', async () => {
-            document.getElementById('current-model-name').textContent = m.name + ' (本地)';
-            document.querySelectorAll('.model-option').forEach(o => o.classList.remove('active'));
-            opt.classList.add('active');
-            dropdown.style.display = 'none';
-            try {
-              if (window.LabCode && window.LabCode.config) {
-                await window.LabCode.config.set('ai.provider', 'local');
-                await window.LabCode.config.set('ai.model', m.file);
-                await window.LabCode.config.set('ai.baseURL', 'http://127.0.0.1:8080/v1');
-                // 启动引擎加载该模型（引擎未运行 → 启动；已运行但加载的不是目标模型 → 重启加载）
-                const needRestart = !runtime.engineRunning || runtime.runningModel !== m.file;
-                if (window.LabCode.system.startLLMEngine && needRestart) {
-                  showToast('正在加载模型 ' + m.name + '（约数秒）...', 'info');
-                  const startRes = await window.LabCode.system.startLLMEngine({ modelFile: m.file });
-                  if (startRes && startRes.success) {
-                    showToast('模型已加载：' + startRes.model, 'success');
-                  } else {
-                    showToast('引擎启动失败: ' + (startRes?.error || '未知错误'), 'error');
-                  }
-                }
-                if (state.agent && state.agent.ai && typeof state.agent.ai._loadConfig === 'function') {
-                  await state.agent.ai._loadConfig();
-                }
-                showToast('已切换到本地模型 ' + m.name, 'success');
-              }
-            } catch (e) { showToast('模型切换失败: ' + e.message, 'error'); }
-          });
-          group.appendChild(opt);
-        });
-      } else {
-        const empty = document.createElement('div');
-        empty.style.cssText = 'padding:8px 12px;font-size:12px;color:var(--text-secondary);';
-        empty.textContent = '尚未安装模型，请到插件市场安装';
-        group.appendChild(empty);
-      }
-
-      dropdown.appendChild(group);
-
-      // 本地模型分组重新渲染后，把「＋ 添加模型」入口挪回末尾
+      // 本地模型条目已从下拉移除（越简单越好）：选「本地 AI 引擎」即用默认 7B，
+      // 具体选 3b / 7B / 9B 在「设置 → AI 引擎」里做（不常改的进阶项）。
+      // 「＋ 添加模型」入口保持在末尾，供下载本地模型。
       const addEntry = document.getElementById('model-add-entry');
       if (addEntry) dropdown.appendChild(addEntry);
 
-      // 回显配置中的本地模型：如果当前配置是 local，选中对应选项
+      // 回显配置中的本地模型名到标题栏（仅展示，不在下拉列条目）
       try {
         if (window.LabCode && window.LabCode.config) {
           const cfg = await window.LabCode.config.get();
           const ai = cfg?.ai || {};
           if ((ai.provider === 'local' || ai.provider === 'ollama') && ai.model) {
-            const key = ai.provider === 'local' ? ai.model : null;
-            if (key) {
-              const matchedOpt = group.querySelector('.model-option[data-modelname="' + key.replace(/\.gguf$/i, '') + '"]');
-              if (matchedOpt) {
-                document.querySelectorAll('.model-option').forEach(o => o.classList.remove('active'));
-                matchedOpt.classList.add('active');
-              }
-            }
             document.getElementById('current-model-name').textContent = (ai.provider === 'local' ? ai.model.replace(/\.gguf$/i, '') : ai.model) + ' (本地)';
           }
         }
