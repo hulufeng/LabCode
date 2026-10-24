@@ -10074,12 +10074,14 @@ function bindEvents() {
     // 分类标签
     const cats = getPluginCategories();
     let html = '';
-    // 远程市场状态条
-    html += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;font-size:11px;color:var(--text-secondary);">';
-    html += remoteMarketOnline
-      ? '<span style="width:8px;height:8px;border-radius:50%;background:#10b981;display:inline-block;"></span><span>已连接官方插件市场（' + remotePlugins.length + ' 个远程插件）</span>'
-      : '<span style="width:8px;height:8px;border-radius:50%;background:#f59e0b;display:inline-block;"></span><span>官方市场未连接，展示内置目录（可点击右上角刷新重试）</span>';
-    html += '</div>';
+    // 远程市场状态条（模型 tab 不显示，保持纯模型列表）
+    if (currentPluginsTab !== 'models') {
+      html += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;font-size:11px;color:var(--text-secondary);">';
+      html += remoteMarketOnline
+        ? '<span style="width:8px;height:8px;border-radius:50%;background:#10b981;display:inline-block;"></span><span>已连接官方插件市场（' + remotePlugins.length + ' 个远程插件）</span>'
+        : '<span style="width:8px;height:8px;border-radius:50%;background:#f59e0b;display:inline-block;"></span><span>官方市场未连接，展示内置目录（可点击右上角刷新重试）</span>';
+      html += '</div>';
+    }
     if (currentPluginsTab === 'market') {
       html += '<div class="plg-cats">';
       cats.forEach(c => {
@@ -10184,8 +10186,8 @@ function bindEvents() {
     listEl.querySelectorAll('[data-action="uninstall"]').forEach(btn => {
       btn.addEventListener('click', () => uninstallPlugin(btn.dataset.id));
     });
-    // 插件自定义面板（manifest.views）—— 之前只注册不渲染，这里补上入口
-    renderPluginViews(listEl);
+    // 插件自定义面板（manifest.views）—— 之前只注册不渲染，这里补上入口（模型 tab 不显示）
+    if (currentPluginsTab !== 'models') renderPluginViews(listEl);
     // 绑定启用/禁用按钮（禁用后插件工具不再注入给 AI）
     listEl.querySelectorAll('[data-action="toggle"]').forEach(btn => {
       btn.addEventListener('click', async () => {
