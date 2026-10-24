@@ -9401,7 +9401,7 @@ function bindEvents() {
         }
         renderPluginsList();
       } else if (panel === 'models') {
-        // AI 模型独立入口：复用插件面板，直接切到「模型」tab
+        // AI 模型独立入口：复用插件面板，直接渲染模型视图（模型已从 tab 条移除，单独管理）
         sidebar.style.display = 'flex';
         if (fileTree) fileTree.style.display = 'none';
         if (welcomePanel) welcomePanel.style.display = 'none';
@@ -9409,8 +9409,10 @@ function bindEvents() {
         if (devicePanel) devicePanel.style.display = 'none';
         if (sidebarHeader) sidebarHeader.style.display = 'none';
         setLeftColWidth('400px');   // TrieCode 式宽面板
-        const modelTab = document.querySelector('.plugins-tab[data-tab="models"]');
-        if (modelTab) modelTab.click(); else renderPluginsList();
+        currentPluginsTab = 'models';
+        // 模型是独立视图：清除插件 tab 高亮，避免残留"官方市场"激活态
+        document.querySelectorAll('.plugins-tab').forEach(t => t.classList.remove('active'));
+        renderPluginsList();
       } else if (panel === 'device') {
         sidebar.style.display = 'flex';
         if (fileTree) fileTree.style.display = 'none';
