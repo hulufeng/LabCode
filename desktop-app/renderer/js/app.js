@@ -10065,10 +10065,9 @@ function bindEvents() {
       ? '<span style="width:8px;height:8px;border-radius:50%;background:#10b981;display:inline-block;"></span><span>已连接官方插件市场（' + remotePlugins.length + ' 个远程插件）</span>'
       : '<span style="width:8px;height:8px;border-radius:50%;background:#f59e0b;display:inline-block;"></span><span>官方市场未连接，展示内置目录（可点击右上角刷新重试）</span>';
     html += '</div>';
-    html += '<div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;">';
+    html += '<div class="plg-cats">';
     cats.forEach(c => {
-      const active = currentPluginCategory === c.id ? 'background:var(--accent-color);color:#fff;' : 'background:var(--card-color);color:var(--text-color);';
-      html += '<button class="plugin-cat-btn" data-cat="' + c.id + '" style="padding:4px 10px;font-size:11px;border:1px solid var(--border-color);border-radius:12px;cursor:pointer;' + active + '">' + c.icon + ' ' + c.name + '</button>';
+      html += '<button class="plugin-cat-btn plg-cat' + (currentPluginCategory === c.id ? ' active' : '') + '" data-cat="' + c.id + '">' + c.icon + ' ' + c.name + '</button>';
     });
     html += '</div>';
 
@@ -10076,7 +10075,7 @@ function bindEvents() {
     if (currentPluginCategory === 'all' || currentPluginCategory === 'ai-model') {
       const rec = getModelRecommendation();
       html += '<div style="padding:10px 12px;margin-bottom:10px;background:linear-gradient(135deg,rgba(59,130,246,0.08),rgba(16,185,129,0.08));border:1px solid rgba(59,130,246,0.2);border-radius:8px;">';
-      html += '<div style="font-size:12px;font-weight:600;color:var(--text-color);margin-bottom:4px;">🖥️ 硬件配置检测</div>';
+      html += '<div style="font-size:12px;font-weight:600;color:var(--text-primary);margin-bottom:4px;">🖥️ 硬件配置检测</div>';
       if (systemInfo) {
         html += '<div style="font-size:11px;color:var(--text-secondary);line-height:1.6;">';
         html += 'CPU: ' + systemInfo.cpu.model.substring(0, 40) + ' (' + systemInfo.cpu.cores + '核) | ';
@@ -10108,7 +10107,7 @@ function bindEvents() {
       plugins = plugins.filter(p => p.category === currentPluginCategory);
     }
     if (plugins.length === 0) {
-      html += '<div style="padding:24px;text-align:center;color:var(--text-secondary);font-size:13px;">' + (currentPluginsTab === 'installed' ? '暂无已安装插件' : '该分类暂无插件') + '</div>';
+      html += '<div class="plg-empty"><div style="font-size:26px;margin-bottom:8px;opacity:.5;">🧩</div>' + (currentPluginsTab === 'installed' ? '暂无已安装插件，可从官方市场安装，或用右上角「文件夹 / ZIP」本地安装' : '该分类暂无插件') + '</div>';
       listEl.innerHTML = html;
       // 绑定分类按钮
       listEl.querySelectorAll('.plugin-cat-btn').forEach(btn => {
@@ -10118,37 +10117,33 @@ function bindEvents() {
     }
     html += plugins.map(p => {
       const installed = isPluginInstalled(p.id);
-      const btnLabel = installed ? '已安装' : '安装';
-      const btnClass = installed ? 'btn-secondary' : 'btn-primary';
-      const btnDisabled = installed ? 'disabled style="opacity:0.6;cursor:default;"' : '';
       const rec = getModelRecommendation();
       const isRecommended = p.recommendedFor && p.recommendedFor === rec.level;
-      const recBadge = isRecommended ? '<span style="font-size:10px;padding:1px 5px;background:#10b981;color:#fff;border-radius:4px;margin-left:4px;">推荐</span>' : '';
-      return '<div class="plugin-card" style="padding:12px;margin-bottom:8px;background:var(--card-color);border:1px solid var(--border-color);border-radius:8px;' + (isRecommended ? 'border-color:rgba(16,185,129,0.4);' : '') + '">' +
-        '<div style="display:flex;align-items:flex-start;gap:10px;">' +
-          '<div style="font-size:24px;flex-shrink:0;">' + p.icon + '</div>' +
+      const recBadge = isRecommended ? '<span class="plg-badge plg-badge-rec">推荐</span>' : '';
+      const srcBadge = p.source === 'remote'
+        ? '<span class="plg-badge plg-badge-official">官方市场</span>'
+        : '<span class="plg-badge plg-badge-builtin">内置</span>';
+      const tags = (p.capabilities || []).map(c => '<span class="plg-tag">' + c + '</span>').join('')
+        + (p.minRamGB ? '<span class="plg-tag ram">需 ' + p.minRamGB + 'GB 内存</span>' : '');
+      const actions =
+        (installed ? '<button class="btn btn-danger btn-sm" data-action="uninstall" data-id="' + p.id + '">卸载</button>' : '') +
+        (installed && pluginRegistered(p.id)
+          ? '<button class="btn btn-secondary btn-sm" data-action="toggle" data-id="' + p.id + '">' + (pluginActive(p.id) ? '禁用' : '启用') + '</button>'
+          : '') +
+        '<button class="btn ' + (installed ? 'btn-secondary' : 'btn-primary') + ' btn-sm" data-action="install" data-id="' + p.id + '"' + (installed ? ' disabled style="opacity:.6;cursor:default;"' : '') + '>' + (installed ? '已安装' : '安装') + '</button>';
+      return '<div class="plugin-card plg-card' + (isRecommended ? ' plg-rec' : '') + '">' +
+        '<div style="display:flex;align-items:flex-start;gap:11px;">' +
+          '<div class="plg-icon">' + p.icon + '</div>' +
           '<div style="flex:1;min-width:0;">' +
-            '<div style="display:flex;align-items:center;gap:6px;">' +
-              '<span style="font-size:13px;font-weight:600;color:var(--text-color);">' + p.name + '</span>' + recBadge +
-              (p.source === 'remote'
-                ? '<span style="font-size:10px;padding:1px 5px;background:rgba(16,185,129,0.12);color:#10b981;border-radius:4px;margin-left:2px;">官方市场</span>'
-                : '<span style="font-size:10px;padding:1px 5px;background:rgba(107,114,128,0.12);color:var(--text-secondary);border-radius:4px;margin-left:2px;">内置</span>') +
-              '<span style="font-size:11px;color:var(--text-secondary);">v' + p.version + '</span>' +
+            '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">' +
+              '<span class="plg-name">' + p.name + '</span>' + recBadge + srcBadge +
+              '<span class="plg-ver">v' + p.version + '</span>' +
             '</div>' +
-            '<div style="font-size:12px;color:var(--text-secondary);margin-top:4px;line-height:1.4;">' + p.description + '</div>' +
-            '<div style="display:flex;gap:4px;margin-top:6px;flex-wrap:wrap;">' +
-              p.capabilities.map(c => '<span style="font-size:10px;padding:1px 6px;background:rgba(0,0,0,0.05);border-radius:4px;color:var(--text-secondary);">' + c + '</span>').join('') +
-              (p.minRamGB ? '<span style="font-size:10px;padding:1px 6px;background:rgba(59,130,246,0.1);border-radius:4px;color:#3b82f6;">需' + p.minRamGB + 'GB内存</span>' : '') +
-            '</div>' +
+            '<div class="plg-desc" style="margin-top:3px;">' + p.description + '</div>' +
+            (tags ? '<div style="display:flex;gap:4px;margin-top:7px;flex-wrap:wrap;">' + tags + '</div>' : '') +
           '</div>' +
         '</div>' +
-        '<div style="display:flex;justify-content:flex-end;margin-top:8px;gap:6px;">' +
-          (installed ? '<button class="btn btn-danger btn-sm" data-action="uninstall" data-id="' + p.id + '" style="padding:4px 10px;font-size:11px;">卸载</button>' : '') +
-          (installed && pluginRegistered(p.id)
-            ? '<button class="btn btn-secondary btn-sm" data-action="toggle" data-id="' + p.id + '" style="padding:4px 10px;font-size:11px;">' + (pluginActive(p.id) ? '禁用' : '启用') + '</button>'
-            : '') +
-          '<button class="btn ' + btnClass + ' btn-sm" data-action="install" data-id="' + p.id + '" ' + btnDisabled + ' style="padding:4px 10px;font-size:11px;">' + btnLabel + '</button>' +
-        '</div>' +
+        '<div class="plg-actions">' + actions + '</div>' +
       '</div>';
     }).join('');
     listEl.innerHTML = html;
