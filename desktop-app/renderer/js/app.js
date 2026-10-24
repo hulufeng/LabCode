@@ -9862,7 +9862,7 @@ function bindEvents() {
         }
       }
     } catch (e) { /* 忽略 */ }
-    remoteMarketURL = 'http://127.0.0.1:3100';
+    remoteMarketURL = 'https://bluebubai.work';
     return remoteMarketURL;
   }
 
@@ -10500,6 +10500,45 @@ function bindEvents() {
       }
     }
 
+    // 远程插件包（官方市场 / 社区）：下载 zip → 解压 → 安装到 userData/plugins/<id>
+    // 与上面 ai-model 下载并列；下载 / 解压失败则中止，不标记已安装。
+    let remoteInstall = null;
+    if (plugin.source === 'remote' && plugin.downloadUrl && plugin.category !== 'ai-model') {
+      try {
+        const psPath = (p) => "'" + String(p).replace(/'/g, "''") + "'";
+        const tmpDir = 'D:\\LabCode\\plugin-tmp\\' + plugin.id + '_' + Date.now();
+        const zipPath = tmpDir + '\\' + plugin.id + '.zip';
+        const extDir = tmpDir + '\\extracted';
+        addOutputLog('正在从官方市场下载插件包 ' + plugin.id + '...', 'info');
+        await window.LabCode.terminal.execute(
+          'powershell -NoProfile -Command "New-Item -ItemType Directory -Force -Path ' + psPath(tmpDir) + ' | Out-Null; curl.exe -L --retry 3 -C - -o ' + psPath(zipPath) + ' ' + psPath(plugin.downloadUrl) + '"',
+          null, 600000, { force: true }
+        );
+        const ver = await window.LabCode.terminal.execute(
+          'powershell -NoProfile -Command "if (Test-Path ' + psPath(zipPath) + ') { Write-Output ([math]::Round((Get-Item ' + psPath(zipPath) + ').Length/1MB,1).ToString()) } else { Write-Output 0 }"',
+          null, 20000, { force: true }
+        );
+        const szMB = parseFloat(String((ver && ver.stdout) || '0').trim());
+        if (szMB < 1) throw new Error('下载文件过小（' + szMB + ' MB），可能网络中断或链接失效');
+        await window.LabCode.terminal.execute(
+          'powershell -NoProfile -Command "Expand-Archive -Path ' + psPath(zipPath) + ' -DestinationPath ' + psPath(extDir) + ' -Force"',
+          null, 120000, { force: true }
+        );
+        const mDir = window.PluginSystem.findManifestDir ? await window.PluginSystem.findManifestDir(extDir) : null;
+        if (!mDir) throw new Error('压缩包内未找到 plugin.json（请确认压缩包根目录含 plugin.json）');
+        const r = await window.PluginSystem.installFromDir(mDir);
+        if (!r || !r.success) throw new Error(r && r.error ? r.error : '安装失败');
+        remoteInstall = r;
+        addOutputLog('✅ 插件包下载并安装完成（' + szMB + ' MB，注册 ' + (r.tools || 0) + ' 个工具、' + (r.skills || 0) + ' 条技能）', 'success');
+        try { const _o = new URL(plugin.downloadUrl).origin; await fetch(_o + '/api/plugins/' + plugin.id + '/install', { method: 'POST' }); } catch (e) {}
+      } catch (e) {
+        hideInstallModal();
+        addOutputLog('远程插件安装失败：' + e.message, 'warning');
+        showToast(plugin.name + ' 安装失败：' + e.message, 'error');
+        return { success: false, error: '远程安装失败: ' + e.message };
+      }
+    }
+
     // 下载失败/不完整 → 中止安装，不标记已安装（避免「安装成功」但模型文件不存在）
     if (!dlOk) {
       hideInstallModal();
@@ -10511,24 +10550,27 @@ function bindEvents() {
     // 真安装：把 manifest 落盘到 <userData>/plugins/<id>/plugin.json 并注册工具。
     // 只有这一步成功，才算「装好了」—— 之后 AI 才能真的调到插件工具。
     // ============================================================
-    const manifest = BUILTIN_PLUGIN_MANIFESTS[id] || plugin.manifest;
-    let installedTools = 0;
-    let hasManifest = false;
-    if (manifest && window.PluginSystem && typeof window.PluginSystem.installManifest === 'function') {
-      hasManifest = true;
-      const r = await window.PluginSystem.installManifest(manifest);
-      if (!r || !r.success) {
-        hideInstallModal();
-        const err = (r && r.error) || '未知原因';
-        addOutputLog('插件安装失败：' + err, 'warning');
-        showToast(plugin.name + ' 安装失败：' + err, 'error');
-        return { success: false, error: '插件注册失败: ' + err };
+    // 远程插件已在上一分支完成 installFromDir（含文件拷贝 + 工具 / 技能注册），此处跳过 installManifest
+    let installedTools = remoteInstall ? (remoteInstall.tools || 0) : 0;
+    let hasManifest = !!remoteInstall;
+    if (!remoteInstall) {
+      const manifest = BUILTIN_PLUGIN_MANIFESTS[id] || plugin.manifest;
+      if (manifest && window.PluginSystem && typeof window.PluginSystem.installManifest === 'function') {
+        hasManifest = true;
+        const r = await window.PluginSystem.installManifest(manifest);
+        if (!r || !r.success) {
+          hideInstallModal();
+          const err = (r && r.error) || '未知原因';
+          addOutputLog('插件安装失败：' + err, 'warning');
+          showToast(plugin.name + ' 安装失败：' + err, 'error');
+          return { success: false, error: '插件注册失败: ' + err };
+        }
+        installedTools = r.tools || 0;
+        addOutputLog('插件「' + (r.name || id) + '」已安装：注册 ' + installedTools + ' 个工具、' + (r.skills || 0) + ' 条技能', 'success');
+      } else {
+        hasManifest = false;
+        addOutputLog('⚠️ 该插件没有可注册的 manifest（仅记录已安装），工具可能不可用', 'warning');
       }
-      installedTools = r.tools || 0;
-      addOutputLog('插件「' + (r.name || id) + '」已安装：注册 ' + installedTools + ' 个工具、' + (r.skills || 0) + ' 条技能', 'success');
-    } else {
-      // 没有 manifest 的目录条目（如引擎/模型类）：不伪造工具，只做登记，并在日志里说清
-      addOutputLog('注：「' + plugin.name + '」无可安装的插件包（manifest 缺失），仅登记为已安装，不提供插件工具', 'warning');
     }
 
     // 真实安装（installManifest）已在上面完成；这里只是让进度条走完，不是"模拟安装"
