@@ -3422,6 +3422,7 @@ const COMMAND_PALETTE_COMMANDS = [
   { label: '打开资源管理器', group: '面板', run: () => switchPanel('explorer', 'activity') },
   { label: '打开 Git 面板', group: '面板', run: () => switchPanel('git', 'activity') },
   { label: '打开插件市场', group: '面板', run: () => switchPanel('plugins', 'activity') },
+  { label: '打开 AI 模型', group: '面板', run: () => switchPanel('models', 'activity') },
   { label: '打开 MCP 服务', group: '面板', run: () => switchPanel('mcp', 'activity') },
   { label: '打开设备面板', group: '面板', run: () => switchPanel('device', 'activity') },
   { label: '打开上下文面板', group: '面板', run: () => switchPanel('context', 'activity') },
@@ -9386,6 +9387,16 @@ function bindEvents() {
         if (devicePanel) devicePanel.style.display = 'none';
         if (sidebarHeader) sidebarHeader.style.display = 'none';
         renderPluginsList();
+      } else if (panel === 'models') {
+        // AI 模型独立入口：复用插件面板，直接切到「模型」tab
+        sidebar.style.display = 'flex';
+        if (fileTree) fileTree.style.display = 'none';
+        if (welcomePanel) welcomePanel.style.display = 'none';
+        if (pluginsPanel) pluginsPanel.style.display = 'flex';
+        if (devicePanel) devicePanel.style.display = 'none';
+        if (sidebarHeader) sidebarHeader.style.display = 'none';
+        const modelTab = document.querySelector('.plugins-tab[data-tab="models"]');
+        if (modelTab) modelTab.click(); else renderPluginsList();
       } else if (panel === 'device') {
         sidebar.style.display = 'flex';
         if (fileTree) fileTree.style.display = 'none';
