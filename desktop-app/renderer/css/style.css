@@ -4789,11 +4789,15 @@ body.no-open-file .ai-panel {
 /* ============ 插件市场 ============ */
 .plugins-tab {
   flex: 1;
-  padding: 8px 12px;
+  padding: 8px 2px;
   background: transparent;
   border: none;
   color: var(--text-secondary);
-  font-size: 12px;
+  font-size: 11px;
+  white-space: nowrap;   /* 标签文字不折行，每个 tab 单行显示 */
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
   cursor: pointer;
   border-bottom: 2px solid transparent;
   transition: all 0.2s;
