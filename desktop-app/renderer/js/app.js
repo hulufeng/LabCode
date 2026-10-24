@@ -10148,13 +10148,9 @@ function bindEvents() {
     }
     html += plugins.map(p => {
       const installed = isPluginInstalled(p.id);
-      const rec = getModelRecommendation();
-      const isRecommended = p.recommendedFor && p.recommendedFor === rec.level;
-      const recBadge = isRecommended ? '<span class="plg-badge plg-badge-rec">推荐</span>' : '';
-      const srcBadge = p.source === 'remote'
-        ? '<span class="plg-badge plg-badge-official">官方市场</span>'
-        : '<span class="plg-badge plg-badge-builtin">内置</span>';
-      // 行式布局（对齐 TrieCode）：图标 + 名称/版本/徽章 + 一行描述(截断) + 右侧状态/操作
+      const isModelsTab = currentPluginsTab === 'models';
+      const catNames = { compiler: '编译器', runtime: '运行时', tool: '工具', theme: '主题', 'ai-model': 'AI 模型' };
+      // 行式布局（对齐 TrieCode）：图标 + 顶部行 + 一行描述(截断) + 右侧状态/操作
       let actions;
       if (!installed) {
         actions = '<button class="btn btn-primary btn-sm" data-action="install" data-id="' + p.id + '">安装</button>';
@@ -10166,14 +10162,24 @@ function bindEvents() {
       } else {
         actions = '<span class="plg-installed">已安装</span>';
       }
-      return '<div class="plg-row' + (isRecommended ? ' plg-rec' : '') + '">' +
+      // 模型 tab 只显示模型（名称+版本，无来源/推荐徽章）；插件 tab 参考 TrieCode：官方徽章 + 版本·分类
+      let topLine = '<span class="plg-name">' + p.name + '</span>';
+      if (isModelsTab) {
+        topLine += '<span class="plg-ver">v' + p.version + '</span>';
+      } else {
+        topLine += (p.source === 'remote' ? '<span class="plg-badge plg-badge-official">官方</span>' : '') +
+          '<span class="plg-ver">v' + p.version + ' · ' + (catNames[p.category] || p.category) + '</span>';
+      }
+      // 功能标签（仅插件 tab，TrieCode 式灰字）
+      const tagRow = (!isModelsTab && p.capabilities && p.capabilities.length)
+        ? '<div class="plg-tags">' + p.capabilities.map(c => '<span>' + c + '</span>').join('') + '</div>'
+        : '';
+      return '<div class="plg-row">' +
         '<div class="plg-row-ic">' + p.icon + '</div>' +
         '<div class="plg-row-body">' +
-          '<div class="plg-row-top">' +
-            '<span class="plg-name">' + p.name + '</span>' +
-            '<span class="plg-ver">v' + p.version + '</span>' + srcBadge + recBadge +
-          '</div>' +
+          '<div class="plg-row-top">' + topLine + '</div>' +
           '<div class="plg-desc">' + (p.description || '') + '</div>' +
+          tagRow +
         '</div>' +
         '<div class="plg-row-act">' + actions + '</div>' +
       '</div>';
