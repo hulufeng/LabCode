@@ -10077,26 +10077,16 @@ function bindEvents() {
     if (currentPluginsTab === 'mcp') { renderMcpPanel(listEl); return; }
 
     // 分类标签
-    const cats = getPluginCategories();
     let html = '';
-    // 远程市场状态条（模型 tab 不显示，保持纯模型列表）
-    if (currentPluginsTab !== 'models') {
+    // 远程市场状态条：仅未连接时显示告警（TrieCode 式干净列表，连上时不占位）
+    if (currentPluginsTab !== 'models' && !remoteMarketOnline) {
       html += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;font-size:11px;color:var(--text-secondary);">';
-      html += remoteMarketOnline
-        ? '<span style="width:8px;height:8px;border-radius:50%;background:#10b981;display:inline-block;"></span><span>已连接官方插件市场（' + remotePlugins.length + ' 个远程插件）</span>'
-        : '<span style="width:8px;height:8px;border-radius:50%;background:#f59e0b;display:inline-block;"></span><span>官方市场未连接，展示内置目录（可点击右上角刷新重试）</span>';
-      html += '</div>';
-    }
-    if (currentPluginsTab === 'market') {
-      html += '<div class="plg-cats">';
-      cats.forEach(c => {
-        html += '<button class="plugin-cat-btn plg-cat' + (currentPluginCategory === c.id ? ' active' : '') + '" data-cat="' + c.id + '">' + c.icon + ' ' + c.name + '</button>';
-      });
+      html += '<span style="width:8px;height:8px;border-radius:50%;background:#f59e0b;display:inline-block;"></span><span>官方市场未连接，展示内置目录（可点击右上角刷新重试）</span>';
       html += '</div>';
     }
 
-    // 硬件检测 + 推荐：官方市场(全部) 或 模型tab（选模型要看硬件/显存）
-    if (currentPluginsTab === 'models' || ((currentPluginsTab === 'market') && (currentPluginCategory === 'all' || currentPluginCategory === 'ai-model'))) {
+    // 硬件检测 + 推荐：仅模型 tab（选模型要看硬件/显存），官方市场保持 TrieCode 式纯列表
+    if (currentPluginsTab === 'models') {
       const rec = getModelRecommendation();
       html += '<div style="padding:10px 12px;margin-bottom:10px;background:linear-gradient(135deg,rgba(59,130,246,0.08),rgba(16,185,129,0.08));border:1px solid rgba(59,130,246,0.2);border-radius:8px;">';
       html += '<div style="font-size:12px;font-weight:600;color:var(--text-primary);margin-bottom:4px;">🖥️ 硬件配置检测</div>';
@@ -10162,24 +10152,13 @@ function bindEvents() {
       } else {
         actions = '<span class="plg-installed">已安装</span>';
       }
-      // 模型 tab 只显示模型（名称+版本，无来源/推荐徽章）；插件 tab 参考 TrieCode：官方徽章 + 版本·分类
-      let topLine = '<span class="plg-name">' + p.name + '</span>';
-      if (isModelsTab) {
-        topLine += '<span class="plg-ver">v' + p.version + '</span>';
-      } else {
-        topLine += (p.source === 'remote' ? '<span class="plg-badge plg-badge-official">官方</span>' : '') +
-          '<span class="plg-ver">v' + p.version + ' · ' + (catNames[p.category] || p.category) + '</span>';
-      }
-      // 功能标签（仅插件 tab，TrieCode 式灰字）
-      const tagRow = (!isModelsTab && p.capabilities && p.capabilities.length)
-        ? '<div class="plg-tags">' + p.capabilities.map(c => '<span>' + c + '</span>').join('') + '</div>'
-        : '';
+      // TrieCode 式扁平行：图标(无底色) + 名称 + 小版本号 + 一行截断描述，右侧绿字已安装/蓝安装按钮
+      const topLine = '<span class="plg-name">' + p.name + '</span><span class="plg-ver">v' + p.version + '</span>';
       return '<div class="plg-row">' +
         '<div class="plg-row-ic">' + p.icon + '</div>' +
         '<div class="plg-row-body">' +
           '<div class="plg-row-top">' + topLine + '</div>' +
           '<div class="plg-desc">' + (p.description || '') + '</div>' +
-          tagRow +
         '</div>' +
         '<div class="plg-row-act">' + actions + '</div>' +
       '</div>';
@@ -10197,8 +10176,8 @@ function bindEvents() {
     listEl.querySelectorAll('[data-action="uninstall"]').forEach(btn => {
       btn.addEventListener('click', () => uninstallPlugin(btn.dataset.id));
     });
-    // 插件自定义面板（manifest.views）—— 之前只注册不渲染，这里补上入口（模型 tab 不显示）
-    if (currentPluginsTab !== 'models') renderPluginViews(listEl);
+    // 插件自定义面板（manifest.views）—— 仅「已安装」tab 提供入口，官方市场保持 TrieCode 式纯列表
+    if (currentPluginsTab === 'installed') renderPluginViews(listEl);
     // 绑定启用/禁用按钮（禁用后插件工具不再注入给 AI）
     listEl.querySelectorAll('[data-action="toggle"]').forEach(btn => {
       btn.addEventListener('click', async () => {

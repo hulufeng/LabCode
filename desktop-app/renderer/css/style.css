@@ -4787,26 +4787,35 @@ body.no-open-file .ai-panel {
 }
 
 /* ============ 插件市场 ============ */
+/* TrieCode 式分段tab：灰底圆角容器，激活段白底浮起 */
+.plugins-tabs {
+  display: flex;
+  gap: 2px;
+  background: var(--surface-2, #eef0f3);
+  border-radius: 10px;
+  padding: 3px;
+}
 .plugins-tab {
   flex: 1;
-  padding: 8px 2px;
+  padding: 7px 2px;
   background: transparent;
   border: none;
+  border-radius: 8px;
   color: var(--text-secondary);
-  font-size: 11px;
+  font-size: 10.5px;
   white-space: nowrap;   /* 标签文字不折行，每个 tab 单行显示 */
   text-align: center;
   overflow: hidden;
   text-overflow: ellipsis;
   cursor: pointer;
-  border-bottom: 2px solid transparent;
   transition: all 0.2s;
 }
 .plugins-tab:hover { color: var(--text-color); }
 .plugins-tab.active {
+  background: var(--bg-color, #fff);
   color: var(--text-color);
-  border-bottom-color: var(--accent, #007acc);
   font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0,0,0,.08);
 }
 .plugin-card {
   transition: border-color 0.2s, box-shadow 0.15s;
@@ -4816,16 +4825,16 @@ body.no-open-file .ai-panel {
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.10);
 }
 /* 插件管理（对齐 TrieCode 紧凑干净风格） */
-.plg-row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; margin-bottom: 8px; background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; transition: border-color .15s, box-shadow .15s; }
-.plg-row:hover { border-color: var(--accent); box-shadow: 0 1px 6px rgba(0,0,0,.06); }
-.plg-row.plg-rec { border-color: rgba(16, 185, 129, 0.45); }
-.plg-row-ic { width: 34px; height: 34px; flex-shrink: 0; border-radius: 9px; background: var(--surface-3); display: flex; align-items: center; justify-content: center; font-size: 18px; }
+.plg-row { display: flex; align-items: center; gap: 10px; padding: 12px; margin-bottom: 10px; background: var(--surface-1); border: none; border-radius: 12px; transition: background .15s; }
+.plg-row:hover { background: var(--surface-2, #eceef1); }
+.plg-row-ic { width: 26px; height: 26px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 19px; background: transparent; }
 .plg-row-body { flex: 1; min-width: 0; }
-.plg-row-top { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.plg-row-top { display: flex; align-items: baseline; gap: 4px; }
 .plg-row-act { flex-shrink: 0; display: flex; align-items: center; gap: 6px; }
-.plg-installed { font-size: 12px; color: var(--text-tertiary); padding-right: 4px; }
-.plg-name { font-size: 13.5px; font-weight: 600; color: var(--text-primary); }
-.plg-ver { font-size: 11px; color: var(--text-tertiary); }
+.plg-row-act .btn { padding: 4px 12px; }
+.plg-installed { font-size: 12px; color: #10b981; padding-right: 4px; }
+.plg-name { font-size: 13px; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.plg-ver { font-size: 11px; color: var(--text-tertiary); flex-shrink: 0; }
 .plg-desc { font-size: 12px; color: var(--text-secondary); line-height: 1.4; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .plg-badge { font-size: 10px; padding: 1px 6px; border-radius: 5px; flex-shrink: 0; }
 .plg-tags { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
