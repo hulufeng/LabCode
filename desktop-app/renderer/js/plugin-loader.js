@@ -298,36 +298,8 @@ async function loadPluginsFromDir(pluginsRoot) {
   return results;
 }
 
-/**
- * 从远程市场拉插件 manifest（GitHub raw）。
- * 不存本地，启动时按需 fetch。
- * @param {string} marketURL  如 https://raw.githubusercontent.com/hulufeng/labcode-plugins/main
- */
-async function loadPluginsFromRemote(marketURL) {
-  const results = { loaded: [], errors: [] };
-  if (!marketURL) return results;
-  const base = marketURL.replace(/\/$/, '');
-  try {
-    const idxResp = await fetch(base + '/index.json');
-    if (!idxResp.ok) throw new Error('HTTP ' + idxResp.status);
-    const idx = await idxResp.json();
-    const ids = (idx && Array.isArray(idx.plugins)) ? idx.plugins : [];
-    for (const id of ids) {
-      try {
-        const r = await fetch(base + '/' + id + '/plugin.json');
-        if (!r.ok) throw new Error('HTTP ' + r.status);
-        const manifest = await r.json();
-        const r2 = loadPluginManifest(manifest);
-        results.loaded.push({ id, ...r2.loaded });
-      } catch (e) {
-        results.errors.push(id + ': ' + e.message);
-      }
-    }
-  } catch (e) {
-    results.errors.push('拉市场索引失败: ' + e.message);
-  }
-  return results;
-}
+// 已移除 loadPluginsFromRemote（旧 GitHub-raw index.json 市场，已废弃）。
+// 插件市场改走官网网关 GET /api/plugins（见 app.js fetchRemotePlugins），安装后落本地目录、由 loadPluginsFromDir 加载。
 
 // ============================================================
 // 安装 / 卸载 / 启用禁用（真落盘，重启后仍生效）
@@ -526,7 +498,6 @@ window.PluginSystem = {
   registerInternalService,
   loadPluginManifest,
   loadPluginsFromDir,
-  loadPluginsFromRemote,
   // ---- 安装 / 卸载 / 启用禁用 ----
   getPluginsRoot,
   findManifestDir,

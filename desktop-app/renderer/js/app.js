@@ -9856,7 +9856,9 @@ function bindEvents() {
     try {
       if (window.LabCode && window.LabCode.config) {
         const cfg = await window.LabCode.config.get();
-        if (cfg && cfg.pluginMarketURL) {
+        // 旧设计曾把 pluginMarketURL 设成 raw.githubusercontent.com（GitHub-raw index.json，已废弃）；
+        // 遇到该旧值一律忽略，回退官网网关，保证市场可用
+        if (cfg && cfg.pluginMarketURL && !/raw\.githubusercontent\.com/.test(String(cfg.pluginMarketURL))) {
           remoteMarketURL = String(cfg.pluginMarketURL).replace(/\/$/, '');
           return remoteMarketURL;
         }
@@ -9886,7 +9888,8 @@ function bindEvents() {
     try {
       const url = await getPluginMarketURL();
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 6000);
+      // 冷启动/TLS 首包在慢线路可达 ~15s，原 6s 会误杀首次拉取导致“市场未连接”；放宽到 30s（快网络仍秒回，仅在失败路径多等）
+      const timer = setTimeout(() => controller.abort(), 30000);
       const res = await fetch(url + '/api/plugins', { signal: controller.signal, cache: 'no-store' });
       clearTimeout(timer);
       if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -9921,7 +9924,7 @@ function bindEvents() {
     try {
       const url = await getPluginMarketURL();
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 8000);
+      const timer = setTimeout(() => controller.abort(), 30000);
       const res = await fetch(url + '/api/plugins/community', { signal: controller.signal, cache: 'no-store' });
       clearTimeout(timer);
       if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -10037,10 +10040,11 @@ function bindEvents() {
     const cats = [{ id: 'all', name: '全部', icon: '📦' }];
     const seen = new Set();
     getAllPlugins().forEach(p => {
+      if (p.category === 'ai-model') return; // 模型独立到「模型」tab，不进插件市场分类
       if (!seen.has(p.category)) {
         seen.add(p.category);
-        const names = { compiler: '编译器', runtime: '运行时', tool: '工具', theme: '主题', 'ai-model': '大模型' };
-        const icons = { compiler: '🔌', runtime: '🐍', tool: '🛠️', theme: '🎨', 'ai-model': '🧠' };
+        const names = { compiler: '编译器', runtime: '运行时', tool: '工具', theme: '主题' };
+        const icons = { compiler: '🔌', runtime: '🐍', tool: '🛠️', theme: '🎨' };
         cats.push({ id: p.category, name: names[p.category] || p.category, icon: icons[p.category] || '📦' });
       }
     });
@@ -10065,14 +10069,16 @@ function bindEvents() {
       ? '<span style="width:8px;height:8px;border-radius:50%;background:#10b981;display:inline-block;"></span><span>已连接官方插件市场（' + remotePlugins.length + ' 个远程插件）</span>'
       : '<span style="width:8px;height:8px;border-radius:50%;background:#f59e0b;display:inline-block;"></span><span>官方市场未连接，展示内置目录（可点击右上角刷新重试）</span>';
     html += '</div>';
-    html += '<div class="plg-cats">';
-    cats.forEach(c => {
-      html += '<button class="plugin-cat-btn plg-cat' + (currentPluginCategory === c.id ? ' active' : '') + '" data-cat="' + c.id + '">' + c.icon + ' ' + c.name + '</button>';
-    });
-    html += '</div>';
+    if (currentPluginsTab === 'market') {
+      html += '<div class="plg-cats">';
+      cats.forEach(c => {
+        html += '<button class="plugin-cat-btn plg-cat' + (currentPluginCategory === c.id ? ' active' : '') + '" data-cat="' + c.id + '">' + c.icon + ' ' + c.name + '</button>';
+      });
+      html += '</div>';
+    }
 
-    // 大模型分类：显示硬件检测和推荐
-    if (currentPluginCategory === 'all' || currentPluginCategory === 'ai-model') {
+    // 硬件检测 + 推荐：官方市场(全部) 或 模型tab（选模型要看硬件/显存）
+    if (currentPluginsTab === 'models' || ((currentPluginsTab === 'market') && (currentPluginCategory === 'all' || currentPluginCategory === 'ai-model'))) {
       const rec = getModelRecommendation();
       html += '<div style="padding:10px 12px;margin-bottom:10px;background:linear-gradient(135deg,rgba(59,130,246,0.08),rgba(16,185,129,0.08));border:1px solid rgba(59,130,246,0.2);border-radius:8px;">';
       html += '<div style="font-size:12px;font-weight:600;color:var(--text-primary);margin-bottom:4px;">🖥️ 硬件配置检测</div>';
@@ -10102,12 +10108,19 @@ function bindEvents() {
       html += '</div>';
     }
 
-    let plugins = currentPluginsTab === 'market' ? getAllPlugins() : getAllPlugins().filter(p => isPluginInstalled(p.id));
-    if (currentPluginCategory !== 'all') {
+    let plugins;
+    if (currentPluginsTab === 'installed') {
+      plugins = getAllPlugins().filter(p => isPluginInstalled(p.id) && p.category !== 'ai-model');
+    } else if (currentPluginsTab === 'models') {
+      plugins = getAllPlugins().filter(p => p.category === 'ai-model');
+    } else {
+      plugins = getAllPlugins().filter(p => p.category !== 'ai-model');
+    }
+    if (currentPluginsTab === 'market' && currentPluginCategory !== 'all') {
       plugins = plugins.filter(p => p.category === currentPluginCategory);
     }
     if (plugins.length === 0) {
-      html += '<div class="plg-empty"><div style="font-size:26px;margin-bottom:8px;opacity:.5;">🧩</div>' + (currentPluginsTab === 'installed' ? '暂无已安装插件，可从官方市场安装，或用右上角「文件夹 / ZIP」本地安装' : '该分类暂无插件') + '</div>';
+      html += '<div class="plg-empty"><div style="font-size:26px;margin-bottom:8px;opacity:.5;">🧩</div>' + (currentPluginsTab === 'installed' ? '暂无已安装插件，可从官方市场安装，或用右上角「文件夹 / ZIP」本地安装' : (currentPluginsTab === 'models' ? '暂无可用 AI 模型' : '该分类暂无插件')) + '</div>';
       listEl.innerHTML = html;
       // 绑定分类按钮
       listEl.querySelectorAll('.plugin-cat-btn').forEach(btn => {
@@ -10123,27 +10136,28 @@ function bindEvents() {
       const srcBadge = p.source === 'remote'
         ? '<span class="plg-badge plg-badge-official">官方市场</span>'
         : '<span class="plg-badge plg-badge-builtin">内置</span>';
-      const tags = (p.capabilities || []).map(c => '<span class="plg-tag">' + c + '</span>').join('')
-        + (p.minRamGB ? '<span class="plg-tag ram">需 ' + p.minRamGB + 'GB 内存</span>' : '');
-      const actions =
-        (installed ? '<button class="btn btn-danger btn-sm" data-action="uninstall" data-id="' + p.id + '">卸载</button>' : '') +
-        (installed && pluginRegistered(p.id)
-          ? '<button class="btn btn-secondary btn-sm" data-action="toggle" data-id="' + p.id + '">' + (pluginActive(p.id) ? '禁用' : '启用') + '</button>'
-          : '') +
-        '<button class="btn ' + (installed ? 'btn-secondary' : 'btn-primary') + ' btn-sm" data-action="install" data-id="' + p.id + '"' + (installed ? ' disabled style="opacity:.6;cursor:default;"' : '') + '>' + (installed ? '已安装' : '安装') + '</button>';
-      return '<div class="plugin-card plg-card' + (isRecommended ? ' plg-rec' : '') + '">' +
-        '<div style="display:flex;align-items:flex-start;gap:11px;">' +
-          '<div class="plg-icon">' + p.icon + '</div>' +
-          '<div style="flex:1;min-width:0;">' +
-            '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">' +
-              '<span class="plg-name">' + p.name + '</span>' + recBadge + srcBadge +
-              '<span class="plg-ver">v' + p.version + '</span>' +
-            '</div>' +
-            '<div class="plg-desc" style="margin-top:3px;">' + p.description + '</div>' +
-            (tags ? '<div style="display:flex;gap:4px;margin-top:7px;flex-wrap:wrap;">' + tags + '</div>' : '') +
+      // 行式布局（对齐 TrieCode）：图标 + 名称/版本/徽章 + 一行描述(截断) + 右侧状态/操作
+      let actions;
+      if (!installed) {
+        actions = '<button class="btn btn-primary btn-sm" data-action="install" data-id="' + p.id + '">安装</button>';
+      } else if (currentPluginsTab === 'installed' || currentPluginsTab === 'models') {
+        actions = '<button class="btn btn-danger btn-sm" data-action="uninstall" data-id="' + p.id + '">卸载</button>' +
+          (pluginRegistered(p.id)
+            ? '<button class="btn btn-secondary btn-sm" data-action="toggle" data-id="' + p.id + '">' + (pluginActive(p.id) ? '禁用' : '启用') + '</button>'
+            : '');
+      } else {
+        actions = '<span class="plg-installed">已安装</span>';
+      }
+      return '<div class="plg-row' + (isRecommended ? ' plg-rec' : '') + '">' +
+        '<div class="plg-row-ic">' + p.icon + '</div>' +
+        '<div class="plg-row-body">' +
+          '<div class="plg-row-top">' +
+            '<span class="plg-name">' + p.name + '</span>' +
+            '<span class="plg-ver">v' + p.version + '</span>' + srcBadge + recBadge +
           '</div>' +
+          '<div class="plg-desc">' + (p.description || '') + '</div>' +
         '</div>' +
-        '<div class="plg-actions">' + actions + '</div>' +
+        '<div class="plg-row-act">' + actions + '</div>' +
       '</div>';
     }).join('');
     listEl.innerHTML = html;
@@ -10514,12 +10528,17 @@ function bindEvents() {
           'powershell -NoProfile -Command "New-Item -ItemType Directory -Force -Path ' + psPath(tmpDir) + ' | Out-Null; curl.exe -L --retry 3 -C - -o ' + psPath(zipPath) + ' ' + psPath(plugin.downloadUrl) + '"',
           null, 600000, { force: true }
         );
+        // 校验下载产物：存在、非空、且是有效 zip（PK 头 0x50 0x4B），输出体积(KB)。
+        // 不用体积下限判断——小插件(几 KB)会被误杀；坏包交给后面的 Expand-Archive 报错。
         const ver = await window.LabCode.terminal.execute(
-          'powershell -NoProfile -Command "if (Test-Path ' + psPath(zipPath) + ') { Write-Output ([math]::Round((Get-Item ' + psPath(zipPath) + ').Length/1MB,1).ToString()) } else { Write-Output 0 }"',
+          'powershell -NoProfile -Command "if (Test-Path ' + psPath(zipPath) + ') { $b=[System.IO.File]::ReadAllBytes(' + psPath(zipPath) + '); if ($b.Length -ge 4 -and $b[0] -eq 80 -and $b[1] -eq 75) { Write-Output ([math]::Round((Get-Item ' + psPath(zipPath) + ').Length/1KB,1)) } else { Write-Output BADZIP } } else { Write-Output MISSING }"',
           null, 20000, { force: true }
         );
-        const szMB = parseFloat(String((ver && ver.stdout) || '0').trim());
-        if (szMB < 1) throw new Error('下载文件过小（' + szMB + ' MB），可能网络中断或链接失效');
+        const vout = String((ver && ver.stdout) || '').trim();
+        const szKB = parseFloat(vout);
+        if (!vout || vout === 'MISSING' || vout === 'BADZIP' || !(szKB > 0)) {
+          throw new Error('下载失败或文件不是有效 zip（' + (vout || '无输出') + '），请重试');
+        }
         await window.LabCode.terminal.execute(
           'powershell -NoProfile -Command "Expand-Archive -Path ' + psPath(zipPath) + ' -DestinationPath ' + psPath(extDir) + ' -Force"',
           null, 120000, { force: true }
@@ -10529,7 +10548,7 @@ function bindEvents() {
         const r = await window.PluginSystem.installFromDir(mDir);
         if (!r || !r.success) throw new Error(r && r.error ? r.error : '安装失败');
         remoteInstall = r;
-        addOutputLog('✅ 插件包下载并安装完成（' + szMB + ' MB，注册 ' + (r.tools || 0) + ' 个工具、' + (r.skills || 0) + ' 条技能）', 'success');
+        addOutputLog('✅ 插件包下载并安装完成（' + szKB + ' KB，注册 ' + (r.tools || 0) + ' 个工具、' + (r.skills || 0) + ' 条技能）', 'success');
         try { const _o = new URL(plugin.downloadUrl).origin; await fetch(_o + '/api/plugins/' + plugin.id + '/install', { method: 'POST' }); } catch (e) {}
       } catch (e) {
         hideInstallModal();
@@ -14709,19 +14728,6 @@ function init() {
         if (disabled && disabled.length) addOutputLog('插件系统：已禁用 ' + disabled.length + ' 个插件（' + disabled.join(', ') + '）', 'warn');
       }
       const r = await window.PluginSystem.loadPluginsFromDir(pluginsRoot);
-      // 远程市场（GitHub raw）—— 优先于本地，覆盖同 id
-      let marketURL = '';
-      try {
-        const cfg = await window.LabCode.config.get();
-        marketURL = (cfg && cfg.pluginMarketURL) || '';
-      } catch (e) {}
-      if (marketURL) {
-        try {
-          const rr = await window.PluginSystem.loadPluginsFromRemote(marketURL);
-          addOutputLog(`插件市场：远程拉取 ${rr.loaded.length} 个插件`, 'success');
-          if (rr.errors && rr.errors.length) addOutputLog('市场警告: ' + rr.errors.join('; '), 'warn');
-        } catch (e) { addOutputLog('远程市场失败: ' + e.message, 'warn'); }
-      }
       const totalTools = window.PluginSystem.allTools().length;
       addOutputLog(`插件系统：加载 ${r.loaded.length} 个本地插件，共 ${totalTools} 个 manifest 工具`, 'success');
       if (r.errors && r.errors.length) addOutputLog('插件加载警告: ' + r.errors.join('; '), 'warn');
