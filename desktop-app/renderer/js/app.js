@@ -13126,18 +13126,19 @@ function bindEvents() {
     const emailId = overlay ? 'gw-ov-register-email' : 'gw-register-email';
     const btn = document.getElementById(btnId);
     const email = document.getElementById(emailId).value.trim();
+    const setMsg = (text, color, kind) => { if (!msg) return; msg.textContent = text; msg.style.color = color || ''; msg.classList.remove('ok', 'err'); if (kind) msg.classList.add(kind); };
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      if (msg) { msg.textContent = '请输入正确的邮箱地址'; msg.style.color = '#EA6668'; }
+      setMsg('请输入正确的邮箱地址', '#EA6668', 'err');
       return;
     }
     if (btn) { btn.disabled = true; btn.textContent = '发送中...'; }
-    if (msg) { msg.textContent = '验证码发送中...'; msg.style.color = 'var(--text-secondary)'; }
+    setMsg('验证码发送中...', 'var(--text-secondary)');
     try {
       const r = window.LabCode && window.LabCode.ai && window.LabCode.ai.gatewayAuth
         ? await window.LabCode.ai.gatewayAuth({ action: 'send-code', email })
         : null;
       if (r && r.success) {
-        if (msg) { msg.textContent = '✓ 验证码已发送，请查收邮箱'; msg.style.color = '#52C41A'; }
+        setMsg('✓ 验证码已发送，请查收邮箱', '#52C41A', 'ok');
         let left = 60;
         if (btn) { btn.disabled = true; btn.textContent = `${left}s 后重发`; }
         const timer = setInterval(() => {
@@ -13150,11 +13151,11 @@ function bindEvents() {
           }
         }, 1000);
       } else {
-        if (msg) { msg.textContent = (r && r.error) || '验证码发送失败'; msg.style.color = '#EA6668'; }
+        setMsg((r && r.error) || '验证码发送失败', '#EA6668', 'err');
         if (btn) { btn.disabled = false; btn.textContent = '获取验证码'; }
       }
     } catch (e) {
-      if (msg) { msg.textContent = '验证码发送失败'; msg.style.color = '#EA6668'; }
+      setMsg('验证码发送失败', '#EA6668', 'err');
       if (btn) { btn.disabled = false; btn.textContent = '获取验证码'; }
     }
   }
@@ -13551,19 +13552,16 @@ function bindEvents() {
       const lt = document.getElementById('gw-ov-tab-login'), rt = document.getElementById('gw-ov-tab-register');
       const lp = document.getElementById('gw-ov-login-panel'), rp = document.getElementById('gw-ov-register-panel');
       if (!lt || !rt) return;
-      if (tab === 'login') {
-        lt.style.background = 'var(--accent)'; lt.style.color = '#fff';
-        rt.style.background = 'transparent'; rt.style.color = 'var(--text-2)';
-        if (lp) lp.style.display = 'flex'; if (rp) rp.style.display = 'none';
-      } else {
-        rt.style.background = 'var(--accent)'; rt.style.color = '#fff';
-        lt.style.background = 'transparent'; lt.style.color = 'var(--text-2)';
-        if (rp) rp.style.display = 'flex'; if (lp) lp.style.display = 'none';
-      }
-      const m = document.getElementById('gw-ov-msg'); if (m) m.textContent = '';
+      lt.classList.toggle('active', tab === 'login');
+      rt.classList.toggle('active', tab === 'register');
+      if (lp) lp.style.display = tab === 'login' ? 'flex' : 'none';
+      if (rp) rp.style.display = tab === 'register' ? 'flex' : 'none';
+      const m = document.getElementById('gw-ov-msg'); if (m) { m.textContent = ''; m.classList.remove('ok', 'err'); }
     };
     const gatewayAuthOverlay = async (action) => {
       const msg = document.getElementById('gw-ov-msg');
+      const submitBtn = document.getElementById(action === 'login' ? 'gw-ov-login-btn' : 'gw-ov-register-btn');
+      const setMsg = (text, kind) => { if (!msg) return; msg.textContent = text; msg.classList.remove('ok', 'err'); if (kind) msg.classList.add(kind); };
       let email, password, inviteCode = '', code = '', username = '';
       if (action === 'login') {
         email = document.getElementById('gw-ov-login-account').value.trim();
@@ -13575,24 +13573,29 @@ function bindEvents() {
         code = document.getElementById('gw-ov-register-code').value.trim();
         username = (document.getElementById('gw-ov-register-username').value || '').trim();
       }
-      if (!email || !password) { msg.textContent = '请输入邮箱和密码'; msg.style.color = '#EA6668'; return; }
-      if (password.length < 6) { msg.textContent = '密码至少 6 位'; msg.style.color = '#EA6668'; return; }
-      if (action === 'register' && !code) { msg.textContent = '请输入邮箱验证码'; msg.style.color = '#EA6668'; return; }
-      msg.textContent = action === 'login' ? '登录中...' : '注册中...';
-      msg.style.color = 'var(--text-secondary)';
-      if (window.LabCode && window.LabCode.ai && window.LabCode.ai.gatewayAuth) {
-        const r = await window.LabCode.ai.gatewayAuth({ action, email, password, inviteCode, code, username });
+      if (!email || !password) { setMsg('请输入邮箱和密码', 'err'); return; }
+      if (password.length < 6) { setMsg('密码至少 6 位', 'err'); return; }
+      if (action === 'register' && !code) { setMsg('请输入邮箱验证码', 'err'); return; }
+      setMsg(action === 'login' ? '登录中...' : '注册中...');
+      if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = '请稍候...'; }
+      try {
+        const r = (window.LabCode && window.LabCode.ai && window.LabCode.ai.gatewayAuth)
+          ? await window.LabCode.ai.gatewayAuth({ action, email, password, inviteCode, code, username })
+          : null;
         if (r && r.success) {
-          msg.textContent = action === 'login' ? '✓ 登录成功' : '✓ 注册成功（已自动登录）';
-          msg.style.color = '#52C41A';
+          setMsg(action === 'login' ? '✓ 登录成功' : '✓ 注册成功（已自动登录）', 'ok');
           if (action === 'login') document.getElementById('gw-ov-login-password').value = '';
           else { document.getElementById('gw-ov-register-password').value = ''; document.getElementById('gw-ov-register-invite').value = ''; document.getElementById('gw-ov-register-code').value = ''; document.getElementById('gw-ov-register-username').value = ''; }
           hideLoginOverlay();
           await refreshGatewayUI(); await refreshCreditsBadge();
           showToast('已登录网关账号', 'success');
         } else {
-          msg.textContent = (r && r.error) || '操作失败'; msg.style.color = '#EA6668';
+          setMsg((r && r.error) || '操作失败', 'err');
         }
+      } catch (e) {
+        setMsg((e && e.message) || '网络错误，请稍后重试', 'err');
+      } finally {
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = action === 'login' ? '登录' : '注册'; }
       }
     };
     const gwForgotOverlay = async () => {

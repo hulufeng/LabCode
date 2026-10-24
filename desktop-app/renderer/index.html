@@ -1581,62 +1581,66 @@
   <script src="js/dashboard-panel.js"></script>
   <script src="js/ghost-completion.js"></script>
 
-  <!-- 首屏登录（对齐 TrieCode 登录界面：内容居中、无卡片盒子、max-width 320、字段带 label、标签 pill） -->
-  <div id="gw-login-overlay" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(15,23,42,0.55);backdrop-filter:blur(3px);align-items:center;justify-content:center;padding:24px;overflow:auto;pointer-events:auto;">
-    <div style="width:100%;max-width:320px;pointer-events:auto;">
-      <div style="text-align:center;margin-bottom:24px;">
-        <div style="width:52px;height:52px;margin:0 auto 12px;border-radius:12px;background:linear-gradient(135deg,#2563eb,#3b82f6);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:20px;letter-spacing:.5px;">LC</div>
-        <div style="font-size:16px;font-weight:700;color:var(--text-strong);">登录 LabCode AI</div>
-        <div style="font-size:12px;color:var(--text-3);margin-top:4px;">登录账号使用内置模型，或添加自有 API Key</div>
+  <!-- 首屏登录（视觉对齐 TrieCode：居中、字段带 label、pill 标签、聚焦光环、成功/错误软色提示；使用 LabCode 真实主题 token） -->
+  <style>
+    #gw-login-overlay{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px;overflow:auto;background:rgba(13,17,23,.62);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);}
+    [data-theme="light"] #gw-login-overlay{background:rgba(100,116,139,.32);}
+    #gw-login-overlay .gwl-card{width:100%;max-width:340px;animation:gwl-in .18s ease-out;}
+    @keyframes gwl-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+    #gw-login-overlay .gwl-logo{width:52px;height:52px;margin:0 auto 12px;border-radius:14px;background:linear-gradient(135deg,#2563eb,#3b82f6);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:20px;letter-spacing:.5px;box-shadow:0 8px 22px rgba(59,130,246,.38);}
+    #gw-login-overlay .gwl-title{font-size:16px;font-weight:700;color:var(--text-primary);}
+    #gw-login-overlay .gwl-sub{font-size:12px;color:var(--text-tertiary);margin-top:5px;line-height:1.5;}
+    #gw-login-overlay .gwl-tabs{display:flex;margin-bottom:14px;background:var(--surface-3);border-radius:var(--radius-md);padding:3px;gap:2px;}
+    #gw-login-overlay .gwl-tab{flex:1;padding:8px 0;text-align:center;font-size:13px;font-weight:600;border:none;cursor:pointer;border-radius:var(--radius-sm);background:transparent;color:var(--text-secondary);transition:background .15s,color .15s;}
+    #gw-login-overlay .gwl-tab:hover:not(.active){color:var(--text-primary);}
+    #gw-login-overlay .gwl-tab.active{background:var(--accent);color:#fff;}
+    #gw-login-overlay .gwl-panel{display:flex;flex-direction:column;gap:12px;}
+    #gw-login-overlay .gwl-field{display:flex;flex-direction:column;gap:6px;}
+    #gw-login-overlay .gwl-label{font-size:12px;color:var(--text-secondary);}
+    #gw-login-overlay .gwl-input{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--bg-primary);color:var(--text-primary);font-size:13px;box-sizing:border-box;outline:none;transition:border-color .15s,box-shadow .15s;}
+    #gw-login-overlay .gwl-input::placeholder{color:var(--text-tertiary);}
+    #gw-login-overlay .gwl-input:hover{border-color:var(--border-dark);}
+    #gw-login-overlay .gwl-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--primary-light);}
+    #gw-login-overlay .gwl-row{display:flex;gap:8px;}
+    #gw-login-overlay .gwl-send{flex:0 0 auto;white-space:nowrap;padding:0 14px;}
+    #gw-login-overlay .gwl-msg{font-size:12px;min-height:16px;margin-bottom:8px;line-height:1.5;}
+    #gw-login-overlay .gwl-msg.ok{color:var(--success);background:var(--success-bg);padding:8px 10px;border-radius:var(--radius-sm);}
+    #gw-login-overlay .gwl-msg.err{color:var(--error);background:var(--error-bg);padding:8px 10px;border-radius:var(--radius-sm);}
+    #gw-login-overlay .gwl-submit{width:100%;padding:11px;font-size:14px;font-weight:600;margin-top:2px;}
+    #gw-login-overlay .gwl-submit:disabled{opacity:.6;cursor:not-allowed;}
+    #gw-login-overlay .gwl-forgot{text-align:right;margin-top:-4px;font-size:12px;color:var(--accent);font-weight:500;cursor:pointer;}
+    #gw-login-overlay .gwl-forgot:hover{text-decoration:underline;}
+    #gw-login-overlay .gwl-foot{text-align:center;margin-top:16px;font-size:12px;color:var(--text-tertiary);}
+  </style>
+  <div id="gw-login-overlay" style="display:none">
+    <div class="gwl-card">
+      <div style="text-align:center;margin-bottom:24px">
+        <div class="gwl-logo">LC</div>
+        <div class="gwl-title">登录 LabCode AI</div>
+        <div class="gwl-sub">登录账号使用内置模型，或添加自有 API Key</div>
       </div>
-      <div style="display:flex;margin-bottom:14px;background:var(--surface-3);border-radius:var(--radius-md);padding:3px;gap:2px;">
-        <button id="gw-ov-tab-login" style="flex:1;padding:8px 0;text-align:center;font-size:13px;font-weight:600;border:none;cursor:pointer;border-radius:6px;background:var(--accent);color:#fff;transition:background .15s,color .15s;">登录</button>
-        <button id="gw-ov-tab-register" style="flex:1;padding:8px 0;text-align:center;font-size:13px;font-weight:600;border:none;cursor:pointer;border-radius:6px;background:transparent;color:var(--text-2);transition:background .15s,color .15s;">注册</button>
+      <div class="gwl-tabs">
+        <button id="gw-ov-tab-login" class="gwl-tab active" type="button">登录</button>
+        <button id="gw-ov-tab-register" class="gwl-tab" type="button">注册</button>
       </div>
-      <div id="gw-ov-msg" style="font-size:12px;color:var(--text-secondary);min-height:16px;margin-bottom:8px;"></div>
-      <div id="gw-ov-login-panel" style="display:flex;flex-direction:column;gap:12px;">
-        <div>
-          <label style="display:block;font-size:12px;color:var(--text-2);margin-bottom:6px;">邮箱 / 用户名</label>
-          <input type="text" id="gw-ov-login-account" placeholder="输入邮箱（或用户名）" style="width:100%;padding:10px;border:1px solid var(--border-color);border-radius:8px;background:var(--card-color);color:var(--text-color);font-size:13px;box-sizing:border-box;">
-        </div>
-        <div>
-          <label style="display:block;font-size:12px;color:var(--text-2);margin-bottom:6px;">密码</label>
-          <input type="password" id="gw-ov-login-password" placeholder="输入密码" style="width:100%;padding:10px;border:1px solid var(--border-color);border-radius:8px;background:var(--card-color);color:var(--text-color);font-size:13px;box-sizing:border-box;">
-        </div>
-        <div style="text-align:right;margin-top:-4px;">
-          <span id="gw-ov-forgot" style="font-size:12px;color:var(--accent);font-weight:500;cursor:pointer;">忘记密码？</span>
-        </div>
-        <button class="btn btn-primary" id="gw-ov-login-btn" style="width:100%;">登录</button>
+      <div id="gw-ov-msg" class="gwl-msg"></div>
+      <div id="gw-ov-login-panel" class="gwl-panel">
+        <div class="gwl-field"><label class="gwl-label">邮箱 / 用户名</label><input id="gw-ov-login-account" class="gwl-input" type="text" placeholder="输入邮箱（或用户名）" autocomplete="username"></div>
+        <div class="gwl-field"><label class="gwl-label">密码</label><input id="gw-ov-login-password" class="gwl-input" type="password" placeholder="输入密码" autocomplete="current-password"></div>
+        <div id="gw-ov-forgot" class="gwl-forgot">忘记密码？</div>
+        <button id="gw-ov-login-btn" class="btn btn-primary gwl-submit" type="button">登录</button>
       </div>
-      <div id="gw-ov-register-panel" style="display:none;flex-direction:column;gap:12px;">
-        <div>
-          <label style="display:block;font-size:12px;color:var(--text-2);margin-bottom:6px;">用户名（昵称，选填）</label>
-          <input type="text" id="gw-ov-register-username" placeholder="留空则使用邮箱前缀" style="width:100%;padding:10px;border:1px solid var(--border-color);border-radius:8px;background:var(--card-color);color:var(--text-color);font-size:13px;box-sizing:border-box;">
+      <div id="gw-ov-register-panel" class="gwl-panel" style="display:none">
+        <div class="gwl-field"><label class="gwl-label">用户名（昵称，选填）</label><input id="gw-ov-register-username" class="gwl-input" type="text" placeholder="留空则使用邮箱前缀"></div>
+        <div class="gwl-field"><label class="gwl-label">邮箱</label>
+          <div class="gwl-row"><input id="gw-ov-register-email" class="gwl-input" type="text" placeholder="user@example.com"><button id="gw-ov-register-send-btn" class="btn btn-secondary gwl-send" type="button">获取验证码</button></div>
         </div>
-        <div>
-          <label style="display:block;font-size:12px;color:var(--text-2);margin-bottom:6px;">邮箱</label>
-          <input type="text" id="gw-ov-register-email" placeholder="user@example.com" style="width:100%;padding:10px;border:1px solid var(--border-color);border-radius:8px;background:var(--card-color);color:var(--text-color);font-size:13px;box-sizing:border-box;">
-        </div>
-        <div>
-          <label style="display:block;font-size:12px;color:var(--text-2);margin-bottom:6px;">邮箱验证码</label>
-          <div style="display:flex;gap:8px;">
-            <input type="text" id="gw-ov-register-code" placeholder="输入 6 位验证码" style="flex:1;padding:10px;border:1px solid var(--border-color);border-radius:8px;background:var(--card-color);color:var(--text-color);font-size:13px;box-sizing:border-box;">
-            <button class="btn btn-secondary" id="gw-ov-register-send-btn" style="flex:0 0 auto;white-space:nowrap;padding:0 14px;">获取验证码</button>
-          </div>
-        </div>
-        <div>
-          <label style="display:block;font-size:12px;color:var(--text-2);margin-bottom:6px;">密码（至少 6 位）</label>
-          <input type="password" id="gw-ov-register-password" placeholder="设置登录密码" style="width:100%;padding:10px;border:1px solid var(--border-color);border-radius:8px;background:var(--card-color);color:var(--text-color);font-size:13px;box-sizing:border-box;">
-        </div>
-        <div>
-          <label style="display:block;font-size:12px;color:var(--text-2);margin-bottom:6px;">邀请码（选填）</label>
-          <input type="text" id="gw-ov-register-invite" placeholder="邀请码（选填）" style="width:100%;padding:10px;border:1px solid var(--border-color);border-radius:8px;background:var(--card-color);color:var(--text-color);font-size:13px;box-sizing:border-box;">
-        </div>
-        <button class="btn btn-primary" id="gw-ov-register-btn" style="width:100%;">注册</button>
+        <div class="gwl-field"><label class="gwl-label">验证码</label><input id="gw-ov-register-code" class="gwl-input" type="text" placeholder="输入邮箱验证码"></div>
+        <div class="gwl-field"><label class="gwl-label">邀请码（选填）</label><input id="gw-ov-register-invite" class="gwl-input" type="text" placeholder="填写朋友的邀请码，双方各得 200 积分"></div>
+        <div class="gwl-field"><label class="gwl-label">密码（至少 6 位）</label><input id="gw-ov-register-password" class="gwl-input" type="password" placeholder="设置登录密码"></div>
+        <button id="gw-ov-register-btn" class="btn btn-primary gwl-submit" type="button">注册</button>
       </div>
-      <div style="text-align:center;margin-top:16px;font-size:12px;color:var(--text-secondary);">
-        <span style="color:var(--text-3);">登录后可使用本地模型与云端模型</span>
-      </div>
+      <div class="gwl-foot">登录后可使用本地模型与云端模型</div>
     </div>
   </div>
 
