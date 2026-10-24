@@ -9359,7 +9359,14 @@ function bindEvents() {
       const devicePanel = document.getElementById('device-panel');
       const gitPanel = document.getElementById('git-panel');
       const sidebarHeader = sidebar ? sidebar.querySelector('.sidebar-header') : null;
-
+      // TrieCode 式宽面板：插件/模型面板需要 ~400px 完整显示（名称不截断），其他面板恢复默认窄栏
+      const leftCol = sidebar ? sidebar.closest('.left-column') : null;
+      const setLeftColWidth = (w) => {
+        if (!leftCol) return;
+        if (w) { leftCol.style.width = w; leftCol.style.minWidth = w; leftCol.style.maxWidth = w; }
+        else { leftCol.style.width = ''; leftCol.style.minWidth = ''; leftCol.style.maxWidth = ''; }
+      };
+      setLeftColWidth(null);
       if (panel === 'explorer') {
         sidebar.style.display = 'flex';
         // 修复：有项目显示文件树、隐藏欢迎页；无项目显示欢迎页、隐藏文件树
@@ -9386,6 +9393,7 @@ function bindEvents() {
         if (pluginsPanel) pluginsPanel.style.display = 'flex';
         if (devicePanel) devicePanel.style.display = 'none';
         if (sidebarHeader) sidebarHeader.style.display = 'none';
+        setLeftColWidth('400px');   // TrieCode 式宽面板
         // 若此前从「AI 模型」入口停在 models tab，插件按钮回到官方市场，避免两个入口显示相同内容
         if (currentPluginsTab === 'models') {
           currentPluginsTab = 'market';
@@ -9400,6 +9408,7 @@ function bindEvents() {
         if (pluginsPanel) pluginsPanel.style.display = 'flex';
         if (devicePanel) devicePanel.style.display = 'none';
         if (sidebarHeader) sidebarHeader.style.display = 'none';
+        setLeftColWidth('400px');   // TrieCode 式宽面板
         const modelTab = document.querySelector('.plugins-tab[data-tab="models"]');
         if (modelTab) modelTab.click(); else renderPluginsList();
       } else if (panel === 'device') {
