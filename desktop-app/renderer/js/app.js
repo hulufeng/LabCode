@@ -9386,6 +9386,11 @@ function bindEvents() {
         if (pluginsPanel) pluginsPanel.style.display = 'flex';
         if (devicePanel) devicePanel.style.display = 'none';
         if (sidebarHeader) sidebarHeader.style.display = 'none';
+        // 若此前从「AI 模型」入口停在 models tab，插件按钮回到官方市场，避免两个入口显示相同内容
+        if (currentPluginsTab === 'models') {
+          currentPluginsTab = 'market';
+          document.querySelectorAll('.plugins-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === 'market'));
+        }
         renderPluginsList();
       } else if (panel === 'models') {
         // AI 模型独立入口：复用插件面板，直接切到「模型」tab
