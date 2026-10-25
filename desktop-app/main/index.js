@@ -326,7 +326,17 @@ function setupIPC() {
       if (!obj[keys[i]]) obj[keys[i]] = {};
       obj = obj[keys[i]];
     }
-    obj[keys[keys.length - 1]] = value;
+    const lastKey = keys[keys.length - 1];
+    const prevVal = obj[lastKey];
+    // 值为普通对象且原值也是普通对象时深合并，而不是整段覆盖。
+    // 否则 config.set('ai', { provider, model }) 会把 ai 段整个换掉，
+    // 连带清空 gatewayToken / gatewayUrl 等兄弟字段 → 表现为「网关登录失效，需重新登录」。
+    if (value && typeof value === 'object' && !Array.isArray(value)
+        && prevVal && typeof prevVal === 'object' && !Array.isArray(prevVal)) {
+      obj[lastKey] = deepMergeConfig(prevVal, value);
+    } else {
+      obj[lastKey] = value;
+    }
     return saveConfig(config);
   });
   ipcMain.handle('config:save', (_, newConfig) => {
