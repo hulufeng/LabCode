@@ -10262,8 +10262,10 @@ function bindEvents() {
       // 内置/远程清单中的已安装项 + 社区上传的已安装项（不在清单里，需补进列表）
       plugins = getAllPlugins().filter(p => isPluginInstalled(p.id) && p.category !== 'ai-model');
       const baseIds = new Set(plugins.map(p => p.id));
-      const communityInstalled = installedPlugins.filter(p => p.source === 'community' && p.category !== 'ai-model' && !baseIds.has(p.id));
-      plugins = plugins.concat(communityInstalled);
+      // 目录清单外的已安装项（社区一键安装 / 文件夹 / ZIP 本地安装）都要补进列表，
+      // 否则这些插件能用（工具已注册）却在「已安装」里不可见，用户无法卸载/禁用
+      const extraInstalled = installedPlugins.filter(p => p.category !== 'ai-model' && !baseIds.has(p.id));
+      plugins = plugins.concat(extraInstalled);
     } else if (currentPluginsTab === 'models') {
       plugins = getAllPlugins().filter(p => p.category === 'ai-model');
     } else {
