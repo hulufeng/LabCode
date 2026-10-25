@@ -11893,7 +11893,7 @@ function bindEvents() {
     const el = document.getElementById('library-list');
     if (!el) return;
     try {
-      const t = getToolDef('arduino-cli-toolchain_list_installed_libraries');
+      const t = getToolDef('plugin_arduino-cli-toolchain_list_installed_libraries');
       if (!t) return;
       const out = await t.execute({});
       const lines = String(out).split('\n').filter(l => l.trim() && !l.startsWith('#'));
@@ -12886,8 +12886,8 @@ function bindEvents() {
   // ===== 设备面板编译/烧录/监视按钮 =====
   const devCompileBtn = document.getElementById('dev-compile-btn');
   if (devCompileBtn) devCompileBtn.addEventListener('click', async () => {
-    const t = getToolDef('arduino-cli-toolchain_compile');
-    if (!t) { showToast('编译工具未加载', 'error'); return; }
+    const t = getToolDef('plugin_arduino-cli-toolchain_compile');
+    if (!t) { showToast('编译工具链未安装：请到插件市场安装 arduino-cli-toolchain', 'error'); return; }
     showToast('编译中…', 'info');
     const r = await t.execute({});
     showToast(r.includes('error') ? '编译失败' : '编译成功', r.includes('error') ? 'error' : 'success');
@@ -12911,15 +12911,16 @@ function bindEvents() {
     const portSel = document.getElementById('port-select');
     const port = portSel ? portSel.value : '';
     if (!port) { showToast('请先选串口', 'warn'); return; }
-    const t = getToolDef('arduino-cli-toolchain_serial_log_open');
+    const t = getToolDef('plugin_arduino-cli-toolchain_serial_log_open');
     if (t) { await t.execute({ port, baud: 115200 }); showToast('串口监视已打开 ' + port, 'success'); }
+    else { showToast('串口工具链未安装：请到插件市场安装 arduino-cli-toolchain', 'error'); }
   });
 
   // ============ 编辑器工具栏快捷：编译 / 烧录（软硬件开发流水线）============
   const editorCompileBtn = document.getElementById('editor-compile-btn');
   if (editorCompileBtn) editorCompileBtn.addEventListener('click', async () => {
-    const t = getToolDef('arduino-cli-toolchain_compile');
-    if (!t) { showToast('编译工具未加载', 'error'); return; }
+    const t = getToolDef('plugin_arduino-cli-toolchain_compile');
+    if (!t) { showToast('编译工具链未安装：请到插件市场安装 arduino-cli-toolchain', 'error'); return; }
     showToast('编译中…', 'info');
     const r = await t.execute({});
     showToast(r.includes('error') ? '编译失败' : '编译成功', r.includes('error') ? 'error' : 'success');

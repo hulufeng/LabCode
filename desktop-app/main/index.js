@@ -1563,6 +1563,56 @@ function setupIPC() {
     }
   });
 
+  // cli: spawn with an ARGV array (NO shell). Plugin tool arguments must never be
+  // interpolated into a shell string — that was an injection hole (AI-controlled
+  // values reaching a shell). envScript (e.g. ESP-IDF export.ps1) is wrapped here
+  // with per-argument quoting so a value can never break out of its argument.
+  ipcMain.handle('plugin:cliCall', async (_, opts) => {
+    try {
+      const o = opts || {};
+      const command = o.command || '';
+      if (!command) return { success: false, error: 'command is required' };
+      const args = Array.isArray(o.args) ? o.args.map(String) : [];
+      const timeoutMs = o.timeoutMs || 120000;
+      const { spawn } = require('child_process');
+      const psQuote = (s) => "'" + String(s).replace(/'/g, "''") + "'";
+      let bin = command;
+      let binArgs = args;
+      if (o.envScript) {
+        bin = 'powershell';
+        binArgs = ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command',
+          '& ' + psQuote(o.envScript) + '; & ' + [command].concat(args).map(psQuote).join(' ')];
+      }
+      const child = spawn(bin, binArgs, {
+        cwd: o.cwd || undefined,
+        windowsHide: true,
+        stdio: ['ignore', 'pipe', 'pipe']
+      });
+      let out = '';
+      let err = '';
+      child.stdout.on('data', d => { out += d.toString(); });
+      child.stderr.on('data', d => { err += d.toString(); });
+      const done = new Promise((resolve) => {
+        let finished = false;
+        const finish = (r) => { if (!finished) { finished = true; resolve(r); } };
+        child.on('exit', (code) => finish({ exitCode: code }));
+        child.on('error', (e) => finish({ error: e.message }));
+        setTimeout(() => { try { child.kill(); } catch (e) {} finish({ timeout: true }); }, timeoutMs);
+      });
+      const r = await done;
+      if (r.error) return { success: false, error: r.error };
+      if (r.timeout) return { success: false, error: 'timeout after ' + timeoutMs + 'ms', stderr: err.slice(0, 2000) };
+      return {
+        success: r.exitCode === 0,
+        exitCode: r.exitCode,
+        stdout: out.slice(0, 16000),
+        stderr: err.slice(0, 4000)
+      };
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
+  });
+
   // grpc: load the plugin's .proto dynamically and make a unary call
   ipcMain.handle('plugin:grpcCall', async (_, opts) => {
     try {

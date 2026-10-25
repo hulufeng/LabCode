@@ -42,6 +42,7 @@ contextBridge.exposeInMainWorld('LabCode', {
     stdioCall: (opts) => ipcRenderer.invoke('plugin:stdioCall', opts),
     grpcCall: (opts) => ipcRenderer.invoke('plugin:grpcCall', opts),
     mqttCall: (opts) => ipcRenderer.invoke('plugin:mqttCall', opts),
+    cliCall: (opts) => ipcRenderer.invoke('plugin:cliCall', opts),
     unzip: (opts) => ipcRenderer.invoke('plugin:unzip', opts)
   },
   fs: {

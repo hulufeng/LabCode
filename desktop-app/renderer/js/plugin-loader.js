@@ -105,43 +105,50 @@ function loadPluginManifest(manifest) {
               return await svc[method](a, t);
             }
             if (transport === 'cli') {
-              // t.cli = { command: "arduino-cli core {core}", timeoutMs: 600000, cwd: "{projectPath}", resolve: "arduino-cli" }
+              // t.cli = { command: "arduino-cli core {core}", timeoutMs: 600000, cwd: "{projectPath}", resolve: "arduino-cli", envScript: "export.ps1" }
               const cli = t.cli || {};
-              let cmdTpl = cli.command || '';
-              // resolve: 用宿主已有的路径解析器替换命令首段
-              if (cli.resolve && window.LabCode && window.LabCode.toolchain) {
-                try {
-                  if (cli.resolve === 'arduino-cli' && window.LabCode.toolchain.getArduinoCliPath) {
-                    const p = await window.LabCode.toolchain.getArduinoCliPath();
-                    if (p && p.path) {
-                      // 把命令首段（arduino-cli）替换成完整路径
-                      cmdTpl = cmdTpl.replace(/^"arduino-cli"/, '"' + p.path + '"').replace(/^arduino-cli/, '"' + p.path + '"');
-                    }
-                  }
-                } catch (e) { /* 解析失败就用原命令 */ }
-              }
-              // 模板替换：{argName} 来自参数，{projectPath} 来自当前工程
+              const cmdTpl = cli.command || '';
+              if (!cmdTpl) return 'Error: cli.command 未配置';
               const projectPath = (window.LabCodeUI && window.LabCodeUI.state && window.LabCodeUI.state.projectPath) || '';
               const ctx = Object.assign({}, a, { projectPath });
-              const cmd = cmdTpl.replace(/\{(\w+)\}/g, (m, k) => (ctx[k] != null ? String(ctx[k]) : m));
-              if (!cmd) return 'Error: cli.command 未配置';
-              // cli.envScript: 先 source 环境脚本（如 ESP-IDF export.ps1）再跑命令
-              let finalCmd = cmd;
-              if (cli.envScript) {
-                const script = cli.envScript.replace(/\\/g, '/');
-                if (/\.ps1$/i.test(script)) {
-                  finalCmd = `powershell -NoProfile -ExecutionPolicy Bypass -Command "& '${script}'; ${cmd.replace(/"/g, '\\"')}"`;
-                } else {
-                  finalCmd = `source '${script}' && ${cmd}`;
+              // 引号感知分词："a b" 是一个参数；占位符按 token 替换——
+              // AI 传入的参数值永远只是单个 argv 元素，绝不拼进 shell 字符串（防注入）
+              const tokenize = (s) => {
+                const out = []; let cur = ''; let q = null;
+                for (let i = 0; i < s.length; i++) {
+                  const c = s[i];
+                  if (q) { if (c === q) q = null; else cur += c; }
+                  else if (c === '"' || c === "'") q = c;
+                  else if (/\s/.test(c)) { if (cur) { out.push(cur); cur = ''; } }
+                  else cur += c;
                 }
+                if (cur) out.push(cur);
+                return out;
+              };
+              const argv = tokenize(cmdTpl).map(tok => tok.replace(/\{(\w+)\}/g, (m, k) => (ctx[k] != null ? String(ctx[k]) : m)));
+              // resolve: 用宿主已有的路径解析器替换命令首段（arduino-cli 不在 PATH，必须解析）
+              const tc = window.LabCode && window.LabCode.toolchain;
+              if (argv.length && tc && tc.getArduinoCliPath && (cli.resolve === 'arduino-cli' || argv[0] === 'arduino-cli')) {
+                try {
+                  const p = await tc.getArduinoCliPath();
+                  if (p && p.path) argv[0] = p.path;
+                } catch (e) { /* 解析失败就用原命令 */ }
               }
-              const exec = window.LabCode && window.LabCode.terminal && window.LabCode.terminal.execute;
-              if (!exec) return 'Error: terminal.execute 不可用';
-              const r = await exec(finalCmd, projectPath || undefined, cli.timeoutMs || 120000);
-              if (r && r.success) {
-                return (r.stdout || '') + (r.stderr ? '\n[stderr]\n' + r.stderr : '');
+              if (!argv.length || !argv[0]) return 'Error: cli.command 解析后为空';
+              // 主进程 spawn（数组参数，无 shell）；envScript 由主进程逐参数安全引用后包装
+              const bridge = window.LabCode && window.LabCode.plugin;
+              if (!bridge || !bridge.cliCall) return 'Error: plugin bridge 不可用（cli，需升级主进程）';
+              const r = await bridge.cliCall({
+                command: argv[0],
+                args: argv.slice(1),
+                cwd: (cli.cwd || '').replace(/\{projectPath\}/g, projectPath) || undefined,
+                timeoutMs: cli.timeoutMs || 120000,
+                envScript: cli.envScript ? String(cli.envScript).replace(/\{projectPath\}/g, projectPath) : ''
+              });
+              if (!r || !r.success) {
+                return `Error (exit ${r && r.exitCode}): ${(r && r.error) || (r && r.stderr) || 'unknown'}\n${(r && r.stdout) || ''}`;
               }
-              return `Error (exit ${r && r.exitCode}): ${r && r.stderr || r && r.error || 'unknown'}\n${r && r.stdout || ''}`;
+              return (r.stdout || '') + (r.stderr ? '\n[stderr]\n' + r.stderr : '');
             }
             if (transport === 'http') {
               const http = t.http || {};
@@ -247,6 +254,7 @@ function loadPluginManifest(manifest) {
     skills: skills.map(s => s.name),
     projectTypes: manifest.projectTypes || [],
     views: Array.isArray(manifest.views) ? manifest.views : [],
+    settings: Array.isArray(manifest.settings) ? manifest.settings : [],
     active: true
   });
 
