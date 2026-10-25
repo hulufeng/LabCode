@@ -9932,6 +9932,8 @@ function bindEvents() {
         recommendedFor: p.recommendedFor || '', downloadUrl: p.downloadUrl || '',
         // 源码地址（TrieCode 卡片「查看源码 →」）：网关目前未返回，先接好字段，后端补上即自动生效
         sourceUrl: p.sourceUrl || p.repoUrl || p.repository || p.homepage || '',
+        // GitHub 分发源：插件包从 GitHub 仓库下载（而非服务器 zip）；后端可在此标注 githubRepo 覆盖默认源
+        githubRepo: p.githubRepo || '',
         source: 'remote'
       }));
       remoteMarketOnline = true;
@@ -10079,6 +10081,12 @@ function bindEvents() {
     });
     return cats;
   }
+
+  // ============ 插件分发统一走 GitHub ============
+  // 官方/社区插件全部从 GitHub 仓库下载安装（发布 = 推到 GitHub 仓库，下载安装 = 拉取 zipball）。
+  // 网关仅作为插件目录/元数据来源；个别不在 GitHub 的插件（如 hello-market / llama-runtime）回退网关 zip。
+  const OFFICIAL_PLUGIN_REPO = 'triecode-dev/triecode-plugins';  // 官方工具链同源仓库（可在后端用 githubRepo 字段覆盖为 hulufeng/... 自有源）
+  const GH_PLUGIN_ID_MAP = { 'mcs51-toolchain': 'sdcc-51-toolchain' };  // 网关 id → 仓库子目录名 差异映射
 
   // 从任意 GitHub/codeload zipball 下载并安装插件（官方市场与社区插件共用一条链路）
   // zipUrl: 压缩包地址；findDirName: 优先匹配的插件子目录名（多插件仓库精确定位；传 null → 全盘递归找第一个 plugin.json）；
@@ -10280,10 +10288,10 @@ function bindEvents() {
       } else {
         actions = '<span class="plg-installed">已安装</span>';
       }
-      // TrieCode 卡片式「查看源码 →」：有源码地址指向源码；网关暂未返回时降级为「查看详情 →」指向官网插件页
-      // （后端补上 sourceUrl 字段后自动变回「查看源码」）。模型行不加，避免链到无关页面。
+      // TrieCode 卡片式「查看源码 →」：有 sourceUrl 指向源码仓库；否则指向其 GitHub 分发源的插件目录（全 GitHub 分发）。模型行不加。
+      const srcUrl = p.sourceUrl || ('https://github.com/' + (p.githubRepo || OFFICIAL_PLUGIN_REPO) + '/tree/main/' + (GH_PLUGIN_ID_MAP[p.id] || p.id));
       const srcLink = (currentPluginsTab !== 'models' && p.category !== 'ai-model')
-        ? '<a class="plg-src" data-action="source" data-url="' + (p.sourceUrl || 'https://bluebubai.work/plugins') + '">' + (p.sourceUrl ? '查看源码 →' : '查看详情 →') + '</a>'
+        ? '<a class="plg-src" data-action="source" data-url="' + escapeHtml(srcUrl) + '">查看源码 →</a>'
         : '';
       // TrieCode 式扁平行：图标(无底色) + 名称 + 小版本号 + 一行截断描述，右侧绿字已安装/蓝安装按钮
       const topLine = '<span class="plg-name">' + p.name + '</span><span class="plg-ver">v' + p.version + '</span>';
@@ -10719,25 +10727,35 @@ function bindEvents() {
     // 远程插件包：官方市场 zip → 失败回退 GitHub 插件仓库（triecode-dev/triecode-plugins，
     // 插件与 TrieCode 同渠道发布，每插件一个目录含 plugin.json）。任一渠道失败则中止，不标记已安装。
     // 复用共享 installFromZipball 链路（与社区插件同一套下载/校验/解压/进度逻辑）。
+    // 远程插件包：统一从 GitHub 下载安装（插件生态发布/分发全部走 GitHub；网关仅作目录/元数据来源）。
+    // 优先 GitHub 仓库（main/master 自动回退）；个别不在 GitHub 的插件（如 hello-market / llama-runtime）再回退网关 zip。
+    // 复用共享 installFromZipball 链路（与社区插件同一套下载/校验/解压/进度逻辑）。
     let remoteInstall = null;
     if (plugin.source === 'remote' && plugin.downloadUrl && plugin.category !== 'ai-model') {
+      // 官方插件 GitHub 源：默认 triecode-dev/triecode-plugins（与 LabCode 工具链同源）；
+      // 若网关插件数据里标注了 githubRepo 字段，则以标注值为准（可在后端切换为 hulufeng/... 自有源）
+      const ghRepo = plugin.githubRepo || OFFICIAL_PLUGIN_REPO;
+      const ghId = (GH_PLUGIN_ID_MAP[plugin.id] || plugin.id);
       try {
-        const gw = await installFromZipball(plugin.downloadUrl, plugin.id, plugin, '官方市场');
-        remoteInstall = gw.result;
-        addOutputLog('✅ 插件包下载并安装完成（' + gw.sizeKB + ' KB，注册 ' + (gw.result.tools || 0) + ' 个工具、' + (gw.result.skills || 0) + ' 条技能）', 'success');
-      } catch (gwErr) {
-        // 网关包缺失/坏包 → GitHub 插件仓库回退（id 映射：mcs51 → 仓库里的 sdcc-51）
-        addOutputLog('官方市场包不可用（' + gwErr.message + '），回退 GitHub 插件仓库...', 'warning');
-        const ghId = plugin.id === 'mcs51-toolchain' ? 'sdcc-51-toolchain' : plugin.id;
+        let gh = null;
+        for (const branch of ['main', 'master']) {
+          try { gh = await installFromZipball('https://codeload.github.com/' + ghRepo + '/zip/refs/heads/' + branch, ghId, plugin, 'GitHub'); break; }
+          catch (be) { if (branch === 'master') throw be; }
+        }
+        remoteInstall = gh.result;
+        addOutputLog('✅ 已从 GitHub 安装（' + ghRepo + ' / ' + ghId + '，' + gh.sizeKB + ' KB，注册 ' + (gh.result.tools || 0) + ' 个工具、' + (gh.result.skills || 0) + ' 条技能）', 'success');
+      } catch (ghErr) {
+        // GitHub 源缺失（如 LabCode 自有的 hello-market / llama-runtime）→ 回退网关 zip
+        addOutputLog('GitHub 源不可用（' + ghErr.message + '），回退官方市场 zip...', 'warning');
         try {
-          const gh = await installFromZipball('https://codeload.github.com/triecode-dev/triecode-plugins/zip/refs/heads/main', ghId, plugin, 'GitHub');
-          remoteInstall = gh.result;
-          addOutputLog('✅ 已从 GitHub 插件仓库安装（triecode-dev/triecode-plugins@main，' + gh.sizeKB + ' KB，注册 ' + (gh.result.tools || 0) + ' 个工具、' + (gh.result.skills || 0) + ' 条技能）', 'success');
-        } catch (ghErr) {
+          const gw = await installFromZipball(plugin.downloadUrl, plugin.id, plugin, '官方市场');
+          remoteInstall = gw.result;
+          addOutputLog('✅ 已从官方市场安装（' + gw.sizeKB + ' KB，注册 ' + (gw.result.tools || 0) + ' 个工具、' + (gw.result.skills || 0) + ' 条技能）', 'success');
+        } catch (gwErr) {
           hideInstallModal();
-          addOutputLog('远程插件安装失败：官方市场(' + gwErr.message + ') / GitHub(' + ghErr.message + ')', 'warning');
-          showToast(plugin.name + ' 安装失败：' + ghErr.message, 'error');
-          return { success: false, error: '远程安装失败: ' + ghErr.message };
+          addOutputLog('远程插件安装失败：GitHub(' + ghErr.message + ') / 官方市场(' + gwErr.message + ')', 'warning');
+          showToast(plugin.name + ' 安装失败：' + gwErr.message, 'error');
+          return { success: false, error: '远程安装失败: ' + gwErr.message };
         }
       }
       try { const _o = new URL(plugin.downloadUrl).origin; await fetch(_o + '/api/plugins/' + plugin.id + '/install', { method: 'POST' }); } catch (e) {}
