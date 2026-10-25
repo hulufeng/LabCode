@@ -1,5 +1,5 @@
-﻿// ============ LabCode Electron 涓昏繘绋?============
-// 基于业界 IDE 璁捐瀹炶返锛氱獥鍙ｇ鐞?/ IPC / 鑷姩鏇存柊 / 代理 / 会话存储
+﻿// ============ LabCode Electron 主进程============
+// 基于业界 IDE 设计实践：窗口管理/ IPC / 自动更新 / 代理 / 会话存储
 
 const { app, BrowserWindow, ipcMain, Menu, shell, dialog, net, webContents, desktopCapturer, clipboard, screen } = require('electron');
 const path = require('path');
@@ -12,7 +12,7 @@ const { spawn, execFile } = require('child_process');
 const { getTerminalService } = require('./terminal');
 const terminalService = getTerminalService();
 
-// 鍏ㄥ眬鍙橀噺
+// 全局变量
 let mainWindow = null;
 let isDev = process.argv.includes('--dev');
 
@@ -20,12 +20,12 @@ let isDev = process.argv.includes('--dev');
 // 2026-10-17：接入 packages/core/src/board.js（真实模块），fqbn 缺失时用 guessFQBN 推断
 const Board = require('../packages/core/src/board.js');
 
-// 鐢ㄦ埛鏁版嵁鐩綍
+// 用户数据目录
 const USER_DATA_PATH = app.getPath('userData');
 const CONFIG_PATH = path.join(USER_DATA_PATH, 'config.json');
 const SESSIONS_PATH = path.join(USER_DATA_PATH, 'sessions');
 
-// 纭繚鐩綍瀛樺湪
+// 确保目录存在
 function ensureDir(dir) {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 }
@@ -90,7 +90,7 @@ function getDefaultConfig() {
     extra: {
       skills: [],
       mcpServers: [
-        // 2026-09-15 对齐 TrieCode browser-toolchain锛氶粯璁ゆ敞閲婃帀锛岀敤鎴疯 playwright 鍚庡彇娑堟敞閲?
+        // 2026-09-15 对齐 TrieCode browser-toolchain：默认注释掉，用户装 playwright 后取消注重
         // { name: 'browser', command: 'npx', args: ['-y', '@playwright/mcp@latest'], env: {} }
       ],
       hooks: {}
@@ -169,23 +169,23 @@ function createMainWindow() {
     }
   });
 
-  // 鍔犺浇娓叉煋杩涚▼
+  // 加载渲染进程
   mainWindow.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'));
 
-  // 鏄剧ず窗口（ready-to-show 鏃舵渶澶у寲锛?
+  // 显示窗口（ready-to-show 时最大化）
   mainWindow.once('ready-to-show', () => {
     if (windowConfig.maximized) mainWindow.maximize();
   });
   
-  // 鍏滃簳锛?绉掑悗寮哄埗鏄剧ず绐楀彛锛堥槻姝?ready-to-show 涓嶈Е发）
+  // 兜底＀秒后强制显示窗口（防正ready-to-show 涓嶈Е发）
   setTimeout(() => {
     if (mainWindow && !mainWindow.isVisible()) {
-      console.log('鍏滃簳鏄剧ず窗口');
+      console.log('兜底显示窗口');
       mainWindow.show();
     }
   }, 3000);
 
-  // 绐楀彛澶у皬鍙樺寲淇濆瓨
+  // 窗口大小变化保存
   mainWindow.on('resize', () => {
     if (!mainWindow.isMaximized()) {
       const bounds = mainWindow.getBounds();
@@ -208,7 +208,7 @@ function createMainWindow() {
     mainWindow = null;
   });
 
-  // 寮€鍙戞ā寮忔墦寮€ DevTools
+  // 开发模式打开 DevTools
   if (isDev) {
     mainWindow.webContents.openDevTools();
   }
@@ -234,10 +234,10 @@ function createMenu() {
     {
       label: '编辑',
       submenu: [
-        { role: 'undo', label: '鎾ら攢' },
+        { role: 'undo', label: '撤销' },
         { role: 'redo', label: '重做' },
         { type: 'separator' },
-        { role: 'cut', label: '鍓垏' },
+        { role: 'cut', label: '剪切' },
         { role: 'copy', label: '复制' },
         { role: 'paste', label: '粘贴' },
         { role: 'selectAll', label: '全选' }
@@ -250,15 +250,15 @@ function createMenu() {
         { role: 'forceReload', label: '强制重新加载' },
         { role: 'toggleDevTools', label: '开发者工具' },
         { type: 'separator' },
-        { role: 'resetZoom', label: '閲嶇疆缂╂斁' },
-        { role: 'zoomIn', label: '鏀惧ぇ' },
-        { role: 'zoomOut', label: '缂╁皬' },
+        { role: 'resetZoom', label: '重置缩放' },
+        { role: 'zoomIn', label: '放大' },
+        { role: 'zoomOut', label: '缩小' },
         { type: 'separator' },
-        { role: 'togglefullscreen', label: '鍏ㄥ睆' }
+        { role: 'togglefullscreen', label: '全屏' }
       ]
     },
     {
-      label: '甯姪',
+      label: '帮助',
       submenu: [
         { label: '文档', click: () => shell.openExternal('https://www.LabCode.com/docs') },
         { label: '官网', click: () => shell.openExternal('https://www.LabCode.com') },
@@ -277,14 +277,14 @@ function showAboutDialog() {
     type: 'info',
     title: '关于 LabCode',
     message: 'LabCode v1.0.0',
-    detail: '通用 AI 杞欢寮€发智能体\n\n鍐呯疆鐪熸鍔ㄦ墜鐨?AI 鏅鸿兘浣擄細璇诲啓浠ｇ爜銆佹墽琛屽懡浠ゃ€佽繍琛屾祴璇曘€佽仈缃戞绱€俓n\n漏 2026 LabCode Team. All rights reserved.',
-    buttons: ['纭畾']
+    detail: '通用 AI 软件开发智能体\n\n内置真正动手的 AI 智能体：读写代码、执行命令、运行测试、联网查资料。\n\n© 2026 LabCode Team. All rights reserved.',
+    buttons: ['确定']
   });
 }
 
-// ============ IPC 鎺ュ彛 ============
+// ============ IPC 接口 ============
 function setupIPC() {
-  // 绐楀彛鎺у埗
+  // 窗口控制
   ipcMain.handle('app:getCwd', () => process.cwd());
 
   ipcMain.handle('window:minimize', () => mainWindow?.minimize());
@@ -344,7 +344,7 @@ function setupIPC() {
     return saveConfig(config);
   });
 
-  // ============ MCP 鏈嶅姟鍣紙Model Context Protocol stdio 鎺ュ叆锛?===========
+  // ============ MCP 服务器（Model Context Protocol stdio 接入＀===========
   const mcpService = require('./mcp').getMcpService();
   require('./mcp').initMcp({ getConfig: () => config, saveConfig });
   ipcMain.handle('mcp:list-servers', () => mcpService.listServers());
@@ -378,7 +378,7 @@ function setupIPC() {
     } catch (e) { return { success: false, error: e.message }; }
   });
 
-  // ============ clangd LSP 瀹㈡埛绔紙瀵归綈 TrieCode code-symbols.db锛?===========
+  // ============ clangd LSP 客户端（对齐 TrieCode code-symbols.db）===========
   const lspClients = new Map(); // language -> { proc, pending: Map<id, resolve>, buf, initialized }
   function spawnLsp(language, cmd, args) {
     if (lspClients.has(language)) return lspClients.get(language);
@@ -386,7 +386,7 @@ function setupIPC() {
     try {
       proc = spawn(cmd, args || [], { stdio: ['pipe', 'pipe', 'pipe'] });
     } catch (e) {
-      throw new Error('鏃犳硶鍚姩 ' + cmd + ': ' + e.message);
+      throw new Error('无法启动 ' + cmd + ': ' + e.message);
     }
     const client = { proc, pending: new Map(), buf: '', initialized: false, seq: 1, failed: false };
     proc.on('error', (err) => {
@@ -397,7 +397,7 @@ function setupIPC() {
     });
     proc.stdout.on('data', (chunk) => {
       client.buf += chunk.toString('utf8');
-      // 鎸?Content-Length 澶村垏甯?
+      // 按Content-Length 头切帴
       while (true) {
         const headerEnd = client.buf.indexOf('\r\n\r\n');
         if (headerEnd < 0) break;
@@ -696,7 +696,7 @@ function setupIPC() {
     return { success: r.ok, error: r.stderr };
   });
 
-  // ============ 宸ュ叿鑷姩涓嬭浇锛坈langd 绛夛紝涓嶆墦鍖呰繘瀹夎鍖咃紝棣栨鐢ㄦ椂鎷夛級============
+  // ============ 工具自动下载（clangd 等，不打包进安装包，首次用时拉）============
   const TOOLS_DIR = path.join(app.getPath('userData'), 'tools');
   const CLANGD_DIR = path.join(TOOLS_DIR, 'clangd');
   const CLANGD_EXE = path.join(CLANGD_DIR, 'bin', 'clangd.exe');
@@ -722,7 +722,7 @@ function setupIPC() {
   }
 
   function extractZip(zipPath, destDir) {
-    // 鐢?PowerShell Expand-Archive
+    // 用PowerShell Expand-Archive
     return new Promise((resolve, reject) => {
       execFile('powershell', ['-NoProfile', '-Command', `Expand-Archive -Path '${zipPath}' -DestinationPath '${destDir}' -Force`],
         { encoding: 'utf8', timeout: 120000 }, (err) => err ? reject(err) : resolve());
@@ -745,7 +745,7 @@ function setupIPC() {
         const sz = fs.statSync(zipPath).size;
         if (sz < 1000000) throw new Error('download too small (' + sz + ' bytes), likely error page');
         await extractZip(zipPath, CLANGD_DIR);
-        // clangd zip 解压后是 clangd_18.1.8/bin/clangd.exe锛岄渶瑕侀摵骞?
+        // clangd zip 解压后是 clangd_18.1.8/bin/clangd.exe，需要铺平
         const subDir = fs.readdirSync(CLANGD_DIR).find(f => f.startsWith('clangd'));
         if (subDir) {
           const src = path.join(CLANGD_DIR, subDir);
@@ -757,10 +757,10 @@ function setupIPC() {
         throw new Error('解压后找不到 clangd.exe');
       } catch (e) { lastErr = e; console.warn('[clangd] mirror failed:', e.message); }
     }
-    return { success: false, error: '鎵€有镜像都失败: ' + (lastErr && lastErr.message) };
+    return { success: false, error: '所有镜像都失败: ' + (lastErr && lastErr.message) };
   });
 
-  // ============ AI 对话（OpenAI 鍏煎 API锛欴eepSeek / 鏈湴 llama 引擎 / Ollama / 鑷畾涔夛級============
+  // ============ AI 对话（OpenAI 兼容 API：DeepSeek / 本地 llama 引擎 / Ollama / 自定义）============
 
   // ============ 文件系统检查点 + 回滚（借鉴 Hermes Agent）============
   const CHECKPOINT_DIR = path.join(USER_DATA_PATH, 'checkpoints');
@@ -870,11 +870,11 @@ function setupIPC() {
       return { success: false, error: '未配置 API baseURL，请在设置中配置' };
     }
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
-      return { success: false, error: '娑堟伅涓虹┖' };
+      return { success: false, error: '消息为空' };
     }
 
     try {
-      // ===== 缃戝叧妯″紡锛堢櫥褰曡处鍙?鈫?鍐呯疆妯″瀷姹?鈫?鎵ｇН分）=====
+      // ===== 网关模式（登录账号 → 内置模型求 → 积分扣费）=====
       if (aiCfg.provider === 'gateway') {
         const gwToken = aiCfg.gatewayToken || '';
     if (!gwToken) return { success: false, error: 'not logged in, please login in settings' };
@@ -932,15 +932,15 @@ function setupIPC() {
     }
   });
 
-  // ============ AI 流式对话（SSE + 鐪?function calling锛?===========
-  // 通过 ai:stream 浜嬩欢鎺ㄩ€佹墽琛岃繃绋嬶細delta / tool_calls / usage / done / error
+  // ============ AI 流式对话（SSE + 真 function calling）===========
+  // 通过 ai:stream 事件推送执行过程：delta / tool_calls / usage / done / error
   const activeAiStreams = new Map();
-  // 2026-09-15：每 runId 涓€涓?AbortController锛宑ancel/鐪嬮棬鐙楀洖閫€鏃剁湡鏂?fetch锛?
-  // 鍚﹀垯 llama-server 鏃ц求还占着 slot锛屾柊璇锋眰鍙堣繘鏉?鈫?GPU 并发跑满 鈫?瀹㈡埛绔穿銆?
+  // 2026-09-15：每 runId 一个 AbortController，cancel/看门狗回退时真发 fetch，
+  // 否则 llama-server 旧请求还占着 slot，新请求又进来，GPU 并发跑满 → 客户端崩
   const activeAiControllers = new Map();
 
-  // 解析 OpenAI 鍏煎 SSE 娴?
-  // 解析 OpenAI 鍏煎 SSE 流（保留 event: 琛岋紝渚涚綉鍏?credits/error 浜嬩欢閫忎紶锛?
+  // 解析 OpenAI 兼容 SSE 流
+  // 解析 OpenAI 兼容 SSE 流（保留 event: 行，供网具credits/error 事件透传＀
   async function* parseSSEStream(body) {
     const reader = body.getReader();
     const decoder = new TextDecoder('utf-8');
@@ -968,7 +968,7 @@ function setupIPC() {
               const obj = JSON.parse(payload);
               if (pendingEvent) { obj._event = pendingEvent; pendingEvent = ''; }
               yield obj;
-            } catch (e) { /* 蹇界暐鍧忚 */ }
+            } catch (e) { /* 忽略坏行 */ }
           }
         }
       }
@@ -1059,7 +1059,7 @@ function setupIPC() {
     }
   }
 
-  // 鍗曡疆娴佸紡璋冪敤锛堟敮鎸?tools / function calling锛涘け璐ヨ嚜鍔ㄥ洖閫€非流式）
+  // 单轮流式调用（支持 tools / function calling，失败自动回退非流式）
   async function streamChatCompletion(sender, runId, { messages, model, temperature, maxTokens, tools, aiCfg }) {
     const provider = AI_PROVIDERS[aiCfg.provider] || AI_PROVIDERS.deepseek;
     const baseURL = (aiCfg.provider === 'gateway' && aiCfg.gatewayUrl) ? aiCfg.gatewayUrl : (resolveAiBaseURL(aiCfg) || provider.baseURL);
@@ -1067,24 +1067,24 @@ function setupIPC() {
     const abortCtrl = new AbortController();
     activeAiControllers.set(runId, abortCtrl);
     const acSignal = abortCtrl.signal;
-    // 2026-09-14锛氫慨澶嶈疆鑷姩璺敱鍒?coder 妯″瀷
-    // 根因：qwen3.5:9b 鍦?ollama 下有 ~4096 token 鐢熸垚纭檺鍒?+ 闀夸笂涓嬫枃涓嬭緭鍑虹┖锛坱hink=true/false 鍧囩┖锛夛紝
-    // 鏃犳硶鑷剤缂栬瘧閿欒銆俼wen2.5-coder:7b 鏄笓鐢ㄧ紪鐮佹ā鍨嬶紝宸查獙璇佽兘杈撳嚭瀹屾暣浠ｇ爜骞剁紪璇戦€氳繃銆?
+    // 2026-09-14：修复轮自动路由到coder 模型
+    // 根因：qwen3.5:9b 在ollama 下有 ~4096 token 生成硬限到+ 长上下文下输出空（think=true/false 均空），
+    // 无法自愈编译错误。qwen2.5-coder:7b 是专用编码模型，已验证能输出完整代码并编译通过　
     const _lastUserMsg = messages.filter(m => m.role === 'user').pop();
     const _isFixTurn = !!(aiCfg.provider === 'ollama' && _lastUserMsg && /翻译失败|修复代码|仍然失败|编译错误|代码不完整|被截断/.test(_lastUserMsg.content || ''));
     if (_isFixTurn) {
       useModel = 'qwen2.5-coder:7b';
-      console.warn('[chatStream] 淇杞嚜鍔ㄥ垏鎹㈠埌 qwen2.5-coder:7b锛?b 长上下文输出空）');
+      console.warn('[chatStream] 修复轮自动切换到 qwen2.5-coder:7b（长上下文输出空）');
     }
     const apiKey = aiCfg.apiKey || '';
     const isGateway = aiCfg.provider === 'gateway';
     // 网关模式：矫正旧配置残留的不可用模型（deepseek-flash 等），否则对话 404 静默失败
     if (isGateway) useModel = normalizeGwModel(useModel);
-    // 缃戝叧妯″紡锛氳蛋鍐呯疆妯″瀷姹?+ 绉垎鎵ｈ垂锛涜姹備綋鍙彂妯″瀷 id 涓庢秷鎭紙Key 鍦ㄦ湇鍔＄锛?
+    // 网关模式：走内置模型求+ 积分扣费；请求体只发模型 id 与消息（Key 在服务端＀
     const url = isGateway
       ? (baseURL || '').replace(/\/$/, '') + '/api/chat/stream'
       : (baseURL || '').replace(/\/$/, '') + '/chat/completions';
-    if (!url || url === '/api/chat/stream' || url === '/chat/completions') throw new Error('鏈厤缃?API baseURL锛岃鍦ㄨ缃腑閰嶇疆');
+    if (!url || url === '/api/chat/stream' || url === '/chat/completions') throw new Error('未配置API baseURL，请在设置中配置');
 
     const headers = { 'Content-Type': 'application/json' };
     if (isGateway) {
@@ -1097,30 +1097,30 @@ function setupIPC() {
     const bodyObj = isGateway
       ? { model: useModel, messages, temperature }
       : { model: useModel, messages, temperature, max_tokens: maxTokens, stream: true };
-    // 缃戝叧妯″紡鍚屾牱閫忎紶 tools锛堢綉鍏虫敮鎸?function calling 杞彂锛?
+    // 网关模式同样透传 tools（网关支按function calling 转发＀
     if (isGateway && Array.isArray(tools) && tools.length > 0) {
       bodyObj.tools = tools;
     }
-    // 鏈湴寮曟搸涓嶆敞鍏?tools锛歭lama.cpp --jinja + tools 会用 grammar 寮哄埗妯″瀷杈撳嚭宸ュ叿 JSON锛?
-    // 鏈湴灏忔ā型（Qwen3.5-9B）在 grammar 绾︽潫涓嬩細杈撳嚭绌?澶辫触锛堟鏂囦涪澶憋級銆?
-    // 鏈湴妯″瀷鐨勪富璺緞鏄?姝ｆ枃浠ｇ爜鍧?鈫?搴旂敤灞傝惤鐩?鈫?IDE 鑷姩缂栬瘧楠岃瘉"锛屼笉渚濊禆宸ュ叿璋冪敤銆?
+    // 本地引擎不注入 tools，llama.cpp --jinja + tools 会用 grammar 强制模型输出工具 JSON，
+    // 本地小模型（Qwen3.5-9B）在 grammar 约束下会输出空失败（正文丢失）
+    // 本地模型的主路径是正文代码块鈫?应用层落目ↀ自动编译验证"，不依赖工具调用　
     if (Array.isArray(tools) && tools.length > 0 && aiCfg.provider !== 'local' && aiCfg.provider !== 'ollama' && !isGateway) {
       bodyObj.tools = tools;
     }
-    // 鏈湴寮曟搸锛圦wen3 绛夋€濊€冩ā鍨嬶級锛?
-    // 已实测：enable_thinking=true + 流式 + max_tokens 充足时，reasoning_content 涓庢鏂囦細鍏堝悗杈撳嚭锛?
-    // finish=stop锛堢湡瀹炶眴鍖呭紡鎬濊€冩祦锛夈€傛€濊€冭繃闀垮崰婊?max_tokens 鏃舵文可能为空，
-    // 鐢?doStreamOnce 鍐?绌烘鏂団啋鍏抽棴鎬濊€冮噸璇?闄嶇骇鍏滃簳锛屼繚璇佹鏂囪緭鍑恒€?
-    // 鏈湴寮曟搸锛圦wen3 绛夋€濊€冩ā鍨嬶級锛?
-    // 已实测：enable_thinking=true + 流式 + max_tokens 充足时，reasoning_content 涓庢鏂囦細鍏堝悗杈撳嚭锛?
-    // finish=stop锛堢湡瀹炶眴鍖呭紡鎬濊€冩祦锛夈€傛€濊€冭繃闀垮崰婊?max_tokens 鏃舵文可能为空，
-    // 鐢?doStreamOnce 鍐?绌烘鏂団啋鍏抽棴鎬濊€冮噸璇?闄嶇骇鍏滃簳锛屼繚璇佹鏂囪緭鍑恒€?
+    // 本地引擎（Qwen3 等思考模型）＀
+    // 已实测：enable_thinking=true + 流式 + max_tokens 充足时，reasoning_content 与正文会先后输出＀
+    // finish=stop（真实豆包式思考流）。思考过长占滃max_tokens 鏃舵文可能为空，
+    // 用doStreamOnce 决空正文→关闭思考重话降级兜底，保证正文输出　
+    // 本地引擎（Qwen3 等思考模型）＀
+    // 已实测：enable_thinking=true + 流式 + max_tokens 充足时，reasoning_content 与正文会先后输出＀
+    // finish=stop（真实豆包式思考流）。思考过长占滃max_tokens 鏃舵文可能为空，
+    // 用doStreamOnce 决空正文→关闭思考重话降级兜底，保证正文输出　
     if (aiCfg.provider === 'local') {
-      // bodyObj.chat_template_kwargs 鐢?doStreamOnce(enableThinking) 鎸夎疆娆¤缃?
-      // 2026-09-15锛氬伐鍏峰喅绛栬疆鍙€?JSON 绾︽潫銆?
-      // 冒烟（curl锛夊疄娴?response_format=json_object 涓?9B 鍚愬悎娉?JSON锛?
-      // 浣嗙湡閾捐矾瀹炴祴锛氱害鏉熷鑷存祦寮?60s 鏃犳暟鎹啋鍥為€€闈炴祦寮忊啋鏂版棫璇锋眰鍙犲姞鈫扜PU 骞跺彂璺戞弧鈫掑鎴风宕┿€?
-      // 鏁呴粯璁ゅ叧闂紝浠呭綋 ai.localForceToolJson=true 鏄惧紡寮€鍚€?
+      // bodyObj.chat_template_kwargs 用doStreamOnce(enableThinking) 按轮次设置
+      // 2026-09-15：工具决策轮可选JSON 约束　
+      // 冒烟（curl）实测 response_format=json_object 下 9B 吐合法 JSON，
+      // 但真链路实测：约束导致流式60s 无数据→回退非流式→新旧请求叠加→GPU 并发跑满→客户端崩　
+      // 故默认关闭，仅当 ai.localForceToolJson=true 显式开启　
       if (Array.isArray(tools) && tools.length > 0 && aiCfg.localForceToolJson === true) {
         bodyObj.response_format = { type: 'json_object' };
       }
@@ -1151,7 +1151,7 @@ function setupIPC() {
       console.log('[grammar] 本地工具决策: none（落回流式无约束路径）');
     }
 
-    // 鍗曟请求 + 娴佽В鏋愶紙渚涢娆′笌寮曟搸閲嶅惎鍚庨噸璇曞叡鐢級
+    // 鍗曟请求 + 流解析（供首次与引擎重启后重试共用）
     async function doStreamOnce(enableThinking) {
       const b = Object.assign({}, bodyObj);
       if (aiCfg.provider === 'local') b.chat_template_kwargs = { enable_thinking: enableThinking !== false };
@@ -1182,7 +1182,7 @@ function setupIPC() {
       let lastUsage = null;
       for await (const evt of parseSSEStream(response.body)) {
         if (activeAiStreams.get(runId)) { activeAiStreams.delete(runId); break; }
-        // 网关事件行（event: credits / event: error锛夐€忎紶缁?renderer
+        // 网关事件行（event: credits / event: error）透传绔renderer
         if (evt._event === 'credits') {
           send('credits', { used: evt.used, totalTokens: evt.totalTokens, remaining: evt.remaining, dailyRemaining: evt.dailyRemaining });
           continue;
@@ -1224,25 +1224,25 @@ function setupIPC() {
           return { id: tc.id, name: tc.name, arguments: args };
         });
 
-      // ===== 鏈湴鎬濊€冩祦闄嶇骇锛氭€濊€冭繃闀垮崰婊?max_tokens 鈫?姝ｆ枃涓虹┖ 鈫?鍏抽棴鎬濊€冮噸璇曚竴娆?=====
-      // 2026-09-14：扩展到 ollama锛圦wen3.5-9B 绛夋€濊€冩ā鍨嬪悓鏍蜂細鎬濊€冨崰婊￠绠楀鑷存鏂囨埅鏂?空输出）
+      // ===== 本地思考流降级：思考过长占滃max_tokens ↀ正文为空 鈫?关闭思考重试一欢=====
+      // 2026-09-14：扩展到 ollama（Qwen3.5-9B 等思考模型同样会思考占满预算导致正文截断空输出）
       if ((aiCfg.provider === 'local' || aiCfg.provider === 'ollama') && enableThinking !== false && !String(fullText || '').trim()) {
       console.warn('[streamChat] local thinking stream produced no text, retry without thinking');
         return doStreamOnce(false);
       }
 
-      // 娉ㄦ剰锛氫笉鍦ㄦ send('done')鈥斺€斿灞傚彲鑳介渶瑕佽嚜鍔ㄧ画鍐欙紝鐢卞灞傜粺涓€鍙戦€佹渶缁?done
+      // 注意：不在此 send('done')——外层可能需要自动续写，由外层统一发送最绔done
       return { success: true, content: fullText, toolCalls: parsedToolCalls, finishReason: lastFinish, usage: lastUsage };
     }
 
-    // ===== 2026-09-14 鑷姩缁啓锛歰llama/local 妯″瀷浠ｇ爜鍧楁湭闂悎鏃讹紝鑷姩缁啓鎷兼帴 =====
-    // 根因：ollama 0.33.x + qwen3.5:9b 鏈?~4096 token 鐢熸垚纭檺鍒讹紙num_predict 涓嶇敓鏁堬級锛岄暱浠ｇ爜鍦?4096 token 澶勮鍒囨柇銆?
-    // 妫€测：``` 璁℃暟涓哄鏁帮紙浠ｇ爜鍧楁湭闂悎锛夋垨鑺辨嫭鍙蜂笉鍖归厤 鈫?鍙?璇风户缁?璇锋眰鎷兼帴锛屾渶澶?3 娆°€?
+    // ===== 2026-09-14 自动续写：ollama/local 模型代码块未闭合时，自动续写拼接 =====
+    // 根因：ollama 0.33.x + qwen3.5:9b 未~4096 token 生成硬限制（num_predict 不生效），长代码在4096 token 处被切断　
+    // 妫€测：``` 计数为奇数（代码块未闭合）或花括号不匹配 鈫?发请继绔请求拼接，最失3 次　
     function hasUnclosedCodeBlock(text) {
       const t = text || '';
       const ticks = t.match(/```/g);
       if (ticks && ticks.length % 2 === 1) return true;
-      // 浠ｇ爜鍧楀凡闂悎浣嗚姳鎷彿涓嶅尮閰嶏紙鍑芥暟鏈啓瀹岋級涔熻为未完成
+      // 代码块未闭合（正则号不匹配，函数未写完）也视为未完成
       const open = (t.match(/\{/g) || []).length;
       const close = (t.match(/\}/g) || []).length;
       return open > close;
@@ -1257,7 +1257,7 @@ function setupIPC() {
       if (aiCfg.provider === 'local') b.chat_template_kwargs = { enable_thinking: false };
       else if (aiCfg.provider === 'ollama') b.think = false;
       const resp = await net.fetch(url, { method: 'POST', headers, body: JSON.stringify(b), signal: acSignal });
-      if (!resp.ok) throw new Error(`缁啓 API 返回 ${resp.status}`);
+      if (!resp.ok) throw new Error(`续写 API 返回 ${resp.status}`);
       let cont = '';
       let fin = '';
       for await (const evt of parseSSEStream(resp.body)) {
@@ -1271,55 +1271,55 @@ function setupIPC() {
     }
 
     try {
-      // 2026-09-14锛氫慨澶嶈疆锛堢紪璇戝け璐ユ彁绀猴級寮哄埗鍏抽棴鎬濊€冣€斺€旈伩鍏嶆€濊€冨崰婊?4096 token 棰勭畻瀵艰嚧姝ｆ枃绌鸿緭鍑?
+      // 2026-09-14：修复轮（编译失败提示）强制关闭思考——避免思考占滃4096 token 预算导致正文空输出
       const lastUserMsg = messages.filter(m => m.role === 'user').pop();
-      const isFixTurn = !!(lastUserMsg && /编译失败|淇代码|仍然失败|缂栬瘧閿欒/.test(lastUserMsg.content || ''));
+      const isFixTurn = !!(lastUserMsg && /编译失败|淇代码|仍然失败|编译错误/.test(lastUserMsg.content || ''));
       const thinkForTurn = isFixTurn ? false : true;
-      if (isFixTurn) _log('妫€娴嬪埌缂栬瘧淇杞紝寮哄埗 think=false');
+      if (isFixTurn) _log('检测到编译修复轮，强制 think=false');
       let result = await doStreamOnce(thinkForTurn);
-      // 鑷姩缁啓寰幆锛堜粎 ollama/local锛屼唬鐮佸潡鏈棴鍚堟椂鈥斺€斾笉渚濊禆 finish_reason锛宱llama 娴佸紡鍙兘涓嶄紶锛?
+      // 自动续写循环（仅 ollama/local，代码块未闭合时——不依赖 finish_reason，llama 流式可能不传）
       const _fs = require('fs'); const _log = (s) => { try { _fs.appendFileSync(require('path').join(require('os').tmpdir(), 'labcode_stream.log'), new Date().toISOString() + ' ' + s + '\n'); } catch(e){} };
       _log(`doStreamOnce done, len=${result.content.length}, unclosed=${hasUnclosedCodeBlock(result.content)}`);
       if ((aiCfg.provider === 'ollama' || aiCfg.provider === 'local') && hasUnclosedCodeBlock(result.content)) {
         for (let i = 0; i < 3; i++) {
-          _log(`缁啓绗?${i + 1} 娆″紑濮? 当前 len=${result.content.length}`);
+          _log(`续写笉${i + 1} 次开姩 当前 len=${result.content.length}`);
           try {
             const cont = await continueStream(result.content, i + 1);
-            _log(`缁啓绗?${i + 1} 娆″畬鎴? 缁帴 len=${cont.content.length}, finish=${cont.finishReason}`);
+            _log(`续写笉${i + 1} 次完成 续接 len=${cont.content.length}, finish=${cont.finishReason}`);
             result.content += cont.content;
             result.finishReason = cont.finishReason;
       if (!hasUnclosedCodeBlock(result.content)) { _log('code block closed, stop continuing'); break; }
           } catch (ce) {
-            _log(`缁啓澶辫触: ${ce.message}`);
-            console.warn('[streamChat] 缁啓澶辫触:', ce.message);
+            _log(`续写失败: ${ce.message}`);
+            console.warn('[streamChat] 续写失败:', ce.message);
             break;
           }
         }
       }
-      _log(`鏈€缁?done, len=${result.content.length}`);
-      // 缁熶竴鍙戦€佹渶缁?done锛坉oStreamOnce 鍐呴儴涓嶅啀鍙?done锛岄伩鍏嶇画鍐?delta 琚拷鐣ワ級
+      _log(`最绔done, len=${result.content.length}`);
+      // 统一发送最终 done（noStreamOnce 内部不再发 done，避免续决 delta 被忽略）
       send('done', { content: result.content, toolCalls: result.toolCalls, usage: result.usage || null });
       return result;
     } catch (e) {
-      // 鐢ㄦ埛/鐪嬮棬鐙椾富鍔ㄥ彇娑堬細涓嶉噸鍚紩鎿庛€佷笉鍥為€€非流式，直接静默结束
+      // 用户/看门狗主动取消：不重试、不回退非流式，直接静默结束
       if (e && (e.name === 'AbortError' || e.aborted)) {
         activeAiControllers.delete(runId);
         return { success: false, aborted: true };
       }
-      // ===== 鏈湴寮曟搸鑷姩鎭㈠锛氳繛鎺ュけ璐ワ紙鍚鐩栧畨瑁呭悗鏃у疄渚嬪亣娲伙級鈫?寮烘潃娈嬬暀骞堕噸鍚紩鎿?鈫?閲嶈瘯涓€娆?=====
+      // ===== 本地引擎自动恢复：连接失败（含覆盖安装后旧实例假活）ↀ强杀残留并重启引擎鈫?重试一欢=====
       if (!e.noFallback && aiCfg.provider === 'local' && !activeAiStreams.get(runId)) {
         try {
-          console.warn('[streamChat] 鏈湴寮曟搸璇锋眰澶辫触锛岃嚜鍔ㄩ噸鍚紩鎿庡悗閲嶈瘯:', e.message);
+          console.warn('[streamChat] 本地引擎请求失败，自动重启引擎后重试:', e.message);
           const sr = await startEngineInternal(aiCfg.model);
           if (sr && sr.success) {
             return await doStreamOnce(true);
           }
         } catch (re) { console.warn('[streamChat] 引擎重启重试失败:', re.message); }
       }
-      // 鍥為€€锛氬幓鎺?tools + stream:false 鍐嶈瘯涓€娆★紙鍏煎涓嶆敮鎸?function calling 鐨勬ā型）
+      // 回退：去掉 tools + stream:false 再试一次（兼容不支持 function calling 的模型）
       if (!e.noFallback && !activeAiStreams.get(runId)) {
         try {
-          // 缃戝叧妯″紡鍥為€€鍒伴潪娴佸紡绔偣 /api/chat
+          // 网关模式回退到非流式端点 /api/chat
           const fbUrl = isGateway ? (baseURL || '').replace(/\/$/, '') + '/api/chat' : url;
           const fbBody = isGateway
             ? { model: useModel, messages, temperature }
@@ -1354,7 +1354,7 @@ function setupIPC() {
             send('done', { content, toolCalls: parsed });
             return { success: true, content, toolCalls: parsed };
           }
-        } catch (fbErr) { /* 缁х画鎶涘師濮嬮敊璇?*/ }
+        } catch (fbErr) { /* 继续抛原始错话*/ }
       }
       send('error', { error: e.message || String(e), creditsInsufficient: !!e.creditsInsufficient });
       return { success: false, error: e.message || String(e), creditsInsufficient: !!e.creditsInsufficient };
@@ -1365,7 +1365,7 @@ function setupIPC() {
     const { runId = 'run_' + Date.now(), messages, model, temperature, maxTokens, tools } = options;
     const aiCfg = config.ai || {};
     activeAiStreams.delete(runId);
-    // 寮傛鎵ц锛岀珛鍗宠繑鍥?runId，结果经 ai:stream 浜嬩欢鎺ㄩ€?
+    // 异步执行，立即返回runId，结果经 ai:stream 事件推选
     (async () => {
       try {
         await streamChatCompletion(event.sender, runId, { messages, model, temperature, maxTokens, tools, aiCfg });
@@ -1396,7 +1396,15 @@ function setupIPC() {
     const baseURL = String(aiCfg.baseURL || aiCfg.baseUrl || '').replace(/\/$/, '');
     if (!baseURL) return { running: false, error: '未配置本地服务地址' };
     try {
-      const resp = await net.fetch(baseURL + '/models', { method: 'GET' });
+      // 超时保护：Ollama 没开时若连接被丢弃而非拒绝，UI 不能一直停在"检测中"
+      const ac = new AbortController();
+      const timer = setTimeout(() => ac.abort(), 2500);
+      let resp;
+      try {
+        resp = await net.fetch(baseURL + '/models', { method: 'GET', signal: ac.signal });
+      } finally {
+        clearTimeout(timer);
+      }
       if (!resp.ok) return { running: false, status: resp.status, baseURL, error: 'HTTP ' + resp.status };
       const data = await resp.json().catch(() => ({}));
       const list = Array.isArray(data.data) ? data.data : (Array.isArray(data.models) ? data.models : []);
@@ -1408,20 +1416,20 @@ function setupIPC() {
   });
 
   ipcMain.handle('ai:checkConnection', async (_, testConfig) => {
-    // 测试 AI 杩炴帴锛堝彂涓€鏉℃渶鐭秷鎭級
+    // 测试 AI 连接（发一条最短消息）
     const aiCfg = { ...(config.ai || {}), ...(testConfig || {}) };
     const provider = AI_PROVIDERS[aiCfg.provider] || AI_PROVIDERS.deepseek;
     const baseURL = (aiCfg.provider === 'gateway' && aiCfg.gatewayUrl) ? aiCfg.gatewayUrl : (resolveAiBaseURL(aiCfg) || provider.baseURL);
     const useModel = aiCfg.model || provider.defaultModel;
-    if (!baseURL) return { success: false, error: '鏈厤缃?baseURL' };
+    if (!baseURL) return { success: false, error: '未配置baseURL' };
     try {
-      // 缃戝叧妯″紡锛氱敤 /api/me 验证 token 鏈夋晥鎬э紙涓嶆秷鑰楃Н分）
+      // 网关模式：用 /api/me 验证 token 有效性（不消耗积分）
       if (aiCfg.provider === 'gateway') {
         const gwUrl = baseURL.replace(/\/$/, '') + '/api/me';
         const gwResp = await net.fetch(gwUrl, {
           headers: { Authorization: 'Bearer ' + (aiCfg.gatewayToken || '') }
         });
-        if (!gwResp.ok) return { success: false, status: gwResp.status, error: '缃戝叧鐧诲綍澶辨晥锛岃重新登录' };
+      if (!gwResp.ok) return { success: false, status: gwResp.status, error: '网关登录失效，请重新登录' };
         const data = await gwResp.json().catch(() => ({}));
         const u = data?.user || {};
         return { success: true, model: useModel, gateway: true, creditsLeft: u.totalCredits ?? (u.planCredits || 0) + (u.rechargeCredits || 0) };
@@ -1440,14 +1448,14 @@ function setupIPC() {
     }
   });
 
-  // ============ 缃戝叧璐﹀彿锛堢櫥褰?/ 娉ㄥ唽 / 浣欓 / 鐧诲嚭锛?===========
+  // ============ 网关账号（登录/ 注册 / 余额 / 登出＀===========
   ipcMain.handle('ai:gatewayAuth', async (_, { action, email, password, gatewayUrl, inviteCode, code, username } = {}) => {
-    // 浼樺厛绾э細鏄惧紡浼犲叆 > 宸蹭繚瀛?config.ai.gatewayUrl > 鐜变量 > 榛樿生产域名
+    // 优先级：显式传入 > 已保存config.ai.gatewayUrl > 鐜变量 > 榛樿生产域名
     const savedGw = (config.ai || {}).gatewayUrl || '';
     const gwBase = (gatewayUrl || savedGw || process.env.GATEWAY_URL || AI_PROVIDERS.gateway.baseURL || 'https://bluebubai.work').replace(/\/$/, '');
     try {
       if (action === 'send-code') {
-        if (!email) return { success: false, error: '璇疯緭鍏ラ偖绠' };
+      if (!email) return { success: false, error: '请输入邮箱' };
         const res = await net.fetch(`${gwBase}/api/auth/send-code`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1458,7 +1466,7 @@ function setupIPC() {
         return { success: true, ...(data.consoleMode ? { consoleMode: true, devCode: data.devCode } : {}) };
       }
       if (action === 'login' || action === 'register') {
-        if (!email || !password) return { success: false, error: '璇疯緭鍏ラ偖绠卞拰瀵嗙爜' };
+        if (!email || !password) return { success: false, error: '请输入邮箱和密码' };
         const body = { email, password };
         if (action === 'register') {
           if (username) body.username = username;
@@ -1472,7 +1480,7 @@ function setupIPC() {
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) return { success: false, error: data.error || `网关返回 ${res.status}` };
-        if (!data.token) return { success: false, error: '缃戝叧鏈繑鍥?token' };
+        if (!data.token) return { success: false, error: '网关未返回token' };
         const u = data.user || {};
         // 持久化到 config.ai
         const aiCfg = config.ai || {};
@@ -1504,7 +1512,7 @@ function setupIPC() {
         saveConfig(config);
         return { success: true };
       }
-      return { success: false, error: '鏈煡鎿嶄綔: ' + action };
+      return { success: false, error: '未知操作: ' + action };
     } catch (e) {
       return { success: false, error: '网关请求失败: ' + redactError(e.message || String(e)) };
     }
@@ -1758,29 +1766,29 @@ function setupIPC() {
     }
   });
 
-  // 鏂囦欢璇诲啓锛堝甫缂栫爜鑷姩妫€测：UTF-8 BOM / 纯UTF-8 / GBK 鍥為€€锛?
+  // 文件读写（带编码自动检测：UTF-8 BOM / 纯 UTF-8 / GBK 回退）
   ipcMain.handle('fs:readFile', (_, filePath) => {
     try {
       const buf = fs.readFileSync(filePath);
-      // 1) UTF-8 BOM 鐩存帴鎸?UTF-8
+      // 1) UTF-8 BOM 直接按UTF-8
       if (buf.length >= 3 && buf[0] === 0xEF && buf[1] === 0xBB && buf[2] === 0xBF) {
         return { success: true, content: buf.toString('utf-8').replace(/^\uFEFF/, ''), encoding: 'utf-8' };
       }
-      // 2) 灏濊瘯涓ユ牸 UTF-8 解码（TextDecoder fatal 妯″紡锛?
+      // 2) 尝试严格 UTF-8 解码（TextDecoder fatal 模式＀
       try {
         const td = new TextDecoder('utf-8', { fatal: true });
         const content = td.decode(buf);
-        // 鏃?BOM 但纯 ASCII/UTF-8 鏃剁洿鎺ヨ繑鍥?
+        // 时BOM 但纯 ASCII/UTF-8 时直接返回
         return { success: true, content, encoding: 'utf-8' };
       } catch (utfErr) {
-        // 3) UTF-8 解码失败 鈫?GBK锛堣鐩栦腑鏂?Windows 甯歌 GB2312/GBK 缂栫爜鏂囦欢锛?
+        // 3) UTF-8 解码失败 鈫?GBK（覆盖中文Windows 常见 GB2312/GBK 编码文件＀
         const iconv = (() => {
           try { return require('iconv-lite'); } catch (e) { return null; }
         })();
         if (iconv) {
           return { success: true, content: iconv.decode(buf, 'gbk'), encoding: 'gbk' };
         }
-        // 鏃?iconv-lite 鏃剁殑鍥為€€锛氭墜鍔?GBK鈫扷TF-8 琛ㄤ笉鐜板疄锛岀敤 latin1 兜底
+        // 时iconv-lite 时的回退：手动GBK鈫扷TF-8 表不现实，用 latin1 兜底
         return { success: true, content: buf.toString('utf-8'), encoding: 'utf-8(疑似GBK)' };
       }
     } catch (e) {
@@ -2011,21 +2019,21 @@ function setupIPC() {
     }
   });
 
-  // ============ 缁堢 IPC ============
+  // ============ 终端 IPC ============
   
-  // 鍒涘缓缁堢
+  // 创建终端
   ipcMain.handle('terminal:create', (_, options = {}) => {
     try {
       const terminal = terminalService.createTerminal(options);
       
-      // 鐩戝惉缁堢鏁版嵁杈撳嚭锛岄€氳繃 webContents 鍙戦€佸埌娓叉煋杩涚▼
+      // 监听终端数据输出，通过 webContents 发送到渲染进程
       terminalService.onData(terminal.id, (data) => {
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send(`terminal:data:${terminal.id}`, data);
         }
       });
       
-      // 鐩戝惉缁堢閫€鍑?
+      // 监听终端退出
       terminalService.onExit(terminal.id, ({ exitCode, signal }) => {
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send(`terminal:exit:${terminal.id}`, { exitCode, signal });
@@ -2039,7 +2047,7 @@ function setupIPC() {
     }
   });
   
-  // 鍚戠粓绔啓鍏ユ暟鎹?
+  // 向终端写入数据
   ipcMain.handle('terminal:write', (_, id, data) => {
     try {
       terminalService.write(id, data);
@@ -2049,7 +2057,7 @@ function setupIPC() {
     }
   });
   
-  // 璋冩暣缁堢澶у皬
+  // 调整终端大小
   ipcMain.handle('terminal:resize', (_, id, cols, rows) => {
     try {
       terminalService.resize(id, cols, rows);
@@ -2059,7 +2067,7 @@ function setupIPC() {
     }
   });
   
-  // 鑾峰彇缁堢缂撳啿鍖?
+  // 获取终端缓冲化
   ipcMain.handle('terminal:getBuffer', (_, id) => {
     try {
       const buffer = terminalService.getBuffer(id);
@@ -2069,7 +2077,7 @@ function setupIPC() {
     }
   });
   
-  // 娓呴櫎缁堢缂撳啿鍖?
+  // 清除终端缓冲化
   ipcMain.handle('terminal:clearBuffer', (_, id) => {
     try {
       terminalService.clearBuffer(id);
@@ -2079,7 +2087,7 @@ function setupIPC() {
     }
   });
   
-  // 鏉€姝荤粓绔?
+  // 杀死终端
   ipcMain.handle('terminal:kill', (_, id) => {
     try {
       terminalService.kill(id);
@@ -2099,7 +2107,7 @@ function setupIPC() {
     }
   });
   
-  // 鎵ц鍛戒护锛堜竴娆℃€ф墽琛岋級
+  // 执行命令（一次性执行）
   ipcMain.handle('terminal:execute', async (_, command, cwd, timeout, opts) => {
     try {
       const result = await terminalService.executeCommand(command, cwd, timeout, opts);
@@ -2109,8 +2117,8 @@ function setupIPC() {
     }
   });
 
-  // ============ Arduino 编译/鐑у綍 ============
-  // 鑷爺鏈綋 P0-1锛歛rduino-cli 澶氳矾寰勬帰娴嬶紙鍥哄畾鐩綍 鈫?鐢ㄦ埛閰嶇疆 鈫?PATH/甯歌瀹夎浣嶇疆锛?
+  // ============ Arduino 编译/烧录 ============
+  // 自研本体 P0-1：arduino-cli 多路径探测（固定目录 → 用户配置 → PATH/常见安装位置）
   function resolveArduinoCli() {
     const candidates = [
       path.join(app.getPath('appData'), 'codelab-desktop', 'tools', 'arduino-cli', 'arduino-cli.exe'),
@@ -2121,22 +2129,22 @@ function setupIPC() {
     for (const c of candidates) {
       try { if (fs.existsSync(c)) return c; } catch (e) {}
     }
-    // 鏈€鍚庡皾璇?PATH锛坵here.exe锛?
+    // 最后尝试 PATH（where.exe）
     try {
       const r = execSync('where.exe arduino-cli', { encoding: 'utf8', timeout: 4000 });
       const first = r.split(/\r?\n/).map(s => s.trim()).find(s => s && fs.existsSync(s));
       if (first) return first;
     } catch (e) {}
-    return candidates[0]; // 鍏滃簳锛氳繑鍥為粯璁よ矾寰勶紙runArduinoCli 鍐呬細鍒や笉瀛樺湪锛?
+    return candidates[0]; // 兜底：返回默认路径（runArduinoCli 内会判不存在＀
   }
   const ARDUINO_CLI = resolveArduinoCli();
-  // 渚?renderer run_test 鑾峰彇鐪熷疄璺緞锛堥伩鍏?PATH 缂哄け导致 'arduino-cli' 瑁稿懡浠ゅけ璐ワ級
+  // 例renderer run_test 获取真实路径（避具PATH 缂哄け导致 'arduino-cli' 裸命令失败）
   ipcMain.handle('toolchain:getArduinoCliPath', () => {
     const p = resolveArduinoCli();
     return { path: p, exists: fs.existsSync(p) };
   });
 
-  // toolchain.status锛氭娴?arduino-cli + 平台 + 库（对齐 TrieCode锛?
+  // toolchain.status：检测 arduino-cli + 平台 + 库（对齐 TrieCode）
   ipcMain.handle('toolchain:status', async () => {
     const p = resolveArduinoCli();
     const cliExists = fs.existsSync(p);
@@ -2485,7 +2493,7 @@ function setupIPC() {
   function runArduinoCli(args, cwd) {
     return new Promise((resolve) => {
       if (!fs.existsSync(ARDUINO_CLI)) {
-        resolve({ success: false, error: 'arduino-cli 鏈壘鍒帮紝璇峰厛瀹夎 Arduino 编译插件', code: -1 });
+        resolve({ success: false, error: 'arduino-cli 未找到，请先安装 Arduino 编译插件', code: -1 });
         return;
       }
       const ac = asciiCwd(cwd || process.cwd());
@@ -2497,10 +2505,10 @@ function setupIPC() {
   }
 
   /**
-   * Arduino sketch 鐩綍瑙勮寖鍖栵細
-   * arduino-cli 瑕佹眰涓?.ino 鏂囦欢鍚嶅繀椤讳笌鎵€鍦ㄧ洰褰曞悓鍚嶏紙濡?esp32_robot/esp32_robot.ino锛夈€?
-   * 鑻ョ敤鎴风殑 .ino 浣嶄簬涓嶅悓鍚嶇洰褰曪紙濡?PlatformIO 风格 src/esp32_robot.ino锛夛紝
-   * 鑷姩鍒涘缓涓存椂鍚屽悕鐩綍骞跺鍒?sketch 婧愭枃浠讹紝缂栬瘧瀹屾垚鍚庢竻鐞嗐€?
+   * Arduino sketch 目录规范化：
+   * arduino-cli 要求 .ino 文件名必须与所在目录同名（如 esp32_robot/esp32_robot.ino）
+   * 若用户的 .ino 位于不同名目录（如 PlatformIO 风格 src/esp32_robot.ino），
+   * 自动创建临时同名目录并复到sketch 源文件，编译完成后清理　
    * @returns {{ target: string, cleanup: string|null, created: boolean }}
    */
   function normalizeSketchDir(sketchPath) {
@@ -2521,7 +2529,7 @@ function setupIPC() {
       const dst = path.join(target, f);
       try {
         if (fs.statSync(src).isFile()) { fs.copyFileSync(src, dst); copied++; }
-      } catch (e) { /* 璺宠繃涓嶅彲澶嶅埗椤?*/ }
+      } catch (e) { /* 跳过不可复制项*/ }
     }
     return { target, cleanup: tmpRoot, created: copied > 0 };
   }
@@ -2579,13 +2587,13 @@ function setupIPC() {
     return { exists: fs.existsSync(ARDUINO_CLI), path: ARDUINO_CLI };
   });
 
-  // ============ 涓插彛鐩戣鍣?============
-  let serialMonitorProc = null;   // 褰撳墠鎵撳紑鐨勪覆鍙ｇ洃瑙嗚繘绋?
+  // ============ 串口监视噸============
+  let serialMonitorProc = null;   // 当前打开的串口监视进程
   let serialMonitorPort = null;
   let serialMonitorBaud = 115200;
 
   ipcMain.handle('serial:list', async () => {
-    // 鐢?arduino-cli board list 获取串口
+    // 用arduino-cli board list 获取串口
     if (!fs.existsSync(ARDUINO_CLI)) return { success: true, ports: [] };
     return await new Promise((resolve) => {
       execFile(ARDUINO_CLI, ['board', 'list'], { maxBuffer: 5 * 1024 * 1024 }, (err, stdout) => {
@@ -2597,7 +2605,7 @@ function setupIPC() {
             const m = line.match(/(COM\d+)/);
             if (m) {
               const boardMatch = line.match(/^\S+\s+\S+\s+\S+\s+(.+?)\s{2,}/);
-              ports.push({ port: m[1], board: boardMatch ? boardMatch[1].trim() : '鏈煡璁惧' });
+              ports.push({ port: m[1], board: boardMatch ? boardMatch[1].trim() : '未知设备' });
             }
           }
         }
@@ -2610,7 +2618,7 @@ function setupIPC() {
     const { port, baud } = options || {};
     if (!port) return { success: false, error: '缺少串口' };
     if (!fs.existsSync(ARDUINO_CLI)) return { success: false, error: 'arduino-cli not installed' };
-    // 鍏抽棴鏃т覆鍙?
+    // 关闭旧串发
     if (serialMonitorProc) {
       try { serialMonitorProc.kill(); } catch (e) {}
       serialMonitorProc = null;
@@ -2624,10 +2632,10 @@ function setupIPC() {
     } catch (e) {
       return { success: false, error: e.message };
     }
-    // 杈撳嚭杞彂
+    // 输出转发
     serialMonitorProc.stdout.on('data', (data) => {
       const text = data.toString('utf8');
-      // 鍐欏叆鍚庡彴鏃ュ織缂撳啿
+      // 写入后台日志缓冲
       text.split(/\r?\n/).forEach(line => {
         if (line.trim()) {
           serialLogBuffer.push({ ts: Date.now(), line });
@@ -2649,7 +2657,7 @@ function setupIPC() {
         mainWindow.webContents.send('serial:closed', { code });
       }
     });
-    // 等待 800ms 鐪嬫槸鍚﹀惎鍔ㄥけ璐?
+    // 等待 800ms 看是否启动失败
     await new Promise(r => setTimeout(r, 800));
     if (serialMonitorProc && serialMonitorProc.killed) {
       return { success: false, error: '串口打开失败' };
@@ -2666,7 +2674,7 @@ function setupIPC() {
   });
 
   ipcMain.handle('serial:write', async (_, data) => {
-    if (!serialMonitorProc) return { success: false, error: '涓插彛鏈墦寮€' };
+    if (!serialMonitorProc) return { success: false, error: '串口未打开' };
     try {
       serialMonitorProc.stdin.write(data + '\n');
       return { success: true };
@@ -2675,17 +2683,17 @@ function setupIPC() {
     }
   });
 
-  // ===== 鍚庡彴涓插彛鏃ュ織缂撳啿锛堝榻?TrieCode serialLog锛?====
+  // ===== 后台串口日志缓冲（对齐 TrieCode serialLog）=====
   const serialLogBuffer = []; // [{ts, line}]
   const MAX_LOG_LINES = 5000;
-  // 鎶?serial:data 鐨勮緭鍑哄悓鏃跺啓鍏ョ紦鍐?
-  // （在 serialMonitorProc.stdout.on 澶?push锛?
+  // 抽serial:data 的输出同时写入缓决
+  // （在 serialMonitorProc.stdout.on 失 push，
   ipcMain.handle('serial:log-tail', async (_, opts) => {
     const n = Math.min((opts && opts.line) || 50, 500);
     return { success: true, lines: serialLogBuffer.slice(-n).map(e => e.line) };
   });
   ipcMain.handle('serial:log-grep', async (_, opts) => {
-    if (!opts || !opts.pattern) return { success: false, error: '缂?pattern' };
+    if (!opts || !opts.pattern) return { success: false, error: '缁pattern' };
     const re = new RegExp(opts.pattern, 'i');
     const max = Math.min((opts.max) || 30, 200);
     const hits = serialLogBuffer.filter(e => re.test(e.line)).slice(-max).map(e => e.line);
@@ -2697,7 +2705,7 @@ function setupIPC() {
       /segfault|stack overflow|watchdog|out of memory|heap corruption/, /abort\(\)/
     ];
     const matches = serialLogBuffer.filter(e => patterns.some(p => p instanceof RegExp ? p.test(e.line) : new RegExp(p).test(e.line)));
-    if (!matches.length) return { success: true, diagnosis: '鏈娴嬪埌宕╂簝绛惧悕' };
+    if (!matches.length) return { success: true, diagnosis: '未检测到崩溃签名' };
     return { success: true, lines: matches.map(m => m.line), diagnosis: '检测到 ' + matches.length + ' 行崩溃相关日志' };
   });
 
@@ -2840,19 +2848,19 @@ function setupIPC() {
     return { success: true };
   });
 
-  // 搴旂敤淇℃伅
+  // 应用信息
   ipcMain.handle('app:getVersion', () => app.getVersion());
   ipcMain.handle('app:getPath', (_, name) => app.getPath(name));
   ipcMain.handle('app:getPlatform', () => process.platform);
 
-  // ============ 绯荤粺閰嶇疆妫€娴嬶紙澶фā鍨嬫帹鑽愮敤锛?============
+  // ============ 系统配置检测（大模型推荐用＀============
   ipcMain.handle('system:getInfo', async () => {
     const cpus = os.cpus();
     const cpuModel = cpus[0] ? cpus[0].model : 'Unknown';
     const totalMemGB = Math.round(os.totalmem() / 1024 / 1024 / 1024);
     const freeMemGB = Math.round(os.freemem() / 1024 / 1024 / 1024);
 
-    // 纾佺洏鍙敤绌洪棿锛堢敤 PowerShell Get-PSDrive，比 wmic 鍙潬锛?
+    // 磁盘可用空间（用 PowerShell Get-PSDrive，比 wmic 可靠＀
     let diskFreeGB = 0;
     try {
       const { execSync } = require('child_process');
@@ -2861,16 +2869,16 @@ function setupIPC() {
         const free = parseInt(out.trim());
         if (!isNaN(free)) diskFreeGB = Math.round(free / 1024 / 1024 / 1024);
       }
-    } catch (e) { console.error('纾佺洏妫€娴嬪け璐?', e.message); }
+    } catch (e) { console.error('磁盘检测失败', e.message); }
 
-    // GPU 妫€娴嬶紙蹇€熸柟寮忥細璇绘敞鍐岃〃鎴栫幆澧冨彉閲忥紝閬垮厤鎱㈢殑 CIM 鏌ヨ锛?
+    // GPU 检测（快速方式：读注册表或环境变量，避免慢的 CIM 查询＀
     let gpus = [];
     let hasNvidia = false;
     let maxVramGB = 0;
     try {
       if (process.platform === 'win32') {
         const { execSync } = require('child_process');
-        // 鐢?nvidia-smi 妫€娴?NVIDIA GPU锛堟洿蹇洿鍑嗙‘锛?
+        // 用nvidia-smi 检流NVIDIA GPU（更快更准确＀
         try {
           const out = execSync('nvidia-smi --query-gpu=name,memory.total --format=csv,noheader,nounits', { encoding: 'utf8', timeout: 5000 });
           const lines = out.trim().split('\n').filter(l => l.trim());
@@ -2882,8 +2890,8 @@ function setupIPC() {
             hasNvidia = true;
             maxVramGB = Math.max(maxVramGB, Math.round(vram / 1024));
           });
-        } catch (e) { /* 鏃?NVIDIA GPU */ }
-        // 濡傛灉娌℃湁 NVIDIA，用 PowerShell 蹇€熸娴嬪叾浠?GPU
+        } catch (e) { /* 时NVIDIA GPU */ }
+        // 如果没有 NVIDIA，用 PowerShell 快速检测其件GPU
         if (gpus.length === 0) {
           try {
             const out = execSync('powershell -NoProfile -Command "Get-CimInstance Win32_VideoController | Select-Object -ExpandProperty Name"', { encoding: 'utf8', timeout: 5000 });
@@ -2891,10 +2899,10 @@ function setupIPC() {
             names.forEach(name => {
               gpus.push({ name: name.trim(), vramGB: 0, driver: 'unknown' });
             });
-          } catch (e) { /* GPU 妫€娴嬪け璐?*/ }
+          } catch (e) { /* GPU 检测失败*/ }
         }
       }
-    } catch (e) { console.error('GPU 妫€娴嬪け璐?', e.message); }
+    } catch (e) { console.error('GPU 检测失败', e.message); }
 
     return {
       cpu: { model: cpuModel, cores: cpus.length },
@@ -2908,14 +2916,14 @@ function setupIPC() {
     };
   });
 
-  // ============ 鏈湴澶фā型引擎（llama.cpp锛屽唴缃紝鏃犻渶 Ollama锛?===========
-  // 寮曟搸鐩綍锛歳esources/llama锛堝畨瑁呭寘鍐呯疆锛夛紱妯″瀷鐩綍锛欴:\LabCode\models（插件市场下载）
+  // ============ 本地大模型引擎（llama.cpp，内置，无需 Ollama）===========
+  // 引擎目录：resources/llama（安装包内置）；模型目录：D:\LabCode\models（插件市场下载）
   function getEngineDir() {
-    // 寮€鍙戞ā式：D:\LabCode\runtime\llama-cpp-*；打包后：resources/llama
+    // 开发模式：D:\LabCode\runtime\llama-cpp-*；打包后：resources/llama
     const candidates = [
-      path.join(process.resourcesPath, 'llama'),           // 鎵撳寘鍚庡唴缃?
-      path.join(__dirname, '..', 'resources', 'llama'),    // 寮€鍙戠洰褰?
-      'D:\\LabCode\\runtime\\llama-cpp-vulkan',            // 鏈満楠岃瘉鐩綍
+      path.join(process.resourcesPath, 'llama'),           // 打包后内置
+      path.join(__dirname, '..', 'resources', 'llama'),    // 开发目录
+      'D:\\LabCode\\runtime\\llama-cpp-vulkan',            // 本机验证目录
       'D:\\LabCode\\runtime\\llama-cpp-cpu'
     ];
     for (const c of candidates) {
@@ -2932,15 +2940,25 @@ function setupIPC() {
   function scanLocalModels() {
     const dir = getModelsDir();
     const models = [];
-    // 鍙嬪ソ鏄剧ず鍚嶆槧灏勶紙瀵规壂鎻忓埌鐨?GGUF 鏂囦欢鍚嶅仛鍙化）
+    // 友好显示名映射（对扫描到的 GGUF 文件名做可读化）
     const friendlyName = (f) => {
       const base = f.replace(/\.gguf$/i, '');
       const lower = base.toLowerCase();
       if (lower.includes('qwen3.5') || lower.includes('qwen-3.5')) return 'Qwen3.5-9B (Q4_K_M)';
       if (lower.includes('qwen2.5-coder-14b')) return 'Qwen2.5-Coder 14B';
       if (lower.includes('qwen2.5-coder-7b')) return 'Qwen2.5-Coder 7B';
+      if (lower.includes('qwen2.5-coder-3b')) return 'Qwen2.5-Coder 3B';
       if (lower.includes('qwen2.5-coder-1.5b')) return 'Qwen2.5-Coder 1.5B';
-      return base;
+      // generic fallback: qwen2.5-coder-3b-instruct-q4_k_m -> Qwen2.5 Coder 3B
+      const generic = base
+        .replace(/[-_]instruct.*$/i, '')
+        .replace(/[-_]q4_k_m$/i, '')
+        .replace(/[-_]+/g, ' ')
+        .replace(/\b\w/g, c => c.toUpperCase())
+        .replace(/(\d)\s*b\b/gi, '$1B')
+        .replace(/\s+/g, ' ')
+        .trim();
+      return generic || base;
     };
     try {
       if (fs.existsSync(dir)) {
@@ -2952,11 +2970,11 @@ function setupIPC() {
           }
         });
       }
-    } catch (e) { console.error('鎵弿鏈湴妯″瀷澶辫触:', e.message); }
+    } catch (e) { console.error('扫描本地模型失败:', e.message); }
     return models;
   }
 
-  // 妫€娴?llama 寮曟搸鏄惁杩愯锛?080 OpenAI 鍏煎绔偣锛?
+  // 检流llama 引擎是否运行＀080 OpenAI 兼容端点＀
   async function isEngineRunning() {
     try {
       const controller = new AbortController();
@@ -2982,7 +3000,7 @@ function setupIPC() {
     } catch (e) { return ''; }
   }
 
-  // 妫€娴嬫湰鍦板ぇ妯″瀷杩愯时（LabCode 内置 llama 寮曟搸锛?
+  // 检测本地大模型运行时（LabCode 内置 llama 引擎）
   let currentEngineModel = null;
   ipcMain.handle('system:checkLLMRuntime', async () => {
     const result = { engine: false, engineVersion: null, engineRunning: false, models: [], engineDir: '', runningModel: '' };
@@ -3000,11 +3018,11 @@ function setupIPC() {
       result.engineRunning = await isEngineRunning();
       result.models = scanLocalModels();
       result.runningModel = currentEngineModel || '';
-    } catch (e) { console.error('LLM 杩愯鏃舵娴嬪け璐?', e.message); }
+    } catch (e) { console.error('LLM 运行时检测失败', e.message); }
     return result;
   });
 
-  // 鍚姩 llama 寮曟搸锛堝姞杞芥寚瀹氭ā型）
+  // 启动 llama 引擎（加载指定模型）
   let engineProcess = null;
 
   // ===== Optional LoRA adapter for local model (tool-decision fine-tune) =====
@@ -3035,7 +3053,7 @@ function setupIPC() {
   async function startEngineInternal(modelFile) {
     try {
       const engineDir = getEngineDir();
-      if (!engineDir) return { success: false, error: '鏈壘鍒板唴缃寮曟搸锛岃閲嶆柊瀹夎LabCode' };
+      if (!engineDir) return { success: false, error: '找不到内置引擎，请重新安装 LabCode' };
       const serverExe = path.join(engineDir, 'llama-server.exe');
       if (!fs.existsSync(serverExe)) return { success: false, error: '引擎文件缺少: llama-server.exe' };
 
@@ -3047,16 +3065,16 @@ function setupIPC() {
         const models = scanLocalModels();
         if (models.length > 0) modelPath = path.join(modelsDir, models[0].file);
       }
-      if (!fs.existsSync(modelPath)) return { success: false, error: '鏈壘鍒版ā鍨嬶紝璇峰厛鍦ㄦ彃浠跺競鍦哄畨瑁呭ぇ妯″瀷' };
+      if (!fs.existsSync(modelPath)) return { success: false, error: '找不到模型，请先在插件市场安装大模型' };
 
-      // ===== 引擎复用优化 =====（不占用 C 鐩橈紝寮曟搸宸叉墦寮€鍚屾ā鍨嬫椂鐩存帴澶嶇敤锛屽噺灏戝喎鍚姩锛?
+      // ===== 引擎复用优化 =====（不占用 C 盘，引擎已打开同模型时直接复用，减少冷启动，
       if (await isEngineRunning()) {
         const runningModel = await getEngineRunningModel();
         if (!modelFile || runningModel === path.basename(modelPath)) {
           currentEngineModel = runningModel || path.basename(modelPath);
           return { success: true, model: currentEngineModel, url: 'http://127.0.0.1:8080/v1', reused: true };
         }
-        // 妯″瀷涓嶅悓鎵嶅己鏉€閲嶅惎锛堣鐩栧畨瑁呭悗鏃у疄渚嬩細鍋囨椿鍗?8080锛?
+        // 模型不同才强制重启（新安装后旧实例：假占用 8080，
         try { execSync('taskkill /IM llama-server.exe /F', { stdio: 'ignore' }); } catch (ke) {}
         await new Promise(r => setTimeout(r, 800));
       }
@@ -3067,26 +3085,26 @@ function setupIPC() {
       const { spawn } = require('child_process');
       const loraPath = resolveLocalLora(path.basename(modelPath));
       if (loraPath) console.log('[LLM engine] LoRA adapter mounted:', loraPath);
-      // ===== 引擎参数优化 =====锛?-fa Flash Attention / -b -ub 增强 batch / -c 鏀寔 config.ai.engineCtx 鍙厤缃?
+      // ===== 引擎参数优化 =====（-fa Flash Attention / -b -ub 增强 batch / -c 支持 config.ai.engineCtx 配置）
       const engineCtx = (config.ai && config.ai.engineCtx) || 16384;
       engineProcess = spawn(serverExe, [
         '-m', modelPath,
         ...(loraPath ? ['--lora', loraPath] : []),
         '--host', '127.0.0.1',
         '--port', '8080',
-        '-ngl', '99',          // 鍏ㄥ眰 GPU锛堟棤鐙搴忚嚜鍔ㄥ洖閫€ CPU锛?
-        '-c', String(engineCtx), // 上下文：16K锛屼负鎬濊€冩祦锛坮easoning锛? 姝ｆ枃棰勭暀绌洪棿锛?B 鍐呭瓨鍏呰冻锛?
-        '-b', '2048',          // batch size锛歅PU 涓?512-2048 更优
-        '-ub', '512',          // 寰皾batch：与 batch 鎼厤锛屾樉鍗″彈闄愭椂鑷姩鍥炶惤
-        '--flash-attn', 'on',      // Flash Attention锛歅PU 鍔犻€熸敞鎰忓姏锛孴TFT 显着下降
-        '--jinja'              // 使用 GGUF 鍐呭祵鑱婂ぉ妯℃澘锛圦wen 等）
+        '-ngl', '99',          // 全层 GPU（无独立显卡自动回退 CPU）
+        '-c', String(engineCtx), // 上下文：16K，为思考流（reasoning）预留空间，VRAM 内存充足，
+        '-b', '2048',          // batch size：GPU 下 512-2048 更优
+        '-ub', '512',          // 均衡 batch：与 batch 配平，显存受限时自动回退
+        '--flash-attn', 'on',      // Flash Attention，GPU 加速注意力，TTFT 显著下降
+        '--jinja'              // 使用 GGUF 内嵌聊天模板（Qwen 等）
       ], { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
 
-      engineProcess.stdout.on('data', d => { const s = String(d); if (s.includes('server is listening') || s.includes('HTTP server')) console.log('[LLM引擎] 鍚姩鎴愬姛'); });
+      engineProcess.stdout.on('data', d => { const s = String(d); if (s.includes('server is listening') || s.includes('HTTP server')) console.log('[LLM引擎] 启动成功'); });
       engineProcess.stderr.on('data', d => console.error('[LLM引擎]', String(d).slice(0, 300)));
       engineProcess.on('exit', () => { engineProcess = null; currentEngineModel = null; });
 
-      // 绛夊緟寮曟搸灏辩华锛堟渶澶? 60s锛屽ぇ妯″瀷鍔犺浇闇€鏃堕棿锛?
+      // 等待引擎就绪（最失 60s，大模型加载需时间＀
       // Wait up to 180s: first load of a cold model (plus a LoRA adapter) can take well
       // over the old 60s window, e.g. when the disk is busy.
       for (let i = 0; i < 180; i++) {
@@ -3102,12 +3120,12 @@ function setupIPC() {
       currentEngineModel = null;
     return { success: false, error: 'engine start timeout (model loading slow or out of memory)' };
     } catch (e) {
-      return { success: false, error: '鍚姩寮曟搸澶辫触: ' + redactError(e.message || String(e)) };
+      return { success: false, error: '启动引擎失败: ' + redactError(e.message || String(e)) };
     }
   }
   ipcMain.handle('system:startLLMEngine', async (_, opts) => startEngineInternal((opts || {}).modelFile));
 
-  // 鍋滄 llama 引擎
+  // 停止 llama 引擎
   ipcMain.handle('system:stopLLMEngine', async () => {
     try {
       try { execSync('taskkill /IM llama-server.exe /F', { stdio: 'ignore' }); } catch (ke) {}
@@ -3117,7 +3135,7 @@ function setupIPC() {
     } catch (e) { return { success: false, error: e.message }; }
   });
 
-  // 妫€娴嬫湰鍦板ぇ妯″瀷杩愯鏃讹紙鍏煎鏃ц皟鐢細杩斿洖 ollama 瀛楁 + 新引擎字段）
+  // 检测本地大模型运行时（兼容旧调用：返回 ollama 字段 + 新引擎字段）
   ipcMain.handle('system:checkLLMRuntimeLegacy', async () => {
     const result = { ollama: false, ollamaVersion: null, ollamaRunning: false, models: [] };
     try {
@@ -3126,7 +3144,7 @@ function setupIPC() {
         const ver = execSync('ollama --version', { encoding: 'utf8', timeout: 5000 });
         result.ollama = true;
         result.ollamaVersion = ver.trim();
-      } catch (e) { /* ollama 鏈畨瑁?*/ }
+      } catch (e) { /* ollama 未安装*/ }
       if (result.ollama) {
         try {
           const list = execSync('ollama list', { encoding: 'utf8', timeout: 5000 });
@@ -3136,9 +3154,9 @@ function setupIPC() {
             const parts = l.split(/\s+/);
             return { name: parts[0], id: parts[1] ? parts[1].substring(0, 12) : '', size: parts[2] || '' };
           }).filter(m => m.name);
-        } catch (e) { /* ollama 鏈繍琛?*/ }
+        } catch (e) { /* ollama 未运行*/ }
       }
-    } catch (e) { console.error('LLM 杩愯鏃舵娴嬪け璐?', e.message); }
+    } catch (e) { console.error('LLM 运行时检测失败', e.message); }
     return result;
   });
 
@@ -3437,7 +3455,7 @@ function setupIPC() {
   });
 }
 
-// ============ 鑷姩鏇存柊 ============
+// ============ 自动更新 ============
 function setupAutoUpdate() {
   try {
     const { autoUpdater } = require('electron-updater');
@@ -3466,7 +3484,7 @@ function setupAutoUpdate() {
     });
 
     autoUpdater.on('error', (error) => {
-      console.error('鑷姩鏇存柊閿欒:', error.message);
+      console.error('自动更新错误:', error.message);
     });
 
     ipcMain.handle('update:check', async () => {
@@ -3504,16 +3522,16 @@ function setupAutoUpdate() {
     // }, 60 * 60 * 1000);
 
   } catch (e) {
-    console.warn('鑷姩鏇存柊妯″潡鍔犺浇澶辫触:', e.message);
+    console.warn('自动更新模块加载失败:', e.message);
   }
 }
 
 
-// ============ 搴旂敤鐢熷懡鍛ㄦ湡 ============
+// ============ 应用生命周期 ============
 app.whenReady().then(() => {
-  console.log('馃殌 LabCode 鍚姩涓?..');
-  console.log('馃搧 鐢ㄦ埛鏁版嵁鐩綍:', USER_DATA_PATH);
-  console.log('馃敡 寮€鍙戞ā寮?', isDev);
+  console.log('馃殌 LabCode 启动不..');
+  console.log('馃搧 用户数据目录:', USER_DATA_PATH);
+  console.log('馃敡 开发模式', isDev);
 
   createMenu();
   setupIPC();
@@ -3524,12 +3542,12 @@ app.whenReady().then(() => {
   // moved: ensureEsp32Toolchain() is now invoked inside setupIPC via setImmediate
   // (it is a nested function of setupIPC and was NOT visible at module scope here)
 
-  // 鍚姩宸查厤缃殑 MCP 鏈嶅姟鍣紙stdio锛?
+  // 启动已配置的 MCP 服务器（stdio）
   try {
     require('./mcp').getMcpService().startAll();
     console.log('[MCP] server check complete');
   } catch (e) {
-    console.error('MCP 鍚姩澶辫触:', e.message);
+    console.error('MCP 启动失败:', e.message);
   }
 
   app.on('activate', () => {
@@ -3543,23 +3561,23 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   saveConfig(config);
-  // 娓呯悊鎵€鏈夌粓绔?
+  // 清理所有终端
   try {
     terminalService.destroyAll();
-    console.log('鎵€鏈夌粓绔凡娓呯悊');
+    console.log('所有终端已清理');
   } catch (e) {
     console.error('娓呯悊缁堢失败:', e);
   }
-  // 清理 MCP 鏈嶅姟鍣ㄨ繘绋?
+  // 清理 MCP 服务器进程
   try {
     require('./mcp').getMcpService().stopAll();
-    console.log('MCP 鏈嶅姟鍣ㄥ凡娓呯悊');
+    console.log('MCP 服务器已清理');
   } catch (e) {
     console.error('清理 MCP 失败:', e);
   }
 });
 
-// 闃叉 GPU 杩涚▼宕╂簝
+// 防止 GPU 进程崩溃
 app.on('gpu-process-crashed', (event, killed) => {
-  console.error('GPU 杩涚▼宕╂簝:', killed);
+  console.error('GPU 进程崩溃:', killed);
 });
