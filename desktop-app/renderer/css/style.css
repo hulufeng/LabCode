@@ -1782,13 +1782,13 @@ input, textarea {
   white-space: nowrap;
 }
 
-/* 已下载的本地模型分组（标题 + 缩进条目） */
+/* 已下载的本地模型分组（标题行 + 缩进条目） */
 .local-model-group-title {
-  padding: 9px 14px 4px;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: .4px;
-  color: var(--text-tertiary);
+  font-size: 11px;
+  letter-spacing: .3px;
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border-color);
+  margin-bottom: 2px;
 }
 .local-model-item {
   padding: 7px 14px 7px 26px;
@@ -1796,6 +1796,11 @@ input, textarea {
 }
 .local-model-item .model-opt-label {
   color: var(--text-secondary);
+}
+/* 没装本地模型时的引导行（可点击跳转「AI 模型」） */
+.local-model-hint .model-opt-label {
+  color: #059669;
+  font-size: 12px;
 }
 
 /* 发送按钮 */

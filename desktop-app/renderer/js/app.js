@@ -11428,8 +11428,9 @@ function bindEvents() {
   const MODEL_MAP = {
     // 云端：只保留网关真实可用的模型（其余未配上游 Key，选了只会报"暂未配置"，已下架）
     'siliconflow':    { provider: 'custom',   model: 'Qwen/Qwen3-8B',       baseURL: 'https://api.siliconflow.cn/v1', label: '硅基流动 Qwen3-8B（免费）' },
-    'ollama':         { provider: 'ollama',   model: 'qwen2.5-coder:7b',   label: 'Ollama 本地模型' },
-    'local':          { provider: 'local',    model: '',                   label: '本地 AI 引擎' }
+    'ollama':         { provider: 'ollama',   model: 'qwen2.5-coder:7b',   label: 'Ollama 本地模型' }
+    // 注意：这里没有「本地 AI 引擎」——内置的只是引擎运行时，模型全是用户自己下载安装的，
+    // 本机模型由 refreshLocalModelsInSelector() 按实际存在的 .gguf 动态生成（data-model="local-file"）。
   };
   const modelSelectBtn = document.getElementById('model-select-btn');
   const modelDropdown = document.getElementById('model-dropdown');
@@ -11471,6 +11472,9 @@ function bindEvents() {
             // 同步欢迎页模型状态显示（对齐 TrieCode 欢迎区）
             const ws = document.querySelector('.model-status-text');
             if (ws) ws.textContent = `当前模型：${friendly} (本地)`;
+            // 高亮下拉里对应的本机模型条目（本地模型条目是动态生成的，此处按文件名匹配）
+            document.querySelectorAll('.local-model-item').forEach(o =>
+              o.classList.toggle('active', o.dataset.modelFile === ai.model));
           } else {
             let matchedKey = null;
             for (const [key, m] of Object.entries(MODEL_MAP)) {
@@ -11552,7 +11556,12 @@ function bindEvents() {
     const refreshLocalStatus = async (force) => {
       const gen = modelSelGen;
       const now = Date.now();
-      if (!force && _localStatusCache.data && now - _localStatusCache.at < 10000) return _localStatusCache.data;
+      if (!force && _localStatusCache.data && now - _localStatusCache.at < 10000) {
+        // 缓存命中也要回填标签：本地模型分组可能刚被重建，标签是新的
+        setLocalTag('ollama', _localStatusCache.data.ollama.text, !_localStatusCache.data.ollama.ok);
+        setLocalTag('local', _localStatusCache.data.local.text, !_localStatusCache.data.local.ok);
+        return _localStatusCache.data;
+      }
       const st = await probeLocal();
       _localStatusCache = { at: now, data: st };
       setLocalTag('ollama', st.ollama.text, !st.ollama.ok);
@@ -11603,20 +11612,15 @@ function bindEvents() {
             tag.remove();
           }
         });
+        // 先重建"本机模型"分组（它带状态签），再刷新状态，保证标签是最新值
+        refreshLocalModelsInSelector();
         // 本地模型状态签：探测本地引擎与 Ollama 是否真的可用
         refreshLocalStatus();
-        // 同步"已下载的本地模型"列表（下载完新模型后立刻出现在下拉里）
-        refreshLocalModelsInSelector();
       }
     });
     document.querySelectorAll('.model-option').forEach(option => {
       option.addEventListener('click', async () => {
         const modelKey = option.dataset.model;
-        // 「本地 AI 引擎」现在是状态行（不可选）：真正可选的是下面列出的具体模型
-        if (option.dataset.localHeader === '1') {
-          showToast('请从下面的「本地 AI 引擎」分组里选一个具体模型', 'warning');
-          return;
-        }
         const mapping = MODEL_MAP[modelKey];
         if (!mapping) return;
         modelSelGen++;   // 切换模型：作废进行中的异步探测回写
@@ -11683,6 +11687,15 @@ function bindEvents() {
     // 已下载的本地模型条目（下拉里动态生成）→ 直接切到那个模型文件。
     // 用事件委托绑定：这些条目是运行时插入的，逐个 addEventListener 绑不到。
     modelDropdown.addEventListener('click', async (e) => {
+      // 分组标题里的 ⓘ（动态生成，同样要委托绑定）
+      const dynInfo = e.target.closest('.local-model-group .model-info-btn');
+      if (dynInfo) {
+        e.stopPropagation();
+        modelDropdown.style.display = 'none';
+        const m = document.getElementById(dynInfo.dataset.info === 'ollama' ? 'ollama-help-modal' : 'local-engine-help-modal');
+        if (m) m.style.display = 'flex';
+        return;
+      }
       const opt = e.target.closest('.model-option.local-model-item');
       if (!opt) return;
       e.stopPropagation();
@@ -11768,6 +11781,12 @@ function bindEvents() {
       if (!window.LabCode || !window.LabCode.system) return;
       const runtime = await window.LabCode.system.checkLLMRuntime();
       const modelList = (runtime && runtime.models) || [];
+      // 当前正在用的本机模型（重建分组后要恢复高亮，否则选中项看不出是哪个）
+      let curLocalFile = null;
+      try {
+        const curCfg = await window.LabCode.config.get();
+        if (curCfg?.ai?.provider === 'local') curLocalFile = curCfg.ai.model || null;
+      } catch (e) {}
 
       const dropdown = document.getElementById('model-dropdown');
       if (!dropdown) return;
@@ -11775,26 +11794,39 @@ function bindEvents() {
       // 移除旧的本地模型分组（保持下拉干净）
       dropdown.querySelectorAll('.local-model-group').forEach(el => el.remove());
 
-      // 「本地 AI 引擎」这一行改成不可点的状态行：
-      // 它与下面逐个列出的模型功能重复（选它 = 用默认 7B），
-      // 留着会让用户困惑到底该点哪个。改为标题 + 状态签，真正可选的是下面具体模型。
-      const localRow = dropdown.querySelector('.model-option[data-model="local"]');
-      if (localRow) {
-        localRow.classList.add('model-option-head');
-        localRow.dataset.localHeader = '1';
-        const lbl = localRow.querySelector('.model-opt-label');
-        if (lbl) lbl.textContent = '本地 AI 引擎';
-      }
+      // 说明：内置的只是「引擎运行时」，模型全是用户自己下载安装的。
+      // 所以下拉里不再有「本地 AI 引擎」这种假模型选项，只列真实存在的模型文件。
+      const group = document.createElement('div');
+      group.className = 'local-model-group';
 
-      // 列出已下载的本地模型：下载了哪个就显示哪个，可直接切换
       if (modelList.length > 0) {
-        const group = document.createElement('div');
-        group.className = 'local-model-group';
+        // 标题行：归类用（不可选），并挂引擎状态签 + ⓘ 说明
+        const title = document.createElement('div');
+        title.className = 'model-option model-option-head local-model-group-title';
+        const tlabel = document.createElement('span');
+        tlabel.className = 'model-opt-label';
+        tlabel.textContent = '本机模型（' + modelList.length + '）';
+        const tinfo = document.createElement('span');
+        tinfo.className = 'model-info-btn';
+        tinfo.dataset.info = 'local';
+        tinfo.title = '这是什么？';
+        tinfo.setAttribute('style', 'display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:var(--surface-3);color:var(--text-secondary);font-size:11px;margin-left:6px;cursor:help;');
+        tinfo.textContent = 'ⓘ';
+        const ttag = document.createElement('span');
+        ttag.className = 'model-local-tag pending';
+        ttag.dataset.localTag = 'local';
+        ttag.textContent = '检测中';
+        title.appendChild(tlabel);
+        title.appendChild(tinfo);
+        title.appendChild(ttag);
+        group.appendChild(title);
+
         modelList.forEach(m => {
           const opt = document.createElement('div');
           opt.className = 'model-option local-model-item';
           opt.dataset.model = 'local-file';
           opt.dataset.modelFile = m.file;
+          if (curLocalFile && curLocalFile === m.file) opt.classList.add('active');
           const label = document.createElement('span');
           label.className = 'model-opt-label';
           label.textContent = m.name;
@@ -11805,11 +11837,37 @@ function bindEvents() {
           opt.appendChild(size);
           group.appendChild(opt);
         });
-        // 插在「本地 AI 引擎」之后，保持相邻
-        const anchor = dropdown.querySelector('.model-option[data-model="local"]');
-        if (anchor && anchor.parentNode === dropdown) dropdown.insertBefore(group, anchor.nextSibling);
-        else dropdown.insertBefore(group, dropdown.firstChild);
+      } else {
+        // 一个模型都没装：给一行可点击的引导（不是"假的模型选项"）
+        const hint = document.createElement('div');
+        hint.className = 'model-option local-model-hint';
+        const hlabel = document.createElement('span');
+        hlabel.className = 'model-opt-label';
+        hlabel.textContent = '还没装本地模型 · 点这里去「AI 模型」下载';
+        const hinfo = document.createElement('span');
+        hinfo.className = 'model-info-btn';
+        hinfo.dataset.info = 'local';
+        hinfo.title = '这是什么？';
+        hinfo.setAttribute('style', 'display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:var(--surface-3);color:var(--text-secondary);font-size:11px;margin-left:6px;cursor:help;');
+        hinfo.textContent = 'ⓘ';
+        const htag = document.createElement('span');
+        htag.className = 'model-local-tag bad';
+        htag.dataset.localTag = 'local';
+        htag.textContent = '未安装';
+        hint.appendChild(hlabel);
+        hint.appendChild(hinfo);
+        hint.appendChild(htag);
+        hint.addEventListener('click', (e) => {
+          if (e.target.closest('.model-info-btn')) return;   // 点 ⓘ 只开说明，不跳转
+          modelDropdown.style.display = 'none';
+          const btn = document.querySelector('.activity-btn[data-panel="models"]');
+          if (btn) btn.click();
+        });
+        group.appendChild(hint);
       }
+
+      // 插在下拉最前面（本地模型是用户自己装的东西，排最前最直观）
+      dropdown.insertBefore(group, dropdown.firstChild);
 
       // 「＋ 添加模型」入口保持在末尾，供下载本地模型
       const addEntry = document.getElementById('model-add-entry');
