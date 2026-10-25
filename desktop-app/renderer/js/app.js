@@ -11495,6 +11495,75 @@ function bindEvents() {
       }
     })();
 
+    // ===== 本地模型状态探测：下拉里显示「已就绪 / 未运行 / 未装引擎」状态签 =====
+    // 目的：让用户一眼看出这台电脑现在到底能不能用本地模型，
+    // 而不是选完显示"已切换"，一开口才发现连不上（ERR_CONNECTION_REFUSED）。
+    const setLocalTag = (key, text, bad) => {
+      const tag = document.querySelector('.model-local-tag[data-local-tag="' + key + '"]');
+      if (!tag) return;
+      tag.textContent = text;
+      tag.className = 'model-local-tag' + (bad ? ' bad' : '');
+    };
+    const getOllamaBaseURL = async () => {
+      try {
+        const c = await window.LabCode.config.get();
+        const a = c?.ai || {};
+        return a.baseURL || a.baseUrl || 'http://127.0.0.1:8080/v1';
+      } catch (e) { return 'http://127.0.0.1:8080/v1'; }
+    };
+    const probeLocal = async () => {
+      const res = { ollama: { ok: false, text: '未运行', models: [] }, local: { ok: false, text: '未装引擎' } };
+      // ① Ollama（外部服务）：GET /models，不发起推理
+      try {
+        const base = await getOllamaBaseURL();
+        const st = await window.LabCode.ai.localStatus({ baseURL: base });
+        if (st && st.running) {
+          const models = st.models || [];
+          res.ollama = models.length
+            ? { ok: true, text: '已就绪 · ' + models.length + ' 个模型', models, base }
+            : { ok: false, text: '未装模型', models, base };
+        } else {
+          res.ollama = { ok: false, text: '未运行', models: [], base };
+        }
+      } catch (e) {
+        res.ollama = { ok: false, text: '未运行', models: [] };
+      }
+      // ② 内置本地引擎（provider=local）
+      try {
+        const rt = await window.LabCode.system.checkLLMRuntime();
+        if (!rt || !rt.engine) res.local = { ok: false, text: '未装引擎' };
+        else if (!rt.models || !rt.models.length) res.local = { ok: false, text: '未下载模型' };
+        else if (!rt.engineRunning) res.local = { ok: false, text: '待启动' };
+        else res.local = { ok: true, text: '已就绪' };
+      } catch (e) {
+        res.local = { ok: false, text: '未装引擎' };
+      }
+      return res;
+    };
+    let _localStatusCache = { at: 0, data: null };
+    const refreshLocalStatus = async (force) => {
+      const now = Date.now();
+      if (!force && _localStatusCache.data && now - _localStatusCache.at < 10000) return _localStatusCache.data;
+      const st = await probeLocal();
+      _localStatusCache = { at: now, data: st };
+      setLocalTag('ollama', st.ollama.text, !st.ollama.ok);
+      setLocalTag('local', st.local.text, !st.local.ok);
+      // 顶栏同步：当前若正用本地模型，把可用性写进按钮文字（用户最常看的位置）
+      try {
+        const c = await window.LabCode.config.get();
+        const a = c?.ai || {};
+        const nameEl = document.getElementById('current-model-name');
+        if (!nameEl) return st;
+        if (a.provider === 'ollama') {
+          nameEl.textContent = st.ollama.ok ? 'Ollama 本地模型' : 'Ollama 本地模型（' + st.ollama.text + '）';
+        } else if (a.provider === 'local' && a.model) {
+          const friendly = (a.model.replace(/\.gguf$/i, '')).replace('Qwen_Qwen3.5-9B-Q4_K_M', 'Qwen3.5-9B (Q4_K_M)');
+          nameEl.textContent = friendly + (st.local.ok ? ' (本地)' : ' (本地·' + st.local.text + ')');
+        }
+      } catch (e) {}
+      return st;
+    };
+
     modelSelectBtn.addEventListener('click', async (e) => {
       e.stopPropagation();
       const willOpen = modelDropdown.style.display === 'none';
@@ -11523,6 +11592,8 @@ function bindEvents() {
             tag.remove();
           }
         });
+        // 本地模型状态签：探测本地引擎与 Ollama 是否真的可用
+        refreshLocalStatus();
       }
     });
     document.querySelectorAll('.model-option').forEach(option => {
@@ -11530,7 +11601,9 @@ function bindEvents() {
         const modelKey = option.dataset.model;
         const mapping = MODEL_MAP[modelKey];
         if (!mapping) return;
-        const modelName = option.textContent.trim();
+        // 只取选项文字本身：整块 textContent 会把 ⓘ 和状态签一起带进按钮/toast
+        const labelEl = option.querySelector('.model-opt-label');
+        const modelName = (labelEl ? labelEl.textContent : option.textContent).trim();
         document.getElementById('current-model-name').textContent = modelName;
         document.querySelectorAll('.model-option').forEach(o => o.classList.remove('active'));
         option.classList.add('active');
@@ -11561,20 +11634,25 @@ function bindEvents() {
             if (state.agent && state.agent.ai && typeof state.agent.ai._loadConfig === 'function') {
               await state.agent.ai._loadConfig();
             }
-            // 检查 API Key 是否就绪
+            // 检查是否真的可用（本地模型要实际探测，别再无脑报"已切换到"）
             const cfg = await window.LabCode.config.get();
-            const ready = !!(cfg?.ai?.apiKey || cfg?.ai?.gatewayToken || mapping.provider === 'ollama' || mapping.provider === 'local');
             const gwSuffix = (hasGw && isCloudMapping) ? '（云端）' : '';
-            showToast(ready ? `已切换到 ${modelName}${gwSuffix}` : `已切换到 ${modelName}，请在设置中登录账号或配置 API Key`,
-                      ready ? 'success' : 'warning');
-            // 选中本地引擎但本机还没模型 → 立刻给具体指引（避免用户以为"选中就能直接聊"）
-            if (modelKey === 'local') {
-              try {
-                const rt = await window.LabCode.system.checkLLMRuntime();
-                if (rt.engine && (!rt.models || rt.models.length === 0)) {
-                  showToast('本地 AI 引擎需先下载模型（推荐 Qwen2.5-Coder 7B，约 4.4GB），去「设置 → AI 引擎」下载后即可使用', 'warning');
-                }
-              } catch (e) {}
+            if (mapping.provider === 'ollama' || mapping.provider === 'local') {
+              // 本地模型：探测真实可用性，未就绪就明确告诉用户还差什么
+              const st = await refreshLocalStatus(true);
+              const s = mapping.provider === 'ollama' ? st.ollama : st.local;
+              if (s.ok) {
+                showToast(`已切换到 ${modelName}（${s.text}）`, 'success');
+              } else {
+                const fix = mapping.provider === 'ollama'
+                  ? `先启动 Ollama 并执行 ollama pull ${(cfg?.ai?.model || 'qwen2.5-coder:7b')}，或点 ⓘ 看说明`
+                  : '去「设置 → AI 引擎」下载模型后即可使用';
+                showToast(`已切换到 ${modelName}，但本机${s.text}：${fix}`, 'warning');
+              }
+            } else {
+              const ready = !!(cfg?.ai?.apiKey || cfg?.ai?.gatewayToken);
+              showToast(ready ? `已切换到 ${modelName}${gwSuffix}` : `已切换到 ${modelName}，请在设置中登录账号或配置 API Key`,
+                        ready ? 'success' : 'warning');
             }
           }
         } catch (e) {
@@ -11587,15 +11665,26 @@ function bindEvents() {
       modelDropdown.style.display = 'none';
     });
 
-    // 「ⓘ 本地 AI 引擎 是什么」帮助弹窗
+    // 「ⓘ 是什么」帮助弹窗：按 data-info 路由到对应说明
     document.querySelectorAll('.model-info-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
         modelDropdown.style.display = 'none';
-        const modal = document.getElementById('local-engine-help-modal');
+        const info = btn.dataset.info || 'local';
+        const modal = document.getElementById(info === 'ollama' ? 'ollama-help-modal' : 'local-engine-help-modal');
         if (modal) modal.style.display = 'flex';
       });
     });
+    // Ollama 说明弹窗的关闭行为（与本地引擎弹窗一致）
+    const ollamaHelp = document.getElementById('ollama-help-modal');
+    if (ollamaHelp) {
+      const closeOllamaHelp = () => { ollamaHelp.style.display = 'none'; };
+      const oc = document.getElementById('ollama-help-close');
+      const ook = document.getElementById('ollama-help-ok');
+      if (oc) oc.addEventListener('click', closeOllamaHelp);
+      if (ook) ook.addEventListener('click', closeOllamaHelp);
+      ollamaHelp.addEventListener('click', (e) => { if (e.target === ollamaHelp) closeOllamaHelp(); });
+    }
     const helpModal = document.getElementById('local-engine-help-modal');
     if (helpModal) {
       const closeHelp = () => { helpModal.style.display = 'none'; };

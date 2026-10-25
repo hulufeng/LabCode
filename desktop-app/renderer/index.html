@@ -916,9 +916,9 @@
                       <svg class="icon icon-xs"><use href="#icon-chevron-down"></use></svg>
                     </button>
                     <div class="model-dropdown" id="model-dropdown" style="display:none;">
-                      <div class="model-option" data-model="local">本地 AI 引擎 <span class="model-info-btn" data-info="local" title="这是什么？" style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:var(--surface-3);color:var(--text-secondary);font-size:11px;margin-left:6px;cursor:help;">ⓘ</span></div>
-                      <div class="model-option" data-model="ollama">Ollama 本地模型</div>
-                      <div class="model-option" data-model="siliconflow">硅基流动 Qwen3-8B（免费）</div>
+                      <div class="model-option" data-model="local"><span class="model-opt-label">本地 AI 引擎</span><span class="model-info-btn" data-info="local" title="这是什么？" style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:var(--surface-3);color:var(--text-secondary);font-size:11px;margin-left:6px;cursor:help;">ⓘ</span><span class="model-local-tag pending" data-local-tag="local">检测中</span></div>
+                      <div class="model-option" data-model="ollama"><span class="model-opt-label">Ollama 本地模型</span><span class="model-info-btn" data-info="ollama" title="这是什么？" style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:var(--surface-3);color:var(--text-secondary);font-size:11px;margin-left:6px;cursor:help;">ⓘ</span><span class="model-local-tag pending" data-local-tag="ollama">检测中</span></div>
+                      <div class="model-option" data-model="siliconflow"><span class="model-opt-label">硅基流动 Qwen3-8B（免费）</span></div>
                       <div class="model-option model-add-entry" id="model-add-entry" data-model="__add_model__" style="color:#059669;font-weight:600;border-top:1px solid var(--border-color);margin-top:4px;">＋ 添加模型（填 API Key）</div>
                     </div>
                   </div>
@@ -1719,6 +1719,31 @@
       </div>
       <div style="display:flex;justify-content:flex-end;margin-top:16px;">
         <button id="local-engine-help-ok" style="padding:9px 18px;background:#059669;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">知道了</button>
+      </div>
+    </div>
+  </div>
+  <!-- Ollama 本地模型 说明弹窗（ⓘ 触发） -->
+  <div id="ollama-help-modal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.5);backdrop-filter:blur(2px);z-index:10002;align-items:center;justify-content:center;">
+    <div style="background:var(--surface-1);border:1px solid var(--border);border-radius:16px;padding:22px 24px 20px;width:480px;max-width:92%;max-height:86vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.25);">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px;">
+        <div style="font-size:17px;font-weight:700;color:var(--text-primary);">「Ollama 本地模型」是什么？</div>
+        <button id="ollama-help-close" style="background:var(--surface-3);border:none;color:var(--text-secondary);width:26px;height:26px;border-radius:50%;cursor:pointer;line-height:1;font-size:16px;">×</button>
+      </div>
+      <div style="height:1px;background:var(--border);margin:12px 0 14px;"></div>
+      <div style="font-size:13px;color:var(--text-primary);line-height:1.75;">
+        <p style="margin:0 0 10px;"><b>一句话：</b>用你自己装的 <strong>Ollama</strong> 软件，在本机跑 AI 模型——同样不联网、不耗积分。</p>
+        <div style="margin:0 0 10px;"><b>要用起来，缺一不可三步：</b>
+          <ol style="margin:6px 0 0;padding-left:18px;color:var(--text-secondary);">
+            <li><b style="color:var(--text-primary);">装 Ollama</b>：到 ollama.com 下载安装（免费、装一次）</li>
+            <li><b style="color:var(--text-primary);">拉一个模型</b>：命令行执行 <code style="background:var(--surface-3);padding:1px 4px;border-radius:4px;">ollama pull qwen2.5-coder:7b</code>（约 4.4GB，写代码专用）</li>
+            <li><b style="color:var(--text-primary);">让 Ollama 在运行</b>：装完它常驻托盘；关掉了就对话失败</li>
+          </ol>
+        </div>
+        <p style="margin:0 0 10px;"><b>连不上？</b>默认地址是 <code style="background:var(--surface-3);padding:1px 4px;border-radius:4px;">http://127.0.0.1:8080</code>。地址和模型名都能在「设置 → AI 引擎」里改。</p>
+        <p style="margin:0;color:var(--text-secondary);font-size:12px;line-height:1.7;"><b style="color:var(--text-primary);">和「本地 AI 引擎」怎么选？</b><br>· <b style="color:var(--text-primary);">本地 AI 引擎</b>：LabCode 自带，不用装软件，去「插件市场」下模型即可<br>· <b style="color:var(--text-primary);">Ollama 本地模型</b>：你已经装了 Ollama 就用这个，能复用你已有的模型<br>· <b style="color:var(--text-primary);">硅基流动 Qwen3-8B</b>：云端跑，最聪明、开箱即用，但要联网<br>下拉里的状态签会告诉你当前这台电脑到底能不能直接聊。</p>
+      </div>
+      <div style="display:flex;justify-content:flex-end;margin-top:16px;">
+        <button id="ollama-help-ok" style="padding:9px 18px;background:#059669;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">知道了</button>
       </div>
     </div>
   </div>

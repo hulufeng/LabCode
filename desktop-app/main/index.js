@@ -1388,6 +1388,25 @@ function setupIPC() {
     return { success: true };
   });
 
+  // 本地模型服务状态探测（Ollama 等 OpenAI 兼容端点）。
+  // 与 ai:checkConnection 的区别：这里只 GET /models，不发起推理（快、不烧算力），
+  // 用来在模型下拉里显示「已就绪 / 未运行 / 缺模型」状态签。
+  ipcMain.handle('ai:localStatus', async (_, testConfig) => {
+    const aiCfg = { ...(config.ai || {}), ...(testConfig || {}) };
+    const baseURL = String(aiCfg.baseURL || aiCfg.baseUrl || '').replace(/\/$/, '');
+    if (!baseURL) return { running: false, error: '未配置本地服务地址' };
+    try {
+      const resp = await net.fetch(baseURL + '/models', { method: 'GET' });
+      if (!resp.ok) return { running: false, status: resp.status, baseURL, error: 'HTTP ' + resp.status };
+      const data = await resp.json().catch(() => ({}));
+      const list = Array.isArray(data.data) ? data.data : (Array.isArray(data.models) ? data.models : []);
+      const models = list.map(m => (m && (m.id || m.name || m.model)) || '').filter(Boolean);
+      return { running: true, baseURL, models };
+    } catch (e) {
+      return { running: false, baseURL, error: e.message || String(e) };
+    }
+  });
+
   ipcMain.handle('ai:checkConnection', async (_, testConfig) => {
     // 测试 AI 杩炴帴锛堝彂涓€鏉℃渶鐭秷鎭級
     const aiCfg = { ...(config.ai || {}), ...(testConfig || {}) };

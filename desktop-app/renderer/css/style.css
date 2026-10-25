@@ -1752,6 +1752,36 @@ input, textarea {
   line-height: 1.5;
 }
 
+/* 本地模型运行状态签（已就绪 / 未运行 / 未装引擎…） */
+.model-local-tag {
+  font-size: 10px;
+  color: #059669;
+  border: 1px solid rgba(5, 150, 105, 0.45);
+  border-radius: 4px;
+  padding: 0 4px;
+  margin-left: auto;
+  flex-shrink: 0;
+  white-space: nowrap;
+  line-height: 1.5;
+}
+.model-local-tag.bad {
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.4);
+}
+.model-local-tag.pending {
+  color: var(--text-tertiary);
+  border-color: var(--border-color);
+}
+
+/* 选项文字与状态签并排（ⓘ / 状态签右对齐） */
+.model-opt-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* 发送按钮 */
 .ai-send-btn {
   width: 30px;

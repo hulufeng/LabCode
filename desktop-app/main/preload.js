@@ -249,6 +249,8 @@ contextBridge.exposeInMainWorld('LabCode', {
     chatStream: (options) => ipcRenderer.invoke('ai:chatStream', options),
     chatCancel: (runId) => ipcRenderer.invoke('ai:chatCancel', runId),
     checkConnection: (testConfig) => ipcRenderer.invoke('ai:checkConnection', testConfig),
+    // 本地模型服务状态（Ollama 等）：只探测存活与已装模型，不发起推理
+    localStatus: (testConfig) => ipcRenderer.invoke('ai:localStatus', testConfig),
     gatewayAuth: (opts) => ipcRenderer.invoke('ai:gatewayAuth', opts),
     // 订阅流式事件（SSE 过程推送）
     onStream: (callback) => {
