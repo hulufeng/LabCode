@@ -11458,7 +11458,15 @@ function bindEvents() {
             const wsGw = document.querySelector('.model-status-text');
             if (wsGw) wsGw.textContent = `当前模型：${gwLabel}（云端）`;
           } else if ((ai.provider === 'ollama' || ai.provider === 'local') && ai.model) {
-            const friendly = (ai.model.replace(/\.gguf$/i, '')).replace('Qwen_Qwen3.5-9B-Q4_K_M', 'Qwen3.5-9B (Q4_K_M)');
+            let friendly = (ai.model.replace(/\.gguf$/i, '')).replace('Qwen_Qwen3.5-9B-Q4_K_M', 'Qwen3.5-9B (Q4_K_M)');
+            if (ai.provider === 'local') {
+              // 用扫描到的可读名（Qwen2.5-Coder 3B），而不是难读的 .gguf 文件名
+              try {
+                const rt = await window.LabCode.system.checkLLMRuntime();
+                const hit = (rt && rt.models || []).find(m => m.file === ai.model);
+                if (hit && hit.name) friendly = hit.name;
+              } catch (e) {}
+            }
             document.getElementById('current-model-name').textContent = friendly + ' (本地)';
             // 同步欢迎页模型状态显示（对齐 TrieCode 欢迎区）
             const ws = document.querySelector('.model-status-text');
@@ -11533,8 +11541,8 @@ function bindEvents() {
         const rt = await window.LabCode.system.checkLLMRuntime();
         if (!rt || !rt.engine) res.local = { ok: false, text: '未装引擎' };
         else if (!rt.models || !rt.models.length) res.local = { ok: false, text: '未下载模型' };
-        else if (!rt.engineRunning) res.local = { ok: false, text: '待启动' };
-        else res.local = { ok: true, text: '已就绪' };
+        else if (!rt.engineRunning) res.local = { ok: true, text: '已装 ' + rt.models.length + ' 个' };
+        else res.local = { ok: true, text: '已就绪 · ' + rt.models.length + ' 个' };
       } catch (e) {
         res.local = { ok: false, text: '未装引擎' };
       }
@@ -11594,6 +11602,8 @@ function bindEvents() {
         });
         // 本地模型状态签：探测本地引擎与 Ollama 是否真的可用
         refreshLocalStatus();
+        // 同步"已下载的本地模型"列表（下载完新模型后立刻出现在下拉里）
+        refreshLocalModelsInSelector();
       }
     });
     document.querySelectorAll('.model-option').forEach(option => {
@@ -11661,6 +11671,36 @@ function bindEvents() {
         }
       });
     });
+    // 已下载的本地模型条目（下拉里动态生成）→ 直接切到那个模型文件。
+    // 用事件委托绑定：这些条目是运行时插入的，逐个 addEventListener 绑不到。
+    modelDropdown.addEventListener('click', async (e) => {
+      const opt = e.target.closest('.model-option.local-model-item');
+      if (!opt) return;
+      e.stopPropagation();
+      const file = opt.dataset.modelFile || '';
+      const labelEl = opt.querySelector('.model-opt-label');
+      const modelName = (labelEl ? labelEl.textContent : file).trim();
+      if (!file) return;
+      modelDropdown.style.display = 'none';
+      document.querySelectorAll('.model-option').forEach(o => o.classList.remove('active'));
+      opt.classList.add('active');
+      try {
+        await window.LabCode.config.set('ai.provider', 'local');
+        await window.LabCode.config.set('ai.model', file);
+        if (state.agent && state.agent.ai && typeof state.agent.ai._loadConfig === 'function') {
+          await state.agent.ai._loadConfig();
+        }
+        document.getElementById('current-model-name').textContent = modelName + ' (本地)';
+        showToast('已切换到本地模型 ' + modelName + '，正在加载（首次加载需十几秒）', 'success');
+        // 引擎若正在跑别的模型，主进程会 kill 旧进程并用新模型重启
+        if (window.LabCode.system && window.LabCode.system.startLLMEngine) {
+          try { await window.LabCode.system.startLLMEngine({ modelFile: file }); } catch (e) {}
+        }
+      } catch (err) {
+        console.warn('[本地模型] 切换失败:', err);
+        showToast('本地模型切换失败：' + (err.message || err), 'error');
+      }
+    });
     document.addEventListener('click', () => {
       modelDropdown.style.display = 'none';
     });
@@ -11697,14 +11737,13 @@ function bindEvents() {
   }
 
   // 刷新本地模型到选择器（安装大模型插件后调用；本地引擎 = 内置 llama.cpp + models 目录 GGUF）
+  // 用户诉求「下载那个大模型就显示那个」：把已下载的每个模型都列进下拉，可直接选中，
+  // 不必再去「设置 → AI 引擎」里挑。
   async function refreshLocalModelsInSelector() {
     try {
       if (!window.LabCode || !window.LabCode.system) return;
       const runtime = await window.LabCode.system.checkLLMRuntime();
-      // 引擎已就绪（内置）且已有模型文件
-      if (!runtime.engine) return;
-      const modelList = runtime.models || [];
-      const hasLocalModels = modelList.length > 0;
+      const modelList = (runtime && runtime.models) || [];
 
       const dropdown = document.getElementById('model-dropdown');
       if (!dropdown) return;
@@ -11712,19 +11751,50 @@ function bindEvents() {
       // 移除旧的本地模型分组（保持下拉干净）
       dropdown.querySelectorAll('.local-model-group').forEach(el => el.remove());
 
-      // 本地模型条目已从下拉移除（越简单越好）：选「本地 AI 引擎」即用默认 7B，
-      // 具体选 3b / 7B / 9B 在「设置 → AI 引擎」里做（不常改的进阶项）。
-      // 「＋ 添加模型」入口保持在末尾，供下载本地模型。
+      // 列出已下载的本地模型：下载了哪个就显示哪个，可直接切换
+      if (modelList.length > 0) {
+        const group = document.createElement('div');
+        group.className = 'local-model-group';
+        const title = document.createElement('div');
+        title.className = 'local-model-group-title';
+        title.textContent = '已下载的本地模型（' + modelList.length + '）';
+        group.appendChild(title);
+        modelList.forEach(m => {
+          const opt = document.createElement('div');
+          opt.className = 'model-option local-model-item';
+          opt.dataset.model = 'local-file';
+          opt.dataset.modelFile = m.file;
+          const label = document.createElement('span');
+          label.className = 'model-opt-label';
+          label.textContent = m.name;
+          const size = document.createElement('span');
+          size.className = 'model-local-tag';
+          size.textContent = m.sizeGB ? (m.sizeGB.toFixed(1) + 'GB') : '';
+          opt.appendChild(label);
+          opt.appendChild(size);
+          group.appendChild(opt);
+        });
+        // 插在「本地 AI 引擎」之后，保持相邻
+        const anchor = dropdown.querySelector('.model-option[data-model="local"]');
+        if (anchor && anchor.parentNode === dropdown) dropdown.insertBefore(group, anchor.nextSibling);
+        else dropdown.insertBefore(group, dropdown.firstChild);
+      }
+
+      // 「＋ 添加模型」入口保持在末尾，供下载本地模型
       const addEntry = document.getElementById('model-add-entry');
       if (addEntry) dropdown.appendChild(addEntry);
 
-      // 回显配置中的本地模型名到标题栏（仅展示，不在下拉列条目）
+      // 回显当前模型名到标题栏（本地模型用可读名，而非 .gguf 文件名）
       try {
         if (window.LabCode && window.LabCode.config) {
           const cfg = await window.LabCode.config.get();
           const ai = cfg?.ai || {};
-          if ((ai.provider === 'local' || ai.provider === 'ollama') && ai.model) {
-            document.getElementById('current-model-name').textContent = (ai.provider === 'local' ? ai.model.replace(/\.gguf$/i, '') : ai.model) + ' (本地)';
+          if (ai.provider === 'local' && ai.model) {
+            const hit = modelList.find(m => m.file === ai.model);
+            const nm = hit ? hit.name : ai.model.replace(/\.gguf$/i, '');
+            document.getElementById('current-model-name').textContent = nm + ' (本地)';
+          } else if (ai.provider === 'ollama' && ai.model) {
+            document.getElementById('current-model-name').textContent = ai.model + ' (本地)';
           }
         }
       } catch (e) { console.warn('[本地模型回显] 失败:', e); }

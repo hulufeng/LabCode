@@ -1782,6 +1782,22 @@ input, textarea {
   white-space: nowrap;
 }
 
+/* 已下载的本地模型分组（标题 + 缩进条目） */
+.local-model-group-title {
+  padding: 9px 14px 4px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .4px;
+  color: var(--text-tertiary);
+}
+.local-model-item {
+  padding: 7px 14px 7px 26px;
+  font-size: 12px;
+}
+.local-model-item .model-opt-label {
+  color: var(--text-secondary);
+}
+
 /* 发送按钮 */
 .ai-send-btn {
   width: 30px;
