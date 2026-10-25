@@ -4014,7 +4014,7 @@ class RealAIClient {
   }
 
   _buildSystemPrompt(useNativeTools = false) {
-    const allDefs = TOOL_DEFS.concat(window.PluginSystem ? window.PluginSystem.allTools() : [], MCP_TOOL_DEFS);
+    const allDefs = TOOL_DEFS.concat(window.PluginSystem ? window.PluginSystem.allToolsForProject(state.projectType) : [], MCP_TOOL_DEFS);
     const toolList = allDefs.map(t => {
       const params = t.parameters?.properties ? Object.entries(t.parameters.properties).map(([k, v]) =>
         `  - ${k}: ${v.type}${v.description ? ' - ' + v.description : ''}`
@@ -4428,7 +4428,7 @@ void loop() {
         parameters: t.parameters || { type: 'object', properties: {} }
       }
     }));
-    const pluginTools = (window.PluginSystem ? window.PluginSystem.allTools() : []).map(t => ({
+    const pluginTools = (window.PluginSystem ? window.PluginSystem.allToolsForProject(state.projectType) : []).map(t => ({
       type: 'function',
       function: {
         name: t.name,

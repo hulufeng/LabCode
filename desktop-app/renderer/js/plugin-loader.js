@@ -645,6 +645,15 @@ window.PluginSystem = {
     return PLUGIN_DISABLED.has(t._pluginId) ? undefined : t;
   },
   allTools: () => PLUGIN_TOOL_DEFS.filter(t => !PLUGIN_DISABLED.has(t._pluginId)),
+  // 按项目类型过滤后的工具(AI 工具清单用;UI 按钮/getToolDef 不过滤——用户主动点击不受项目类型限制)
+  // 工具级 projectTypes 优先,其次插件级;空=全项目可用;projectType 为空(未开项目)=不过滤
+  allToolsForProject: (projectType) => PLUGIN_TOOL_DEFS.filter(t => {
+    if (PLUGIN_DISABLED.has(t._pluginId)) return false;
+    const m = PLUGIN_REGISTRY.get(t._pluginId);
+    const pts = (t._decl && Array.isArray(t._decl.projectTypes) && t._decl.projectTypes)
+      || (m && Array.isArray(m.projectTypes) && m.projectTypes) || [];
+    return !pts.length || !projectType || pts.indexOf(projectType) >= 0;
+  }),
   allSkills: () => PLUGIN_SKILLS.filter(s => !PLUGIN_DISABLED.has(s.pluginId)),
   listPlugins: () => Array.from(PLUGIN_REGISTRY.values()).map(p => Object.assign({}, p, { active: !PLUGIN_DISABLED.has(p.id) })),
   listViews: () => Array.from(PLUGIN_VIEWS.values()),
