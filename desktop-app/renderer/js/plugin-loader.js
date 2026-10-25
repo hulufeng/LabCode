@@ -302,7 +302,7 @@ async function runCapability(cap, params, opts) {
     // 显式 binding：合成 toolDecl 走 dispatchTool（同一执行体）
     text = await dispatchTool(Object.assign({ name: cap }, binding), pluginId, `plugin_${pluginId}_${cap}`, params);
   }
-  const failed = typeof text === 'string' && /(^|\n)\s*Error[:( ]/.test(text);
+  const failed = typeof text === 'string' && (/(^|\n)\s*Error[:( ]/.test(text) || /错误[:：]/.test(text));
   return { ok: !failed, text: text, pluginId: pluginId, capability: cap };
 }
 

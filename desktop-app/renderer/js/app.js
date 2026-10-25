@@ -12895,7 +12895,7 @@ function bindEvents() {
       r = { ok: false, error: '能力路由异常: ' + e.message };
     }
     const out = String(r.text != null ? r.text : (r.error || '未知错误'));
-    const bad = !r.ok || (r.text != null && /error/i.test(out));
+    const bad = !r.ok || (r.text != null && /error|错误/i.test(out));
     showToast(bad ? (opt.failText || '操作失败') : (opt.okText || '操作成功'), bad ? 'error' : 'success');
     addOutputLog('[' + (opt.logTag || cap) + ']\n' + out, bad ? 'error' : 'success');
     if (opt.openPanel) {
