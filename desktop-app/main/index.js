@@ -1596,7 +1596,11 @@ function setupIPC() {
         let finished = false;
         const finish = (r) => { if (!finished) { finished = true; resolve(r); } };
         child.on('exit', (code) => finish({ exitCode: code }));
-        child.on('error', (e) => finish({ error: e.message }));
+        child.on('error', (e) => finish({
+          error: e && e.code === 'ENOENT'
+            ? 'spawn ENOENT: "' + command + '" 不是可执行文件。Windows 内建命令（echo/dir/type 等）不能用于 cli transport——请改用真实程序（node / python / arduino-cli / esptool 等），例如 node -e "..."'
+            : (e && e.message) || String(e)
+        }));
         setTimeout(() => { try { child.kill(); } catch (e) {} finish({ timeout: true }); }, timeoutMs);
       });
       const r = await done;
