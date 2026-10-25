@@ -524,6 +524,11 @@
           <button class="plugins-tab" data-tab="installed">已安装</button>
           <button class="plugins-tab" data-tab="mcp">MCP 服务</button>
         </div>
+        <!-- 安装进度条（TrieCode 式：tab 下方一行"安装 <id> · <名称> XX%" + 蓝色进度条，真实进度） -->
+        <div class="plugins-install-progress" id="plugins-install-progress" style="display:none;flex-shrink:0;">
+          <div class="pip-text" id="pip-text">安装中…</div>
+          <div class="pip-bar"><div class="pip-fill" id="pip-fill"></div></div>
+        </div>
         <div class="plugins-list" id="plugins-list" style="flex:1;overflow-y:auto;padding:8px;">
           <!-- 插件卡片动态生成 -->
         </div>

@@ -10417,6 +10417,37 @@ function bindEvents() {
     if (installPollTimer) { clearInterval(installPollTimer); installPollTimer = null; }
     const modal = document.getElementById('install-modal');
     if (modal) modal.style.display = 'none';
+    hidePluginProgress();
+  }
+  // ============ 插件面板内嵌安装进度条（TrieCode 式：tab 下方 "安装 <id> · <名称> XX%"）============
+  // 进度全部来自真实文件大小轮询；pct<0 表示总大小未知 → 流动条 + 只显示已下载量，不造假百分比
+  let pluginProgressTimer = null;
+  function showPluginProgress(plugin) {
+    const box = document.getElementById('plugins-install-progress');
+    if (!box) return;
+    box.style.display = 'block';
+    setPluginProgress(-1, plugin, '准备下载');
+  }
+  function setPluginProgress(pct, plugin, statusText) {
+    const box = document.getElementById('plugins-install-progress');
+    if (!box) return;
+    const txt = document.getElementById('pip-text');
+    const fill = document.getElementById('pip-fill');
+    if (!txt || !fill) return;
+    if (pct < 0) {
+      txt.textContent = '安装 ' + plugin.id + ' · ' + plugin.name + (statusText ? ' · ' + statusText : '');
+      fill.classList.add('pip-indet');
+    } else {
+      const p = Math.max(0, Math.min(100, Math.round(pct)));
+      txt.textContent = '安装 ' + plugin.id + ' · ' + plugin.name + ' ' + p + '%' + (statusText ? ' · ' + statusText : '');
+      fill.classList.remove('pip-indet');
+      fill.style.width = p + '%';
+    }
+  }
+  function hidePluginProgress() {
+    if (pluginProgressTimer) { clearInterval(pluginProgressTimer); pluginProgressTimer = null; }
+    const box = document.getElementById('plugins-install-progress');
+    if (box) box.style.display = 'none';
   }
   // 弹窗头按钮：最小化/关闭均仅隐藏弹窗，安装后台继续
   (function bindInstallModalButtons() {
@@ -10494,8 +10525,9 @@ function bindEvents() {
         if (fsCheckOut.includes('EXISTS')) {
           addOutputLog('模型已存在（' + fsCheckOut.replace('EXISTS ', '') + ' GB），跳过下载', 'success');
         } else {
-          // 弹出安装进度窗（对齐 Qwen 安装界面）
+          // 弹出安装进度窗（对齐 Qwen 安装界面）+ 面板内嵌进度条（TrieCode 式）
           showInstallModal(plugin.name);
+          showPluginProgress(plugin);
           const expectedGB = plugin.minDiskGB || 0;
           // 轮询真实进度：目标文件已下载大小 / 预期体积
           if (installPollTimer) { clearInterval(installPollTimer); installPollTimer = null; }
@@ -10508,7 +10540,9 @@ function bindEvents() {
               const gb = parseFloat(String((r && r.stdout) || '0').trim());
               if (!isNaN(gb) && gb > 0) {
                 const pct = expectedGB > 0 ? Math.min(99, (gb / expectedGB) * 100) : 50;
-                setInstallProgress(pct, expectedGB > 0 ? ('已下载 ' + gb.toFixed(2) + ' GB / 约 ' + expectedGB + ' GB') : ('已下载 ' + gb.toFixed(2) + ' GB'));
+                const st = expectedGB > 0 ? ('已下载 ' + gb.toFixed(2) + ' GB / 约 ' + expectedGB + ' GB') : ('已下载 ' + gb.toFixed(2) + ' GB');
+                setInstallProgress(pct, st);
+                setPluginProgress(pct, plugin, st);
               }
             } catch (e) { /* 轮询失败不影响下载 */ }
           }, 1200);
@@ -10535,6 +10569,7 @@ function bindEvents() {
           } else {
             if (installPollTimer) { clearInterval(installPollTimer); installPollTimer = null; }
             setInstallProgress(100, '下载完成');
+            setPluginProgress(100, plugin, '下载完成');
             addOutputLog('模型下载完成：' + (plugin.ggufFile || plugin.modelName) + '（' + sizeMB + ' MB）', 'success');
           }
         }
@@ -10553,11 +10588,41 @@ function bindEvents() {
         const tmpDir = 'D:\\LabCode\\plugin-tmp\\' + plugin.id + '_' + Date.now();
         const zipPath = tmpDir + '\\' + plugin.id + '.zip';
         const extDir = tmpDir + '\\extracted';
-        addOutputLog('正在从官方市场下载插件包 ' + plugin.id + '...', 'info');
+        // 面板内嵌进度条（TrieCode 式）：真实进度 = 已下载体积 / HEAD Content-Length
+        showPluginProgress(plugin);
+        let totalBytes = 0;
+        try {
+          const headRes = await window.LabCode.terminal.execute(
+            'powershell -NoProfile -Command "(curl.exe -sIL ' + psPath(plugin.downloadUrl) + ' | Select-String -Pattern \'Content-Length\' | Select-Object -Last 1) -replace \'[^0-9]\',\'\'"',
+            null, 20000, { force: true }
+          );
+          totalBytes = parseInt(String((headRes && headRes.stdout) || '').trim(), 10) || 0;
+        } catch (e) { totalBytes = 0; }
+        if (pluginProgressTimer) { clearInterval(pluginProgressTimer); pluginProgressTimer = null; }
+        pluginProgressTimer = setInterval(async () => {
+          try {
+            const r = await window.LabCode.terminal.execute(
+              'powershell -NoProfile -Command "if (Test-Path ' + psPath(zipPath) + ') { Write-Output ([math]::Round((Get-Item ' + psPath(zipPath) + ').Length/1KB,1).ToString()) } else { Write-Output \'0\' }"',
+              null, 15000, { force: true }
+            );
+            const kb = parseFloat(String((r && r.stdout) || '0').trim());
+            if (!isNaN(kb) && kb > 0) {
+              if (totalBytes > 0) {
+                setPluginProgress(Math.min(95, (kb * 1024 / totalBytes) * 100), plugin, '已下载 ' + (kb / 1024).toFixed(2) + ' MB / ' + (totalBytes / 1048576).toFixed(2) + ' MB');
+              } else {
+                // 总大小未知：不造假百分比，流动条 + 只显示已下载量
+                setPluginProgress(-1, plugin, '已下载 ' + (kb / 1024).toFixed(2) + ' MB');
+              }
+            }
+          } catch (e) { /* 轮询失败不影响下载 */ }
+        }, 800);
+        addOutputLog('正在从官方市场下载插件包 ' + plugin.id + (totalBytes > 0 ? '（' + (totalBytes / 1048576).toFixed(2) + ' MB）' : '') + '...', 'info');
         await window.LabCode.terminal.execute(
           'powershell -NoProfile -Command "New-Item -ItemType Directory -Force -Path ' + psPath(tmpDir) + ' | Out-Null; curl.exe -L --retry 3 -C - -o ' + psPath(zipPath) + ' ' + psPath(plugin.downloadUrl) + '"',
           null, 600000, { force: true }
         );
+        if (pluginProgressTimer) { clearInterval(pluginProgressTimer); pluginProgressTimer = null; }
+        setPluginProgress(95, plugin, '校验压缩包');
         // 校验下载产物：存在、非空、且是有效 zip（PK 头 0x50 0x4B），输出体积(KB)。
         // 不用体积下限判断——小插件(几 KB)会被误杀；坏包交给后面的 Expand-Archive 报错。
         const ver = await window.LabCode.terminal.execute(
@@ -10569,6 +10634,7 @@ function bindEvents() {
         if (!vout || vout === 'MISSING' || vout === 'BADZIP' || !(szKB > 0)) {
           throw new Error('下载失败或文件不是有效 zip（' + (vout || '无输出') + '），请重试');
         }
+        setPluginProgress(97, plugin, '解压注册');
         await window.LabCode.terminal.execute(
           'powershell -NoProfile -Command "Expand-Archive -Path ' + psPath(zipPath) + ' -DestinationPath ' + psPath(extDir) + ' -Force"',
           null, 120000, { force: true }
@@ -10578,6 +10644,7 @@ function bindEvents() {
         const r = await window.PluginSystem.installFromDir(mDir);
         if (!r || !r.success) throw new Error(r && r.error ? r.error : '安装失败');
         remoteInstall = r;
+        setPluginProgress(100, plugin, '安装完成');
         addOutputLog('✅ 插件包下载并安装完成（' + szKB + ' KB，注册 ' + (r.tools || 0) + ' 个工具、' + (r.skills || 0) + ' 条技能）', 'success');
         try { const _o = new URL(plugin.downloadUrl).origin; await fetch(_o + '/api/plugins/' + plugin.id + '/install', { method: 'POST' }); } catch (e) {}
       } catch (e) {
