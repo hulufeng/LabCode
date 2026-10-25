@@ -11550,6 +11550,7 @@ function bindEvents() {
     };
     let _localStatusCache = { at: 0, data: null };
     const refreshLocalStatus = async (force) => {
+      const gen = modelSelGen;
       const now = Date.now();
       if (!force && _localStatusCache.data && now - _localStatusCache.at < 10000) return _localStatusCache.data;
       const st = await probeLocal();
@@ -11557,6 +11558,8 @@ function bindEvents() {
       setLocalTag('ollama', st.ollama.text, !st.ollama.ok);
       setLocalTag('local', st.local.text, !st.local.ok);
       // 顶栏同步：当前若正用本地模型，把可用性写进按钮文字（用户最常看的位置）
+      // 探测期间用户可能已切换模型 → 代次不一致就放弃回写，避免覆盖新选择
+      if (gen !== modelSelGen) return st;
       try {
         const c = await window.LabCode.config.get();
         const a = c?.ai || {};
@@ -11611,6 +11614,7 @@ function bindEvents() {
         const modelKey = option.dataset.model;
         const mapping = MODEL_MAP[modelKey];
         if (!mapping) return;
+        modelSelGen++;   // 切换模型：作废进行中的异步探测回写
         // 只取选项文字本身：整块 textContent 会把 ⓘ 和状态签一起带进按钮/toast
         const labelEl = option.querySelector('.model-opt-label');
         const modelName = (labelEl ? labelEl.textContent : option.textContent).trim();
@@ -11681,16 +11685,25 @@ function bindEvents() {
       const labelEl = opt.querySelector('.model-opt-label');
       const modelName = (labelEl ? labelEl.textContent : file).trim();
       if (!file) return;
+      modelSelGen++;   // 切换模型：作废进行中的异步探测回写
       modelDropdown.style.display = 'none';
       document.querySelectorAll('.model-option').forEach(o => o.classList.remove('active'));
       opt.classList.add('active');
       try {
         await window.LabCode.config.set('ai.provider', 'local');
         await window.LabCode.config.set('ai.model', file);
+        // 先更新标题栏：后面的 _loadConfig / 引擎启动是慢操作，不能让它把标题栏压住
+        document.getElementById('current-model-name').textContent = modelName + ' (本地)';
         if (state.agent && state.agent.ai && typeof state.agent.ai._loadConfig === 'function') {
           await state.agent.ai._loadConfig();
         }
-        document.getElementById('current-model-name').textContent = modelName + ' (本地)';
+        // 慢操作结束后校验：期间用户若已切到别的模型，就不要再回写标题栏
+        try {
+          const now = await window.LabCode.config.get();
+          if (now?.ai?.provider === 'local' && now?.ai?.model === file) {
+            document.getElementById('current-model-name').textContent = modelName + ' (本地)';
+          }
+        } catch (e) {}
         showToast('已切换到本地模型 ' + modelName + '，正在加载（首次加载需十几秒）', 'success');
         // 引擎若正在跑别的模型，主进程会 kill 旧进程并用新模型重启
         if (window.LabCode.system && window.LabCode.system.startLLMEngine) {
@@ -11736,10 +11749,16 @@ function bindEvents() {
     }
   }
 
+  // 模型选择代次：每次切换模型 +1。
+  // 异步探测（下拉打开时的状态刷新）会耗时数秒，期间用户可能已切换模型；
+  // 探测结果回写前先比对代次，避免用旧配置覆盖新选择。
+  let modelSelGen = 0;
+
   // 刷新本地模型到选择器（安装大模型插件后调用；本地引擎 = 内置 llama.cpp + models 目录 GGUF）
   // 用户诉求「下载那个大模型就显示那个」：把已下载的每个模型都列进下拉，可直接选中，
   // 不必再去「设置 → AI 引擎」里挑。
   async function refreshLocalModelsInSelector() {
+    const gen = modelSelGen;
     try {
       if (!window.LabCode || !window.LabCode.system) return;
       const runtime = await window.LabCode.system.checkLLMRuntime();
@@ -11785,6 +11804,8 @@ function bindEvents() {
       if (addEntry) dropdown.appendChild(addEntry);
 
       // 回显当前模型名到标题栏（本地模型用可读名，而非 .gguf 文件名）
+      // 同样要防「探测期间用户已切换模型」的旧值覆盖
+      if (gen !== modelSelGen) return;
       try {
         if (window.LabCode && window.LabCode.config) {
           const cfg = await window.LabCode.config.get();
