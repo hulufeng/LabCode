@@ -9930,6 +9930,8 @@ function bindEvents() {
         capabilities: p.capabilities || [], requires: p.requires || '',
         modelName: p.modelName || '', minRamGB: p.minRamGB || 0, minDiskGB: p.minDiskGB || 0,
         recommendedFor: p.recommendedFor || '', downloadUrl: p.downloadUrl || '',
+        // 源码地址（TrieCode 卡片「查看源码 →」）：网关目前未返回，先接好字段，后端补上即自动生效
+        sourceUrl: p.sourceUrl || p.repoUrl || p.repository || p.homepage || '',
         source: 'remote'
       }));
       remoteMarketOnline = true;
@@ -10163,6 +10165,11 @@ function bindEvents() {
       } else {
         actions = '<span class="plg-installed">已安装</span>';
       }
+      // TrieCode 卡片式「查看源码 →」：有源码地址指向源码；网关暂未返回时降级为「查看详情 →」指向官网插件页
+      // （后端补上 sourceUrl 字段后自动变回「查看源码」）。模型行不加，避免链到无关页面。
+      const srcLink = (currentPluginsTab !== 'models' && p.category !== 'ai-model')
+        ? '<a class="plg-src" data-action="source" data-url="' + (p.sourceUrl || 'https://bluebubai.work/plugins') + '">' + (p.sourceUrl ? '查看源码 →' : '查看详情 →') + '</a>'
+        : '';
       // TrieCode 式扁平行：图标(无底色) + 名称 + 小版本号 + 一行截断描述，右侧绿字已安装/蓝安装按钮
       const topLine = '<span class="plg-name">' + p.name + '</span><span class="plg-ver">v' + p.version + '</span>';
       return '<div class="plg-row">' +
@@ -10171,7 +10178,7 @@ function bindEvents() {
           '<div class="plg-row-top">' + topLine + '</div>' +
           '<div class="plg-desc">' + (p.description || '') + '</div>' +
         '</div>' +
-        '<div class="plg-row-act">' + actions + '</div>' +
+        '<div class="plg-row-act">' + srcLink + actions + '</div>' +
       '</div>';
     }).join('');
     listEl.innerHTML = html;
@@ -10186,6 +10193,15 @@ function bindEvents() {
     });
     listEl.querySelectorAll('[data-action="uninstall"]').forEach(btn => {
       btn.addEventListener('click', () => uninstallPlugin(btn.dataset.id));
+    });
+    // 绑定「查看源码 / 查看详情」外链（浏览器打开，不占用 WebView）
+    listEl.querySelectorAll('[data-action="source"]').forEach(el => {
+      el.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        const u = el.dataset.url;
+        if (window.LabCode && window.LabCode.shell) window.LabCode.shell.openExternal(u);
+        else window.open(u, '_blank');
+      });
     });
     // 插件自定义面板（manifest.views）—— 仅「已安装」tab 提供入口，官方市场保持 TrieCode 式纯列表
     if (currentPluginsTab === 'installed') renderPluginViews(listEl);
