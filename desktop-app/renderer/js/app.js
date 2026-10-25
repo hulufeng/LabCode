@@ -12883,15 +12883,36 @@ function bindEvents() {
     else showToast('创建失败: ' + (r.error || ''), 'error');
   });
 
+  // ===== capabilities 路由:UI 按钮统一入口(对齐 TrieCode runCapability)=====
+  // 编译/烧录/串口监视等不再直调插件工具或硬编码 terminal 命令,
+  // 一律经 runCapability(cap) → 项目绑定的主动工具链 → transport 分发。
+  async function runCapBtn(cap, params, opt) {
+    opt = opt || {};
+    let r;
+    try {
+      r = await window.PluginSystem.runCapability(cap, params || {});
+    } catch (e) {
+      r = { ok: false, error: '能力路由异常: ' + e.message };
+    }
+    const out = String(r.text != null ? r.text : (r.error || '未知错误'));
+    const bad = !r.ok || (r.text != null && /error/i.test(out));
+    showToast(bad ? (opt.failText || '操作失败') : (opt.okText || '操作成功'), bad ? 'error' : 'success');
+    addOutputLog('[' + (opt.logTag || cap) + ']\n' + out, bad ? 'error' : 'success');
+    if (opt.openPanel) {
+      const ov = document.getElementById(opt.openPanel);
+      if (ov && ov.style.display === 'none') ov.style.display = 'flex'; }
+    if (opt.openTab) {
+      const tt = document.querySelector('.bottom-tab[data-panel="' + opt.openTab + '"]');
+      if (tt) tt.click();
+    }
+    return r;
+  }
+
   // ===== 设备面板编译/烧录/监视按钮 =====
   const devCompileBtn = document.getElementById('dev-compile-btn');
   if (devCompileBtn) devCompileBtn.addEventListener('click', async () => {
-    const t = getToolDef('plugin_arduino-cli-toolchain_compile');
-    if (!t) { showToast('编译工具链未安装：请到插件市场安装 arduino-cli-toolchain', 'error'); return; }
     showToast('编译中…', 'info');
-    const r = await t.execute({});
-    showToast(r.includes('error') ? '编译失败' : '编译成功', r.includes('error') ? 'error' : 'success');
-    addOutputLog('[编译]\n' + r, r.includes('error') ? 'error' : 'success');
+    await runCapBtn('compile', {}, { okText: '编译成功', failText: '编译失败', logTag: '编译' });
   });
   const devUploadBtn = document.getElementById('dev-upload-btn');
   if (devUploadBtn) devUploadBtn.addEventListener('click', async () => {
@@ -12899,35 +12920,23 @@ function bindEvents() {
     const port = portSel ? portSel.value : '';
     if (!port) { showToast('请先选串口', 'warn'); return; }
     showToast('烧录到 ' + port + '…', 'info');
-    // 用 terminal execute 跑 arduino-cli upload
-    if (window.LabCode.terminal && window.LabCode.terminal.execute) {
-      const r = await window.LabCode.terminal.execute('arduino-cli upload -p ' + port, state.projectPath, 120000);
-      showToast(r.success ? '烧录成功' : '烧录失败', r.success ? 'success' : 'error');
-      addOutputLog('[烧录]\n' + (r.stdout || '') + (r.stderr || ''), r.success ? 'success' : 'error');
-    }
+    await runCapBtn('upload', { port }, { okText: '烧录成功', failText: '烧录失败', logTag: '烧录' });
   });
   const devMonitorBtn = document.getElementById('dev-monitor-btn');
   if (devMonitorBtn) devMonitorBtn.addEventListener('click', async () => {
     const portSel = document.getElementById('port-select');
     const port = portSel ? portSel.value : '';
     if (!port) { showToast('请先选串口', 'warn'); return; }
-    const t = getToolDef('plugin_arduino-cli-toolchain_serial_log_open');
-    if (t) { await t.execute({ port, baud: 115200 }); showToast('串口监视已打开 ' + port, 'success'); }
-    else { showToast('串口工具链未安装：请到插件市场安装 arduino-cli-toolchain', 'error'); }
+    const r = await window.PluginSystem.runCapability('monitor', { port, baud: 115200 });
+    if (r.ok) showToast('串口监视已打开 ' + port, 'success');
+    else showToast(String(r.text || r.error || '串口监视打开失败'), 'error');
   });
 
   // ============ 编辑器工具栏快捷：编译 / 烧录（软硬件开发流水线）============
   const editorCompileBtn = document.getElementById('editor-compile-btn');
   if (editorCompileBtn) editorCompileBtn.addEventListener('click', async () => {
-    const t = getToolDef('plugin_arduino-cli-toolchain_compile');
-    if (!t) { showToast('编译工具链未安装：请到插件市场安装 arduino-cli-toolchain', 'error'); return; }
     showToast('编译中…', 'info');
-    const r = await t.execute({});
-    showToast(r.includes('error') ? '编译失败' : '编译成功', r.includes('error') ? 'error' : 'success');
-    const ov = document.getElementById('bottom-panel');
-    if (ov && ov.style.display === 'none') { ov.style.display = 'flex'; }
-    const ot = document.querySelector('.bottom-tab[data-panel="output"]');
-    if (ot) ot.click();
+    await runCapBtn('compile', {}, { okText: '编译成功', failText: '编译失败', logTag: '编译', openPanel: 'bottom-panel', openTab: 'output' });
   });
   const editorUploadBtn = document.getElementById('editor-upload-btn');
   if (editorUploadBtn) editorUploadBtn.addEventListener('click', async () => {
@@ -12935,16 +12944,7 @@ function bindEvents() {
     const port = portSel ? portSel.value : '';
     if (!port) { showToast('请先在设备面板选择串口', 'warn'); return; }
     showToast('烧录到 ' + port + '…', 'info');
-    if (window.LabCode.terminal && window.LabCode.terminal.execute) {
-      const r = await window.LabCode.terminal.execute('arduino-cli upload -p ' + port, state.projectPath, 120000);
-      showToast(String(r).includes('error') ? '烧录失败' : '烧录完成', String(r).includes('error') ? 'error' : 'success');
-    } else {
-      showToast('终端模块未就绪', 'error');
-    }
-    const ov2 = document.getElementById('bottom-panel');
-    if (ov2 && ov2.style.display === 'none') { ov2.style.display = 'flex'; }
-    const tt = document.querySelector('.bottom-tab[data-panel="terminal"]');
-    if (tt) tt.click();
+    await runCapBtn('upload', { port }, { okText: '烧录成功', failText: '烧录失败', logTag: '烧录', openPanel: 'bottom-panel', openTab: 'terminal' });
   });
 
   // 工具活动面板（Flow）按钮

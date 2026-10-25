@@ -52,6 +52,260 @@ const PLUGIN_REGISTRY = new Map(); // id -> manifest
 const PLUGIN_SKILLS = [];        // {name, description, prompt, pluginId}
 const PLUGIN_VIEWS = new Map();  // "pluginId:viewId" -> {pluginId,id,title,webviewUrl}
 
+// ============================================================
+// transport 分发（plugin 工具 execute 与 capabilities 路由共用）
+// 对齐 TrieCode createPluginToolExecutor.dispatchTool：一个执行体，两个入口
+// ============================================================
+async function dispatchTool(t, id, autoName, args) {
+  const a = args || {};
+  const transport = t.transport || 'internal';
+  try {
+    if (transport === 'internal') {
+      const svcName = t.internal && t.internal.service;
+      const method = t.internal && t.internal.method;
+      const svc = INTERNAL_SERVICES.get(svcName);
+      if (!svc || typeof svc[method] !== 'function') {
+        return `Error: 内部服务 ${svcName}.${method} 未注册`;
+      }
+      return await svc[method](a, t);
+    }
+    if (transport === 'cli') {
+      // t.cli = { command: "arduino-cli core {core}", timeoutMs: 600000, cwd: "{projectPath}", resolve: "arduino-cli", envScript: "export.ps1" }
+      const cli = t.cli || {};
+      const cmdTpl = cli.command || '';
+      if (!cmdTpl) return 'Error: cli.command 未配置';
+      const projectPath = (window.LabCodeUI && window.LabCodeUI.state && window.LabCodeUI.state.projectPath) || '';
+      const ctx = Object.assign({}, a, { projectPath });
+      // 引号感知分词："a b" 是一个参数；占位符按 token 替换——
+      // AI 传入的参数值永远只是单个 argv 元素，绝不拼进 shell 字符串（防注入）
+      const tokenize = (s) => {
+        const out = []; let cur = ''; let q = null;
+        for (let i = 0; i < s.length; i++) {
+          const c = s[i];
+          if (q) { if (c === q) q = null; else cur += c; }
+          else if (c === '"' || c === "'") q = c;
+          else if (/\s/.test(c)) { if (cur) { out.push(cur); cur = ''; } }
+          else cur += c;
+        }
+        if (cur) out.push(cur);
+        return out;
+      };
+      const argv = tokenize(cmdTpl).map(tok => tok.replace(/\{(\w+)\}/g, (m, k) => (ctx[k] != null ? String(ctx[k]) : m)));
+      // resolve: 用宿主已有的路径解析器替换命令首段（arduino-cli 不在 PATH，必须解析）
+      const tc = window.LabCode && window.LabCode.toolchain;
+      if (argv.length && tc && tc.getArduinoCliPath && (cli.resolve === 'arduino-cli' || argv[0] === 'arduino-cli')) {
+        try {
+          const p = await tc.getArduinoCliPath();
+          if (p && p.path) argv[0] = p.path;
+        } catch (e) { /* 解析失败就用原命令 */ }
+      }
+      if (!argv.length || !argv[0]) return 'Error: cli.command 解析后为空';
+      // 主进程 spawn（数组参数，无 shell）；envScript 由主进程逐参数安全引用后包装
+      const bridge = window.LabCode && window.LabCode.plugin;
+      if (!bridge || !bridge.cliCall) return 'Error: plugin bridge 不可用（cli，需升级主进程）';
+      const r = await bridge.cliCall({
+        command: argv[0],
+        args: argv.slice(1),
+        cwd: (cli.cwd || '').replace(/\{projectPath\}/g, projectPath) || undefined,
+        timeoutMs: cli.timeoutMs || 120000,
+        envScript: cli.envScript ? String(cli.envScript).replace(/\{projectPath\}/g, projectPath) : ''
+      });
+      if (!r || !r.success) {
+        return `Error (exit ${r && r.exitCode}): ${(r && r.error) || (r && r.stderr) || 'unknown'}\n${(r && r.stdout) || ''}`;
+      }
+      return (r.stdout || '') + (r.stderr ? '\n[stderr]\n' + r.stderr : '');
+    }
+    if (transport === 'http') {
+      const http = t.http || {};
+      const urlTpl = http.url || '';
+      const projectPath = (window.LabCodeUI && window.LabCodeUI.state && window.LabCodeUI.state.projectPath) || '';
+      const ctx = Object.assign({}, a, { projectPath });
+      const url = urlTpl.replace(/\{(\w+)\}/g, (m, k) => (ctx[k] != null ? encodeURIComponent(ctx[k]) : m));
+      const method = (http.method || 'POST').toUpperCase();
+      const opts = { method, headers: Object.assign({ 'Content-Type': 'application/json' }, http.headers || {}) };
+      if (method !== 'GET') opts.body = JSON.stringify(a);
+      const resp = await fetch(url, opts);
+      const text = await resp.text();
+      return text.length > 8000 ? text.slice(0, 8000) + '\n...[truncated]' : text;
+    }
+    if (transport === 'mcp') {
+      const mcp = t.mcp || {};
+      if (!window.LabCode || !window.LabCode.mcp || !window.LabCode.mcp.callTool) {
+        return 'Error: MCP 桥不可用';
+      }
+      const r = await window.LabCode.mcp.callTool(mcp.server, mcp.tool, a);
+      return typeof r === 'string' ? r : JSON.stringify(r);
+    }
+    if (transport === 'grpc') {
+      // t.grpc = { protoPath, service, method, host, request, insecure, timeoutMs }
+      // 由主进程加载 proto 并发起 unary 调用（需要 socket，渲染层做不了）
+      const bridge = window.LabCode && window.LabCode.plugin;
+      if (!bridge || !bridge.grpcCall) return 'Error: plugin bridge 不可用（grpc）';
+      const g = t.grpc || {};
+      const r = await bridge.grpcCall({
+        protoPath: g.protoPath, service: g.service, method: g.method,
+        host: g.host, request: Object.assign({}, g.request || {}, a),
+        insecure: g.insecure !== false, timeoutMs: g.timeoutMs || 30000
+      });
+      if (!r || !r.success) return 'Error: grpc 调用失败: ' + ((r && r.error) || 'unknown');
+      return typeof r.result === 'string' ? r.result : JSON.stringify(r.result);
+    }
+    if (transport === 'stdio') {
+      // t.stdio = { command, args, cwd, timeoutMs }；参数以 {argName} 模板注入 args
+      const bridge = window.LabCode && window.LabCode.plugin;
+      if (!bridge || !bridge.stdioCall) return 'Error: plugin bridge 不可用（stdio）';
+      const sd = t.stdio || {};
+      const projectPath = (window.LabCodeUI && window.LabCodeUI.state && window.LabCodeUI.state.projectPath) || '';
+      const ctx = Object.assign({}, a, { projectPath });
+      const args = Array.isArray(sd.args) ? sd.args.map(x => String(x).replace(/\{(\w+)\}/g, (m, k) => (ctx[k] != null ? String(ctx[k]) : m))) : [];
+      const r = await bridge.stdioCall({
+        command: sd.command, args,
+        cwd: (sd.cwd || '').replace(/\{projectPath\}/g, projectPath) || undefined,
+        request: a, timeoutMs: sd.timeoutMs || 30000
+      });
+      if (!r || !r.success) return 'Error: stdio 调用失败: ' + ((r && r.error) || 'unknown') + ((r && r.stderr) ? '\n' + r.stderr : '');
+      if (r.result !== undefined) return typeof r.result === 'string' ? r.result : JSON.stringify(r.result);
+      return r.raw || '';
+    }
+    if (transport === 'mqtt') {
+      // t.mqtt = { brokerUrl, topic, responseTopic, payload, qos, username, password, timeoutMs }
+      const bridge = window.LabCode && window.LabCode.plugin;
+      if (!bridge || !bridge.mqttCall) return 'Error: plugin bridge 不可用（mqtt）';
+      const mq = t.mqtt || {};
+      const projectPath = (window.LabCodeUI && window.LabCodeUI.state && window.LabCodeUI.state.projectPath) || '';
+      const ctx = Object.assign({}, a, { projectPath });
+      const fill = (s) => String(s || '').replace(/\{(\w+)\}/g, (m, k) => (ctx[k] != null ? String(ctx[k]) : m));
+      const r = await bridge.mqttCall({
+        brokerUrl: fill(mq.brokerUrl), topic: fill(mq.topic),
+        responseTopic: mq.responseTopic ? fill(mq.responseTopic) : '',
+        payload: Object.assign({}, mq.payload || {}, a),
+        qos: mq.qos || 0, username: mq.username, password: mq.password,
+        timeoutMs: mq.timeoutMs || 15000
+      });
+      if (!r || !r.success) return 'Error: mqtt 调用失败: ' + ((r && r.error) || 'unknown');
+      if (r.published) return 'OK: 已发布到 ' + fill(mq.topic);
+      if (r.result !== undefined) return typeof r.result === 'string' ? r.result : JSON.stringify(r.result);
+      return r.raw || '';
+    }
+    return `Error: transport "${transport}" 尚未实现（插件 ${id}）`;
+  } catch (e) {
+    return `Error: 工具 ${autoName} 执行失败: ${e.message}`;
+  }
+}
+
+// ============================================================
+// capabilities 路由（对齐 TrieCode runCapability）
+// UI 按钮 / 菜单 / AI 都经 runCapability(cap) 一个入口，
+// 由它按「项目绑定的主动工具链」解析到具体插件的具体 transport。
+// ============================================================
+/** 能力 id 词汇表（宿主 UI 契约；LabCode 在 TrieCode 集基础上扩展 monitor/plot） */
+const CAPABILITY_IDS = [
+  'compile', 'upload', 'flash', 'debug',
+  'board-manage', 'board-select', 'library-manage', 'library-install',
+  'platform-install', 'platform-list',
+  'monitor', 'plot'
+];
+/** map 未覆盖某能力时，按约定工具名兜底找本插件的 tools[] */
+const CAPABILITY_TOOL_FALLBACK = {
+  compile: 'compile',
+  upload: 'upload',
+  'board-select': 'select_board',
+  'board-manage': 'search_boards',
+  'library-manage': 'search_libraries',
+  'platform-install': 'install_platform',
+  monitor: 'serial_log_open',
+  plot: 'serial_log_open'
+};
+
+/** 是否工具链插件（声明了 capabilities 或 id 带 toolchain） */
+function isToolchainPlugin(m) {
+  if (!m) return false;
+  if (String(m.id || '').indexOf('toolchain') >= 0) return true;
+  const c = m.capabilities;
+  if (!c) return false;
+  return Array.isArray(c) ? c.length > 0 : Object.keys(c).length > 0;
+}
+
+/**
+ * 项目 → 主动工具链插件 id（三级解析）：
+ *  1. <projectPath>/.labcode.json 的 toolchain 字段（建项目时写入，权威）
+ *  2. 兜底：当前启用中的工具链插件恰好只有一个 → 用它
+ *  3. 都没有 → null（调用方给可操作提示，不静默失败）
+ */
+async function resolveActiveToolchain(projectPath) {
+  const p = projectPath
+    || (window.LabCodeUI && window.LabCodeUI.state && window.LabCodeUI.state.projectPath)
+    || '';
+  if (p) {
+    try {
+      const fsApi = window.LabCode && window.LabCode.fs;
+      if (fsApi) {
+        const rr = await fsApi.readFile(String(p).replace(/[\\\/]+$/, '') + '/.labcode.json');
+        if (rr && rr.success && rr.content) {
+          const meta = JSON.parse(rr.content);
+          const tc = meta && meta.toolchain;
+          if (tc) {
+            const m = PLUGIN_REGISTRY.get(tc);
+            if (m && !PLUGIN_DISABLED.has(tc)) return tc;
+          }
+        }
+      }
+    } catch (e) { /* 读不到/解析失败 → 走兜底 */ }
+  }
+  const active = Array.from(PLUGIN_REGISTRY.values()).filter(m => isToolchainPlugin(m) && !PLUGIN_DISABLED.has(m.id));
+  if (active.length === 1) return active[0].id;
+  return null;
+}
+
+/** 能力 → binding：map 显式绑定优先；数组/未覆盖 → FALLBACK 约定工具名 */
+function resolveCapabilityBinding(manifest, cap) {
+  if (!manifest) return null;
+  const caps = manifest.capabilities;
+  if (caps && !Array.isArray(caps) && typeof caps === 'object') {
+    const b = caps[cap];
+    if (b) return b;   // 简写 {tool:'compile'} 或显式 {transport:...}
+  }
+  const toolName = CAPABILITY_TOOL_FALLBACK[cap];
+  if (!toolName) return null;
+  const has = (manifest.tools || []).some(t => (t && t.name) === toolName);
+  return has ? { tool: toolName } : null;
+}
+
+/**
+ * 能力路由总入口（UI/AI 共用）。
+ * @returns {Promise<{ok:boolean, text?:string, error?:string, pluginId?:string, capability?:string}>}
+ */
+async function runCapability(cap, params, opts) {
+  params = params || {};
+  opts = opts || {};
+  if (CAPABILITY_IDS.indexOf(cap) < 0) {
+    return { ok: false, error: `未知能力「${cap}」。可用：${CAPABILITY_IDS.join(' / ')}` };
+  }
+  const projectPath = (opts.projectPath != null ? opts.projectPath
+    : (window.LabCodeUI && window.LabCodeUI.state && window.LabCodeUI.state.projectPath)) || '';
+  const pluginId = opts.pluginId || await resolveActiveToolchain(projectPath);
+  if (!pluginId) {
+    return { ok: false, error: '未绑定工具链：请打开一个项目（.labcode.json 含 toolchain），或到插件市场安装 arduino-cli-toolchain / esp-idf-toolchain' };
+  }
+  const manifest = PLUGIN_REGISTRY.get(pluginId);
+  if (!manifest) return { ok: false, error: '工具链插件不存在: ' + pluginId };
+  if (PLUGIN_DISABLED.has(pluginId)) return { ok: false, error: `工具链插件「${manifest.name}」已被禁用，请先在插件面板启用` };
+  const binding = resolveCapabilityBinding(manifest, cap);
+  if (!binding) return { ok: false, error: `插件「${manifest.name}」未提供能力「${cap}」` };
+  let text;
+  if (binding.tool) {
+    // 简写：复用已注册工具的 execute（参数 schema / 权限 category 全部沿用）
+    const def = PLUGIN_TOOL_DEFS.find(x => x.name === `plugin_${pluginId}_${binding.tool}`);
+    if (!def) return { ok: false, error: `插件「${manifest.name}」未注册工具 ${binding.tool}` };
+    text = await def.execute(params);
+  } else {
+    // 显式 binding：合成 toolDecl 走 dispatchTool（同一执行体）
+    text = await dispatchTool(Object.assign({ name: cap }, binding), pluginId, `plugin_${pluginId}_${cap}`, params);
+  }
+  const failed = typeof text === 'string' && /(^|\n)\s*Error[:( ]/.test(text);
+  return { ok: !failed, text: text, pluginId: pluginId, capability: cap };
+}
+
 /**
  * 把 plugin.json 清单加载进运行时。
  * @param {object} manifest
@@ -91,142 +345,9 @@ function loadPluginManifest(manifest) {
         parameters: t.parameters || { type: 'object', properties: {} },
         category: t.category || 'query',
         _pluginId: id,
-        execute: async (args) => {
-          const a = args || {};
-          const transport = t.transport || 'internal';
-          try {
-            if (transport === 'internal') {
-              const svcName = t.internal && t.internal.service;
-              const method = t.internal && t.internal.method;
-              const svc = INTERNAL_SERVICES.get(svcName);
-              if (!svc || typeof svc[method] !== 'function') {
-                return `Error: 内部服务 ${svcName}.${method} 未注册`;
-              }
-              return await svc[method](a, t);
-            }
-            if (transport === 'cli') {
-              // t.cli = { command: "arduino-cli core {core}", timeoutMs: 600000, cwd: "{projectPath}", resolve: "arduino-cli", envScript: "export.ps1" }
-              const cli = t.cli || {};
-              const cmdTpl = cli.command || '';
-              if (!cmdTpl) return 'Error: cli.command 未配置';
-              const projectPath = (window.LabCodeUI && window.LabCodeUI.state && window.LabCodeUI.state.projectPath) || '';
-              const ctx = Object.assign({}, a, { projectPath });
-              // 引号感知分词："a b" 是一个参数；占位符按 token 替换——
-              // AI 传入的参数值永远只是单个 argv 元素，绝不拼进 shell 字符串（防注入）
-              const tokenize = (s) => {
-                const out = []; let cur = ''; let q = null;
-                for (let i = 0; i < s.length; i++) {
-                  const c = s[i];
-                  if (q) { if (c === q) q = null; else cur += c; }
-                  else if (c === '"' || c === "'") q = c;
-                  else if (/\s/.test(c)) { if (cur) { out.push(cur); cur = ''; } }
-                  else cur += c;
-                }
-                if (cur) out.push(cur);
-                return out;
-              };
-              const argv = tokenize(cmdTpl).map(tok => tok.replace(/\{(\w+)\}/g, (m, k) => (ctx[k] != null ? String(ctx[k]) : m)));
-              // resolve: 用宿主已有的路径解析器替换命令首段（arduino-cli 不在 PATH，必须解析）
-              const tc = window.LabCode && window.LabCode.toolchain;
-              if (argv.length && tc && tc.getArduinoCliPath && (cli.resolve === 'arduino-cli' || argv[0] === 'arduino-cli')) {
-                try {
-                  const p = await tc.getArduinoCliPath();
-                  if (p && p.path) argv[0] = p.path;
-                } catch (e) { /* 解析失败就用原命令 */ }
-              }
-              if (!argv.length || !argv[0]) return 'Error: cli.command 解析后为空';
-              // 主进程 spawn（数组参数，无 shell）；envScript 由主进程逐参数安全引用后包装
-              const bridge = window.LabCode && window.LabCode.plugin;
-              if (!bridge || !bridge.cliCall) return 'Error: plugin bridge 不可用（cli，需升级主进程）';
-              const r = await bridge.cliCall({
-                command: argv[0],
-                args: argv.slice(1),
-                cwd: (cli.cwd || '').replace(/\{projectPath\}/g, projectPath) || undefined,
-                timeoutMs: cli.timeoutMs || 120000,
-                envScript: cli.envScript ? String(cli.envScript).replace(/\{projectPath\}/g, projectPath) : ''
-              });
-              if (!r || !r.success) {
-                return `Error (exit ${r && r.exitCode}): ${(r && r.error) || (r && r.stderr) || 'unknown'}\n${(r && r.stdout) || ''}`;
-              }
-              return (r.stdout || '') + (r.stderr ? '\n[stderr]\n' + r.stderr : '');
-            }
-            if (transport === 'http') {
-              const http = t.http || {};
-              const urlTpl = http.url || '';
-              const projectPath = (window.LabCodeUI && window.LabCodeUI.state && window.LabCodeUI.state.projectPath) || '';
-              const ctx = Object.assign({}, a, { projectPath });
-              const url = urlTpl.replace(/\{(\w+)\}/g, (m, k) => (ctx[k] != null ? encodeURIComponent(ctx[k]) : m));
-              const method = (http.method || 'POST').toUpperCase();
-              const opts = { method, headers: Object.assign({ 'Content-Type': 'application/json' }, http.headers || {}) };
-              if (method !== 'GET') opts.body = JSON.stringify(a);
-              const resp = await fetch(url, opts);
-              const text = await resp.text();
-              return text.length > 8000 ? text.slice(0, 8000) + '\n...[truncated]' : text;
-            }
-            if (transport === 'mcp') {
-              const mcp = t.mcp || {};
-              if (!window.LabCode || !window.LabCode.mcp || !window.LabCode.mcp.callTool) {
-                return 'Error: MCP 桥不可用';
-              }
-              const r = await window.LabCode.mcp.callTool(mcp.server, mcp.tool, a);
-              return typeof r === 'string' ? r : JSON.stringify(r);
-            }
-            if (transport === 'grpc') {
-              // t.grpc = { protoPath, service, method, host, request, insecure, timeoutMs }
-              // 由主进程加载 proto 并发起 unary 调用（需要 socket，渲染层做不了）
-              const bridge = window.LabCode && window.LabCode.plugin;
-              if (!bridge || !bridge.grpcCall) return 'Error: plugin bridge 不可用（grpc）';
-              const g = t.grpc || {};
-              const r = await bridge.grpcCall({
-                protoPath: g.protoPath, service: g.service, method: g.method,
-                host: g.host, request: Object.assign({}, g.request || {}, a),
-                insecure: g.insecure !== false, timeoutMs: g.timeoutMs || 30000
-              });
-              if (!r || !r.success) return 'Error: grpc 调用失败: ' + ((r && r.error) || 'unknown');
-              return typeof r.result === 'string' ? r.result : JSON.stringify(r.result);
-            }
-            if (transport === 'stdio') {
-              // t.stdio = { command, args, cwd, timeoutMs }；参数以 {argName} 模板注入 args
-              const bridge = window.LabCode && window.LabCode.plugin;
-              if (!bridge || !bridge.stdioCall) return 'Error: plugin bridge 不可用（stdio）';
-              const sd = t.stdio || {};
-              const projectPath = (window.LabCodeUI && window.LabCodeUI.state && window.LabCodeUI.state.projectPath) || '';
-              const ctx = Object.assign({}, a, { projectPath });
-              const args = Array.isArray(sd.args) ? sd.args.map(x => String(x).replace(/\{(\w+)\}/g, (m, k) => (ctx[k] != null ? String(ctx[k]) : m))) : [];
-              const r = await bridge.stdioCall({
-                command: sd.command, args,
-                cwd: (sd.cwd || '').replace(/\{projectPath\}/g, projectPath) || undefined,
-                request: a, timeoutMs: sd.timeoutMs || 30000
-              });
-              if (!r || !r.success) return 'Error: stdio 调用失败: ' + ((r && r.error) || 'unknown') + ((r && r.stderr) ? '\n' + r.stderr : '');
-              if (r.result !== undefined) return typeof r.result === 'string' ? r.result : JSON.stringify(r.result);
-              return r.raw || '';
-            }
-            if (transport === 'mqtt') {
-              // t.mqtt = { brokerUrl, topic, responseTopic, payload, qos, username, password, timeoutMs }
-              const bridge = window.LabCode && window.LabCode.plugin;
-              if (!bridge || !bridge.mqttCall) return 'Error: plugin bridge 不可用（mqtt）';
-              const mq = t.mqtt || {};
-              const projectPath = (window.LabCodeUI && window.LabCodeUI.state && window.LabCodeUI.state.projectPath) || '';
-              const ctx = Object.assign({}, a, { projectPath });
-              const fill = (s) => String(s || '').replace(/\{(\w+)\}/g, (m, k) => (ctx[k] != null ? String(ctx[k]) : m));
-              const r = await bridge.mqttCall({
-                brokerUrl: fill(mq.brokerUrl), topic: fill(mq.topic),
-                responseTopic: mq.responseTopic ? fill(mq.responseTopic) : '',
-                payload: Object.assign({}, mq.payload || {}, a),
-                qos: mq.qos || 0, username: mq.username, password: mq.password,
-                timeoutMs: mq.timeoutMs || 15000
-              });
-              if (!r || !r.success) return 'Error: mqtt 调用失败: ' + ((r && r.error) || 'unknown');
-              if (r.published) return 'OK: 已发布到 ' + fill(mq.topic);
-              if (r.result !== undefined) return typeof r.result === 'string' ? r.result : JSON.stringify(r.result);
-              return r.raw || '';
-            }
-            return `Error: transport "${transport}" 尚未实现（插件 ${id}）`;
-          } catch (e) {
-            return `Error: 工具 ${autoName} 执行失败: ${e.message}`;
-          }
-        }
+        _decl: t,
+        // transport 分发统一走 dispatchTool（capabilities 路由复用同一执行体，对齐 TrieCode）
+        execute: (args) => dispatchTool(t, id, autoName, args)
       };
       PLUGIN_TOOL_DEFS.push(toolDef);
       toolCount++;
@@ -255,6 +376,7 @@ function loadPluginManifest(manifest) {
     projectTypes: manifest.projectTypes || [],
     views: Array.isArray(manifest.views) ? manifest.views : [],
     settings: Array.isArray(manifest.settings) ? manifest.settings : [],
+    capabilities: manifest.capabilities || [],
     active: true
   });
 
@@ -527,6 +649,20 @@ window.PluginSystem = {
   listPlugins: () => Array.from(PLUGIN_REGISTRY.values()).map(p => Object.assign({}, p, { active: !PLUGIN_DISABLED.has(p.id) })),
   listViews: () => Array.from(PLUGIN_VIEWS.values()),
   getView: (key) => PLUGIN_VIEWS.get(key),
+  // ---- capabilities 路由（UI 按钮/AI 共用；对齐 TrieCode runCapability）----
+  CAPABILITY_IDS,
+  CAPABILITY_TOOL_FALLBACK,
+  resolveActiveToolchain,
+  runCapability,
+  // 某插件提供了哪些能力（UI 状态栏/设置页展示用）
+  listCapabilities: (pluginId) => {
+    const m = PLUGIN_REGISTRY.get(pluginId);
+    if (!m) return [];
+    const caps = m.capabilities;
+    const declared = Array.isArray(caps) ? caps.slice() : (caps && typeof caps === 'object' ? Object.keys(caps) : []);
+    const extra = Object.keys(CAPABILITY_TOOL_FALLBACK).filter(c => declared.indexOf(c) < 0 && resolveCapabilityBinding(m, c));
+    return declared.concat(extra);
+  },
   // 2026-09-15 对齐 TrieCode settings：插件声明 settings 项 → UI 自动渲染
   getSettings: (pluginId) => {
     const p = PLUGIN_REGISTRY.get(pluginId);
