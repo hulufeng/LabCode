@@ -1,6 +1,9 @@
 node_modules/
 out/
 dist/
+# electron-builder 的版本化输出目录（dist160/ dist161/ dist162/ …），
+# 每个都含一份完整安装包 + win-unpacked/，禁止入库。
+desktop-app/dist*/
 pkgout*/
 cloud-server/data/
 cloud-server/*.log
