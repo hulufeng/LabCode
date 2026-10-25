@@ -10449,6 +10449,27 @@ function bindEvents() {
     const box = document.getElementById('plugins-install-progress');
     if (box) box.style.display = 'none';
   }
+  // 安装完成「是否立即启用」对话框（对齐 TrieCode）：立即启用=true / 暂不=false
+  function showEnablePrompt(plugin) {
+    return new Promise(resolve => {
+      const modal = document.getElementById('plugin-enable-modal');
+      if (!modal) { resolve(true); return; }
+      document.getElementById('pem-title').textContent = '已安装「' + plugin.name + '」是否立即启用？';
+      modal.style.display = 'flex';
+      const done = (v) => {
+        modal.style.display = 'none';
+        laterBtn.removeEventListener('click', onLater);
+        enableBtn.removeEventListener('click', onEnable);
+        resolve(v);
+      };
+      const laterBtn = document.getElementById('pem-later');
+      const enableBtn = document.getElementById('pem-enable');
+      const onLater = () => done(false);
+      const onEnable = () => done(true);
+      laterBtn.addEventListener('click', onLater);
+      enableBtn.addEventListener('click', onEnable);
+    });
+  }
   // 弹窗头按钮：最小化/关闭均仅隐藏弹窗，安装后台继续
   (function bindInstallModalButtons() {
     const minBtn = document.getElementById('install-min-btn');
@@ -10579,25 +10600,30 @@ function bindEvents() {
       }
     }
 
-    // 远程插件包（官方市场 / 社区）：下载 zip → 解压 → 安装到 userData/plugins/<id>
-    // 与上面 ai-model 下载并列；下载 / 解压失败则中止，不标记已安装。
+    // 远程插件包：官方市场 zip → 失败回退 GitHub 插件仓库（triecode-dev/triecode-plugins，
+    // 插件与 TrieCode 同渠道发布，每插件一个目录含 plugin.json）。任一渠道失败则中止，不标记已安装。
     let remoteInstall = null;
     if (plugin.source === 'remote' && plugin.downloadUrl && plugin.category !== 'ai-model') {
-      try {
-        const psPath = (p) => "'" + String(p).replace(/'/g, "''") + "'";
-        const tmpDir = 'D:\\LabCode\\plugin-tmp\\' + plugin.id + '_' + Date.now();
-        const zipPath = tmpDir + '\\' + plugin.id + '.zip';
-        const extDir = tmpDir + '\\extracted';
-        // 面板内嵌进度条（TrieCode 式）：真实进度 = 已下载体积 / HEAD Content-Length
+      const psPath = (p) => "'" + String(p).replace(/'/g, "''") + "'";
+      const tmpDir = 'D:\\LabCode\\plugin-tmp\\' + plugin.id + '_' + Date.now();
+      const extDir = tmpDir + '\\extracted';
+      // 下载 → 校验(PK头) → 解压 → 定位 <subdir>/plugin.json → installFromDir。全程更新内嵌真实进度条。
+      const tryDownloadInstall = async (zipUrl, subdirName, label) => {
+        // 每个渠道独立文件名 + 下载前删除旧文件：避免 curl -C - 从上一个渠道的残缺文件续传导致秒败
+        const zipPath = tmpDir + '\\' + label + '-' + subdirName + '.zip';
         showPluginProgress(plugin);
         let totalBytes = 0;
+        // 先验证资源可用（HTTP 200）再下载：网关 404 的响应体也带 Content-Length，
+        // 不校验状态码会把 152 字节错误页当成"总体积"算出假百分比
         try {
           const headRes = await window.LabCode.terminal.execute(
-            'powershell -NoProfile -Command "(curl.exe -sIL ' + psPath(plugin.downloadUrl) + ' | Select-String -Pattern \'Content-Length\' | Select-Object -Last 1) -replace \'[^0-9]\',\'\'"',
-            null, 20000, { force: true }
+            'powershell -NoProfile -Command "try { $r = Invoke-WebRequest -Uri ' + psPath(zipUrl) + ' -Method Head -UseBasicParsing -TimeoutSec 20; $cl = $r.Headers[\'Content-Length\']; if ($cl -is [array]) { $cl = $cl[-1] }; Write-Output ($r.StatusCode.ToString() + \'|\' + $cl) } catch { Write-Output (\'ERR|\' + $_.Exception.Message) }"',
+            null, 30000, { force: true }
           );
-          totalBytes = parseInt(String((headRes && headRes.stdout) || '').trim(), 10) || 0;
-        } catch (e) { totalBytes = 0; }
+          const hp = String((headRes && headRes.stdout) || '').trim().split('|');
+          if (hp[0] !== '200') throw new Error('资源不可用（HTTP ' + hp[0] + (hp[1] ? ' ' + String(hp[1]).substring(0, 60) : '') + '）');
+          totalBytes = parseInt(hp[1], 10) || 0;
+        } catch (e) { throw new Error((e && e.message) || '资源探测失败'); }
         if (pluginProgressTimer) { clearInterval(pluginProgressTimer); pluginProgressTimer = null; }
         pluginProgressTimer = setInterval(async () => {
           try {
@@ -10616,15 +10642,14 @@ function bindEvents() {
             }
           } catch (e) { /* 轮询失败不影响下载 */ }
         }, 800);
-        addOutputLog('正在从官方市场下载插件包 ' + plugin.id + (totalBytes > 0 ? '（' + (totalBytes / 1048576).toFixed(2) + ' MB）' : '') + '...', 'info');
+        addOutputLog('正在下载插件包（' + label + '）' + plugin.id + (totalBytes > 0 ? '（' + (totalBytes / 1048576).toFixed(2) + ' MB）' : '') + '...', 'info');
         await window.LabCode.terminal.execute(
-          'powershell -NoProfile -Command "New-Item -ItemType Directory -Force -Path ' + psPath(tmpDir) + ' | Out-Null; curl.exe -L --retry 3 -C - -o ' + psPath(zipPath) + ' ' + psPath(plugin.downloadUrl) + '"',
+          'powershell -NoProfile -Command "Remove-Item ' + psPath(zipPath) + ' -ErrorAction SilentlyContinue; New-Item -ItemType Directory -Force -Path ' + psPath(tmpDir) + ' | Out-Null; curl.exe -L --retry 3 -C - -o ' + psPath(zipPath) + ' ' + psPath(zipUrl) + '"',
           null, 600000, { force: true }
         );
         if (pluginProgressTimer) { clearInterval(pluginProgressTimer); pluginProgressTimer = null; }
         setPluginProgress(95, plugin, '校验压缩包');
-        // 校验下载产物：存在、非空、且是有效 zip（PK 头 0x50 0x4B），输出体积(KB)。
-        // 不用体积下限判断——小插件(几 KB)会被误杀；坏包交给后面的 Expand-Archive 报错。
+        // 校验：存在、非空、有效 zip（PK 头 0x50 0x4B）。不用体积下限——小插件会被误杀。
         const ver = await window.LabCode.terminal.execute(
           'powershell -NoProfile -Command "if (Test-Path ' + psPath(zipPath) + ') { $b=[System.IO.File]::ReadAllBytes(' + psPath(zipPath) + '); if ($b.Length -ge 4 -and $b[0] -eq 80 -and $b[1] -eq 75) { Write-Output ([math]::Round((Get-Item ' + psPath(zipPath) + ').Length/1KB,1)) } else { Write-Output BADZIP } } else { Write-Output MISSING }"',
           null, 20000, { force: true }
@@ -10632,27 +10657,49 @@ function bindEvents() {
         const vout = String((ver && ver.stdout) || '').trim();
         const szKB = parseFloat(vout);
         if (!vout || vout === 'MISSING' || vout === 'BADZIP' || !(szKB > 0)) {
-          throw new Error('下载失败或文件不是有效 zip（' + (vout || '无输出') + '），请重试');
+          throw new Error('下载失败或文件不是有效 zip（' + (vout || '无输出') + '）');
         }
         setPluginProgress(97, plugin, '解压注册');
         await window.LabCode.terminal.execute(
           'powershell -NoProfile -Command "Expand-Archive -Path ' + psPath(zipPath) + ' -DestinationPath ' + psPath(extDir) + ' -Force"',
           null, 120000, { force: true }
         );
-        const mDir = window.PluginSystem.findManifestDir ? await window.PluginSystem.findManifestDir(extDir) : null;
-        if (!mDir) throw new Error('压缩包内未找到 plugin.json（请确认压缩包根目录含 plugin.json）');
+        // GitHub zipball 解压根目录带 repo 名前缀（如 triecode-plugins-main/<id>/plugin.json），
+        // 必须精确匹配插件子目录名，避免 findManifestDir 抓到仓库里第一个别的插件
+        let mDir = null;
+        const findRes = await window.LabCode.terminal.execute(
+          'powershell -NoProfile -Command "$m = Get-ChildItem -Path ' + psPath(extDir) + ' -Recurse -Filter plugin.json -ErrorAction SilentlyContinue | Where-Object { $_.Directory.Name -eq \'' + subdirName + '\' } | Select-Object -First 1; if ($m) { Write-Output $m.DirectoryName } else { Write-Output NONE }"',
+          null, 30000, { force: true }
+        );
+        const mp = String((findRes && findRes.stdout) || '').trim();
+        if (mp && mp !== 'NONE') mDir = mp;
+        if (!mDir && window.PluginSystem.findManifestDir) mDir = await window.PluginSystem.findManifestDir(extDir);
+        if (!mDir) throw new Error('压缩包内未找到 ' + subdirName + '/plugin.json');
         const r = await window.PluginSystem.installFromDir(mDir);
         if (!r || !r.success) throw new Error(r && r.error ? r.error : '安装失败');
-        remoteInstall = r;
         setPluginProgress(100, plugin, '安装完成');
-        addOutputLog('✅ 插件包下载并安装完成（' + szKB + ' KB，注册 ' + (r.tools || 0) + ' 个工具、' + (r.skills || 0) + ' 条技能）', 'success');
-        try { const _o = new URL(plugin.downloadUrl).origin; await fetch(_o + '/api/plugins/' + plugin.id + '/install', { method: 'POST' }); } catch (e) {}
-      } catch (e) {
-        hideInstallModal();
-        addOutputLog('远程插件安装失败：' + e.message, 'warning');
-        showToast(plugin.name + ' 安装失败：' + e.message, 'error');
-        return { success: false, error: '远程安装失败: ' + e.message };
+        return { result: r, sizeKB: szKB };
+      };
+      try {
+        const gw = await tryDownloadInstall(plugin.downloadUrl, plugin.id, '官方市场');
+        remoteInstall = gw.result;
+        addOutputLog('✅ 插件包下载并安装完成（' + gw.sizeKB + ' KB，注册 ' + (gw.result.tools || 0) + ' 个工具、' + (gw.result.skills || 0) + ' 条技能）', 'success');
+      } catch (gwErr) {
+        // 网关包缺失/坏包 → GitHub 插件仓库回退（id 映射：mcs51 → 仓库里的 sdcc-51）
+        addOutputLog('官方市场包不可用（' + gwErr.message + '），回退 GitHub 插件仓库...', 'warning');
+        const ghId = plugin.id === 'mcs51-toolchain' ? 'sdcc-51-toolchain' : plugin.id;
+        try {
+          const gh = await tryDownloadInstall('https://codeload.github.com/triecode-dev/triecode-plugins/zip/refs/heads/main', ghId, 'GitHub');
+          remoteInstall = gh.result;
+          addOutputLog('✅ 已从 GitHub 插件仓库安装（triecode-dev/triecode-plugins@main，' + gh.sizeKB + ' KB，注册 ' + (gh.result.tools || 0) + ' 个工具、' + (gh.result.skills || 0) + ' 条技能）', 'success');
+        } catch (ghErr) {
+          hideInstallModal();
+          addOutputLog('远程插件安装失败：官方市场(' + gwErr.message + ') / GitHub(' + ghErr.message + ')', 'warning');
+          showToast(plugin.name + ' 安装失败：' + ghErr.message, 'error');
+          return { success: false, error: '远程安装失败: ' + ghErr.message };
+        }
       }
+      try { const _o = new URL(plugin.downloadUrl).origin; await fetch(_o + '/api/plugins/' + plugin.id + '/install', { method: 'POST' }); } catch (e) {}
     }
 
     // 下载失败/不完整 → 中止安装，不标记已安装（避免「安装成功」但模型文件不存在）
@@ -10701,6 +10748,13 @@ function bindEvents() {
       showToast(plugin.name + ' 安装成功', 'success');
     } else {
       showToast(plugin.name + ' 已登记（无插件包，不提供工具）', 'warning');
+    }
+    // TrieCode 式：装完询问是否立即启用（暂不 → 保持禁用，稍后可在插件列表手动开启）
+    if (hasManifest && plugin.category !== 'ai-model') {
+      const enableNow = await showEnablePrompt(plugin);
+      if (!enableNow && window.PluginSystem && typeof window.PluginSystem.setActive === 'function') {
+        await window.PluginSystem.setActive(plugin.id, false);
+      }
     }
     renderPluginsList();
     updateCompilerPluginStatus();
