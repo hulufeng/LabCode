@@ -396,7 +396,7 @@ async function installFromDir(srcDir) {
     const copied = await copyDir(fsApi, srcDir, dst);
     if (!copied) return { success: false, error: '没有拷贝到任何文件' };
     const r2 = loadPluginManifest(manifest);
-    return { success: true, id: manifest.id, name: manifest.name || manifest.id, path: dst, tools: r2.loaded.tools, skills: r2.loaded.skills, errors: r2.loaded.errors };
+    return { success: true, id: manifest.id, name: manifest.name || manifest.id, version: manifest.version || '', path: dst, tools: r2.loaded.tools, skills: r2.loaded.skills, errors: r2.loaded.errors };
   } catch (e) {
     return { success: false, error: '安装失败: ' + e.message };
   }

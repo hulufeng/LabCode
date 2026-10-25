@@ -10194,11 +10194,13 @@ function bindEvents() {
     }
     if (!done) { hideInstallModal(); return; }
     const realId = done.id || id;  // 以 manifest 真实 id 为准（卸载/启用一致）
-    if (!isPluginInstalled(realId)) installedPlugins.push({ id: realId, name: plugin.name, version: plugin.version, icon: plugin.icon, description: plugin.description, category: 'tool', source: 'community', installedAt: Date.now(), tools: done.tools || 0 });
+    const realName = done.name || plugin.name;           // 用 manifest 的 name，而非仓库名
+    const realVersion = done.version || plugin.version || '—';
+    if (!isPluginInstalled(realId)) installedPlugins.push({ id: realId, name: realName, version: realVersion, icon: plugin.icon, description: plugin.description, category: 'tool', source: 'community', installedAt: Date.now(), tools: done.tools || 0 });
     saveInstalledPlugins();
     hideInstallModal();
     // 装完询问是否立即启用（与官方市场一致）
-    const enableNow = await showEnablePrompt({ id: realId, name: plugin.name });
+    const enableNow = await showEnablePrompt({ id: realId, name: realName });
     if (!enableNow && window.PluginSystem && typeof window.PluginSystem.setActive === 'function') {
       await window.PluginSystem.setActive(realId, false);
     }
@@ -10975,7 +10977,7 @@ function bindEvents() {
   /** 安装成功后把插件登记进「已安装」列表（市场里没有的第三方插件也要能显示） */
   function markPluginInstalled(r) {
     if (!r || !r.id || isPluginInstalled(r.id)) return;
-    const meta = BUILTIN_PLUGIN_MANIFESTS[r.id] || { id: r.id, name: r.name || r.id, version: '1.0.0', icon: '🧩', category: 'tool', description: '本地安装', capabilities: [] };
+    const meta = BUILTIN_PLUGIN_MANIFESTS[r.id] || { id: r.id, name: r.name || r.id, version: r.version || '—', icon: '🧩', category: 'tool', description: '本地安装', capabilities: [] };
     installedPlugins.push({ ...meta, installedAt: Date.now(), tools: r.tools || 0 });
     saveInstalledPlugins();
   }
