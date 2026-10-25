@@ -3103,6 +3103,23 @@ body.no-open-file .ai-panel {
   font-weight: 500;
 }
 
+/* 下拉里的「状态行」：只做分组标题/状态展示，不可点（如「本地 AI 引擎」那一行） */
+.model-option-head {
+  cursor: default;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 12px;
+  letter-spacing: .2px;
+}
+.model-option-head:hover {
+  background: transparent;
+  color: var(--text-primary);
+}
+.model-option-head .model-opt-label {
+  color: inherit;
+  font-weight: inherit;
+}
+
 /* 工作空间路径 */
 .workspace-path {
   display: flex;

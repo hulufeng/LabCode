@@ -4490,7 +4490,7 @@ void loop() {
           return this._degradedReply(
             '⚠️ 本地 AI 引擎还没安装\n\n' +
             '本地 AI 引擎（内置 llama.cpp）需要单独安装，装完还要下载一个"模型文件"才能用。\n\n' +
-            '想马上用 AI，推荐先用云端：设置 → AI 引擎 → 登录 LabCode 账号（免费，用的是硅基流动 Qwen3-8B，不用下载、不耗积分）。\n' +
+            '想马上用 AI，推荐先用云端：设置 → AI 模型来源 → 登录 LabCode 账号（免费，用的是硅基流动 Qwen3-8B，不用下载、不耗积分）。\n' +
             '想用本地引擎（不联网、不花钱），去「插件市场」先装「LabCode AI 引擎」，再装一个模型（推荐 Qwen2.5-Coder 7B，写代码专用，约 4.4GB）。'
           );
         }
@@ -4532,7 +4532,7 @@ void loop() {
       return this._degradedReply(
         '⚠️ 尚未连接 AI 模型\n\n' +
         '请任选一种方式配置后再提问：\n' +
-        '1. 设置 → AI 引擎 → 登录 LabCode 账号（使用内置云端模型）\n' +
+        '1. 设置 → AI 模型来源 → 登录 LabCode 账号（使用内置云端模型）\n' +
         '2. 填入自有 API Key（DeepSeek / 通义千问 / 智谱 / 豆包 等）\n' +
         '3. 切换到本地模型（Ollama 或内置本地引擎）'
       );
@@ -4586,7 +4586,7 @@ void loop() {
         }
         return this._degradedReply(
           `⚠️ AI 请求失败：${result?.error || '未知错误'}\n\n` +
-          `请在 设置 → AI 引擎 检查模型与网络配置后重试。`
+          `请在 设置 → AI 模型来源 检查模型与网络配置后重试。`
         );
       }
 
@@ -4610,7 +4610,7 @@ void loop() {
       };
     } catch (e) {
       console.error('[RealAIClient] 异常:', e);
-      return this._degradedReply(`⚠️ AI 异常：${e.message}\n\n请在 设置 → AI 引擎 检查配置后重试。`);
+      return this._degradedReply(`⚠️ AI 异常：${e.message}\n\n请在 设置 → AI 模型来源 检查配置后重试。`);
     }
   }
 
@@ -11612,6 +11612,11 @@ function bindEvents() {
     document.querySelectorAll('.model-option').forEach(option => {
       option.addEventListener('click', async () => {
         const modelKey = option.dataset.model;
+        // 「本地 AI 引擎」现在是状态行（不可选）：真正可选的是下面列出的具体模型
+        if (option.dataset.localHeader === '1') {
+          showToast('请从下面的「本地 AI 引擎」分组里选一个具体模型', 'warning');
+          return;
+        }
         const mapping = MODEL_MAP[modelKey];
         if (!mapping) return;
         modelSelGen++;   // 切换模型：作废进行中的异步探测回写
@@ -11660,7 +11665,7 @@ function bindEvents() {
               } else {
                 const fix = mapping.provider === 'ollama'
                   ? `先启动 Ollama 并执行 ollama pull ${(cfg?.ai?.model || 'qwen2.5-coder:7b')}，或点 ⓘ 看说明`
-                  : '去「设置 → AI 引擎」下载模型后即可使用';
+                  : '去「插件市场」下载模型后即可使用';
                 showToast(`已切换到 ${modelName}，但本机${s.text}：${fix}`, 'warning');
               }
             } else {
@@ -11756,7 +11761,7 @@ function bindEvents() {
 
   // 刷新本地模型到选择器（安装大模型插件后调用；本地引擎 = 内置 llama.cpp + models 目录 GGUF）
   // 用户诉求「下载那个大模型就显示那个」：把已下载的每个模型都列进下拉，可直接选中，
-  // 不必再去「设置 → AI 引擎」里挑。
+  // 不必再去「设置 → AI 模型来源」里挑。
   async function refreshLocalModelsInSelector() {
     const gen = modelSelGen;
     try {
@@ -11770,14 +11775,21 @@ function bindEvents() {
       // 移除旧的本地模型分组（保持下拉干净）
       dropdown.querySelectorAll('.local-model-group').forEach(el => el.remove());
 
+      // 「本地 AI 引擎」这一行改成不可点的状态行：
+      // 它与下面逐个列出的模型功能重复（选它 = 用默认 7B），
+      // 留着会让用户困惑到底该点哪个。改为标题 + 状态签，真正可选的是下面具体模型。
+      const localRow = dropdown.querySelector('.model-option[data-model="local"]');
+      if (localRow) {
+        localRow.classList.add('model-option-head');
+        localRow.dataset.localHeader = '1';
+        const lbl = localRow.querySelector('.model-opt-label');
+        if (lbl) lbl.textContent = '本地 AI 引擎';
+      }
+
       // 列出已下载的本地模型：下载了哪个就显示哪个，可直接切换
       if (modelList.length > 0) {
         const group = document.createElement('div');
         group.className = 'local-model-group';
-        const title = document.createElement('div');
-        title.className = 'local-model-group-title';
-        title.textContent = '已下载的本地模型（' + modelList.length + '）';
-        group.appendChild(title);
         modelList.forEach(m => {
           const opt = document.createElement('div');
           opt.className = 'model-option local-model-item';
@@ -15416,7 +15428,30 @@ if (document.readyState === 'loading') {
       }
       // 自动检测 Ollama
       checkOllama();
+      // 显示本机内置引擎与已装模型（让「本地 AI 引擎」不再是黑盒）
+      refreshLocalEngineStatus();
     });
+  }
+
+  // 设置面板里「本地 AI 引擎」一栏的状态：引擎在不在、装了几个模型
+  async function refreshLocalEngineStatus() {
+    const el = document.getElementById('local-engine-status');
+    if (!el) return;
+    try {
+      const rt = await window.LabCode.system.checkLLMRuntime();
+      const models = (rt && rt.models) || [];
+      if (!rt || !rt.engine) {
+        el.innerHTML = '<span style="color:#ef4444;">● 未安装引擎</span>（重装 LabCode 可恢复）';
+      } else if (!models.length) {
+        el.innerHTML = '<span style="color:#ff9800;">● 引擎已就绪，还没下载模型</span>（去「插件市场」下载，约 2~6GB）';
+      } else {
+        const names = models.map(m => m.name).join('、');
+        el.innerHTML = '<span style="color:#4caf50;">● 引擎已就绪</span> 已装 ' + models.length + ' 个模型：' + names
+          + '<br><span style="color:#888;">在顶栏模型下拉里直接选具体模型即可</span>';
+      }
+    } catch (e) {
+      el.innerHTML = '<span style="color:#888;">○ 未能检测本地引擎</span>';
+    }
   }
 
   async function checkOllama() {

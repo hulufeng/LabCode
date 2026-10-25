@@ -754,7 +754,7 @@
             </div>
           </div>
           <div class="device-section" style="margin-top:16px;">
-            <div class="device-section-title">AI 引擎</div>
+            <div class="device-section-title">AI 模型来源</div>
             <div style="background:#1e1e1e;border:1px solid #3c3c3c;border-radius:6px;padding:12px;margin-bottom:8px;">
               <div style="display:flex;align-items:flex-start;gap:8px;">
                 <input type="radio" name="ai-provider" value="gateway" id="ai-prov-gateway" checked>
@@ -787,8 +787,9 @@
               <div style="display:flex;align-items:flex-start;gap:8px;">
                 <input type="radio" name="ai-provider" value="local" id="ai-prov-local">
                 <div>
-                  <div style="font-size:13px;font-weight:600;color:#e0e0e0;">本地 llama.cpp</div>
-                  <div style="font-size:11px;color:#888;margin-top:2px;">需要 llama-server 引擎和 GGUF 模型（高级用户）。</div>
+                  <div style="font-size:13px;font-weight:600;color:#e0e0e0;">本地 AI 引擎（内置）</div>
+                  <div style="font-size:11px;color:#888;margin-top:2px;">LabCode 自带引擎，不用另装任何软件；模型在「插件市场」下载（2~6GB 一个）。</div>
+                  <div id="local-engine-status" style="font-size:11px;margin-top:6px;"></div>
                 </div>
               </div>
             </div>
@@ -1714,7 +1715,7 @@
             <li>快慢取决于你电脑的显卡和内存</li>
           </ul>
         </div>
-        <p style="margin:0 0 10px;"><b>代价：</b>得先在「设置 → AI 引擎」下载一个模型文件（约 2~6GB），而且聪明程度一般略低于顶级云端模型。</p>
+        <p style="margin:0 0 10px;"><b>代价：</b>得先在「插件市场」下载一个模型文件（约 2~6GB，国内直链），而且聪明程度一般略低于顶级云端模型。</p>
         <p style="margin:0;color:var(--text-secondary);font-size:12px;line-height:1.7;">三个选项一句话：<br>· <b style="color:var(--text-primary);">本地 AI 引擎</b>（你现在看的）：本机跑，LabCode 内置，不用另装软件<br>· <b style="color:var(--text-primary);">Ollama 本地模型</b>：也是本地跑，但用你另装的 Ollama<br>· <b style="color:var(--text-primary);">硅基流动 Qwen3-8B</b>：云端跑，最聪明、开箱即用，但要联网、耗免费积分</p>
       </div>
       <div style="display:flex;justify-content:flex-end;margin-top:16px;">
@@ -1739,7 +1740,7 @@
             <li><b style="color:var(--text-primary);">让 Ollama 在运行</b>：装完它常驻托盘；关掉了就对话失败</li>
           </ol>
         </div>
-        <p style="margin:0 0 10px;"><b>连不上？</b>默认地址是 <code style="background:var(--surface-3);padding:1px 4px;border-radius:4px;">http://127.0.0.1:8080</code>。地址和模型名都能在「设置 → AI 引擎」里改。</p>
+        <p style="margin:0 0 10px;"><b>连不上？</b>默认地址是 <code style="background:var(--surface-3);padding:1px 4px;border-radius:4px;">http://127.0.0.1:8080</code>。地址和模型名都能在「设置 → AI 模型来源」里改。</p>
         <p style="margin:0;color:var(--text-secondary);font-size:12px;line-height:1.7;"><b style="color:var(--text-primary);">和「本地 AI 引擎」怎么选？</b><br>· <b style="color:var(--text-primary);">本地 AI 引擎</b>：LabCode 自带，不用装软件，去「插件市场」下模型即可<br>· <b style="color:var(--text-primary);">Ollama 本地模型</b>：你已经装了 Ollama 就用这个，能复用你已有的模型<br>· <b style="color:var(--text-primary);">硅基流动 Qwen3-8B</b>：云端跑，最聪明、开箱即用，但要联网<br>下拉里的状态签会告诉你当前这台电脑到底能不能直接聊。</p>
       </div>
       <div style="display:flex;justify-content:flex-end;margin-top:16px;">
