@@ -8875,11 +8875,35 @@ function bindEvents() {
   async function wfLoad() { try { const c = await window.LabCode?.config?.get?.(); const w = c && c.ai ? c.ai.workflow : null; if (w && w.nodes) { wfNodes = w.nodes; wfEdges = w.edges || []; return; } } catch (e) {} wfNodes = []; wfEdges = []; }
   function wfSave() { try { window.LabCode?.config?.set?.('ai.workflow', { nodes: wfNodes, edges: wfEdges }); } catch (e) {} }
   function wfPortPos(node, kind) { if (kind === 'in') return { x: node.x + 90, y: node.y }; return { x: node.x + 90, y: node.y + 70 }; }
+  // 环检测：基于整张有向图（success + loop 边都算，因为 loop 边同样构成会迭代的环）。
+  // 用 DFS 三色标记找回边，返回处于环中的节点集合。
+  function wfDetectCycle() {
+    const adj = {}; wfNodes.forEach(n => adj[n.id] = []);
+    wfEdges.forEach((e, i) => { if (adj[e.from]) adj[e.from].push({ to: e.to, idx: i }); });
+    const color = {}; wfNodes.forEach(n => color[n.id] = 0); // 0 未访 1 在栈 2 已完
+    const nodes = new Set();
+    const stack = [];
+    function dfs(u) {
+      color[u] = 1; stack.push(u);
+      for (const e of (adj[u] || [])) {
+        if (color[e.to] === 0) dfs(e.to);
+        else if (color[e.to] === 1) {
+          nodes.add(e.to);
+          let k = stack.length - 1;
+          while (k >= 0 && stack[k] !== e.to) { nodes.add(stack[k]); k--; }
+        }
+      }
+      color[u] = 2; stack.pop();
+    }
+    wfNodes.forEach(n => { if (color[n.id] === 0) dfs(n.id); });
+    return nodes;
+  }
   function wfRenderNodes() {
     const wrap = document.getElementById('wf-nodes'); if (!wrap) return;
+    const cyc = wfDetectCycle();
     wrap.innerHTML = '';
     wfNodes.forEach(n => {
-      const el = document.createElement('div'); el.className = 'wf-node' + (n.id === wfActiveId ? ' selected' : ''); el.style.left = n.x + 'px'; el.style.top = n.y + 'px';
+      const el = document.createElement('div'); el.className = 'wf-node' + (n.id === wfActiveId ? ' selected' : '') + (cyc.has(n.id) ? ' cyclic' : ''); el.style.left = n.x + 'px'; el.style.top = n.y + 'px'; if (cyc.has(n.id)) { el.style.borderColor = '#ef4444'; el.style.boxShadow = '0 0 0 2px rgba(239,68,68,.35)'; }
       const st = n.data.status || 'idle';
       const stColor = WF_STATUS_COLOR[st] || 'var(--text-tertiary)';
       const stText = WF_STATUS_TEXT[st] || st;
@@ -8890,7 +8914,7 @@ function bindEvents() {
       el.querySelector('.wf-node-header').addEventListener('mousedown', e => { e.preventDefault(); wfDrag = { id: n.id, dx: e.clientX - n.x, dy: e.clientY - n.y }; });
       el.addEventListener('mousedown', () => { wfSelect(n.id); });
       pout.addEventListener('mousedown', e => { e.stopPropagation(); wfConnectFrom = n.id; showToast('已选起点，点目标节点输入口连线', 'info'); });
-      pin.addEventListener('mousedown', e => { e.stopPropagation(); if (wfConnectFrom && wfConnectFrom !== n.id) { const backEdge = wfNodes.findIndex(x => x.id === wfConnectFrom) >= wfNodes.findIndex(x => x.id === n.id); wfEdges.push({ from: wfConnectFrom, to: n.id, route: backEdge ? 'loop' : 'success' }); wfConnectFrom = null; wfRenderEdges(); wfSave(); } else { wfConnectFrom = null; } });
+      pin.addEventListener('mousedown', e => { e.stopPropagation(); if (wfConnectFrom && wfConnectFrom !== n.id) { const backEdge = wfNodes.findIndex(x => x.id === wfConnectFrom) >= wfNodes.findIndex(x => x.id === n.id); wfEdges.push({ from: wfConnectFrom, to: n.id, route: backEdge ? 'loop' : 'success' }); wfConnectFrom = null; wfRenderNodes(); wfSave(); } else { wfConnectFrom = null; } });
       el.addEventListener('dblclick', e => { e.stopPropagation(); wfEdit(n.id); });
       wrap.appendChild(el);
     });
@@ -8898,6 +8922,7 @@ function bindEvents() {
   }
   function wfRenderEdges() {
     const svg = document.getElementById('wf-edges'); if (!svg) return;
+    const cyc = wfDetectCycle();
     svg.innerHTML = '';
     wfEdges.forEach(ed => {
       const a = wfNodes.find(n => n.id === ed.from), b = wfNodes.find(n => n.id === ed.to); if (!a || !b) return;
@@ -8905,22 +8930,23 @@ function bindEvents() {
       const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
       line.setAttribute('x1', pa.x); line.setAttribute('y1', pa.y); line.setAttribute('x2', pb.x); line.setAttribute('y2', pb.y);
       const isLoop = ed.route === 'loop';
-      line.setAttribute('stroke', isLoop ? '#ef4444' : 'var(--primary)');
+      const inCyc = cyc.has(a.id) && cyc.has(b.id);
+      line.setAttribute('stroke', inCyc ? '#ef4444' : (isLoop ? '#ef4444' : 'var(--primary)'));
       line.setAttribute('stroke-width', '2');
-      line.setAttribute('stroke-dasharray', isLoop ? '6,4' : '');
+      line.setAttribute('stroke-dasharray', isLoop ? '6,4' : (inCyc ? '3,3' : ''));
       line.setAttribute('data-route', isLoop ? 'loop' : 'success');
       svg.appendChild(line);
-      if (isLoop) {
+      if (isLoop || inCyc) {
         const lbl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
         lbl.setAttribute('x', (pa.x + pb.x) / 2 + 6); lbl.setAttribute('y', (pa.y + pb.y) / 2 - 6);
         lbl.setAttribute('fill', '#ef4444'); lbl.setAttribute('font-size', '10');
-        lbl.textContent = '循环';
+        lbl.textContent = isLoop ? '循环' : '环';
         svg.appendChild(lbl);
       }
     });
   }
   function wfAddNode(type) {
-    const n = { id: 'n' + Date.now(), type: type, x: 60 + (wfNodes.length % 6) * 30, y: 60 + (wfNodes.length % 6) * 30, data: { label: '', prompt: '', cmd: '', result: '', agent: 'LabCode（内置）', approval: false, status: 'idle' } };
+    const n = { id: 'n' + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36), type: type, x: 60 + (wfNodes.length % 6) * 30, y: 60 + (wfNodes.length % 6) * 30, data: { label: '', prompt: '', cmd: '', result: '', agent: 'LabCode（内置）', approval: false, status: 'idle' } };
     wfNodes.push(n); wfRenderNodes(); wfSave();
   }
   function wfSelect(id) { wfActiveId = id; wfRenderNodes(); wfRenderProps(id); }
@@ -8959,6 +8985,8 @@ function bindEvents() {
     if (wfRunning) { showToast('工作流正在运行中', 'warn'); return; }
     wfRunning = true;
     try {
+      const __cyc = wfDetectCycle();
+      if (__cyc.size) showToast('⚠ 检测到 ' + __cyc.size + ' 个节点成环（红框高亮），运行时以迭代上限保护避免死循环', 'warn');
       // 执行模型：按边路由调度（success 边正常前进；loop 边回跳形成迭代，带最大轮次保护）
       const MAX_LOOP = 5;                 // 每个节点最大循环次数，防死循环
       const loopCount = {};               // 记录每个"回跳目标"的循环次数
