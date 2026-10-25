@@ -10082,11 +10082,18 @@ function bindEvents() {
     return cats;
   }
 
-  // ============ 插件分发统一走 GitHub ============
+  // ============ 插件分发统一走 GitHub（自有仓库） ============
   // 官方/社区插件全部从 GitHub 仓库下载安装（发布 = 推到 GitHub 仓库，下载安装 = 拉取 zipball）。
-  // 网关仅作为插件目录/元数据来源；个别不在 GitHub 的插件（如 hello-market / llama-runtime）回退网关 zip。
-  const OFFICIAL_PLUGIN_REPO = 'triecode-dev/triecode-plugins';  // 官方工具链同源仓库（可在后端用 githubRepo 字段覆盖为 hulufeng/... 自有源）
-  const GH_PLUGIN_ID_MAP = { 'mcs51-toolchain': 'sdcc-51-toolchain' };  // 网关 id → 仓库子目录名 差异映射
+  // 默认源 = hulufeng/labcode-plugins（LabCode 自有插件仓库）；网关仅作插件目录/元数据来源 + 兜底 zip。
+  // GH_PLUGIN_ID_MAP 解决「网关 id ↔ 仓库子目录名」差异；未命中的插件回退网关 zip（如 llama-runtime）。
+  const OFFICIAL_PLUGIN_REPO = 'hulufeng/labcode-plugins';
+  const GH_PLUGIN_ID_MAP = {
+    'browser-toolchain': 'browser-automation',
+    'plugin-dev-toolchain': 'plugin-dev',
+    'mcs51-toolchain': 'mcu8051-toolchain',
+    'hello-market': 'demo-hello',
+    'stm32-cube-toolchain': 'stm32-toolchain'
+  };
 
   // 从任意 GitHub/codeload zipball 下载并安装插件（官方市场与社区插件共用一条链路）
   // zipUrl: 压缩包地址；findDirName: 优先匹配的插件子目录名（多插件仓库精确定位；传 null → 全盘递归找第一个 plugin.json）；
@@ -10732,8 +10739,8 @@ function bindEvents() {
     // 复用共享 installFromZipball 链路（与社区插件同一套下载/校验/解压/进度逻辑）。
     let remoteInstall = null;
     if (plugin.source === 'remote' && plugin.downloadUrl && plugin.category !== 'ai-model') {
-      // 官方插件 GitHub 源：默认 triecode-dev/triecode-plugins（与 LabCode 工具链同源）；
-      // 若网关插件数据里标注了 githubRepo 字段，则以标注值为准（可在后端切换为 hulufeng/... 自有源）
+      // 官方插件 GitHub 源：默认 hulufeng/labcode-plugins（LabCode 自有仓库）；
+      // 若网关插件数据里标注了 githubRepo 字段，则以标注值为准
       const ghRepo = plugin.githubRepo || OFFICIAL_PLUGIN_REPO;
       const ghId = (GH_PLUGIN_ID_MAP[plugin.id] || plugin.id);
       try {
