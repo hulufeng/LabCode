@@ -2265,13 +2265,23 @@ async function refreshMcpToolDefs() {
     const defs = [];
     const seenNames = {};
     for (const s of (servers || [])) {
-      if (s.status !== 'running') continue;
+      // 等待服务器启动完成（initialize + tools/list，最多 8 秒），再列工具
+      let cur = s;
+      for (let w = 0; w < 16 && cur.status !== 'running'; w++) {
+        await new Promise(r => setTimeout(r, 500));
+        try {
+          const fresh = await window.LabCode.mcp.listServers();
+          cur = fresh.find(x => x.name === s.name) || cur;
+        } catch (e0) { break; }
+      }
+      if (cur.status !== 'running') continue;
       try {
         const r = await window.LabCode.mcp.listTools(s.name);
         const tools = (r && r.tools) || [];
         for (const t of tools) {
           const schema = t.inputSchema || { type: 'object', properties: {} };
-          let vname = ('mcp_' + s.name + '_' + t.name).toLowerCase().replace(/[^a-z0-9_]+/g, '_').replace(/^_+|_+$/g, '');
+          // 命名对齐 TrieCode：mcp__<server>__<tool>（双下划线，server 名中的非安全字符已安全化为下划线）
+          let vname = ('mcp__' + s.name + '__' + t.name).toLowerCase().replace(/[^a-z0-9_]+/g, '_').replace(/^_+|_+$/g, '');
           if (seenNames[vname]) { vname = vname + '_' + (seenNames[vname]++); } else { seenNames[vname] = 1; }
           defs.push({
             name: vname,
@@ -2282,7 +2292,12 @@ async function refreshMcpToolDefs() {
             parameters: { type: 'object', properties: schema.properties || {}, required: schema.required || [] },
             execute: async (args) => {
               const res = await window.LabCode.mcp.callTool(s.name, t.name, args || {});
-              if (res && res.ok) return res.text || '';
+              if (res && res.ok) {
+                // 对齐 TrieCode：MCP 工具返回视为不可信数据，包 <untrusted-mcp-tool-result> 标签，
+                // 防止插件 / MCP 服务器通过工具输出向 Agent 注入提示词
+                const raw = res.text || '';
+                return `<untrusted-mcp-tool-result server="${s.name}" tool="${t.name}">\n${raw}\n</untrusted-mcp-tool-result>`;
+              }
               return 'Error: ' + ((res && res.error) || 'MCP tool failed');
             }
           });
@@ -2290,6 +2305,7 @@ async function refreshMcpToolDefs() {
       } catch (e) { /* 忽略单个异常服务器 */ }
     }
     MCP_TOOL_DEFS = defs;
+    if (defs.length) addOutputLog('🧩 MCP 工具已加载: ' + defs.length + ' 个', 'success');
   } catch (e) {
     console.warn('[MCP] refreshMcpToolDefs failed:', e);
   } finally {
@@ -14319,63 +14335,12 @@ function showModal(title, label, placeholder, callback) {
 }
 function hideModal() { document.getElementById('new-file-modal').classList.remove('active'); modalCallback = null; }
 
-// ============ 加载 MCP 工具并合并进 AI 工具注册表（模块级，供 init 启动调用）============
+// ============ MCP 工具桥接：统一由 refreshMcpToolDefs 产出 MCP_TOOL_DEFS ============
+// 历史上有两条注册路径（本函数 push 进 TOOL_DEFS、refreshMcpToolDefs 产出 MCP_TOOL_DEFS），
+// 二者并存会让同一 MCP 工具在 AI 工具表里重复出现。现合并为单一来源：本函数直接委托，
+// 由 refreshMcpToolDefs 负责等待启动 / 列工具 / 命名（mcp__s__t）/ 不可信结果包装。
 async function loadMcpTools() {
-  try {
-    if (!window.LabCode || !window.LabCode.mcp) return;
-    // 移除旧 MCP 工具（避免重复）
-    for (let i = TOOL_DEFS.length - 1; i >= 0; i--) {
-      if (TOOL_DEFS[i].__mcpServer) TOOL_DEFS.splice(i, 1);
-    }
-    const servers = await window.LabCode.mcp.listServers();
-    for (const s of servers) {
-      if (s.status === 'exited' || s.status === 'error') continue;
-      if (s.status !== 'running') {
-        // 等待服务器启动完成（initialize + tools/list，最多 8 秒）
-        let cur = s;
-        for (let w = 0; w < 16 && cur.status !== 'running'; w++) {
-          await new Promise(r => setTimeout(r, 500));
-          try {
-            const fresh = await window.LabCode.mcp.listServers();
-            cur = fresh.find(x => x.name === s.name) || cur;
-          } catch (e0) { break; }
-        }
-        if (cur.status !== 'running') continue;
-      }
-      let r;
-      try { r = await window.LabCode.mcp.listTools(s.name); } catch (e1) { continue; }
-      if (!r.ok || !r.tools) continue;
-      for (const t of r.tools) {
-        const toolName = 'mcp_' + s.name + '_' + t.name;
-        const props = {};
-        if (t.inputSchema && t.inputSchema.properties) {
-          for (const [k, v] of Object.entries(t.inputSchema.properties)) {
-            props[k] = { type: v.type || 'string', description: v.description || '' };
-          }
-        }
-        const required = (t.inputSchema && Array.isArray(t.inputSchema.required)) ? t.inputSchema.required : [];
-        TOOL_DEFS.push({
-          __mcpServer: s.name,
-          name: toolName,
-          category: 'execute',
-          description: '[MCP:' + s.name + '] ' + (t.description || t.name),
-          parameters: { type: 'object', properties: props, required },
-          execute: async (args) => {
-            try {
-              const res = await window.LabCode.mcp.callTool(s.name, t.name, args || {});
-              return res.ok ? res.text : ('MCP 工具错误: ' + res.error);
-            } catch (e3) {
-              return 'MCP 调用失败: ' + e3.message;
-            }
-          }
-        });
-      }
-    }
-    const mcpCount = TOOL_DEFS.filter(t => t.__mcpServer).length;
-    if (mcpCount > 0) addOutputLog('🧩 MCP 工具已加载: ' + mcpCount + ' 个', 'success');
-  } catch (e) {
-    console.error('loadMcpTools error:', e);
-  }
+  return refreshMcpToolDefs();
 }
 
 // ============ 初始化 ============
