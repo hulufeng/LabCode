@@ -267,6 +267,8 @@ contextBridge.exposeInMainWorld('LabCode', {
     // 本地模型服务状态（Ollama 等）：只探测存活与已装模型，不发起推理
     localStatus: (testConfig) => ipcRenderer.invoke('ai:localStatus', testConfig),
     gatewayAuth: (opts) => ipcRenderer.invoke('ai:gatewayAuth', opts),
+    // 网关可用性（是否有内置凭据 / 用户是否登录 / 额度）—— 决定要不要强制注册
+    gatewayStatus: () => ipcRenderer.invoke('ai:gatewayStatus'),
     // 订阅流式事件（SSE 过程推送）
     onStream: (callback) => {
       const listener = (_event, data) => callback(data);

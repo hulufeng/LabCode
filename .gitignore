@@ -21,3 +21,6 @@ cloud-server/*.err
 # llama runtime DLLs copied into desktop-app for packaging (kept out of git).
 desktop-app/resources/llama/*.dll
 desktop-app/resources/llama/LICENSE-LLVM-OpenMP
+
+# 内置云端凭据（发布时由 desktop-app/scripts/inject-gateway.js 生成，不进仓库）
+desktop-app/resources/gateway.json

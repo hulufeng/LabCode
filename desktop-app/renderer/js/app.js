@@ -10252,6 +10252,45 @@ function bindEvents() {
     return done;
   }
 
+  // ===== AI 能力安装口：内置云端 + 自带 API Key =====
+  // 商业化取向：产品方内置云端（开箱即用），其余方式（自带 Key / 本地模型 / Ollama）
+  // 由用户自己配置 —— 所以必须有一个明确、统一的安装口。
+  let _gwStatusCache = null;
+  async function bindAiHub() {
+    const stateEl = document.getElementById('gw-hub-state');
+    const loginBtn = document.getElementById('gw-hub-login');
+    const byokBtn = document.getElementById('byok-hub-btn');
+    if (loginBtn && !loginBtn.dataset.bound) {
+      loginBtn.dataset.bound = '1';
+      loginBtn.addEventListener('click', () => {
+        if (window.__showGwLoginOverlay) window.__showGwLoginOverlay();
+      });
+    }
+    if (byokBtn && !byokBtn.dataset.bound) {
+      byokBtn.dataset.bound = '1';
+      byokBtn.addEventListener('click', () => { if (typeof openByokModal === 'function') openByokModal(); });
+    }
+    if (!stateEl) return;
+    let st = _gwStatusCache;
+    try {
+      st = await window.LabCode.ai.gatewayStatus();
+      _gwStatusCache = st;
+    } catch (e) { /* 用缓存 */ }
+    if (!st) { stateEl.innerHTML = '<span style="color:#888;">内置云端状态未知</span>'; return; }
+    if (st.loggedIn) {
+      const c = st.creditsLeft != null ? ('剩余额度 ' + st.creditsLeft) : '';
+      stateEl.innerHTML = '<span style="color:#10b981;">● 已登录</span>'
+        + (st.email ? ' ' + st.email : '')
+        + (c ? '<br>' + c : '');
+    } else if (st.available) {
+      stateEl.innerHTML = '<span style="color:#10b981;">● 已内置，装完即用</span>'
+        + '<br><span style="color:#888;">无需注册；登录可获得更多额度与邀请奖励</span>';
+    } else {
+      stateEl.innerHTML = '<span style="color:#f59e0b;">● 暂不可用</span>'
+        + '<br><span style="color:#888;">登录账号即可使用内置云端模型</span>';
+    }
+  }
+
   function renderPluginsList() {
     const listEl = document.getElementById('plugins-list');
     if (!listEl) return;
@@ -10268,6 +10307,24 @@ function bindEvents() {
       html += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;font-size:11px;color:var(--text-secondary);">';
       html += '<span style="width:8px;height:8px;border-radius:50%;background:#f59e0b;display:inline-block;"></span><span>官方市场未连接，展示内置目录（可点击右上角刷新重试）</span>';
       html += '</div>';
+    }
+
+    // ===== AI 能力安装口（models 视图顶部）=====
+    // 商业化取向：所有"接入 AI 的方式"汇聚到一处，用户不必到处找入口：
+    //   ① 内置云端（产品方已内置，装完即用） ② 自带 API Key  ③ 本地模型（下方列表）
+    if (currentPluginsTab === 'models') {
+      html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">';
+      html += '<div style="padding:10px 12px;background:var(--surface-2);border:1px solid var(--border-color);border-radius:8px;">';
+      html += '<div style="font-size:12px;font-weight:600;color:var(--text-primary);">☁️ LabCode 内置云端</div>';
+      html += '<div id="gw-hub-state" style="font-size:11px;color:var(--text-secondary);margin-top:4px;line-height:1.6;">检测中…</div>';
+      html += '<div style="display:flex;gap:6px;margin-top:8px;">';
+      html += '<button id="gw-hub-login" type="button" style="font-size:11px;padding:4px 10px;">登录 / 注册领额度</button>';
+      html += '</div></div>';
+      html += '<div style="padding:10px 12px;background:var(--surface-2);border:1px solid var(--border-color);border-radius:8px;">';
+      html += '<div style="font-size:12px;font-weight:600;color:var(--text-primary);">🔑 自带 API Key</div>';
+      html += '<div style="font-size:11px;color:var(--text-secondary);margin-top:4px;line-height:1.6;">用自己的 Key 接任意服务商（智谱 / 硅基流动 / DeepSeek / 百炼 / Kimi…）</div>';
+      html += '<div style="margin-top:8px;"><button id="byok-hub-btn" type="button" style="font-size:11px;padding:4px 10px;">添加 API Key</button></div>';
+      html += '</div></div>';
     }
 
     // 硬件检测 + 推荐：仅模型 tab（选模型要看硬件/显存），官方市场保持 TrieCode 式纯列表
@@ -10360,6 +10417,9 @@ function bindEvents() {
       '</div>';
     }).join('');
     listEl.innerHTML = html;
+
+    // 绑定 AI 能力安装口（内置云端 / 自带 Key）
+    bindAiHub();
 
     // 绑定分类按钮
     listEl.querySelectorAll('.plugin-cat-btn').forEach(btn => {
@@ -11431,6 +11491,8 @@ function bindEvents() {
   
   // 模型选择器（修复：写入真实配置 ai.provider/ai.model，初始化从配置回显）
   const MODEL_MAP = {
+    // 内置云端：产品方内置凭据，装完即用（不需要用户注册/填 Key）→ 第一次用的默认路径
+    'gateway':        { provider: 'gateway',  model: 'qwen3-8b',           label: 'LabCode 内置云端' },
     // 云端：只保留网关真实可用的模型（其余未配上游 Key，选了只会报"暂未配置"，已下架）
     'siliconflow':    { provider: 'custom',   model: 'Qwen/Qwen3-8B',       baseURL: 'https://api.siliconflow.cn/v1', label: '硅基流动 Qwen3-8B（免费）' },
     'ollama':         { provider: 'ollama',   model: 'qwen2.5-coder:7b',   label: 'Ollama 本地模型' }
@@ -11573,6 +11635,23 @@ function bindEvents() {
       _localStatusCache = { at: now, data: st };
       setLocalTag('ollama', st.ollama.text, !st.ollama.ok);
       setLocalTag('local', st.local.text, !st.local.ok);
+      // 内置云端状态签（下拉第一项）：已内置 / 额度 / 需登录
+      try {
+        const gw = await window.LabCode.ai.gatewayStatus();
+        const tagEl = document.querySelector('[data-gw-tag="gateway"]');
+        if (tagEl) {
+          if (gw.loggedIn) {
+            tagEl.textContent = gw.creditsLeft != null ? ('额度 ' + gw.creditsLeft) : '已登录';
+            tagEl.className = 'model-local-tag';
+          } else if (gw.available) {
+            tagEl.textContent = '已内置 · 免注册';
+            tagEl.className = 'model-local-tag';
+          } else {
+            tagEl.textContent = '需登录';
+            tagEl.className = 'model-local-tag bad';
+          }
+        }
+      } catch (e) { /* 状态拿不到就保持原样 */ }
       // 顶栏同步：当前若正用本地模型，把可用性写进按钮文字（用户最常看的位置）
       // 探测期间用户可能已切换模型 → 代次不一致就放弃回写，避免覆盖新选择
       if (gen !== modelSelGen) return st;
@@ -11666,6 +11745,13 @@ function bindEvents() {
     document.querySelectorAll('.model-option').forEach(option => {
       option.addEventListener('click', async () => {
         const modelKey = option.dataset.model;
+        // 「安装 / 配置 AI…」→ 跳到 AI 能力安装口（内置云端 / 自带 Key / 本地模型都在那）
+        if (modelKey === '__ai_hub__') {
+          modelDropdown.style.display = 'none';
+          const hubBtn = document.querySelector('.activity-btn[data-panel="models"]');
+          if (hubBtn) hubBtn.click();
+          return;
+        }
         const mapping = MODEL_MAP[modelKey];
         if (!mapping) return;
         modelSelGen++;   // 切换模型：作废进行中的异步探测回写
@@ -11687,7 +11773,11 @@ function bindEvents() {
             const GATEWAY_MODEL_MAP = {
               'siliconflow': 'qwen3-8b'
             };
-            if (hasGw && isCloudMapping) {
+            if (mapping.provider === 'gateway') {
+              // 内置云端：产品方已内置凭据，不需要用户注册，也不需要 Key
+              await window.LabCode.config.set('ai.provider', 'gateway');
+              await window.LabCode.config.set('ai.model', mapping.model || 'qwen3-8b');
+            } else if (hasGw && isCloudMapping) {
               await window.LabCode.config.set('ai.provider', 'gateway');
               await window.LabCode.config.set('ai.model', GATEWAY_MODEL_MAP[modelKey] || 'qwen3-8b');
             } else {
@@ -14231,13 +14321,24 @@ function bindEvents() {
     const fo = document.getElementById('gw-ov-forgot'); if (fo) fo.addEventListener('click', gwForgotOverlay);
     const sk = document.getElementById('gw-ov-skip'); if (sk) sk.addEventListener('click', hideLoginOverlay);
     window.__showGwLoginOverlay = showLoginOverlay;
-    // 启动检查：强制登录门禁（参考 Trea / TrieCode——启动即要求登录，未登录弹全屏遮罩，不登录不能用任何功能，以便按账号统计使用）
+    // 启动检查：登录门禁
+    // 商业化取向：产品方内置了云端凭据时，**不拦用户** —— 装完即用，登录只是可选增强
+    // （领更多额度 / 跨设备同步 / 邀请奖励）。只有连内置凭据都没有时才强制登录。
     (async () => {
       try {
         const cfg = await window.LabCode.config.get();
         const loggedIn = !!(cfg.ai && cfg.ai.gatewayToken);
-        if (!loggedIn && window.__showGwLoginOverlay) {
-          window.__showGwLoginOverlay();
+        if (!loggedIn) {
+          let st = null;
+          try { st = await window.LabCode.ai.gatewayStatus(); } catch (e) {}
+          if (st && st.available) {
+            // 有内置云端凭据 → 放行，只做温和提示
+            setTimeout(() => {
+              showToast('已启用内置云端模型，直接开聊即可；登录可获得更多额度', 'info');
+            }, 1200);
+          } else if (window.__showGwLoginOverlay) {
+            window.__showGwLoginOverlay();
+          }
         }
         await refreshCreditsBadge();
       } catch (e) { /* 不影响主流程 */ }

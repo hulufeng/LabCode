@@ -282,6 +282,54 @@ function showAboutDialog() {
   });
 }
 
+// ============ 内置云端凭据（"第一次用就走内置云端"）===========
+// 商业化取向：新用户零注册、零配置，装完就能用 AI —— 凭据由产品方内置。
+// 凭据来源（打包时注入，便于随时更换 / 限流 / 停用，且不写死在代码里）：
+//   1) 环境变量 LABCODE_GATEWAY_TOKEN / LABCODE_GATEWAY_URL（开发、内测）
+//   2) 打包资源 gateway.json（resources/gateway.json）→ { "token": "...", "url": "..." }
+// 优先级：用户自己登录的 token > 内置凭据
+//   （用户登录后用自己的额度与邀请奖励；未登录则用内置的公共额度）
+let _builtinGatewayCache = null;
+function getBuiltinGateway() {
+  if (_builtinGatewayCache) return _builtinGatewayCache;
+  let token = process.env.LABCODE_GATEWAY_TOKEN || '';
+  let url = process.env.LABCODE_GATEWAY_URL || '';
+  try {
+    // 多个可能位置（开发目录 / 打包后 asar 内 / 打包后 resources 外置）
+    const candidates = [
+      path.join(__dirname, '..', 'resources', 'gateway.json'),
+      path.join(process.resourcesPath || '', 'gateway.json'),
+      path.join(__dirname, '..', 'gateway.json')
+    ];
+    for (const p of candidates) {
+      if (!p) continue;
+      try {
+        if (!fs.existsSync(p)) continue;
+        const j = JSON.parse(fs.readFileSync(p, 'utf8'));
+        if (!token && j && j.token) token = String(j.token);
+        if (!url && j && j.url) url = String(j.url);
+        if (token) break;
+      } catch (e) { /* 换下一个位置 */ }
+    }
+  } catch (e) { /* 没有内置凭据文件是正常的 */ }
+  _builtinGatewayCache = { token: token || '', url: url || '' };
+  return _builtinGatewayCache;
+}
+
+// 取当前可用的网关凭据：用户自己的 > 内置的
+function resolveGatewayAuth(aiCfg) {
+  const own = (aiCfg && aiCfg.gatewayToken) || '';
+  if (own) return { token: own, builtin: false, url: (aiCfg && aiCfg.gatewayUrl) || '' };
+  const b = getBuiltinGateway();
+  if (b.token) return { token: b.token, builtin: true, url: b.url || '' };
+  return { token: '', builtin: false, url: (aiCfg && aiCfg.gatewayUrl) || '' };
+}
+
+// 网关是否可用（有用户 token 或有内置凭据）
+function gatewayAvailable(aiCfg) {
+  return !!resolveGatewayAuth(aiCfg || config.ai || {}).token;
+}
+
 // ============ IPC 接口 ============
 function setupIPC() {
   // 窗口控制
@@ -862,7 +910,11 @@ function setupIPC() {
     const { messages, model, temperature = 0.7, maxTokens = 4096 } = options || {};
     const aiCfg = config.ai || {};
     const provider = AI_PROVIDERS[aiCfg.provider] || AI_PROVIDERS.deepseek;
-    const baseURL = (aiCfg.provider === 'gateway' && aiCfg.gatewayUrl) ? aiCfg.gatewayUrl : (resolveAiBaseURL(aiCfg) || provider.baseURL);
+    // 网关地址：用户设置 > 内置凭据里的地址 > 默认地址
+    const gwBuiltinUrl = (aiCfg.provider === 'gateway') ? (getBuiltinGateway().url || '') : '';
+    const baseURL = (aiCfg.provider === 'gateway' && (aiCfg.gatewayUrl || gwBuiltinUrl))
+      ? (aiCfg.gatewayUrl || gwBuiltinUrl)
+      : (resolveAiBaseURL(aiCfg) || provider.baseURL);
     const useModel = model || aiCfg.model || provider.defaultModel;
     const apiKey = aiCfg.apiKey || '';
 
@@ -874,10 +926,12 @@ function setupIPC() {
     }
 
     try {
-      // ===== 网关模式（登录账号 → 内置模型求 → 积分扣费）=====
+      // ===== 网关模式（内置云端 → 积分扣费）=====
       if (aiCfg.provider === 'gateway') {
-        const gwToken = aiCfg.gatewayToken || '';
-    if (!gwToken) return { success: false, error: 'not logged in, please login in settings' };
+        // 用户自己的 token 优先；没有就用产品内置的公共凭据（首次使用零配置）
+        const gwAuth = resolveGatewayAuth(aiCfg);
+        const gwToken = gwAuth.token;
+        if (!gwToken) return { success: false, error: 'not logged in, please login in settings' };
         const gwModel = normalizeGwModel(useModel); // 矫正旧配置残留的不可用模型
         const gwUrl = baseURL.replace(/\/$/, '') + '/api/chat';
         const gwResp = await net.fetch(gwUrl, {
@@ -1108,8 +1162,9 @@ function setupIPC() {
 
     const headers = { 'Content-Type': 'application/json' };
     if (isGateway) {
-      const gwToken = aiCfg.gatewayToken || '';
-    if (!gwToken) throw new Error('not logged in, please login in settings');
+      const gwAuth = resolveGatewayAuth(aiCfg);
+      const gwToken = gwAuth.token;
+      if (!gwToken) throw new Error('not logged in, please login in settings');
       headers['Authorization'] = 'Bearer ' + gwToken;
     } else if (apiKey) {
       headers['Authorization'] = 'Bearer ' + apiKey;
@@ -1453,8 +1508,9 @@ function setupIPC() {
       // 网关模式：用 /api/me 验证 token 有效性（不消耗积分）
       if (aiCfg.provider === 'gateway') {
         const gwUrl = baseURL.replace(/\/$/, '') + '/api/me';
+        const gwAuth = resolveGatewayAuth(aiCfg);
         const gwResp = await net.fetch(gwUrl, {
-          headers: { Authorization: 'Bearer ' + (aiCfg.gatewayToken || '') }
+          headers: { Authorization: 'Bearer ' + gwAuth.token }
         });
       if (!gwResp.ok) return { success: false, status: gwResp.status, error: '网关登录失效，请重新登录' };
         const data = await gwResp.json().catch(() => ({}));
@@ -1481,8 +1537,39 @@ function setupIPC() {
   });
 
   // ============ 网关账号（登录/ 注册 / 余额 / 登出）===========
+  // 网关可用性状态：UI 据此决定要不要强制用户先注册。
+  // 商业化取向：有内置凭据时**不拦用户**（装完即用），登录只是可选增强。
+  ipcMain.handle('ai:gatewayStatus', async () => {
+    const aiCfg = config.ai || {};
+    const auth = resolveGatewayAuth(aiCfg);
+    let creditsLeft = null, dailyRemaining = null, email = aiCfg.gatewayEmail || '';
+    if (auth.token) {
+      try {
+        const gwBase = aiCfg.gatewayUrl || getBuiltinGateway().url || AI_PROVIDERS.gateway.baseURL;
+        const res = await net.fetch(gwBase.replace(/\/$/, '') + '/api/me', {
+          headers: { Authorization: 'Bearer ' + auth.token }
+        });
+        if (res.ok) {
+          const data = await res.json().catch(() => ({}));
+          const u = data.user || {};
+          creditsLeft = u.totalCredits ?? ((u.planCredits || 0) + (u.rechargeCredits || 0));
+          dailyRemaining = u.dailyRemaining ?? null;
+          email = u.email || email;
+        }
+      } catch (e) { /* 探测失败不影响判断 */ }
+    }
+    return {
+      available: !!auth.token,
+      builtin: auth.builtin,
+      loggedIn: !!aiCfg.gatewayToken,
+      creditsLeft,
+      dailyRemaining,
+      email
+    };
+  });
+
   ipcMain.handle('ai:gatewayAuth', async (_, { action, email, password, gatewayUrl, inviteCode, code, username } = {}) => {
-    // 优先级：显式传入 > 已保存config.ai.gatewayUrl > 鐜变量 > 榛樿生产域名
+    // 优先级：显式传入 > 已保存config.ai.gatewayUrl > 环境变量 > 默认生产域名
     const savedGw = (config.ai || {}).gatewayUrl || '';
     const gwBase = (gatewayUrl || savedGw || process.env.GATEWAY_URL || AI_PROVIDERS.gateway.baseURL || 'https://bluebubai.work').replace(/\/$/, '');
     try {
@@ -3612,8 +3699,9 @@ function setupIPC() {
       : baseURL.replace(/\/$/, '') + '/chat/completions';
     const headers = { 'Content-Type': 'application/json' };
     if (isGateway) {
-      if (!aiCfg.gatewayToken) throw new Error('gateway account not logged in');
-      headers['Authorization'] = 'Bearer ' + aiCfg.gatewayToken;
+      const gwAuth = resolveGatewayAuth(aiCfg);
+      if (!gwAuth.token) throw new Error('gateway account not logged in');
+      headers['Authorization'] = 'Bearer ' + gwAuth.token;
     } else if (aiCfg.apiKey) {
       headers['Authorization'] = 'Bearer ' + aiCfg.apiKey;
     }
