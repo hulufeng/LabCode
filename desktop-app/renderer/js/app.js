@@ -15567,34 +15567,113 @@ if (document.readyState === 'loading') {
       const dirInput = document.getElementById('local-models-dir-input');
       const dirHint = document.getElementById('local-models-dir-hint');
       if (dirInput && rt && rt.modelsDir) {
-        if (!dirInput.dataset.touched) dirInput.value = rt.modelsDir;
-        if (dirHint) {
-          if (rt.modelsOnHdd) {
-            dirHint.innerHTML = '<span style="color:#ff9800;">⚠ 当前在机械硬盘上</span>'
-              + '<span style="color:#888;">（冷启动要读 4~6GB，实测 30~60s；放 SSD 约 3s）。</span><br>'
-              + '<span style="color:#888;">复制到 SSD（一条命令）：</span>'
-              + '<code style="display:block;background:#111;border:1px solid #3c3c3c;border-radius:4px;padding:4px 6px;margin-top:3px;color:#9cdcfe;font-size:10px;">robocopy "'
-              + rt.modelsDir + '" "C:\\LabCode\\models" *.gguf</code>'
-              + '<span style="color:#888;">复制完把上面的目录改成 </span><code style="color:#9cdcfe;">C:\\LabCode\\models</code><span style="color:#888;"> 再点保存。</span>';
-          } else if (rt.modelsDirDisk === 'ssd') {
-            dirHint.innerHTML = '<span style="color:#4caf50;">✓ 位于固态硬盘</span>'
-              + '<span style="color:#888;">（冷启动约 3s）</span>';
-          } else {
-            dirHint.innerHTML = '<span style="color:#888;">目录：' + rt.modelsDir + '（正在检测磁盘类型…）</span>';
-          }
-        }
-        // 盘类型是异步探测的：这次还没结果就稍后再查一次
-        if (rt.modelsDirDisk === 'unknown' && !refreshLocalEngineStatus._retry) {
-          refreshLocalEngineStatus._retry = true;
-          setTimeout(() => { refreshLocalEngineStatus._retry = false; refreshLocalEngineStatus(); }, 1500);
-        }
+        if (!dirInput.dataset.touched) dirInput.value = '';
+        if (dirHint) dirHint.innerHTML = '';
+        await renderModelDirPanel(rt);
       }
     } catch (e) {
       el.innerHTML = '<span style="color:#888;">○ 未能检测本地引擎</span>';
     }
   }
 
-  // 保存自定义的模型目录
+  // ===== 模型目录面板：当前 / 推荐 / 一键迁移 =====
+  // 商业化取向：不假设盘符、不让用户敲命令 —— 产品自己判断"哪个盘快"并一键搬。
+  const diskLabel = (d) => d === 'ssd' ? '固态硬盘' : (d === 'hdd' ? '机械硬盘' : '未知介质');
+  async function renderModelDirPanel(rt) {
+    const info = document.getElementById('local-models-dir-info');
+    const actions = document.getElementById('local-models-dir-actions');
+    if (!info || !actions) return;
+    let d = null;
+    try { d = await window.LabCode.system.probeModelDirs(); } catch (e) {}
+    if (!d) { info.innerHTML = '<span style="color:#888;">目录：' + (rt.modelsDir || '') + '</span>'; return; }
+    const current = d.current || rt.modelsDir || '';
+    const rec = d.recommended || '';
+    const curVol = (d.volumes || []).find(v => current && current.toLowerCase().startsWith(String(v.path).toLowerCase()));
+    const recVol = (d.volumes || []).find(v => rec && rec.toLowerCase().startsWith(String(v.path).toLowerCase()));
+    const hasModels = !!(rt.models && rt.models.length);
+
+    let html = '<div>当前：<code style="color:#9cdcfe;">' + current + '</code>'
+      + ' <span style="color:#888;">（' + diskLabel(d.currentDisk) + (curVol ? '，剩余 ' + curVol.freeGB + ' GB' : '') + '）</span></div>';
+    if (rec && rec.toLowerCase() !== String(current).toLowerCase()) {
+      html += '<div>推荐：<code style="color:#9cdcfe;">' + rec + '</code>'
+        + ' <span style="color:#888;">（' + diskLabel(recVol ? recVol.disk : 'unknown') + (recVol ? '，剩余 ' + recVol.freeGB + ' GB' : '') + '）</span></div>';
+    }
+    const slow = d.currentDisk === 'hdd';
+    const recFast = recVol && recVol.disk === 'ssd';
+    if (slow && recFast) {
+      html += '<div style="color:#ff9800;margin-top:2px;">⚠ 机械盘上冷启动要读 4~6GB（实测 30~60s），放固态盘约 3s</div>';
+    }
+    info.innerHTML = html;
+
+    // 操作按钮
+    actions.innerHTML = '';
+    const mkBtn = (label, bg, fn) => {
+      const b = document.createElement('button');
+      b.textContent = label;
+      b.style.cssText = 'background:' + bg + ';color:#fff;border:1px solid rgba(255,255,255,.2);border-radius:4px;padding:5px 10px;font-size:11px;cursor:pointer;';
+      b.addEventListener('click', fn);
+      actions.appendChild(b);
+      return b;
+    };
+    if (rec && rec.toLowerCase() !== String(current).toLowerCase()) {
+      if (hasModels) {
+        mkBtn('一键迁移到推荐位置', '#2d5a27', () => migrateModelsTo(rec));
+      } else {
+        mkBtn('使用推荐位置', '#2d5a27', async () => {
+          await window.LabCode.config.set('ai.modelsDir', rec);
+          showToast('模型将下载到 ' + rec, 'success');
+          refreshLocalEngineStatus();
+        });
+      }
+    }
+    if (hasModels && slow) {
+      mkBtn('迁移到其他位置…', '#3a3a3a', () => {
+        const input = document.getElementById('local-models-dir-input');
+        if (input) { input.dataset.touched = '1'; input.focus(); input.placeholder = '填目标目录后点「迁移」'; }
+      });
+    }
+  }
+
+  // 一键迁移模型（主进程做跨平台复制 + 校验 + 进度上报）
+  async function migrateModelsTo(target) {
+    if (!target) return;
+    const hint = document.getElementById('local-models-dir-hint');
+    const show = (html) => { if (hint) hint.innerHTML = html; };
+    show('<span style="color:#888;">正在迁移模型…</span>');
+    let unsub = null;
+    try {
+      if (window.LabCode.system.onMigrateProgress) {
+        unsub = window.LabCode.system.onMigrateProgress((p) => {
+          if (!p) return;
+          if (p.phase === 'copying') {
+            show('<span style="color:#888;">正在复制 ' + (p.file || '') + '（' + ((p.index || 0) + 1) + '/' + (p.total || '?') + '） '
+              + (p.percent || 0) + '%</span>');
+          } else if (p.phase === 'error') {
+            show('<span style="color:#ef4444;">出错：' + (p.error || '') + '</span>');
+          }
+        });
+      }
+      const r = await window.LabCode.system.migrateModels({ target });
+      if (r && r.success) {
+        show('<span style="color:#4caf50;">✓ 已迁移到 ' + (r.target || target) + '（' + (r.copied || 0) + ' 个模型）</span>');
+        showToast('模型已迁移到 ' + (r.target || target), 'success');
+        refreshLocalEngineStatus();
+        refreshLocalModelsInSelector();
+      } else {
+        show('<span style="color:#ef4444;">迁移失败：' + ((r && r.error) || '未知错误') + '</span>');
+        showToast('迁移失败：' + ((r && r.error) || '未知错误'), 'error');
+      }
+    } catch (e) {
+      show('<span style="color:#ef4444;">迁移失败：' + (e.message || e) + '</span>');
+      showToast('迁移失败：' + (e.message || e), 'error');
+    } finally {
+      if (unsub) { try { unsub(); } catch (e) {} }
+    }
+  }
+
+  // 保存自定义的模型目录。
+  // 关键：已经装了模型时，**不能只改配置**（那会让已装模型"消失"），
+  // 必须把模型文件搬过去 —— 这里直接复用一键迁移。
   async function saveLocalModelsDir() {
     const input = document.getElementById('local-models-dir-input');
     const hint = document.getElementById('local-models-dir-hint');
@@ -15605,9 +15684,18 @@ if (document.readyState === 'loading') {
       return;
     }
     try {
+      const rt = await window.LabCode.system.checkLLMRuntime();
+      const hasModels = !!(rt && rt.models && rt.models.length);
+      if (hasModels) {
+        // 有模型 → 走迁移（复制 + 校验 + 切换配置），不丢模型
+        if (hint) hint.innerHTML = '<span style="color:#888;">正在把已装模型搬到 ' + dir + '…</span>';
+        await migrateModelsTo(dir);
+        return;
+      }
+      // 没模型 → 只是改下载位置
       await window.LabCode.config.set('ai.modelsDir', dir);
       if (hint) hint.innerHTML = '<span style="color:#4caf50;">✓ 已保存：' + dir + '</span>'
-        + '<span style="color:#888;">（已装模型不会自动搬过去，需要你手动把 .gguf 复制到该目录）</span>';
+        + '<span style="color:#888;">（之后下载的模型会存到这里）</span>';
       showToast('模型目录已保存：' + dir, 'success');
       refreshLocalEngineStatus();
     } catch (e) {

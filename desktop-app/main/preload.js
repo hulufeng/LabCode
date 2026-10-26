@@ -76,6 +76,15 @@ contextBridge.exposeInMainWorld('LabCode', {
     checkLLMRuntime: () => ipcRenderer.invoke('system:checkLLMRuntime'),
     startLLMEngine: (opts) => ipcRenderer.invoke('system:startLLMEngine', opts),
     stopLLMEngine: () => ipcRenderer.invoke('system:stopLLMEngine'),
+    // 模型目录：当前 / 推荐（SSD 优先）/ 各卷情况
+    probeModelDirs: () => ipcRenderer.invoke('system:probeModelDirs'),
+    // 一键迁移已装模型到目标目录（跨平台，带进度）
+    migrateModels: (opts) => ipcRenderer.invoke('system:migrateModels', opts),
+    onMigrateProgress: (cb) => {
+      const handler = (_e, payload) => { try { cb(payload); } catch (err) {} };
+      ipcRenderer.on('system:migrateProgress', handler);
+      return () => ipcRenderer.removeListener('system:migrateProgress', handler);
+    },
     // 引擎加载阶段（loading / gpu / ctx / ready / stopped）→ 用于显示"正在加载模型…"
     onEngineProgress: (cb) => {
       const handler = (_e, payload) => { try { cb(payload); } catch (err) {} };

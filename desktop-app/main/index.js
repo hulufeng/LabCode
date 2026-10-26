@@ -2964,10 +2964,85 @@ function setupIPC() {
     return '';
   }
 
+  // ===== 模型目录：跨平台探测可用卷 + 介质类型，自动给出推荐位置 =====
+  // 商业化要求：不假设盘符、不假设平台、不让用户敲命令。
+  // 冷启动慢的根因是「模型放在机械盘上」（实测 HDD 冷读 110MB/s → 4.4GB 要 40s，
+  // SSD 约 3s），所以模型**下载时**就该落在 SSD 上，而不是事后让用户自己搬。
+  let recommendedModelsDir = '';   // 启动时异步探测填充
+  async function probeVolumes() {
+    const vols = [];
+    if (process.platform === 'win32') {
+      try {
+        const { execFile } = require('child_process');
+        const ps = 'Get-CimInstance Win32_LogicalDisk -Filter "DriveType=3" | ForEach-Object { ' +
+          '$letter=$_.DeviceID.TrimEnd(":"); $free=[math]::Round($_.FreeSpace/1GB,1); $size=[math]::Round($_.Size/1GB,1); ' +
+          '$media="unknown"; ' +
+          '$p = Get-Partition -DriveLetter $letter -ErrorAction SilentlyContinue; ' +
+          'if ($p) { $d = Get-Disk -Number $p.DiskNumber -ErrorAction SilentlyContinue; ' +
+          '  if ($d) { $media = (Get-PhysicalDisk | Where-Object { $_.FriendlyName -eq $d.FriendlyName } | Select-Object -First 1).MediaType } } ' +
+          '[PSCustomObject]@{ letter=$letter; freeGB=$free; sizeGB=$size; media=$media } } | ConvertTo-Json -Compress';
+        const out = await new Promise((resolve) => {
+          execFile('powershell.exe', ['-NoProfile', '-Command', ps], { timeout: 30000, windowsHide: true, maxBuffer: 4 * 1024 * 1024 },
+            (err, stdout, stderr) => {
+              if (err) console.error('[LLM引擎] 卷探测失败:', err.message, String(stderr || '').slice(0, 200));
+              resolve(String(stdout || ''));
+            });
+        });
+        const t = out.trim();
+        const parsed = t ? JSON.parse(t) : [];
+        for (const v of (Array.isArray(parsed) ? parsed : [parsed])) {
+          if (!v || !v.letter) continue;
+          vols.push({
+            path: v.letter + ':\\',
+            label: v.letter + ':',
+            freeGB: Number(v.freeGB) || 0,
+            sizeGB: Number(v.sizeGB) || 0,
+            disk: /HDD/i.test(v.media) ? 'hdd' : (/SSD/i.test(v.media) ? 'ssd' : 'unknown'),
+            system: String(v.letter).toUpperCase() === String(process.env.SystemDrive || 'C:').toUpperCase().replace(':', '')
+          });
+        }
+      } catch (e) { console.error('[LLM引擎] 卷探测异常:', e.message); }
+    } else {
+      // 类 Unix：df 拿剩余空间；介质类型未知（不猜，交给 free space 排序）
+      try {
+        const { execFile } = require('child_process');
+        const out = await new Promise((resolve) => {
+          execFile('df', ['-k'], { timeout: 10000 }, (err, stdout) => resolve(String(stdout || '')));
+        });
+        for (const ln of out.split('\n').slice(1)) {
+          const p = ln.trim().split(/\s+/);
+          if (p.length < 6) continue;
+          const mount = p[5];
+          if (!mount.startsWith('/')) continue;
+          vols.push({
+            path: mount, label: mount,
+            freeGB: Number(p[3]) / 1024 / 1024, sizeGB: 0,
+            disk: 'unknown', system: mount === '/'
+          });
+        }
+      } catch (e) {}
+    }
+    return vols;
+  }
+
+  // 推荐模型目录：优先 SSD（机械盘冷读模型要 40s+），其次剩余空间大；
+  // 系统盘空间紧张时优先非系统盘。模型单个 2~6GB，至少留 10GB 余量。
+  function pickRecommendedDir(volumes) {
+    const cands = (volumes || []).filter(v => v.freeGB >= 10);
+    if (!cands.length) return '';
+    const ssd = cands.filter(v => v.disk === 'ssd');
+    const pool = ssd.length ? ssd : cands;
+    const nonSys = pool.filter(v => !v.system);
+    const finalPool = (nonSys.length && nonSys.some(v => v.freeGB >= 15)) ? nonSys : pool;
+    finalPool.sort((a, b) => b.freeGB - a.freeGB);
+    // 卷根下的应用子目录（不往卷根里散落文件）
+    const root = String(finalPool[0].path || '').replace(/[\\/]+$/, '');
+    if (!root) return '';
+    return path.join(root, 'LabCode', 'models');
+  }
+
   function getModelsDir() {
-    // 模型目录：优先用用户配置（设置面板可改），默认 D:\LabCode\models。
-    // 重要：默认路径若在机械盘上，冷启动要把 4~6GB 权重读进内存（实测 30~60s），
-    // 放 SSD 只需 3s —— 这是本地模型"慢"的最大单一原因。
+    // ① 用户显式配置（设置里改过，或一键迁移后写入）
     try {
       const custom = config && config.ai && config.ai.modelsDir;
       if (typeof custom === 'string' && custom.trim()) {
@@ -2975,7 +3050,29 @@ function setupIPC() {
         try { if (fs.existsSync(p)) return p; } catch (e) {}
       }
     } catch (e) {}
-    return 'D:\\LabCode\\models';
+    // ② 旧默认路径：用户已有模型在这里要保持兼容（别让人的模型"消失"）
+    const legacy = 'D:\\LabCode\\models';
+    try {
+      if (fs.existsSync(legacy) && fs.readdirSync(legacy).some(f => f.toLowerCase().endsWith('.gguf'))) return legacy;
+    } catch (e) {}
+    // ③ 自动推荐（SSD + 空间够）—— 新用户零操作就落在对的地方
+    if (recommendedModelsDir) return recommendedModelsDir;
+    // ④ 兜底：用户主目录下的应用目录（任何平台、几乎总能写）。
+    //    不能直接用 D:\LabCode\models —— 别人的机器可能根本没有 D 盘，
+    //    那样模型会下载失败（商业化必须假设各种机器都有各种盘）。
+    try {
+      const os = require('os');
+      return path.join(os.homedir(), 'LabCode', 'models');
+    } catch (e) {}
+    return legacy;
+  }
+
+  // 该目录里是否已有模型文件
+  function dirHasModels(dir) {
+    try {
+      if (!dir || !fs.existsSync(dir)) return false;
+      return fs.readdirSync(dir).some(f => f.toLowerCase().endsWith('.gguf'));
+    } catch (e) { return false; }
   }
 
   // 探测目录所在磁盘类型（机械盘 hdd / 固态 ssd）。
@@ -3278,6 +3375,99 @@ function setupIPC() {
   }
   ipcMain.handle('system:startLLMEngine', async (_, opts) => startEngineInternal((opts || {}).modelFile));
 
+  // ===== 可用卷缓存（跨平台）+ 模型目录建议 =====
+  let _volumesCache = { at: 0, list: [] };
+  async function getVolumes() {
+    const now = Date.now();
+    // 空结果不缓存：探测失败（CIM 慢/权限）不该粘住 60s
+    if (_volumesCache.list.length && now - _volumesCache.at < 60000) return _volumesCache.list;
+    const list = await probeVolumes();
+    if (list.length) _volumesCache = { at: now, list };
+    return list.length ? list : _volumesCache.list;
+  }
+
+  // 设置面板用：当前目录 / 推荐目录 / 各卷情况
+  ipcMain.handle('system:probeModelDirs', async () => {
+    try {
+      const vols = await getVolumes();
+      const current = getModelsDir();
+      const rec = pickRecommendedDir(vols);
+      return {
+        current,
+        currentDisk: probeDiskKind(current),
+        recommended: rec,
+        volumes: vols
+      };
+    } catch (e) {
+      return { current: getModelsDir(), currentDisk: 'unknown', recommended: '', volumes: [] };
+    }
+  });
+
+  // 一键迁移：把已装模型复制到目标目录（跨平台，不要求用户敲命令）
+  // 复制完逐个校验大小，一致才删除源文件（避免半途失败把模型搞没）
+  ipcMain.handle('system:migrateModels', async (_, opts) => {
+    const target = (opts && opts.target) || '';
+    const keepOriginal = !!(opts && opts.keepOriginal);
+    const srcDir = getModelsDir();
+    if (!target) return { success: false, error: '目标目录不能为空' };
+    if (path.resolve(target) === path.resolve(srcDir)) return { success: true, moved: 0, message: '已在目标目录' };
+    try {
+      if (!fs.existsSync(srcDir)) return { success: false, error: '源目录不存在：' + srcDir };
+      fs.mkdirSync(target, { recursive: true });
+      const files = fs.readdirSync(srcDir).filter(f => f.toLowerCase().endsWith('.gguf'));
+      if (!files.length) return { success: false, error: '当前目录里没有模型文件' };
+      const emit = (payload) => {
+        try {
+          for (const w of BrowserWindow.getAllWindows()) {
+            if (w && !w.isDestroyed() && w.webContents) w.webContents.send('system:migrateProgress', payload);
+          }
+        } catch (e) {}
+      };
+      let done = 0, copied = 0, totalBytes = files.reduce((s, f) => {
+        try { return s + fs.statSync(path.join(srcDir, f)).size; } catch (e) { return s; }
+      }, 0), movedBytes = 0;
+      for (const f of files) {
+        const src = path.join(srcDir, f);
+        const dst = path.join(target, f);
+        emit({ phase: 'copying', file: f, index: done, total: files.length, percent: totalBytes ? Math.round((movedBytes / totalBytes) * 100) : 0 });
+        try {
+          if (fs.existsSync(dst)) {
+            const a = fs.statSync(src).size, b = fs.statSync(dst).size;
+            if (a === b) { movedBytes += a; done++; copied++; continue; }  // 目标已有同尺寸文件，跳过复制
+          }
+          await new Promise((resolve, reject) => {
+            const rs = fs.createReadStream(src);
+            const ws = fs.createWriteStream(dst);
+            let written = 0;
+            rs.on('data', (chunk) => {
+              written += chunk.length;
+              emit({ phase: 'copying', file: f, index: done, total: files.length, percent: totalBytes ? Math.round(((movedBytes + written) / totalBytes) * 100) : 0 });
+            });
+            rs.on('error', reject);
+            ws.on('error', reject);
+            ws.on('finish', () => { movedBytes += written; resolve(); });
+            rs.pipe(ws);
+          });
+          // 校验：大小一致才算成功
+          const a = fs.statSync(src).size, b = fs.statSync(dst).size;
+          if (a !== b) throw new Error('大小不一致');
+          if (!keepOriginal) { try { fs.unlinkSync(src); } catch (e) {} }
+          copied++; done++;
+        } catch (e) {
+          emit({ phase: 'error', file: f, error: e.message });
+          return { success: false, error: '复制 ' + f + ' 失败：' + e.message, copied, total: files.length };
+        }
+      }
+      // 迁移成功后：把配置切到新目录（用户已装模型不应"消失"）
+      try { config.ai = config.ai || {}; config.ai.modelsDir = target; saveConfig(config); } catch (e) {}
+      recommendedModelsDir = target;
+      emit({ phase: 'done', copied, total: files.length, target });
+      return { success: true, copied, total: files.length, target, srcDir, keepOriginal };
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
+  });
+
   // ===== 后台预热引擎 =====
   // 冷启动要把 4~6GB 权重读进内存（机械盘 30~60s），如果等到用户第一条消息才加载，
   // 用户就撞上 60s 静默等待。这里在应用启动后就后台预热当前配置的本地模型，
@@ -3294,6 +3484,30 @@ function setupIPC() {
       }
     } catch (e) { /* 预热失败不影响主流程 */ }
   }, 8000);
+
+  // ===== 启动时探测可用卷 → 填推荐模型目录 =====
+  // 新用户（还没设过目录、也没有旧模型）默认落在 SSD 上：模型下载即落在快盘，
+  // 免得用户第一次用本地模型就撞上 40~60s 冷启动。
+  setTimeout(() => {
+    getVolumes().then(vols => {
+      const rec = pickRecommendedDir(vols);
+      if (rec) {
+        recommendedModelsDir = rec;
+        console.log('[LLM引擎] 推荐模型目录（SSD 优先）:', rec);
+        // 固定下来：推荐目录若"晚到"（探测需要几秒），用户在这之前下载的模型
+        // 会落在兜底目录，之后目录一变，那些模型就"消失"了。
+        // 所以在还没有模型时把目录定死；已有模型的（老用户）保持原样，迁移由用户一键触发。
+        try {
+          if (!config.ai.modelsDir && !dirHasModels(getModelsDir())) {
+            config.ai = config.ai || {};
+            config.ai.modelsDir = rec;
+            saveConfig(config);
+            console.log('[LLM引擎] 模型目录已固定为:', rec);
+          }
+        } catch (e) {}
+      }
+    }).catch(() => {});
+  }, 2500);
 
   // 停止 llama 引擎
   ipcMain.handle('system:stopLLMEngine', async () => {
