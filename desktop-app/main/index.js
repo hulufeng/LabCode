@@ -8,7 +8,7 @@ const os = require('os');
 const https = require('https');
 const { spawn, execFile } = require('child_process');
 
-// 缁堢服务
+// 终端服务
 const { getTerminalService } = require('./terminal');
 const terminalService = getTerminalService();
 
@@ -177,7 +177,7 @@ function createMainWindow() {
     if (windowConfig.maximized) mainWindow.maximize();
   });
   
-  // 兜底＀秒后强制显示窗口（防正ready-to-show 涓嶈Е发）
+  // 兜底：3秒后强制显示窗口（防止 ready-to-show 不触发）
   setTimeout(() => {
     if (mainWindow && !mainWindow.isVisible()) {
       console.log('兜底显示窗口');
@@ -344,7 +344,7 @@ function setupIPC() {
     return saveConfig(config);
   });
 
-  // ============ MCP 服务器（Model Context Protocol stdio 接入＀===========
+  // ============ MCP 服务器（Model Context Protocol stdio 接入）===========
   const mcpService = require('./mcp').getMcpService();
   require('./mcp').initMcp({ getConfig: () => config, saveConfig });
   ipcMain.handle('mcp:list-servers', () => mcpService.listServers());
@@ -896,26 +896,32 @@ function setupIPC() {
       }
 
       const url = baseURL.replace(/\/$/, '') + '/chat/completions';
+      // 本地引擎：先确认引擎加载的就是本次请求的模型。
+      // llama-server 忽略 model 字段，若引擎还跑着别的模型就会「答非所问」（静默降级）。
+      if (aiCfg.provider === 'local') {
+        const ensured = await ensureEngineServesModel(useModel);
+        if (!ensured.ok) return { success: false, error: ensured.error };
+      }
       // 云推理模型思考档位：仅当显式配置 thinkingParams 才附加，默认空 → 零回归
       const thinkingExtra = (aiCfg.thinkingParams && typeof aiCfg.thinkingParams === 'object' && Object.keys(aiCfg.thinkingParams).length)
         ? aiCfg.thinkingParams
         : buildThinkingParams(aiCfg.provider, aiCfg.thinkingLevel);
-      const body = JSON.stringify({
+      const bodyObj = {
         model: useModel,
         messages,
         temperature,
         max_tokens: maxTokens,
         stream: false,
         ...(thinkingExtra && Object.keys(thinkingExtra).length ? thinkingExtra : {})
-      });
+      };
 
       const headers = { 'Content-Type': 'application/json' };
       if (apiKey) headers['Authorization'] = 'Bearer ' + apiKey;
 
-      const response = await net.fetch(url, {
+      let response = await net.fetch(url, {
         method: 'POST',
         headers,
-        body
+        body: JSON.stringify(bodyObj)
       });
 
       if (!response.ok) {
@@ -923,8 +929,22 @@ function setupIPC() {
         return { success: false, error: `API 返回 ${response.status}: ${redactError(errText)}` };
       }
 
-      const data = await response.json();
-      const content = data?.choices?.[0]?.message?.content || '';
+      let data = await response.json();
+      let content = data?.choices?.[0]?.message?.content || '';
+      // 思考模型（Qwen3.5 等）在非流式通道里可能把整段思考写进 reasoning_content，
+      // 而这里只取 content → 正文为空（工作流节点会拿到空结果）。
+      // 与流式路径一致：正文为空就关掉思考重试一次，保证一定有正文。
+      if (aiCfg.provider === 'local' && !String(content).trim()) {
+        const retryBody = Object.assign({}, bodyObj, { chat_template_kwargs: { enable_thinking: false } });
+        try {
+          const r2 = await net.fetch(url, { method: 'POST', headers, body: JSON.stringify(retryBody) });
+          if (r2.ok) {
+            const d2 = await r2.json();
+            const c2 = d2?.choices?.[0]?.message?.content || '';
+            if (String(c2).trim()) { content = c2; data = d2; }
+          }
+        } catch (e2) { /* 保留原结果 */ }
+      }
       const usage = data?.usage || {};
       return { success: true, content, usage, model: useModel };
     } catch (e) {
@@ -940,7 +960,7 @@ function setupIPC() {
   const activeAiControllers = new Map();
 
   // 解析 OpenAI 兼容 SSE 流
-  // 解析 OpenAI 兼容 SSE 流（保留 event: 行，供网具credits/error 事件透传＀
+  // 解析 OpenAI 兼容 SSE 流（保留 event: 行，供网关 credits/error 事件透传）
   async function* parseSSEStream(body) {
     const reader = body.getReader();
     const decoder = new TextDecoder('utf-8');
@@ -1080,7 +1100,7 @@ function setupIPC() {
     const isGateway = aiCfg.provider === 'gateway';
     // 网关模式：矫正旧配置残留的不可用模型（deepseek-flash 等），否则对话 404 静默失败
     if (isGateway) useModel = normalizeGwModel(useModel);
-    // 网关模式：走内置模型求+ 积分扣费；请求体只发模型 id 与消息（Key 在服务端＀
+    // 网关模式：走内置模型 + 积分扣费；请求体只发模型 id 与消息（Key 在服务端）
     const url = isGateway
       ? (baseURL || '').replace(/\/$/, '') + '/api/chat/stream'
       : (baseURL || '').replace(/\/$/, '') + '/chat/completions';
@@ -1097,24 +1117,24 @@ function setupIPC() {
     const bodyObj = isGateway
       ? { model: useModel, messages, temperature }
       : { model: useModel, messages, temperature, max_tokens: maxTokens, stream: true };
-    // 网关模式同样透传 tools（网关支按function calling 转发＀
+    // 网关模式同样透传 tools（网关支持 function calling 转发）
     if (isGateway && Array.isArray(tools) && tools.length > 0) {
       bodyObj.tools = tools;
     }
     // 本地引擎不注入 tools，llama.cpp --jinja + tools 会用 grammar 强制模型输出工具 JSON，
     // 本地小模型（Qwen3.5-9B）在 grammar 约束下会输出空失败（正文丢失）
-    // 本地模型的主路径是正文代码块鈫?应用层落目ↀ自动编译验证"，不依赖工具调用　
+    // 本地模型的主路径是正文代码块 → 应用层落地自动编译验证，，不依赖工具调用　
     if (Array.isArray(tools) && tools.length > 0 && aiCfg.provider !== 'local' && aiCfg.provider !== 'ollama' && !isGateway) {
       bodyObj.tools = tools;
     }
-    // 本地引擎（Qwen3 等思考模型）＀
-    // 已实测：enable_thinking=true + 流式 + max_tokens 充足时，reasoning_content 与正文会先后输出＀
-    // finish=stop（真实豆包式思考流）。思考过长占滃max_tokens 鏃舵文可能为空，
-    // 用doStreamOnce 决空正文→关闭思考重话降级兜底，保证正文输出　
-    // 本地引擎（Qwen3 等思考模型）＀
-    // 已实测：enable_thinking=true + 流式 + max_tokens 充足时，reasoning_content 与正文会先后输出＀
-    // finish=stop（真实豆包式思考流）。思考过长占滃max_tokens 鏃舵文可能为空，
-    // 用doStreamOnce 决空正文→关闭思考重话降级兜底，保证正文输出　
+    // 本地引擎（Qwen3 等思考模型）：
+    // 已实测：enable_thinking=true + 流式 + max_tokens 充足时，reasoning_content 与正文会先后输出，
+    // finish=stop（真实豆包式思考流）。思考过长占满 max_tokens 时正文可能为空，
+    // 用 doStreamOnce 决空正文 → 关闭思考重话降级兜底，保证正文输出　
+
+
+
+
     if (aiCfg.provider === 'local') {
       // bodyObj.chat_template_kwargs 用doStreamOnce(enableThinking) 按轮次设置
       // 2026-09-15：工具决策轮可选JSON 约束　
@@ -1131,6 +1151,13 @@ function setupIPC() {
     const send = (type, data) => {
       try { if (sender && !sender.isDestroyed()) sender.send('ai:stream', { runId, type, ...data }); } catch (e) {}
     };
+
+    // 本地引擎：确保引擎加载的就是本次请求的模型。
+    // llama-server 忽略 model 字段，引擎若还跑着别的模型就会「答非所问」（静默降级）。
+    if (aiCfg.provider === 'local') {
+      const ensured = await ensureEngineServesModel(useModel);
+      if (!ensured.ok) throw new Error(ensured.error);
+    }
 
     // ===== Phase1：本地模型 GBNF 约束工具决策轮 =====
     // 条件：provider=local + 有工具 + 开关允许（自动：7B/9B 开、3B 关）。
@@ -1151,7 +1178,7 @@ function setupIPC() {
       console.log('[grammar] 本地工具决策: none（落回流式无约束路径）');
     }
 
-    // 鍗曟请求 + 流解析（供首次与引擎重启后重试共用）
+    // 单次请求 + 流解析（供首次与引擎重启后重试共用）
     async function doStreamOnce(enableThinking) {
       const b = Object.assign({}, bodyObj);
       if (aiCfg.provider === 'local') b.chat_template_kwargs = { enable_thinking: enableThinking !== false };
@@ -1182,7 +1209,7 @@ function setupIPC() {
       let lastUsage = null;
       for await (const evt of parseSSEStream(response.body)) {
         if (activeAiStreams.get(runId)) { activeAiStreams.delete(runId); break; }
-        // 网关事件行（event: credits / event: error）透传绔renderer
+        // 网关事件行（event: credits / event: error）透传给 renderer
         if (evt._event === 'credits') {
           send('credits', { used: evt.used, totalTokens: evt.totalTokens, remaining: evt.remaining, dailyRemaining: evt.dailyRemaining });
           continue;
@@ -1224,20 +1251,20 @@ function setupIPC() {
           return { id: tc.id, name: tc.name, arguments: args };
         });
 
-      // ===== 本地思考流降级：思考过长占滃max_tokens ↀ正文为空 鈫?关闭思考重试一欢=====
+      // ===== 本地思考流降级：思考过长占满 max_tokens → 正文为空 → 关闭思考重试一次 =====
       // 2026-09-14：扩展到 ollama（Qwen3.5-9B 等思考模型同样会思考占满预算导致正文截断空输出）
       if ((aiCfg.provider === 'local' || aiCfg.provider === 'ollama') && enableThinking !== false && !String(fullText || '').trim()) {
       console.warn('[streamChat] local thinking stream produced no text, retry without thinking');
         return doStreamOnce(false);
       }
 
-      // 注意：不在此 send('done')——外层可能需要自动续写，由外层统一发送最绔done
+      // 注意：不在此 send('done')——外层可能需要自动续写，由外层统一发送最终 done
       return { success: true, content: fullText, toolCalls: parsedToolCalls, finishReason: lastFinish, usage: lastUsage };
     }
 
     // ===== 2026-09-14 自动续写：ollama/local 模型代码块未闭合时，自动续写拼接 =====
     // 根因：ollama 0.33.x + qwen3.5:9b 未~4096 token 生成硬限制（num_predict 不生效），长代码在4096 token 处被切断　
-    // 妫€测：``` 计数为奇数（代码块未闭合）或花括号不匹配 鈫?发请继绔请求拼接，最失3 次　
+    // 检测：``` 计数为奇数（代码块未闭合）或花括号不匹配 → 发请继续请求拼接，最多 3 次　
     function hasUnclosedCodeBlock(text) {
       const t = text || '';
       const ticks = t.match(/```/g);
@@ -1271,7 +1298,7 @@ function setupIPC() {
     }
 
     try {
-      // 2026-09-14：修复轮（编译失败提示）强制关闭思考——避免思考占滃4096 token 预算导致正文空输出
+      // 2026-09-14：修复轮（编译失败提示）强制关闭思考——避免思考占满 4096 token 预算导致正文空输出
       const lastUserMsg = messages.filter(m => m.role === 'user').pop();
       const isFixTurn = !!(lastUserMsg && /编译失败|淇代码|仍然失败|编译错误/.test(lastUserMsg.content || ''));
       const thinkForTurn = isFixTurn ? false : true;
@@ -1296,7 +1323,7 @@ function setupIPC() {
           }
         }
       }
-      _log(`最绔done, len=${result.content.length}`);
+      _log(`最终 done, len=${result.content.length}`);
       // 统一发送最终 done（noStreamOnce 内部不再发 done，避免续决 delta 被忽略）
       send('done', { content: result.content, toolCalls: result.toolCalls, usage: result.usage || null });
       return result;
@@ -1306,7 +1333,7 @@ function setupIPC() {
         activeAiControllers.delete(runId);
         return { success: false, aborted: true };
       }
-      // ===== 本地引擎自动恢复：连接失败（含覆盖安装后旧实例假活）ↀ强杀残留并重启引擎鈫?重试一欢=====
+      // ===== 本地引擎自动恢复：连接失败（含覆盖安装后旧实例假活）→ 强杀残留并重启引擎 → 重试一次 =====
       if (!e.noFallback && aiCfg.provider === 'local' && !activeAiStreams.get(runId)) {
         try {
           console.warn('[streamChat] 本地引擎请求失败，自动重启引擎后重试:', e.message);
@@ -1435,6 +1462,11 @@ function setupIPC() {
         return { success: true, model: useModel, gateway: true, creditsLeft: u.totalCredits ?? (u.planCredits || 0) + (u.rechargeCredits || 0) };
       }
       const url = baseURL.replace(/\/$/, '') + '/chat/completions';
+      // 本地引擎：探测前先对齐模型，否则「测试连接」会打到别的模型上得到假阳性
+      if (aiCfg.provider === 'local') {
+        const ensured = await ensureEngineServesModel(useModel);
+        if (!ensured.ok) return { success: false, error: ensured.error };
+      }
       const headers = { 'Content-Type': 'application/json' };
       if (aiCfg.apiKey) headers['Authorization'] = 'Bearer ' + aiCfg.apiKey;
       const response = await net.fetch(url, {
@@ -1448,7 +1480,7 @@ function setupIPC() {
     }
   });
 
-  // ============ 网关账号（登录/ 注册 / 余额 / 登出＀===========
+  // ============ 网关账号（登录/ 注册 / 余额 / 登出）===========
   ipcMain.handle('ai:gatewayAuth', async (_, { action, email, password, gatewayUrl, inviteCode, code, username } = {}) => {
     // 优先级：显式传入 > 已保存config.ai.gatewayUrl > 鐜变量 > 榛樿生产域名
     const savedGw = (config.ai || {}).gatewayUrl || '';
@@ -1774,21 +1806,21 @@ function setupIPC() {
       if (buf.length >= 3 && buf[0] === 0xEF && buf[1] === 0xBB && buf[2] === 0xBF) {
         return { success: true, content: buf.toString('utf-8').replace(/^\uFEFF/, ''), encoding: 'utf-8' };
       }
-      // 2) 尝试严格 UTF-8 解码（TextDecoder fatal 模式＀
+      // 2) 尝试严格 UTF-8 解码（TextDecoder fatal 模式）
       try {
         const td = new TextDecoder('utf-8', { fatal: true });
         const content = td.decode(buf);
         // 时BOM 但纯 ASCII/UTF-8 时直接返回
         return { success: true, content, encoding: 'utf-8' };
       } catch (utfErr) {
-        // 3) UTF-8 解码失败 鈫?GBK（覆盖中文Windows 常见 GB2312/GBK 编码文件＀
+        // 3) UTF-8 解码失败 →GBK（覆盖中文Windows 常见 GB2312/GBK 编码文件）
         const iconv = (() => {
           try { return require('iconv-lite'); } catch (e) { return null; }
         })();
         if (iconv) {
           return { success: true, content: iconv.decode(buf, 'gbk'), encoding: 'gbk' };
         }
-        // 时iconv-lite 时的回退：手动GBK鈫扷TF-8 表不现实，用 latin1 兜底
+        // 无 iconv-lite 时的回退：手动 GBK→UTF-8 表不现实，用 latin1 兜底
         return { success: true, content: buf.toString('utf-8'), encoding: 'utf-8(疑似GBK)' };
       }
     } catch (e) {
@@ -2042,7 +2074,7 @@ function setupIPC() {
       
       return { success: true, terminal };
     } catch (e) {
-      console.error('鍒涘缓缁堢失败:', e);
+      console.error('创建终端失败:', e);
       return { success: false, error: e.message };
     }
   });
@@ -2097,7 +2129,7 @@ function setupIPC() {
     }
   });
   
-  // 鑾峰彇缁堢列表
+  // 获取终端列表
   ipcMain.handle('terminal:list', () => {
     try {
       const terminals = terminalService.listTerminals();
@@ -2135,10 +2167,10 @@ function setupIPC() {
       const first = r.split(/\r?\n/).map(s => s.trim()).find(s => s && fs.existsSync(s));
       if (first) return first;
     } catch (e) {}
-    return candidates[0]; // 兜底：返回默认路径（runArduinoCli 内会判不存在＀
+    return candidates[0]; // 兜底：返回默认路径（runArduinoCli 内会判不存在）
   }
   const ARDUINO_CLI = resolveArduinoCli();
-  // 例renderer run_test 获取真实路径（避具PATH 缂哄け导致 'arduino-cli' 裸命令失败）
+  // 例renderer run_test 获取真实路径（避免 PATH 缺失导致 'arduino-cli' 裸命令失败）
   ipcMain.handle('toolchain:getArduinoCliPath', () => {
     const p = resolveArduinoCli();
     return { path: p, exists: fs.existsSync(p) };
@@ -2693,7 +2725,7 @@ function setupIPC() {
     return { success: true, lines: serialLogBuffer.slice(-n).map(e => e.line) };
   });
   ipcMain.handle('serial:log-grep', async (_, opts) => {
-    if (!opts || !opts.pattern) return { success: false, error: '缁pattern' };
+    if (!opts || !opts.pattern) return { success: false, error: '缺 pattern' };
     const re = new RegExp(opts.pattern, 'i');
     const max = Math.min((opts.max) || 30, 200);
     const hits = serialLogBuffer.filter(e => re.test(e.line)).slice(-max).map(e => e.line);
@@ -2853,14 +2885,14 @@ function setupIPC() {
   ipcMain.handle('app:getPath', (_, name) => app.getPath(name));
   ipcMain.handle('app:getPlatform', () => process.platform);
 
-  // ============ 系统配置检测（大模型推荐用＀============
+  // ============ 系统配置检测（大模型推荐用）============
   ipcMain.handle('system:getInfo', async () => {
     const cpus = os.cpus();
     const cpuModel = cpus[0] ? cpus[0].model : 'Unknown';
     const totalMemGB = Math.round(os.totalmem() / 1024 / 1024 / 1024);
     const freeMemGB = Math.round(os.freemem() / 1024 / 1024 / 1024);
 
-    // 磁盘可用空间（用 PowerShell Get-PSDrive，比 wmic 可靠＀
+    // 磁盘可用空间（用 PowerShell Get-PSDrive，比 wmic 可靠）
     let diskFreeGB = 0;
     try {
       const { execSync } = require('child_process');
@@ -2871,14 +2903,14 @@ function setupIPC() {
       }
     } catch (e) { console.error('磁盘检测失败', e.message); }
 
-    // GPU 检测（快速方式：读注册表或环境变量，避免慢的 CIM 查询＀
+    // GPU 检测（快速方式：读注册表或环境变量，避免慢的 CIM 查询）
     let gpus = [];
     let hasNvidia = false;
     let maxVramGB = 0;
     try {
       if (process.platform === 'win32') {
         const { execSync } = require('child_process');
-        // 用nvidia-smi 检流NVIDIA GPU（更快更准确＀
+        // 用 nvidia-smi 检查 NVIDIA GPU（更快更准确）
         try {
           const out = execSync('nvidia-smi --query-gpu=name,memory.total --format=csv,noheader,nounits', { encoding: 'utf8', timeout: 5000 });
           const lines = out.trim().split('\n').filter(l => l.trim());
@@ -2890,8 +2922,8 @@ function setupIPC() {
             hasNvidia = true;
             maxVramGB = Math.max(maxVramGB, Math.round(vram / 1024));
           });
-        } catch (e) { /* 时NVIDIA GPU */ }
-        // 如果没有 NVIDIA，用 PowerShell 快速检测其件GPU
+        } catch (e) { /* 忽略 NVIDIA GPU 检测失败 */ }
+        // 如果没有 NVIDIA，用 PowerShell 快速检测其硬件 GPU
         if (gpus.length === 0) {
           try {
             const out = execSync('powershell -NoProfile -Command "Get-CimInstance Win32_VideoController | Select-Object -ExpandProperty Name"', { encoding: 'utf8', timeout: 5000 });
@@ -2974,7 +3006,7 @@ function setupIPC() {
     return models;
   }
 
-  // 检流llama 引擎是否运行＀080 OpenAI 兼容端点＀
+  // 检查 llama 引擎是否运行（8080 OpenAI 兼容端点）
   async function isEngineRunning() {
     try {
       const controller = new AbortController();
@@ -2998,6 +3030,41 @@ function setupIPC() {
       if (alias) return alias.split(/[\\/]/).pop();
       return '';
     } catch (e) { return ''; }
+  }
+
+  // llama-server 会忽略请求里的 model 字段：它永远用「已加载的那个模型」应答。
+  // 因此若配置/工作流切了模型而引擎还在跑旧模型，用户会「以为在用 A、实际在用 B」，
+  // 且完全没有提示。这里用 /v1/models（返回引擎实际加载的模型全路径）核对。
+  async function getEngineLoadedModel() {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 2000);
+      const res = await net.fetch('http://127.0.0.1:8080/v1/models', { signal: controller.signal });
+      clearTimeout(timer);
+      if (res.ok) {
+        const d = await res.json().catch(() => ({}));
+        const list = Array.isArray(d.models) ? d.models : (Array.isArray(d.data) ? d.data : []);
+        if (list.length) {
+          const m = list[0].model || list[0].name || list[0].id || '';
+          if (m) return String(m).split(/[\\/]/).pop();
+        }
+      }
+    } catch (e) { /* 引擎没起或端点不可用 */ }
+    return await getEngineRunningModel();
+  }
+
+  // 确保引擎加载的正是目标模型；不一致就把引擎切过去（startEngineInternal 内部会 kill 旧进程重载）。
+  // 引擎未运行时不处理：交给既有的「自动启动/自动恢复」流程。
+  async function ensureEngineServesModel(modelFile) {
+    if (!modelFile) return { ok: true };
+    const want = String(modelFile);
+    const running = await getEngineLoadedModel();
+    if (!running) return { ok: true };
+    if (running.toLowerCase() === want.toLowerCase()) return { ok: true };
+    console.log(`[LLM引擎] 引擎当前加载 ${running}，与目标 ${want} 不一致 → 切换模型`);
+    const r = await startEngineInternal(want);
+    if (!r || !r.success) return { ok: false, error: (r && r.error) || '切换本地模型失败' };
+    return { ok: true };
   }
 
   // 检测本地大模型运行时（LabCode 内置 llama 引擎）
@@ -3057,7 +3124,7 @@ function setupIPC() {
       const serverExe = path.join(engineDir, 'llama-server.exe');
       if (!fs.existsSync(serverExe)) return { success: false, error: '引擎文件缺少: llama-server.exe' };
 
-      // 閫夋ā型：优先指定，否则取 models 鐩綍绗竴涓?
+      // 选模型：优先指定，否则取 models 目录第一个
       let modelPath = '';
       const modelsDir = getModelsDir();
       if (modelFile) modelPath = path.join(modelsDir, modelFile);
@@ -3104,7 +3171,7 @@ function setupIPC() {
       engineProcess.stderr.on('data', d => console.error('[LLM引擎]', String(d).slice(0, 300)));
       engineProcess.on('exit', () => { engineProcess = null; currentEngineModel = null; });
 
-      // 等待引擎就绪（最失 60s，大模型加载需时间＀
+      // 等待引擎就绪（最多 60s，大模型加载需时间）
       // Wait up to 180s: first load of a cold model (plus a LoRA adapter) can take well
       // over the old 60s window, e.g. when the disk is busy.
       for (let i = 0; i < 180; i++) {
@@ -3566,7 +3633,7 @@ app.on('before-quit', () => {
     terminalService.destroyAll();
     console.log('所有终端已清理');
   } catch (e) {
-    console.error('娓呯悊缁堢失败:', e);
+    console.error('清理终端失败:', e);
   }
   // 清理 MCP 服务器进程
   try {
