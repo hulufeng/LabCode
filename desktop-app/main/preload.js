@@ -75,7 +75,13 @@ contextBridge.exposeInMainWorld('LabCode', {
     getInfo: () => ipcRenderer.invoke('system:getInfo'),
     checkLLMRuntime: () => ipcRenderer.invoke('system:checkLLMRuntime'),
     startLLMEngine: (opts) => ipcRenderer.invoke('system:startLLMEngine', opts),
-    stopLLMEngine: () => ipcRenderer.invoke('system:stopLLMEngine')
+    stopLLMEngine: () => ipcRenderer.invoke('system:stopLLMEngine'),
+    // 引擎加载阶段（loading / gpu / ctx / ready / stopped）→ 用于显示"正在加载模型…"
+    onEngineProgress: (cb) => {
+      const handler = (_e, payload) => { try { cb(payload); } catch (err) {} };
+      ipcRenderer.on('system:engineProgress', handler);
+      return () => ipcRenderer.removeListener('system:engineProgress', handler);
+    }
   },
 
   // 代理

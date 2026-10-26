@@ -2965,8 +2965,52 @@ function setupIPC() {
   }
 
   function getModelsDir() {
-    // 模型统一放 D:\LabCode\models（用户指定位置，不占 C 盘 SSD）
+    // 模型目录：优先用用户配置（设置面板可改），默认 D:\LabCode\models。
+    // 重要：默认路径若在机械盘上，冷启动要把 4~6GB 权重读进内存（实测 30~60s），
+    // 放 SSD 只需 3s —— 这是本地模型"慢"的最大单一原因。
+    try {
+      const custom = config && config.ai && config.ai.modelsDir;
+      if (typeof custom === 'string' && custom.trim()) {
+        const p = custom.trim();
+        try { if (fs.existsSync(p)) return p; } catch (e) {}
+      }
+    } catch (e) {}
     return 'D:\\LabCode\\models';
+  }
+
+  // 探测目录所在磁盘类型（机械盘 hdd / 固态 ssd）。
+  // 机械盘冷读 4~6GB 模型要 30~60s（实测 110MB/s），SSD 只要 3s → 用来给用户提示。
+  // 注意：必须异步（execFile）——同步 execSync 会阻塞主进程，把 IPC 通道拖死。
+  const _diskKindCache = new Map();
+  const _diskKindPending = new Set();
+  function probeDiskKind(dirPath) {
+    let root, letter;
+    try {
+      root = path.parse(path.resolve(dirPath)).root.toUpperCase();
+      letter = root[0];
+    } catch (e) { return 'unknown'; }
+    if (_diskKindCache.has(root)) return _diskKindCache.get(root);
+    if (_diskKindPending.has(letter)) return 'unknown';
+    _diskKindPending.add(letter);
+    try {
+      const { execFile } = require('child_process');
+      // Get-Disk 不带 MediaType（那是 PhysicalDisk 的属性），要再取一次
+      const script = '$d = Get-Partition -DriveLetter ' + letter + ' | Get-Disk; ' +
+        'if ($d) { (Get-PhysicalDisk | Where-Object { $_.FriendlyName -eq $d.FriendlyName } | ' +
+        'Select-Object -First 1).MediaType }';
+      execFile('powershell.exe', ['-NoProfile', '-Command', script], { timeout: 10000, windowsHide: true },
+        (err, stdout) => {
+          _diskKindPending.delete(letter);
+          const t = String(stdout || '').trim();
+          let kind = 'unknown';
+          if (/HDD/i.test(t)) kind = 'hdd';
+          else if (/SSD/i.test(t)) kind = 'ssd';
+          else if (t) kind = t.toLowerCase();
+          _diskKindCache.set(root, kind);
+          console.log('[LLM引擎] 模型目录所在磁盘 ' + letter + ' → ' + kind);
+        });
+    } catch (e) { _diskKindPending.delete(letter); }
+    return 'unknown';
   }
 
   function scanLocalModels() {
@@ -3070,7 +3114,10 @@ function setupIPC() {
   // 检测本地大模型运行时（LabCode 内置 llama 引擎）
   let currentEngineModel = null;
   ipcMain.handle('system:checkLLMRuntime', async () => {
-    const result = { engine: false, engineVersion: null, engineRunning: false, models: [], engineDir: '', runningModel: '' };
+    const result = {
+      engine: false, engineVersion: null, engineRunning: false, models: [], engineDir: '', runningModel: '',
+      modelsDir: '', modelsDirDisk: 'unknown', modelsOnHdd: false
+    };
     try {
       const engineDir = getEngineDir();
       if (engineDir) {
@@ -3085,6 +3132,12 @@ function setupIPC() {
       result.engineRunning = await isEngineRunning();
       result.models = scanLocalModels();
       result.runningModel = currentEngineModel || '';
+      // 模型目录与所在磁盘类型（机械盘 → 冷启动慢，给 UI 提示用）
+      try {
+        result.modelsDir = getModelsDir();
+        result.modelsDirDisk = probeDiskKind(result.modelsDir);
+        result.modelsOnHdd = result.modelsDirDisk === 'hdd';
+      } catch (e) {}
     } catch (e) { console.error('LLM 运行时检测失败', e.message); }
     return result;
   });
@@ -3142,7 +3195,13 @@ function setupIPC() {
           return { success: true, model: currentEngineModel, url: 'http://127.0.0.1:8080/v1', reused: true };
         }
         // 模型不同才强制重启（新安装后旧实例：假占用 8080，
-        try { execSync('taskkill /IM llama-server.exe /F', { stdio: 'ignore' }); } catch (ke) {}
+        // 注意用异步 execFile：同步 taskkill 会与"被杀子进程的管道关闭"互相等待，卡死主进程
+        await new Promise((resolve) => {
+          try {
+            const { execFile } = require('child_process');
+            execFile('taskkill', ['/IM', 'llama-server.exe', '/F'], { timeout: 5000, windowsHide: true }, () => resolve());
+          } catch (e) { resolve(); }
+        });
         await new Promise(r => setTimeout(r, 800));
       }
 
@@ -3160,16 +3219,43 @@ function setupIPC() {
         '--host', '127.0.0.1',
         '--port', '8080',
         '-ngl', '99',          // 全层 GPU（无独立显卡自动回退 CPU）
-        '-c', String(engineCtx), // 上下文：16K，为思考流（reasoning）预留空间，VRAM 内存充足，
+        '-np', '1',            // 单并发 slot：LabCode 是单用户单会话。默认 4 slot 会让 KV cache
+                               // 变成 4×ctx（16K×4=64K token），撑爆显存导致部分层回落 CPU，
+                               // 实测单 slot 推理快 17%（69 → 81 tok/s）且显存占用大降
+        '-c', String(engineCtx), // 上下文：为思考流（reasoning）预留空间
         '-b', '2048',          // batch size：GPU 下 512-2048 更优
         '-ub', '512',          // 均衡 batch：与 batch 配平，显存受限时自动回退
         '--flash-attn', 'on',      // Flash Attention，GPU 加速注意力，TTFT 显著下降
         '--jinja'              // 使用 GGUF 内嵌聊天模板（Qwen 等）
       ], { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
 
+      // ===== 加载阶段上报 =====
+      // 引擎冷启动要读 4~6GB 权重（机械盘 30~60s），而 llama.cpp 在这段**完全不打日志**，
+      // 于是用户只看到"卡住"。这里把阶段推给渲染进程，让它显示"正在加载模型…"。
+      const emitEngineProgress = (phase, extra) => {
+        try {
+          const payload = { phase, model: path.basename(modelPath), ts: Date.now(), ...(extra || {}) };
+          for (const w of BrowserWindow.getAllWindows()) {
+            if (w && !w.isDestroyed() && w.webContents) w.webContents.send('system:engineProgress', payload);
+          }
+        } catch (e) {}
+      };
+      emitEngineProgress('loading');
       engineProcess.stdout.on('data', d => { const s = String(d); if (s.includes('server is listening') || s.includes('HTTP server')) console.log('[LLM引擎] 启动成功'); });
-      engineProcess.stderr.on('data', d => console.error('[LLM引擎]', String(d).slice(0, 300)));
-      engineProcess.on('exit', () => { engineProcess = null; currentEngineModel = null; });
+      engineProcess.stderr.on('data', d => {
+        const s = String(d);
+        console.error('[LLM引擎]', s.slice(0, 300));
+        // 阶段识别（llama.cpp 的日志格式）：
+        //   load_model: loading model '...'   → 开始读权重
+        //   init: llama threadpool init       → 权重读完，开始建计算图/上 GPU
+        //   load_model: initializing, n_slots → 分配 KV cache
+        //   model loaded / listening on       → 就绪
+        if (s.includes('loading model')) emitEngineProgress('loading');
+        else if (s.includes('threadpool init') || s.includes('offload') || s.includes('offloaded')) emitEngineProgress('gpu');
+        else if (s.includes('initializing') || s.includes('KV cache') || s.includes('kv_cache')) emitEngineProgress('ctx');
+        else if (s.includes('model loaded') || s.includes('listening on')) emitEngineProgress('ready');
+      });
+      engineProcess.on('exit', () => { engineProcess = null; currentEngineModel = null; emitEngineProgress('stopped'); });
 
       // 等待引擎就绪（最多 60s，大模型加载需时间）
       // Wait up to 180s: first load of a cold model (plus a LoRA adapter) can take well
@@ -3192,12 +3278,38 @@ function setupIPC() {
   }
   ipcMain.handle('system:startLLMEngine', async (_, opts) => startEngineInternal((opts || {}).modelFile));
 
+  // ===== 后台预热引擎 =====
+  // 冷启动要把 4~6GB 权重读进内存（机械盘 30~60s），如果等到用户第一条消息才加载，
+  // 用户就撞上 60s 静默等待。这里在应用启动后就后台预热当前配置的本地模型，
+  // 用户打开聊天/工作流时引擎通常已经就绪。
+  // 延后 8s：避开应用刚启动时的 IO 高峰，也不影响首屏。
+  setTimeout(() => {
+    try {
+      const ai = config.ai || {};
+      if (ai.provider === 'local' && ai.model) {
+        console.log('[LLM引擎] 后台预热本地模型:', ai.model);
+        startEngineInternal(ai.model)
+          .then(r => { if (r && r.success) console.log('[LLM引擎] 预热完成:', r.model || ai.model); })
+          .catch(e => console.error('[LLM引擎] 预热失败:', e.message));
+      }
+    } catch (e) { /* 预热失败不影响主流程 */ }
+  }, 8000);
+
   // 停止 llama 引擎
   ipcMain.handle('system:stopLLMEngine', async () => {
     try {
-      try { execSync('taskkill /IM llama-server.exe /F', { stdio: 'ignore' }); } catch (ke) {}
-      if (engineProcess) { engineProcess.kill(); engineProcess = null; }
+      // 先杀自己持有的子进程句柄（不等外部命令，瞬时返回）
+      if (engineProcess) { try { engineProcess.kill(); } catch (e) {} engineProcess = null; }
       currentEngineModel = null;
+      // 再兜底清理可能残留的实例。
+      // 注意：这里必须用**异步** execFile —— 被杀子进程的 stdout/stderr 管道由主进程持有，
+      // 同步 execSync 等待 taskkill 返回会与管道关闭互相等待，把主进程（连带整个 IPC 通道）卡死。
+      await new Promise((resolve) => {
+        try {
+          const { execFile } = require('child_process');
+          execFile('taskkill', ['/IM', 'llama-server.exe', '/F'], { timeout: 5000, windowsHide: true }, () => resolve());
+        } catch (e) { resolve(); }
+      });
       return { success: true };
     } catch (e) { return { success: false, error: e.message }; }
   });

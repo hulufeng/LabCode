@@ -10712,7 +10712,12 @@ function bindEvents() {
     let dlOk = true;
     if (plugin.category === 'ai-model' && plugin.downloadUrl && (plugin.ggufFile || plugin.modelName)) {
       try {
-        const modelsDir = 'D:\\LabCode\\models';
+        // 模型目录跟主进程保持一致（可在设置里改到 SSD 盘 → 冷启动快 20 倍）
+        let modelsDir = 'D:\\LabCode\\models';
+        try {
+          const rt = await window.LabCode.system.checkLLMRuntime();
+          if (rt && rt.modelsDir) modelsDir = rt.modelsDir;
+        } catch (e) {}
         const targetFile = modelsDir + '\\' + (plugin.ggufFile || plugin.modelName);
         // 辅助函数：给 PowerShell 传单引号路径
         const psPath = (p) => "'" + p.replace(/'/g, "''") + "'";
@@ -11547,6 +11552,8 @@ function bindEvents() {
         else if (!rt.models || !rt.models.length) res.local = { ok: false, text: '未下载模型' };
         else if (!rt.engineRunning) res.local = { ok: true, text: '已装 ' + rt.models.length + ' 个' };
         else res.local = { ok: true, text: '已就绪 · ' + rt.models.length + ' 个' };
+        // 顺带记下模型目录与磁盘类型（设置面板用；机械盘 → 冷启动慢）
+        if (rt) { res.modelsDir = rt.modelsDir; res.modelsDisk = rt.modelsDirDisk; res.localModels = rt.models || []; }
       } catch (e) {
         res.local = { ok: false, text: '未装引擎' };
       }
@@ -11577,12 +11584,50 @@ function bindEvents() {
         if (a.provider === 'ollama') {
           nameEl.textContent = st.ollama.ok ? 'Ollama 本地模型' : 'Ollama 本地模型（' + st.ollama.text + '）';
         } else if (a.provider === 'local' && a.model) {
-          const friendly = (a.model.replace(/\.gguf$/i, '')).replace('Qwen_Qwen3.5-9B-Q4_K_M', 'Qwen3.5-9B (Q4_K_M)');
+          // 用扫描到的可读名（Qwen2.5-Coder 7B），不要显示难读的 .gguf 文件名
+          let friendly = (a.model.replace(/\.gguf$/i, '')).replace('Qwen_Qwen3.5-9B-Q4_K_M', 'Qwen3.5-9B (Q4_K_M)');
+          try {
+            const hit = (st.localModels || []).find(m => m.file === a.model);
+            if (hit && hit.name) friendly = hit.name;
+          } catch (e) {}
           nameEl.textContent = friendly + (st.local.ok ? ' (本地)' : ' (本地·' + st.local.text + ')');
         }
       } catch (e) {}
       return st;
     };
+
+    // ===== 引擎加载进度 → 顶栏显示 =====
+    // 引擎冷启动要把 4~6GB 权重读进内存（机械盘 30~60s），而 llama.cpp 在这段**完全不打日志**，
+    // 没有反馈时用户只看到"卡住"。这里把加载阶段显示在顶栏模型名后面。
+    const ENGINE_PHASE_TEXT = {
+      loading: '正在加载模型…',
+      gpu: '正在初始化 GPU…',
+      ctx: '正在分配上下文…'
+    };
+    const setEnginePhase = (phase) => {
+      const nameEl = document.getElementById('current-model-name');
+      if (!nameEl) return;
+      const suffixRe = /\s*·\s*(正在加载模型…|正在初始化 GPU…|正在分配上下文…)$/;
+      const base = (nameEl.textContent || '').replace(suffixRe, '');
+      if (phase && ENGINE_PHASE_TEXT[phase]) {
+        nameEl.textContent = base + ' · ' + ENGINE_PHASE_TEXT[phase];
+      } else {
+        nameEl.textContent = base;
+      }
+    };
+    if (window.LabCode && window.LabCode.system && window.LabCode.system.onEngineProgress) {
+      window.LabCode.system.onEngineProgress((p) => {
+        if (!p) return;
+        setEnginePhase(p.phase);
+        if (p.phase === 'loading' || p.phase === 'gpu' || p.phase === 'ctx') {
+          // 下拉里的本地状态签同步显示"加载中"（不再是"检测中"）
+          setLocalTag('local', '加载中…', false);
+        } else if (p.phase === 'ready') {
+          setEnginePhase('');
+          refreshLocalStatus(true);
+        }
+      });
+    }
 
     modelSelectBtn.addEventListener('click', async (e) => {
       e.stopPropagation();
@@ -15488,10 +15533,21 @@ if (document.readyState === 'loading') {
       checkOllama();
       // 显示本机内置引擎与已装模型（让「本地 AI 引擎」不再是黑盒）
       refreshLocalEngineStatus();
+      // 模型目录输入框：标记"用户改过"（避免被自动刷新覆盖）+ 绑定保存按钮
+      const dirInput = document.getElementById('local-models-dir-input');
+      if (dirInput && !dirInput.dataset.bound) {
+        dirInput.dataset.bound = '1';
+        dirInput.addEventListener('input', () => { dirInput.dataset.touched = '1'; });
+      }
+      const dirSave = document.getElementById('local-models-dir-save');
+      if (dirSave && !dirSave.dataset.bound) {
+        dirSave.dataset.bound = '1';
+        dirSave.addEventListener('click', (e) => { e.preventDefault(); saveLocalModelsDir(); });
+      }
     });
   }
 
-  // 设置面板里「本地 AI 引擎」一栏的状态：引擎在不在、装了几个模型
+  // 设置面板里「本地 AI 引擎」一栏的状态：引擎在不在、装了几个模型、模型存在哪
   async function refreshLocalEngineStatus() {
     const el = document.getElementById('local-engine-status');
     if (!el) return;
@@ -15507,8 +15563,55 @@ if (document.readyState === 'loading') {
         el.innerHTML = '<span style="color:#4caf50;">● 引擎已就绪</span> 已装 ' + models.length + ' 个模型：' + names
           + '<br><span style="color:#888;">在顶栏模型下拉里直接选具体模型即可</span>';
       }
+      // 模型目录 + 磁盘类型提示（机械盘冷启动要 30~60s，SSD 只要 3s）
+      const dirInput = document.getElementById('local-models-dir-input');
+      const dirHint = document.getElementById('local-models-dir-hint');
+      if (dirInput && rt && rt.modelsDir) {
+        if (!dirInput.dataset.touched) dirInput.value = rt.modelsDir;
+        if (dirHint) {
+          if (rt.modelsOnHdd) {
+            dirHint.innerHTML = '<span style="color:#ff9800;">⚠ 当前在机械硬盘上</span>'
+              + '<span style="color:#888;">（冷启动要读 4~6GB，实测 30~60s；放 SSD 约 3s）。</span><br>'
+              + '<span style="color:#888;">复制到 SSD（一条命令）：</span>'
+              + '<code style="display:block;background:#111;border:1px solid #3c3c3c;border-radius:4px;padding:4px 6px;margin-top:3px;color:#9cdcfe;font-size:10px;">robocopy "'
+              + rt.modelsDir + '" "C:\\LabCode\\models" *.gguf</code>'
+              + '<span style="color:#888;">复制完把上面的目录改成 </span><code style="color:#9cdcfe;">C:\\LabCode\\models</code><span style="color:#888;"> 再点保存。</span>';
+          } else if (rt.modelsDirDisk === 'ssd') {
+            dirHint.innerHTML = '<span style="color:#4caf50;">✓ 位于固态硬盘</span>'
+              + '<span style="color:#888;">（冷启动约 3s）</span>';
+          } else {
+            dirHint.innerHTML = '<span style="color:#888;">目录：' + rt.modelsDir + '（正在检测磁盘类型…）</span>';
+          }
+        }
+        // 盘类型是异步探测的：这次还没结果就稍后再查一次
+        if (rt.modelsDirDisk === 'unknown' && !refreshLocalEngineStatus._retry) {
+          refreshLocalEngineStatus._retry = true;
+          setTimeout(() => { refreshLocalEngineStatus._retry = false; refreshLocalEngineStatus(); }, 1500);
+        }
+      }
     } catch (e) {
       el.innerHTML = '<span style="color:#888;">○ 未能检测本地引擎</span>';
+    }
+  }
+
+  // 保存自定义的模型目录
+  async function saveLocalModelsDir() {
+    const input = document.getElementById('local-models-dir-input');
+    const hint = document.getElementById('local-models-dir-hint');
+    if (!input) return;
+    const dir = (input.value || '').trim();
+    if (!dir) {
+      if (hint) hint.innerHTML = '<span style="color:#ef4444;">目录不能为空</span>';
+      return;
+    }
+    try {
+      await window.LabCode.config.set('ai.modelsDir', dir);
+      if (hint) hint.innerHTML = '<span style="color:#4caf50;">✓ 已保存：' + dir + '</span>'
+        + '<span style="color:#888;">（已装模型不会自动搬过去，需要你手动把 .gguf 复制到该目录）</span>';
+      showToast('模型目录已保存：' + dir, 'success');
+      refreshLocalEngineStatus();
+    } catch (e) {
+      if (hint) hint.innerHTML = '<span style="color:#ef4444;">保存失败：' + (e.message || e) + '</span>';
     }
   }
 
