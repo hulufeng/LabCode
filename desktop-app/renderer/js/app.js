@@ -10270,6 +10270,25 @@ function bindEvents() {
         { name: 'set_theme', description: '切换主题（light/dark）', parameters: { type: 'object', properties: { theme: { type: 'string', description: 'light 或 dark' } }, required: ['theme'] }, category: 'execute', transport: 'internal', internal: { service: 'theme', method: 'set' } }
       ]
     },
+    'micropython': {
+      id: 'micropython', name: 'MicroPython 支持', version: '1.1.0', icon: '🐍', category: 'runtime',
+      description: '真实 mpremote 执行：REPL 代码运行、软复位（需本机 pip install mpremote）',
+      tools: [
+        { name: 'mp_exec', description: '在设备上执行 MicroPython 代码', parameters: { type: 'object', properties: { code: { type: 'string', description: 'MicroPython 代码' } }, required: ['code'] }, category: 'execute', transport: 'internal', internal: { service: 'mpython', method: 'exec' } },
+        { name: 'mp_reset', description: '软复位设备', parameters: { type: 'object', properties: {} }, category: 'execute', transport: 'internal', internal: { service: 'mpython', method: 'reset' } },
+        { name: 'mp_run', description: '直接执行 mpremote 参数命令', parameters: { type: 'object', properties: { args: { type: 'array', description: 'mpremote 参数数组' } } }, category: 'execute', transport: 'internal', internal: { service: 'mpython', method: 'run' } }
+      ]
+    },
+    'ai-hardware-lab': {
+      id: 'ai-hardware-lab', name: 'AI 硬件拆解工坊', version: '1.0.0', icon: '🤖', category: 'tool',
+      description: '一句话描述想做的设备，AI 拆解为可落地手搓方案：方案概览/模块选型/接线示意/示例代码/组装步骤/避坑提示',
+      tools: [
+        { name: 'dissect_hardware_idea', description: '把设备想法拆解为可落地的手搓方案（六段结构化输出）', parameters: { type: 'object', properties: { idea: { type: 'string', description: '一句话描述想做的设备，如：做一辆能沿黑线自动行驶的循迹小车，速度可调' } }, required: ['idea'] }, category: 'query', transport: 'internal', internal: { service: 'hwlab', method: 'dissect' } }
+      ],
+      skills: [
+        { name: 'hardware-dissect', description: '硬件想法拆解', prompt: '用户描述想做硬件时，调用 dissect_hardware_idea 拆解为六段方案并逐段讲解。', metadata: { keywords: ['硬件', '拆解', '选型', '接线'] } }
+      ]
+    },
     'serial-monitor': {
       id: 'serial-monitor', name: '串口监视器', version: '1.0.0', icon: '📟', category: 'tool',
       description: '列出串口、打开/读取/发送数据、崩溃日志分析（走 LabCode 内置串口桥）',
@@ -10458,6 +10477,26 @@ function bindEvents() {
     });
     window.PluginSystem.registerInternalService('formatter', {
       format: async (a) => window.LabCode.formatter.format({ code: (a && a.code) || '', lang: (a && a.lang) || 'json' })
+    });
+    // MicroPython（mpremote 真实执行）
+    window.PluginSystem.registerInternalService('mpython', {
+      run: async (a) => window.LabCode.mpython.run({ args: (a && a.args) || [] }),
+      exec: async (a) => window.LabCode.mpython.run({ args: ['exec', (a && a.code) || ''] }),
+      reset: async () => window.LabCode.mpython.run({ args: ['reset'] })
+    });
+    // AI 硬件拆解工坊（真实 AI 推理：一句话 → 六段可落地方案）
+    window.PluginSystem.registerInternalService('hwlab', {
+      dissect: async (a) => {
+        const idea = (a && a.idea) || '';
+        if (!idea.trim()) return { success: false, error: '请描述你想做的设备' };
+        const messages = [
+          { role: 'system', content: '你是嵌入式硬件拆解专家。把用户的设备想法拆解为可落地的手搓方案，严格输出以下六个小节，每节以「## 」开头：## 方案概览、## 模块选型清单（表格：模块/型号/数量/参考价）、## 接线示意（文字接线表：模块引脚→主控引脚）、## 示例代码（Arduino/ESP32 完整可编译代码，用 ```cpp 围栏）、## 组装步骤（编号列表）、## 避坑提示（3-5 条）。全部中文，务必具体到型号与引脚。' },
+          { role: 'user', content: '设备想法：' + idea }
+        ];
+        const r = await window.LabCode.ai.once({ messages, maxTokens: 3000 });
+        if (!(r && r.success && r.content)) return { success: false, error: (r && r.error) || 'AI 调用失败' };
+        return { success: true, markdown: r.content };
+      }
     });
   }
   if (!localStorage.getItem('labcode_core_plugins_initialized')) {
@@ -14179,6 +14218,72 @@ function bindEvents() {
     { id: 'ai-fix', title: 'AI 修复编译错误', group: '开发', keywords: 'ai fix 修复 自动', run: () => runAiFix() },
     { id: 'export-bin', title: '导出固件', group: '开发', keywords: 'export binary 导出 固件', run: () => runExportBinary() },
     { id: 'wokwi-sim', title: 'Wokwi 仿真运行', group: '开发', keywords: 'wokwi simulate 仿真 模拟 运行', run: () => runWokwiSim() },
+    { id: 'hw-lab', title: 'AI 硬件拆解工坊', group: 'AI', keywords: '硬件 拆解 选型 接线 手搓 hwlab 工坊', run: () => openHwLab() },
+  ];
+
+  // ===== AI 硬件拆解工坊（黄白手搓风：一句话 → 六段方案，进度点逐亮）=====
+  function openHwLab() {
+    if (document.getElementById('hwlab-modal')) return;
+    const wrap = document.createElement('div');
+    wrap.id = 'hwlab-modal';
+    wrap.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9000;display:flex;align-items:flex-start;justify-content:center;padding-top:6vh;overflow-y:auto;';
+    wrap.innerHTML =
+      '<div style="width:680px;max-width:94vw;background:#faf7f0;border:1px solid #e8e0cd;border-radius:14px;box-shadow:0 18px 60px rgba(0,0,0,.28);overflow:hidden;margin-bottom:6vh;">' +
+        '<div style="background:#1d2b3a;padding:16px 20px;display:flex;align-items:center;gap:10px;">' +
+          '<span style="font-size:20px;">🤖</span><b style="color:#fff;font-size:17px;">AI 硬件拆解工坊</b>' +
+          '<span style="color:#c9b98a;font-size:12px;margin-left:auto;cursor:pointer;" id="hwlab-close">✕ 关闭</span>' +
+        '</div>' +
+        '<div style="padding:18px 20px 26px;">' +
+          '<p style="margin:0 0 10px;font-size:13px;color:#7a6f55;">正在把你的想法拆成可落地的手搓方案</p>' +
+          '<input id="hwlab-idea" placeholder="一句话描述你想做的设备：如 做一辆能沿黑线自动行驶的循迹小车，速度可调" style="width:100%;box-sizing:border-box;padding:11px 12px;border:1px solid #e0d6bd;border-left:3px solid #f0c445;border-radius:8px;background:#fff;font-size:14px;outline:none;">' +
+          '<div style="display:flex;gap:8px;margin:10px 0 14px;flex-wrap:wrap;">' +
+            ['桌面天气站','自动浇花器','循迹小车','桌面小机器人','空气质量监测','追光小台灯'].map(s =>
+              '<button class="hwlab-eg" style="padding:6px 12px;border:1px solid #d8cdb0;border-radius:8px;background:#fff;font-size:12px;color:#4a4331;cursor:pointer;">' + s + '</button>').join('') +
+          '</div>' +
+          '<button id="hwlab-go" style="width:100%;padding:13px;border:none;border-radius:10px;background:linear-gradient(135deg,#f5c842,#e8a614);color:#3a2f10;font-size:15px;font-weight:700;cursor:pointer;">开始拆解需求 →</button>' +
+          '<div id="hwlab-progress" style="display:none;margin-top:16px;"></div>' +
+          '<div id="hwlab-out" style="margin-top:14px;font-size:13.5px;color:#3a3425;line-height:1.75;"></div>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(wrap);
+    const close = () => wrap.remove();
+    wrap.querySelector('#hwlab-close').addEventListener('click', close);
+    wrap.addEventListener('click', (e) => { if (e.target === wrap) close(); });
+    const ideaInput = wrap.querySelector('#hwlab-idea');
+    wrap.querySelectorAll('.hwlab-eg').forEach(b => b.addEventListener('click', () => { ideaInput.value = '做一台' + b.textContent; }));
+    const SECTIONS = ['方案概览', '模块选型清单', '接线示意', '示例代码', '组装步骤', '避坑提示'];
+    const go = async () => {
+      const idea = ideaInput.value.trim();
+      if (!idea) return;
+      const goBtn = wrap.querySelector('#hwlab-go'); goBtn.disabled = true;
+      const prog = wrap.querySelector('#hwlab-progress'); prog.style.display = 'block';
+      const out = wrap.querySelector('#hwlab-out'); out.innerHTML = '';
+      prog.innerHTML = '<div style="font-size:13px;color:#7a6f55;margin-bottom:8px;">🔊 AI 正在生成你的方案</div>' +
+        SECTIONS.map(s => '<div class="hwlab-dot" data-s="' + s + '" style="display:flex;gap:8px;align-items:center;margin:5px 0;font-size:13px;color:#b3a98c;"><span style="width:12px;height:12px;border-radius:50%;background:#d8cdb0;display:inline-block;"></span>' + s + '</div>').join('');
+      let lit = 0;
+      const timer = setInterval(() => { const dots = prog.querySelectorAll('.hwlab-dot'); if (lit < dots.length) { const d = dots[lit]; d.style.color = '#3a3425'; d.querySelector('span').style.background = '#f0c445'; lit++; } }, 900);
+      try {
+        const r = await (window.PluginSystem ? window.PluginSystem.dispatchTool ? window.PluginSystem.dispatchTool({ transport: 'internal', internal: { service: 'hwlab', method: 'dissect' } }, 'hwlab_dissect_hardware_idea', 'hwlab_dissect_hardware_idea', { idea }) : { success: false, error: '插件系统未就绪' } : { success: false, error: '插件系统未就绪' });
+        clearInterval(timer);
+        prog.querySelectorAll('.hwlab-dot').forEach(d => { d.style.color = '#2f5d3a'; d.querySelector('span').style.background = '#2f7d4f'; });
+        if (!(r && (r.success || typeof r === 'string'))) throw new Error((r && r.error) || '拆解失败');
+        const md = typeof r === 'string' ? r : (r.markdown || r.content || '');
+        const esc = md.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+        out.innerHTML = esc.split(/^## /m).filter(Boolean).map(seg => {
+          const nl = seg.indexOf('\n'); const title = seg.slice(0, nl).trim(); const body = seg.slice(nl + 1);
+          const bodyHtml = body.replace(/```([\s\S]*?)```/g, (m, c) => '<pre style="background:#2d2d2d;color:#dcdcdc;padding:12px;border-radius:8px;overflow-x:auto;font-size:12px;white-space:pre-wrap;">' + c.trim() + '</pre>').replace(/\n/g, '<br>');
+          return '<div style="margin:14px 0;padding:12px 14px;background:#fff;border:1px solid #ece4cf;border-radius:10px;"><b style="color:#8a6d1a;font-size:14px;">' + title + '</b><div style="margin-top:6px;">' + bodyHtml + '</div></div>';
+        }).join('');
+      } catch (e) {
+        clearInterval(timer);
+        out.innerHTML = '<div style="padding:10px 12px;background:#fdecec;border-radius:8px;color:#a33;">' + e.message + '</div>';
+      } finally { goBtn.disabled = false; }
+    };
+    wrap.querySelector('#hwlab-go').addEventListener('click', go);
+    ideaInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); });
+    setTimeout(() => ideaInput.focus(), 100);
+  }
+  COMMANDS.push(
     { id: 'settings', title: '打开设置', group: '视图', keywords: 'settings 设置 配置', run: () => openSettingsModal() },
     { id: 'toggle-theme', title: '切换深浅色主题', group: '视图', keywords: 'theme 主题 深色 浅色 切换', run: () => { const cur = document.documentElement.getAttribute('data-theme') || 'dark'; applyTheme(cur === 'dark' ? 'light' : 'dark', true); } },
     { id: 'panel-device', title: '打开设备面板', group: '视图', keywords: 'device 设备 开发板', run: () => { const b = document.querySelector('.activity-btn[data-panel="device"]'); if (b) b.click(); } },
@@ -14189,7 +14294,7 @@ function bindEvents() {
     { id: 'panel-mcp', title: '打开 MCP 服务', group: '视图', keywords: 'mcp', run: () => { const a = document.querySelector('.activity-btn[data-panel="mcp"]'); if (a) a.click(); } },
     { id: 'panel-dashboard', title: '打开看板', group: '视图', keywords: 'dashboard 看板 统计', run: () => { const a = document.querySelector('.activity-btn[data-panel="dashboard"]'); if (a) a.click(); } },
     { id: 'search', title: '搜索', group: '视图', keywords: 'search 搜索', run: () => { const b = document.getElementById('search-btn'); if (b) b.click(); } }
-  ];
+  );
   const cmdPalette = document.getElementById('cmd-palette');
   const cmdInput = document.getElementById('cmd-input');
   const cmdList = document.getElementById('cmd-list');

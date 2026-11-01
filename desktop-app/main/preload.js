@@ -271,6 +271,7 @@ contextBridge.exposeInMainWorld('LabCode', {
   // AI 对话
   ai: {
     chat: (options) => ipcRenderer.invoke('ai:chat', options),
+    once: (options) => ipcRenderer.invoke('ai:once', options),
     chatStream: (options) => ipcRenderer.invoke('ai:chatStream', options),
     chatCancel: (runId) => ipcRenderer.invoke('ai:chatCancel', runId),
     checkConnection: (testConfig) => ipcRenderer.invoke('ai:checkConnection', testConfig),
@@ -340,6 +341,11 @@ contextBridge.exposeInMainWorld('LabCode', {
   // 代码格式化（真实执行）
   formatter: {
     format: (o) => ipcRenderer.invoke('formatter:format', o)
+  },
+
+  // MicroPython（mpremote 真实执行）
+  mpython: {
+    run: (o) => ipcRenderer.invoke('mpython:run', o)
   },
 
   // 串口监视器

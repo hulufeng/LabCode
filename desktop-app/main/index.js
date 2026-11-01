@@ -3107,6 +3107,28 @@ function setupIPC() {
     return { ...r, stage: 'run' };
   });
 
+  // AI 单次推理（插件 internal service 用，如 AI 硬件拆解工坊）
+  ipcMain.handle('ai:once', async (_, { messages, maxTokens = 2000 } = {}) => {
+    try { return { success: true, content: await callAiOnce(messages || [], { maxTokens }) }; }
+    catch (e) { return { success: false, error: e.message }; }
+  });
+
+  // MicroPython（mpremote 真实执行：run/upload/reset）
+  ipcMain.handle('mpython:run', async (_, { args } = {}) => {
+    const r = await new Promise((resolve) => {
+      const { spawn } = require('child_process');
+      let p;
+      try { p = spawn('mpremote', args || [], { shell: true }); } catch (e) { resolve({ success: false, error: e.message }); return; }
+      let out = '', err = '';
+      p.stdout.on('data', d => out += d); p.stderr.on('data', d => err += d);
+      const to = setTimeout(() => { try { p.kill(); } catch (e) {} resolve({ success: true, output: (out + err).slice(-6000), timedOut: true }); }, 60000);
+      p.on('error', (e) => { clearTimeout(to); resolve({ success: false, error: 'mpremote 未安装: ' + e.message, guide: 'pip install mpremote' }); });
+      p.on('close', (c) => { clearTimeout(to); resolve({ success: c === 0, output: (out + '\n' + err).slice(-6000) }); });
+    });
+    if (r.success === false && /mpremote/i.test(r.error || '')) return r;
+    return r;
+  });
+
   // 代码格式化（真实执行：JSON 内置；C/C++ → clang-format；Python → black；stdin/stdout 管道）
   ipcMain.handle('formatter:format', async (_, { code = '', lang = 'json' } = {}) => {
     try {
