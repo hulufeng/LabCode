@@ -3066,6 +3066,47 @@ function setupIPC() {
   }
 
   // 导出固件：编译并复制二进制产物到用户指定路径（保存对话框）
+  // ============ Wokwi 仿真运行器（对齐 TrieCode Wokwi 工具链：编译产物 → wokwi-cli → 串口回传）============
+  ipcMain.handle('wokwi:run', async (_, options) => {
+    const { projectPath, timeoutMs = 90000 } = options || {};
+    if (!projectPath) return { success: false, stage: 'args', error: '缺少 projectPath' };
+    const { spawn } = require('child_process');
+    // 1) wokwi-cli 可用性（未安装则给出引导，不假装能仿真）
+    const cliVer = await new Promise((resolve) => {
+      let p;
+      try { p = spawn('wokwi-cli', ['--version'], { shell: true }); } catch (e) { resolve(null); return; }
+      let out = '';
+      p.stdout.on('data', d => out += d);
+      p.on('error', () => resolve(null));
+      const to = setTimeout(() => { try { p.kill(); } catch (e) {} resolve(null); }, 8000);
+      p.on('close', (code) => { clearTimeout(to); resolve(code === 0 ? (out.trim() || 'ok') : null); });
+    });
+    if (!cliVer) {
+      return {
+        success: false, stage: 'no-cli', error: '未安装 wokwi-cli（Wokwi 官方仿真 CLI）',
+        guide: '到 github.com/wokwi/wokwi-cli/releases 下载 wokwi-cli-win-x64.exe，重命名为 wokwi-cli.exe 并加入 PATH；再到 wokwi.com/cli 获取 token 设置环境变量 WOKWI_CLI_TOKEN'
+      };
+    }
+    // 2) 定位 diagram.json
+    const diagram = path.join(projectPath, 'diagram.json');
+    if (!fs.existsSync(diagram)) return { success: false, stage: 'no-diagram', error: '项目缺少 diagram.json（Wokwi 电路图）' };
+    // 3) 运行仿真（串口输出随 stdout 返回；token 缺失时 wokwi-cli 会输出授权错误）
+    const r = await new Promise((resolve) => {
+      let p;
+      try { p = spawn('wokwi-cli', [diagram], { cwd: projectPath, shell: true, env: { ...process.env } }); } catch (e) { resolve({ success: false, stage: 'spawn', error: e.message }); return; }
+      let out = '', err = '';
+      p.stdout.on('data', d => out += d);
+      p.stderr.on('data', d => err += d);
+      const to = setTimeout(() => { try { p.kill(); } catch (e) {} resolve({ success: true, code: null, timedOut: true, output: (out + err).slice(-8000) }); }, timeoutMs);
+      p.on('error', (e) => { clearTimeout(to); resolve({ success: false, stage: 'spawn', error: e.message }); });
+      p.on('close', (code) => { clearTimeout(to); resolve({ success: code === 0, code, output: (out + '\n' + err).slice(-8000) }); });
+    });
+    if (r.success === false && /token|auth|login|unauthor/i.test(r.output || r.error || '')) {
+      return { success: false, stage: 'no-token', error: 'wokwi-cli 未授权', guide: '到 wokwi.com/cli 获取 token，并设置环境变量 WOKWI_CLI_TOKEN 后重启应用', output: r.output };
+    }
+    return { ...r, stage: 'run' };
+  });
+
   ipcMain.handle('compile:exportBinary', async (_, options) => {
     const { sketchPath, fqbn, outputDir, exportPath } = options || {};
     if (!sketchPath) return { success: false, error: '缺少 sketchPath' };

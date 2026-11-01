@@ -223,6 +223,8 @@ function syncWelcomePanel() {
     const hasProject = !!(state && (state.projectPath || (state.files && Object.keys(state.files).length > 0)));
     if (welcomePanel) welcomePanel.style.display = hasProject ? 'none' : 'flex';
     if (fileTree) fileTree.style.display = hasProject ? 'block' : 'none';
+    // 欢迎态布局对齐 TrieCode：无项目时隐藏中央"开始你的开发"卡，AI 欢迎区占满中央
+    document.body.classList.toggle('app-welcome', !hasProject);
   } catch (e) { console.error('同步欢迎页显隐失败:', e); }
 }
 
@@ -14019,6 +14021,33 @@ function bindEvents() {
   const editorExportBtn = document.getElementById('editor-export-btn');
   if (editorExportBtn) editorExportBtn.addEventListener('click', runExportBinary);
 
+  // ===== Wokwi 仿真运行（对齐 TrieCode Wokwi 工具链：编译产物 → wokwi-cli → 串口回传）=====
+  async function runWokwiSim() {
+    const projectPath = state.projectPath;
+    if (!projectPath) { showToast('请先打开 Wokwi 项目（含 diagram.json）', 'warn'); return; }
+    showToast('正在启动 Wokwi 仿真…', 'info');
+    try {
+      const r = await window.LabCode.wokwi.run({ projectPath });
+      if (state.terminal) {
+        state.terminal.writeln('');
+        state.terminal.writeln('Wokwi 仿真: ' + (r.stage || 'run') + (r.timedOut ? '（超时截断）' : ''));
+        if (r.output) r.output.split('\n').slice(-30).forEach(l => { if (l.trim()) state.terminal.writeln(l); });
+      }
+      if (r.success) {
+        showToast('仿真运行完成', 'success');
+        addOutputLog('Wokwi 仿真输出:\n' + (r.output || '').slice(-500), 'success');
+      } else if (r.stage === 'no-cli' || r.stage === 'no-token') {
+        showToast(r.error + '。' + (r.guide || ''), 'warn');
+        addOutputLog('Wokwi 仿真未就绪: ' + r.error + '\n' + (r.guide || ''), 'warn');
+      } else {
+        showToast('仿真失败: ' + (r.error || '未知错误'), 'error');
+        addOutputLog('Wokwi 仿真失败: ' + (r.error || '') + '\n' + (r.output || '').slice(-300), 'error');
+      }
+    } catch (e) {
+      showToast('仿真异常: ' + e.message, 'error');
+    }
+  }
+
   // ===== 命令面板（对齐 TrieCode command.invoke）=====
   const COMMANDS = [
     { id: 'new-project', title: '新建项目', group: '项目', keywords: 'new project 新建 工程', run: () => { const b = document.getElementById('welcome-new-project'); if (b) b.click(); else showToast('请先回到欢迎页', 'warn'); } },
@@ -14028,6 +14057,7 @@ function bindEvents() {
     { id: 'upload', title: '烧录', group: '开发', keywords: 'upload flash 烧录 上传', run: () => runCapBtn('upload') },
     { id: 'ai-fix', title: 'AI 修复编译错误', group: '开发', keywords: 'ai fix 修复 自动', run: () => runAiFix() },
     { id: 'export-bin', title: '导出固件', group: '开发', keywords: 'export binary 导出 固件', run: () => runExportBinary() },
+    { id: 'wokwi-sim', title: 'Wokwi 仿真运行', group: '开发', keywords: 'wokwi simulate 仿真 模拟 运行', run: () => runWokwiSim() },
     { id: 'settings', title: '打开设置', group: '视图', keywords: 'settings 设置 配置', run: () => openSettingsModal() },
     { id: 'toggle-theme', title: '切换深浅色主题', group: '视图', keywords: 'theme 主题 深色 浅色 切换', run: () => { const cur = document.documentElement.getAttribute('data-theme') || 'dark'; applyTheme(cur === 'dark' ? 'light' : 'dark', true); } },
     { id: 'panel-device', title: '打开设备面板', group: '视图', keywords: 'device 设备 开发板', run: () => { const b = document.querySelector('.activity-btn[data-panel="device"]'); if (b) b.click(); } },
@@ -16665,6 +16695,9 @@ function init() {
   //   } catch(e) { console.error('Auto demo error:', e); }
   // }, 1500);
 }
+
+// 启动即同步欢迎态布局（对齐 TrieCode：无项目时 AI 欢迎区占满中央）
+__onDCL(() => { try { syncWelcomePanel(); } catch (e) {} });
 
 if (document.readyState === 'loading') {
   __onDCL( init);

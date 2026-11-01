@@ -5256,6 +5256,10 @@ button:disabled,
   border-right: none !important;
 }
 body.no-open-file .editor-container { flex: 1 1 auto !important; min-width: 0 !important; }
+/* ===== 欢迎态布局对齐 TrieCode：无项目时隐藏中央卡片，AI 欢迎区占满中央 ===== */
+body.app-welcome #welcome-screen { display: none !important; }
+body.app-welcome .ai-panel { flex: 1 1 auto !important; width: auto !important; max-width: none !important; border-left: none !important; }
+body.app-welcome .editor-container { flex: 0 0 0 !important; width: 0 !important; min-width: 0 !important; overflow: hidden !important; }
 /* ===== 未登录首屏（对齐 TrieCode）：主区居中登录卡，左侧欢迎面板全高 ===== */
 .editor-container { position: relative; }
 body.logged-out .ai-panel { display: none !important; }

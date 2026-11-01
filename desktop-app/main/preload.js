@@ -327,6 +327,11 @@ contextBridge.exposeInMainWorld('LabCode', {
     cliExists: () => ipcRenderer.invoke('compile:cli-exists')
   },
 
+  // Wokwi 仿真（对齐 TrieCode Wokwi 工具链）
+  wokwi: {
+    run: (options) => ipcRenderer.invoke('wokwi:run', options)
+  },
+
   // 串口监视器
   serial: {
     list: () => ipcRenderer.invoke('serial:list'),
