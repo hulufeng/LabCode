@@ -10968,6 +10968,8 @@ function bindEvents() {
     });
     // 插件自定义面板（manifest.views）—— 仅「已安装」tab 提供入口，官方市场保持 TrieCode 式纯列表
     if (currentPluginsTab === 'installed') renderPluginViews(listEl);
+    // TrieCode 式：已安装插件直接在活动栏显示入口（装了就显示，卸载即消失）
+    refreshPluginActivityButtons();
     // 绑定启用/禁用按钮（禁用后插件工具不再注入给 AI）
     listEl.querySelectorAll('[data-action="toggle"]').forEach(btn => {
       btn.addEventListener('click', async () => {
@@ -11616,6 +11618,29 @@ function bindEvents() {
     const meta = BUILTIN_PLUGIN_MANIFESTS[r.id] || { id: r.id, name: r.name || r.id, version: r.version || '—', icon: '🧩', category: 'tool', description: '本地安装', capabilities: [] };
     installedPlugins.push({ ...meta, installedAt: Date.now(), tools: r.tools || 0 });
     saveInstalledPlugins();
+  }
+
+  // ============ 活动栏动态插件入口（对齐 TrieCode：安装插件即出现在侧栏）============
+  function refreshPluginActivityButtons() {
+    const host = document.getElementById('plugin-activity-btns');
+    if (!host || !window.PluginSystem || typeof window.PluginSystem.getViews !== 'function') return;
+    const views = window.PluginSystem.getViews() || [];
+    const seen = new Set();
+    let html = '';
+    views.forEach(v => {
+      if (seen.has(v.pluginId)) return; seen.add(v.pluginId);
+      const inst = installedPlugins.find(p => p.id === v.pluginId) || {};
+      const title = inst.name || v.title || v.pluginId;
+      html += '<button class="activity-btn" data-plugin-view="' + encodeURIComponent(v.pluginId + '|' + v.id) + '" title="' + title + '" style="font-size:17px;line-height:1;">' + (inst.icon || '🧩') + '</button>';
+    });
+    host.innerHTML = html;
+    host.querySelectorAll('[data-plugin-view]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const [pid, vid] = decodeURIComponent(btn.dataset.pluginView).split('|');
+        const v = views.find(x => x.pluginId === pid && x.id === vid);
+        if (v) showPluginViewModal(v.title || v.id, v.webviewUrl);
+      });
+    });
   }
 
   // ============ 插件自定义面板（manifest.views）============
@@ -16932,6 +16957,8 @@ function init() {
 
 // 启动即同步欢迎态布局（对齐 TrieCode：无项目时 AI 欢迎区占满中央）
 __onDCL(() => { try { syncWelcomePanel(); } catch (e) {} });
+// 插件加载完成后刷新活动栏动态入口（TrieCode 式：装了就显示）
+__onDCL(() => { setTimeout(() => { try { refreshPluginActivityButtons(); } catch (e) {} }, 1500); });
 
 if (document.readyState === 'loading') {
   __onDCL( init);
