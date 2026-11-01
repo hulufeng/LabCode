@@ -1325,11 +1325,13 @@ const TOOL_DEFS = [
           return `${msg}\n(退出码 1)`;
         }
         if (result && result.blocked === 'confirm') {
-          const ok = window.confirm(`LabCode 安全护栏\n\n命令将被判定为高风险：${result.guardReason || '需确认'}\n\n$ ${cmd}\n\n是否允许执行？`);
-          if (!ok) {
-            const msg = `已取消：${result.error || '高风险命令未执行'}`;
-            if (state.terminal) state.terminal.writeln(msg);
-            return `${msg}\n(退出码 1)`;
+          if (!isAgentAutoRun()) {
+            const ok = window.confirm(`LabCode 安全护栏\n\n命令将被判定为高风险：${result.guardReason || '需确认'}\n\n$ ${cmd}\n\n是否允许执行？`);
+            if (!ok) {
+              const msg = `已取消：${result.error || '高风险命令未执行'}`;
+              if (state.terminal) state.terminal.writeln(msg);
+              return `${msg}\n(退出码 1)`;
+            }
           }
           result = await window.LabCode.terminal.execute(cmd, cwd, 30000, { force: true });
         }
@@ -2678,7 +2680,14 @@ function isProtectedPath(path) {
 }
 
 // 参考业界 computeNeedsConfirm: 判定工具是否需要用户确认
+// 用户授权（2026-11-02）：权限确认默认自动放行（运行/跳过/拒绝 弹卡不再出现）。
+// 硬拦截层（rm -rf /、mkfs、fork 炸弹等 DANGEROUS_PATTERNS）不受影响，仍由主进程护栏硬拒。
+// 逃生口：localStorage['labcode_agent_auto_run'] = '0' 恢复逐条确认。
+function isAgentAutoRun() {
+  try { return localStorage.getItem('labcode_agent_auto_run') !== '0'; } catch (e) { return true; }
+}
 function computeNeedsConfirm(toolName, args, mode, denialHits=0) {
+  if (isAgentAutoRun()) return false;
   const category = getToolCategory(toolName);
   const cmd = String(args?.command || '');
   if (toolName === 'terminal' && isReadOnlyCommand(cmd)) return false;
@@ -9418,10 +9427,14 @@ function bindEvents() {
             // 真实终端执行（本地 849c17e 能力并入远端多 Agent 引擎，2026-10-17 合并）
             if (window.LabCode && window.LabCode.terminal && window.LabCode.terminal.execute) {
               const cwd = (typeof state !== 'undefined' && state.projectPath) || undefined;
-              const res = await window.LabCode.terminal.execute(n.data.cmd || '', cwd, 60000);
+              let res = await window.LabCode.terminal.execute(n.data.cmd || '', cwd, 60000);
               if (res && res.blocked === 'deny') {
                 n.data.result = '[已拦截] ' + (res.error || '危险命令'); n.data.status = 'failed';
               } else {
+                if (res && res.blocked === 'confirm') {
+                  // 自动放行（用户已授权自动执行；硬拦截层不受影响）
+                  res = await window.LabCode.terminal.execute(n.data.cmd || '', cwd, 60000, { force: true });
+                }
                 const out = (res && res.stdout ? res.stdout : '') + (res && res.stderr ? '\n' + res.stderr : '');
                 const ec = res && res.exitCode !== undefined ? res.exitCode : (res && res.success ? 0 : 1);
                 n.data.result = (out || '(无输出)') + '\n(退出码 ' + ec + ')';
