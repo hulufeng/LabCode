@@ -9795,6 +9795,10 @@ function bindEvents() {
           currentPluginsTab = 'market';
           document.querySelectorAll('.plugins-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === 'market'));
         }
+        // 恢复插件市场 chrome（从 AI 模型视图切回时）
+        document.querySelectorAll('.plugins-tab').forEach(t => t.style.display = '');
+        ['plugins-install-dir', 'plugins-install-zip'].forEach(id => { const b = document.getElementById(id); if (b) b.style.display = ''; });
+        const ptP = document.getElementById('plugins-title'); if (ptP) ptP.textContent = '插件市场';
         renderPluginsList();
       } else if (panel === 'models') {
         // AI 模型独立入口：复用插件面板，直接渲染模型视图（模型已从 tab 条移除，单独管理）
@@ -9808,6 +9812,10 @@ function bindEvents() {
         currentPluginsTab = 'models';
         // 模型是独立视图：清除插件 tab 高亮，避免残留"官方市场"激活态
         document.querySelectorAll('.plugins-tab').forEach(t => t.classList.remove('active'));
+        // 防串台：模型视图专属 chrome——隐藏插件市场 tab 条与"文件夹/ZIP"上传按钮，标题改为 AI 模型
+        document.querySelectorAll('.plugins-tab').forEach(t => t.style.display = 'none');
+        ['plugins-install-dir', 'plugins-install-zip'].forEach(id => { const b = document.getElementById(id); if (b) b.style.display = 'none'; });
+        const ptM = document.getElementById('plugins-title'); if (ptM) ptM.textContent = 'AI 模型';
         renderPluginsList();
       } else if (panel === 'device') {
         sidebar.style.display = 'flex';
@@ -10669,6 +10677,17 @@ function bindEvents() {
     }
   }
 
+  // 内置工具链为权威：远程源（source==='remote'）拉来的同名域工具链视为被替代，不与内置双装
+  const SUPERSEDE_RE = [/arduino/i, /esp-?idf/i, /stm32/i];
+  function isSupersededRemotePlugin(p) {
+    if (!p || p.source !== 'remote') return false;           // 只管远程自动清单；社区/本地上传尊重用户选择
+    if (p.category !== 'compiler') return false;
+    const builtinInstalled = OFFICIAL_PLUGINS.some(b => ['arduino', 'esp-idf', 'stm32'].includes(b.id) && isPluginInstalled(b.id));
+    if (!builtinInstalled) return false;
+    const hay = (p.name || '') + ' ' + (p.id || '');
+    return SUPERSEDE_RE.some(re => re.test(hay));
+  }
+
   function renderPluginsList() {
     const listEl = document.getElementById('plugins-list');
     if (!listEl) return;
@@ -10745,6 +10764,13 @@ function bindEvents() {
       // 否则这些插件能用（工具已注册）却在「已安装」里不可见，用户无法卸载/禁用
       const extraInstalled = installedPlugins.filter(p => p.category !== 'ai-model' && !baseIds.has(p.id));
       plugins = plugins.concat(extraInstalled);
+      // 防串台：内置目录的 Arduino/ESP-IDF/STM32 已安装时，远程拉来的同名工具链视为被替代——
+      // 从列表隐藏并自动停用，避免双 compile 能力路由冲突（内置 v1.0.0 为权威）
+      const superseded = plugins.filter(isSupersededRemotePlugin);
+      if (superseded.length) {
+        plugins = plugins.filter(p => !isSupersededRemotePlugin(p));
+        superseded.forEach(p => { try { if (window.PluginSystem && window.PluginSystem.setActive) window.PluginSystem.setActive(p.id, false); } catch (e) {} });
+      }
     } else if (currentPluginsTab === 'models') {
       plugins = getAllPlugins().filter(p => p.category === 'ai-model');
     } else {
