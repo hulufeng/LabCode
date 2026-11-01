@@ -5260,6 +5260,32 @@ body.no-open-file .editor-container { flex: 1 1 auto !important; min-width: 0 !i
 body.app-welcome #welcome-screen { display: none !important; }
 body.app-welcome .ai-panel { flex: 1 1 auto !important; width: auto !important; max-width: none !important; border-left: none !important; }
 body.app-welcome .editor-container { flex: 0 0 0 !important; width: 0 !important; min-width: 0 !important; overflow: hidden !important; }
+
+/* ===== 全局字体收紧（对齐 TrieCode 紧凑基准）===== */
+body { font-size: 13px; }
+.chat-message .chat-bubble { font-size: 12.5px; }
+
+/* ===== 设备设置卡：间距/配色统一（原太挤且卡片底色不一致）===== */
+.device-section-title {
+  margin: 16px 0 10px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-primary);
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border-light);
+}
+.device-form-group { margin-bottom: 12px; }
+.device-label { font-size: 12px; color: var(--text-secondary); margin-bottom: 5px; display: block; }
+.device-select {
+  width: 100%; padding: 7px 9px; font-size: 12.5px;
+  background: var(--bg-color); color: var(--text-color);
+  border: 1px solid var(--border-color); border-radius: 6px; outline: none;
+}
+.device-form-group label[style*="display:flex"] {
+  padding: 9px 10px; background: var(--bg-color);
+  border: 1px solid var(--border-color); border-radius: 6px;
+  font-size: 12.5px; color: var(--text-color);
+}
 /* ===== 未登录首屏（对齐 TrieCode）：主区居中登录卡，左侧欢迎面板全高 ===== */
 .editor-container { position: relative; }
 body.logged-out .ai-panel { display: none !important; }

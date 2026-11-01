@@ -13131,7 +13131,15 @@ function bindEvents() {
           sketchPath = state.projectPath + '/' + sketchPath;
         }
         const fqbn = state.compileFqbn || 'esp32:esp32:esp32c3';
-        const result = await window.LabCode.compile.upload({ sketchPath, fqbn, port });
+        // 设备设置真实接线：上传速度/上传后验证/上传前自动复位（此前是摆设）
+        const devOpt = (id) => { const e = document.getElementById(id); return e ? e.value : ''; };
+        const uploadOpts = {
+          sketchPath, fqbn, port,
+          baud: parseInt(devOpt('upload-speed'), 10) || 921600,
+          verify: !!(document.getElementById('verify-upload') || {}).checked,
+          resetBefore: !!(document.getElementById('auto-reset') || {}).checked
+        };
+        const result = await window.LabCode.compile.upload(uploadOpts);
         const duration = ((Date.now() - startTime) / 1000).toFixed(1);
         if (state.terminal) {
           if (result.output) {
