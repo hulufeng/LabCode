@@ -10813,8 +10813,8 @@ function bindEvents() {
       });
     }
 
-    // 绑定 AI 能力安装口（内置云端 / 自带 Key）
-    bindAiHub();
+    // 绑定 AI 能力安装口（内置云端 / 自带 Key）——仅插件市场视图；模型视图只保留模型
+    if (currentPluginsTab !== 'models') bindAiHub();
 
     // 绑定分类按钮
     listEl.querySelectorAll('.plugin-cat-btn').forEach(btn => {
