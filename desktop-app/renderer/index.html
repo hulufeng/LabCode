@@ -551,10 +551,19 @@
           </div>
           <input id="git-commit-msg" placeholder="提交信息…" style="width:100%;background:#2d2d2d;border:1px solid #3c3c3c;color:#ccc;padding:6px 8px;border-radius:4px;margin-bottom:6px;font-size:12px;">
           <div style="display:flex;gap:6px;margin-bottom:6px;">
+            <button class="btn btn-secondary btn-sm git-ai-btn" id="git-ai-commit-msg-btn" style="flex:1;font-size:12px;">AI 生成提交信息</button>
+            <button class="btn btn-secondary btn-sm git-ai-btn" id="git-ai-commit-btn" style="flex:1;font-size:12px;">AI 提交</button>
+          </div>
+          <div style="display:flex;gap:6px;margin-bottom:6px;">
             <button class="btn btn-primary" id="git-commit-btn" style="flex:1;font-size:12px;">提交</button>
             <button class="btn btn-secondary" id="git-push-btn" style="flex:1;font-size:12px;">推送</button>
             <button class="btn btn-secondary" id="git-pull-btn" style="flex:1;font-size:12px;">拉取</button>
           </div>
+          <div style="display:flex;gap:6px;margin-bottom:6px;">
+            <button class="btn btn-secondary btn-sm git-ai-btn" id="git-ai-resolve-btn" style="flex:1;font-size:12px;">AI 解决冲突</button>
+            <button class="btn btn-secondary btn-sm git-ai-btn" id="git-ai-pr-btn" style="flex:1;font-size:12px;">AI 生成 PR 描述</button>
+          </div>
+          <textarea id="git-pr-desc" placeholder="AI 生成的 PR 标题与描述将显示在这里…" style="width:100%;height:90px;box-sizing:border-box;background:#2d2d2d;border:1px solid #3c3c3c;color:#ccc;padding:6px 8px;border-radius:4px;margin-bottom:6px;font-size:12px;resize:vertical;"></textarea>
           <div style="display:flex;gap:6px;">
             <input id="git-newbranch-name" placeholder="新分支名" style="flex:1;background:#2d2d2d;border:1px solid #3c3c3c;color:#ccc;padding:6px 8px;border-radius:4px;font-size:12px;">
             <button class="btn btn-secondary btn-sm" id="git-newbranch-btn" style="font-size:12px;">新建</button>
@@ -654,6 +663,12 @@
                 <button class="dev-action-btn dev-monitor" id="dev-monitor-btn" title="打开串口监视器">
                   <svg class="icon"><use href="#icon-terminal"></use></svg>
                   <span>串口监视</span>
+                </button>
+                <button class="dev-action-btn dev-aifix" id="dev-aifix-btn" title="用 AI 自动修复编译错误">
+                  <span>AI 修复</span>
+                </button>
+                <button class="dev-action-btn dev-export" id="dev-export-btn" title="编译并导出固件">
+                  <span>导出固件</span>
                 </button>
               </div>
             </div>
@@ -1056,6 +1071,8 @@
           <span class="editor-toolbar-sep"></span>
           <button class="editor-toolbar-btn dev-quick-btn" id="editor-compile-btn" title="编译当前代码（软硬件开发流水线）"><svg class="icon"><use href="#icon-code"></use></svg></button>
           <button class="editor-toolbar-btn dev-quick-btn" id="editor-upload-btn" title="烧录到开发板"><svg class="icon"><use href="#icon-arrow-bar-to-down"></use></svg></button>
+          <button class="editor-toolbar-btn dev-quick-btn" id="editor-aifix-btn" title="用 AI 自动修复编译错误">AI修复</button>
+          <button class="editor-toolbar-btn dev-quick-btn" id="editor-export-btn" title="编译并导出固件">导出</button>
         </div>
       </div>
 
@@ -1320,11 +1337,32 @@
             <div class="settings-nav-group">
               <div class="settings-nav-group-title">个人</div>
               <div class="settings-nav-item active" data-target="panel-account">账户与计费</div>
+              <div class="settings-nav-item" data-target="panel-general">常规</div>
+              <div class="settings-nav-item" data-target="panel-appearance">外观</div>
+              <div class="settings-nav-item" data-target="panel-voice">语音</div>
             </div>
             <div class="settings-nav-group">
               <div class="settings-nav-group-title">AI</div>
               <div class="settings-nav-item" data-target="panel-model">模型配置</div>
               <div class="settings-nav-item" data-target="panel-agent">智能体市场</div>
+              <div class="settings-nav-item" data-target="panel-completion">补全</div>
+              <div class="settings-nav-item" data-target="panel-memory">记忆</div>
+              <div class="settings-nav-item" data-target="panel-skills">技能</div>
+              <div class="settings-nav-item" data-target="panel-search">搜索</div>
+            </div>
+            <div class="settings-nav-group">
+              <div class="settings-nav-group-title">集成</div>
+              <div class="settings-nav-item" data-target="panel-mcp">MCP 服务器</div>
+              <div class="settings-nav-item" data-target="panel-plugins">插件</div>
+            </div>
+            <div class="settings-nav-group">
+              <div class="settings-nav-group-title">开发</div>
+              <div class="settings-nav-item" data-target="panel-editor">编辑器</div>
+              <div class="settings-nav-item" data-target="panel-vcs">版本控制</div>
+              <div class="settings-nav-item" data-target="panel-terminal">终端</div>
+              <div class="settings-nav-item" data-target="panel-interpreter">解释器</div>
+              <div class="settings-nav-item" data-target="panel-hooks">钩子</div>
+              <div class="settings-nav-item" data-target="panel-schedule">定时任务</div>
             </div>
           </aside>
           <div class="settings-panels">
@@ -1367,6 +1405,58 @@
             </div>
           </div>
         </div>
+              </div>
+              <div class="settings-panel" id="panel-general">
+                <h4 style="margin:0 0 14px 0;font-size:14px;color:var(--text-color);">常规</h4>
+
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;padding:12px 0;border-bottom:1px solid var(--border-color);">
+                  <div style="flex:1;">
+                    <div style="font-size:13px;font-weight:600;color:var(--text-color);margin-bottom:4px;">关闭窗口时</div>
+                    <div style="font-size:12px;color:var(--text-secondary);line-height:1.6;">点右上角 × 时把窗口收进托盘，软件继续在后台运行（定时任务需常驻执行）。要完全退出，用托盘菜单的「退出 LabCode」。</div>
+                  </div>
+                  <select id="general-close-action" style="width:170px;flex:none;padding:7px 8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size:13px;">
+                    <option value="tray">最小化到托盘</option>
+                    <option value="exit">直接退出</option>
+                  </select>
+                </div>
+
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;padding:12px 0;border-bottom:1px solid var(--border-color);">
+                  <div style="flex:1;">
+                    <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:6px;">工作区 / WORKSPACE</div>
+                    <div style="font-size:13px;font-weight:600;color:var(--text-color);margin-bottom:4px;">默认工作空间</div>
+                    <div style="font-size:12px;color:var(--text-secondary);line-height:1.6;">未打开项目时的浏览器位置（新建项目、编译产物存放处）。修改后立即生效。</div>
+                  </div>
+                  <div style="display:flex;gap:6px;flex:none;align-items:center;">
+                    <input type="text" id="general-workspace" placeholder="默认目录" style="width:240px;padding:7px 8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size:12px;">
+                    <button class="btn btn-secondary" id="general-workspace-browse" style="flex:none;">浏览…</button>
+                  </div>
+                </div>
+
+                <div style="padding:12px 0 0 0;">
+                  <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:6px;">网络 / NETWORK</div>
+                  <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:10px;">
+                    <div style="flex:1;">
+                      <div style="font-size:13px;font-weight:600;color:var(--text-color);margin-bottom:4px;">代理模式</div>
+                      <div style="font-size:12px;color:var(--text-secondary);line-height:1.6;">代理仅作用于公网的模型 API 与模型/工具链下载，本地服务（串口/LSP/编译）不走代理。</div>
+                    </div>
+                    <select id="general-proxy-mode" style="width:190px;flex:none;padding:7px 8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size:13px;">
+                      <option value="system">系统代理（自动检测）</option>
+                      <option value="manual">手动配置</option>
+                      <option value="direct">不使用代理</option>
+                    </select>
+                  </div>
+                  <div id="general-proxy-manual" style="display:none;gap:8px;align-items:center;margin-bottom:10px;">
+                    <input type="text" id="general-proxy-host" placeholder="代理地址，如 127.0.0.1" style="flex:1;padding:7px 8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size:12px;">
+                    <input type="text" id="general-proxy-port" placeholder="端口" style="width:90px;flex:none;padding:7px 8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size:12px;">
+                  </div>
+                  <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <div style="font-size:13px;font-weight:600;color:var(--text-color);">检测到的系统代理</div>
+                    <div style="display:flex;gap:8px;align-items:center;">
+                      <span id="general-proxy-detected" style="font-size:12px;color:var(--text-secondary);">—</span>
+                      <button class="btn btn-secondary" id="general-proxy-refresh" style="flex:none;padding:4px 10px;font-size:12px;">刷新</button>
+                    </div>
+                  </div>
+                </div>
               </div>
               <div class="settings-panel" id="panel-model">
                 <div style="margin-bottom:20px;">
@@ -1443,6 +1533,179 @@
                   <div id="agent-market-list" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;"></div>
                 </div>
               </div>
+
+              <!-- 个人 · 外观 -->
+              <div class="settings-panel" id="panel-appearance">
+                <h4 style="margin:0 0 14px 0;font-size:14px;color:var(--text-color);">外观</h4>
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;padding:12px 0;border-bottom:1px solid var(--border-color);">
+                  <div style="flex:1;">
+                    <div style="font-size:13px;font-weight:600;color:var(--text-color);margin-bottom:4px;">主题</div>
+                    <div style="font-size:12px;color:var(--text-secondary);line-height:1.6;">切换浅色 / 深色界面，立即生效。</div>
+                  </div>
+                  <select id="appearance-theme" style="width:170px;flex:none;padding:7px 8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size:13px;">
+                    <option value="light">浅色</option>
+                    <option value="dark">深色</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- 个人 · 语音 -->
+              <div class="settings-panel" id="panel-voice">
+                <h4 style="margin:0 0 14px 0;font-size:14px;color:var(--text-color);">语音</h4>
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;padding:12px 0;border-bottom:1px solid var(--border-color);">
+                  <div style="flex:1;">
+                    <div style="font-size:13px;font-weight:600;color:var(--text-color);margin-bottom:4px;">朗读语速</div>
+                    <div style="font-size:12px;color:var(--text-secondary);line-height:1.6;">AI 回复与选中内容朗读的语速（0.5–2.0 倍）。</div>
+                  </div>
+                  <div style="display:flex;gap:8px;align-items:center;flex:none;">
+                    <input type="range" id="voice-rate" min="0.5" max="2" step="0.1" value="1" style="width:140px;">
+                    <span id="voice-rate-val" style="font-size:12px;color:var(--text-secondary);width:34px;text-align:right;">1.0x</span>
+                  </div>
+                </div>
+                <div style="display:flex;justify-content:flex-end;gap:8px;padding-top:12px;">
+                  <button class="btn btn-secondary" id="voice-test" style="flex:none;">试听</button>
+                </div>
+              </div>
+
+              <!-- AI · 补全 -->
+              <div class="settings-panel" id="panel-completion">
+                <h4 style="margin:0 0 14px 0;font-size:14px;color:var(--text-color);">补全</h4>
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;padding:12px 0;border-bottom:1px solid var(--border-color);">
+                  <div style="flex:1;">
+                    <div style="font-size:13px;font-weight:600;color:var(--text-color);margin-bottom:4px;">启用代码内联补全</div>
+                    <div style="font-size:12px;color:var(--text-secondary);line-height:1.6;">在编辑器中用 AI 实时续写代码（灰色虚影，Tab 采纳）。</div>
+                  </div>
+                  <label class="switch"><input type="checkbox" id="completion-enabled"><span class="slider"></span></label>
+                </div>
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;padding:12px 0;">
+                  <div style="flex:1;">
+                    <div style="font-size:13px;font-weight:600;color:var(--text-color);margin-bottom:4px;">触发延迟</div>
+                    <div style="font-size:12px;color:var(--text-secondary);line-height:1.6;">停止输入后多久发起补全请求（毫秒）。</div>
+                  </div>
+                  <input type="number" id="completion-delay" min="100" max="2000" step="50" value="350" style="width:120px;flex:none;padding:7px 8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size:13px;">
+                </div>
+              </div>
+
+              <!-- AI · 记忆 -->
+              <div class="settings-panel" id="panel-memory">
+                <h4 style="margin:0 0 12px 0;font-size:14px;color:var(--text-color);">记忆</h4>
+                <div style="font-size:12px;color:var(--text-secondary);margin-bottom:10px;line-height:1.6;">AI 长期记忆存储在本机（memory/memories.json），用于跨会话保持偏好与上下文。</div>
+                <div id="memory-list" style="display:flex;flex-direction:column;gap:6px;max-height:200px;overflow:auto;margin-bottom:10px;"></div>
+                <div style="display:flex;justify-content:flex-end;gap:8px;">
+                  <span id="memory-count" style="font-size:12px;color:var(--text-tertiary);margin-right:auto;align-self:center;"></span>
+                  <button class="btn btn-secondary" id="memory-clear" style="flex:none;">清空记忆</button>
+                </div>
+              </div>
+
+              <!-- AI · 技能 / 搜索（敬请期待） -->
+              <div class="settings-panel" id="panel-skills">
+                <h4 style="margin:0 0 10px 0;font-size:14px;color:var(--text-color);">技能</h4>
+                <div style="font-size:12px;color:var(--text-secondary);margin-bottom:10px;line-height:1.6;">将常用工作流沉淀为可复用技能，AI 执行任务时可自动调用。</div>
+                <div id="skills-list" style="display:flex;flex-direction:column;gap:6px;max-height:190px;overflow:auto;margin-bottom:10px;"></div>
+                <div style="display:flex;gap:8px;align-items:flex-end;">
+                  <input id="skill-name" placeholder="技能名称" style="flex:1;padding:7px 8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size:13px;">
+                  <input id="skill-prompt" placeholder="技能提示词 / 指令" style="flex:2;padding:7px 8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size:13px;">
+                  <button class="btn btn-primary" id="skill-add" style="flex:none;">添加</button>
+                </div>
+              </div>
+              <div class="settings-panel" id="panel-search">
+                <h4 style="margin:0 0 10px 0;font-size:14px;color:var(--text-color);">搜索</h4>
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;padding:12px 0;border-bottom:1px solid var(--border-color);">
+                  <div style="flex:1;">
+                    <div style="font-size:13px;font-weight:600;color:var(--text-color);margin-bottom:4px;">允许 AI 联网搜索</div>
+                    <div style="font-size:12px;color:var(--text-secondary);line-height:1.6;">AI 回答时可实时检索网页并抓取正文（SSRF 防护 + 15min 缓存）。</div>
+                  </div>
+                  <label class="switch"><input type="checkbox" id="search-enabled"><span class="slider"></span></label>
+                </div>
+                <div style="display:flex;gap:8px;align-items:center;padding:12px 0;">
+                  <button class="btn btn-secondary" id="search-test" style="flex:none;">测试搜索</button>
+                  <button class="btn btn-secondary" id="search-clear" style="flex:none;">清空缓存</button>
+                  <span id="search-stats" style="font-size:12px;color:var(--text-tertiary);margin-left:auto;"></span>
+                </div>
+                <div id="search-result" style="font-size:12px;color:var(--text-secondary);white-space:pre-wrap;max-height:120px;overflow:auto;"></div>
+              </div>
+
+              <!-- 集成 · MCP 服务器 -->
+              <div class="settings-panel" id="panel-mcp">
+                <h4 style="margin:0 0 12px 0;font-size:14px;color:var(--text-color);">MCP 服务器</h4>
+                <div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;line-height:1.6;">管理 Model Context Protocol 服务器，为 AI 提供额外工具与数据源。点击下方按钮在独立面板中增删、启停服务器。</div>
+                <button class="btn btn-primary" id="open-mcp-panel" style="flex:none;">打开 MCP 服务面板</button>
+              </div>
+              <div class="settings-panel" id="panel-plugins">
+                <h4 style="margin:0 0 12px 0;font-size:14px;color:var(--text-color);">插件</h4>
+                <div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;line-height:1.6;">浏览并安装本地模型、工具链与扩展。点击下方按钮打开插件市场。</div>
+                <button class="btn btn-primary" id="open-plugins-panel" style="flex:none;">打开插件市场</button>
+              </div>
+
+              <!-- 开发 · 编辑器 -->
+              <div class="settings-panel" id="panel-editor">
+                <h4 style="margin:0 0 14px 0;font-size:14px;color:var(--text-color);">编辑器</h4>
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;padding:12px 0;border-bottom:1px solid var(--border-color);">
+                  <div style="flex:1;"><div style="font-size:13px;font-weight:600;color:var(--text-color);margin-bottom:4px;">字号</div></div>
+                  <select id="editor-font-size" style="width:120px;flex:none;padding:7px 8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size:13px;">
+                    <option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option><option value="16">16</option>
+                  </select>
+                </div>
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;padding:12px 0;">
+                  <div style="flex:1;"><div style="font-size:13px;font-weight:600;color:var(--text-color);margin-bottom:4px;">自动换行</div></div>
+                  <select id="editor-word-wrap" style="width:170px;flex:none;padding:7px 8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size:13px;">
+                    <option value="off">关闭</option><option value="on">开启</option><option value="wordWrapColumn">按列宽</option><option value="bounded">受限</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- 开发 · 版本控制 / 终端 / 解释器 / 钩子 / 定时任务 -->
+              <div class="settings-panel" id="panel-vcs">
+                <h4 style="margin:0 0 12px 0;font-size:14px;color:var(--text-color);">版本控制</h4>
+                <div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;line-height:1.6;">查看改动、提交、推送与分支管理。点击下方按钮打开 Git 面板。</div>
+                <button class="btn btn-primary" id="open-vcs-panel" style="flex:none;">打开 Git 面板</button>
+              </div>
+              <div class="settings-panel" id="panel-terminal">
+                <h4 style="margin:0 0 12px 0;font-size:14px;color:var(--text-color);">终端</h4>
+                <div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;line-height:1.6;">内置终端，用于编译、烧录与运行命令。点击下方按钮打开终端面板。</div>
+                <button class="btn btn-primary" id="open-terminal-panel" style="flex:none;">打开终端面板</button>
+              </div>
+              <div class="settings-panel" id="panel-interpreter">
+                <h4 style="margin:0 0 10px 0;font-size:14px;color:var(--text-color);">解释器</h4>
+                <div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;line-height:1.6;">配置 Python / Node 运行解释器路径，AI 执行脚本时优先使用。</div>
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;padding:10px 0;border-bottom:1px solid var(--border-color);">
+                  <div style="flex:1;font-size:13px;font-weight:600;color:var(--text-color);">Python 解释器</div>
+                  <div style="display:flex;gap:8px;flex:2;">
+                    <input id="interp-python" style="flex:1;padding:7px 8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size:13px;">
+                    <button class="btn btn-secondary" id="interp-python-browse" style="flex:none;">浏览</button>
+                  </div>
+                </div>
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;padding:10px 0;">
+                  <div style="flex:1;font-size:13px;font-weight:600;color:var(--text-color);">Node 解释器</div>
+                  <div style="display:flex;gap:8px;flex:2;">
+                    <input id="interp-node" style="flex:1;padding:7px 8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size:13px;">
+                    <button class="btn btn-secondary" id="interp-node-browse" style="flex:none;">浏览</button>
+                  </div>
+                </div>
+              </div>
+              <div class="settings-panel" id="panel-hooks">
+                <h4 style="margin:0 0 10px 0;font-size:14px;color:var(--text-color);">钩子</h4>
+                <div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;line-height:1.6;">在特定事件前后自动执行脚本（如提交前格式化、工具调用后通知）。填写脚本绝对路径，留空表示关闭。</div>
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;padding:10px 0;border-bottom:1px solid var(--border-color);">
+                  <div style="flex:1;font-size:13px;font-weight:600;color:var(--text-color);">PreToolUse 脚本</div>
+                  <div style="display:flex;gap:8px;flex:2;">
+                    <input id="hook-pre" style="flex:1;padding:7px 8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size:13px;">
+                    <button class="btn btn-secondary" id="hook-pre-browse" style="flex:none;">浏览</button>
+                  </div>
+                </div>
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;padding:10px 0;">
+                  <div style="flex:1;font-size:13px;font-weight:600;color:var(--text-color);">PostToolUse 脚本</div>
+                  <div style="display:flex;gap:8px;flex:2;">
+                    <input id="hook-post" style="flex:1;padding:7px 8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size:13px;">
+                    <button class="btn btn-secondary" id="hook-post-browse" style="flex:none;">浏览</button>
+                  </div>
+                </div>
+              </div>
+              <div class="settings-panel" id="panel-schedule">
+                <h4 style="margin:0 0 12px 0;font-size:14px;color:var(--text-color);">定时任务</h4>
+                <div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;line-height:1.6;">按计划自动执行任务（如每日构建、定时抓取）。点击下方按钮打开调度面板。</div>
+                <button class="btn btn-primary" id="open-schedule-panel" style="flex:none;">打开调度面板</button>
+              </div>
             </div>
           </div>
         </div>
@@ -1502,26 +1765,20 @@
       <div class="modal-body">
         <div class="new-project-layout">
           <!-- 左侧：项目类型列表 -->
+          <input type="text" id="project-type-search" placeholder="搜索项目类型…" style="width:100%;box-sizing:border-box;padding:7px 10px;margin-bottom:10px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size:12px;">
           <div class="project-type-list" id="project-type-list">
+            <div class="project-type-item" data-type="plugin">
+              <span class="project-type-icon">🧩</span>
+              <div class="project-type-info">
+                <span class="project-type-name">插件</span>
+                <small>LabCode 插件开发</small>
+              </div>
+            </div>
             <div class="project-type-item active" data-type="arduino">
               <span class="project-type-icon">⚙️</span>
               <div class="project-type-info">
                 <span class="project-type-name">Arduino</span>
                 <small>Arduino CLI 工具链</small>
-              </div>
-            </div>
-            <div class="project-type-item" data-type="python">
-              <span class="project-type-icon">🐍</span>
-              <div class="project-type-info">
-                <span class="project-type-name">Python</span>
-                <small>脚本 / 应用</small>
-              </div>
-            </div>
-            <div class="project-type-item" data-type="node">
-              <span class="project-type-icon">🟢</span>
-              <div class="project-type-info">
-                <span class="project-type-name">Node.js</span>
-                <small>JavaScript / TypeScript</small>
               </div>
             </div>
             <div class="project-type-item" data-type="esp-idf">
@@ -1531,11 +1788,60 @@
                 <small>ESP-IDF 工具链</small>
               </div>
             </div>
+            <div class="project-type-item" data-type="stm32f103">
+              <span class="project-type-icon">🔩</span>
+              <div class="project-type-info">
+                <span class="project-type-name">STM32 F103C8T6</span>
+                <small>STM32Cube 工具链</small>
+              </div>
+            </div>
+            <div class="project-type-item" data-type="stm32f401">
+              <span class="project-type-icon">🔩</span>
+              <div class="project-type-info">
+                <span class="project-type-name">STM32 F401CC</span>
+                <small>STM32Cube 工具链</small>
+              </div>
+            </div>
+            <div class="project-type-item" data-type="stm32f411">
+              <span class="project-type-icon">🔩</span>
+              <div class="project-type-info">
+                <span class="project-type-name">STM32 F411CE</span>
+                <small>STM32Cube 工具链</small>
+              </div>
+            </div>
+            <div class="project-type-item" data-type="wokwi">
+              <span class="project-type-icon">🖥️</span>
+              <div class="project-type-info">
+                <span class="project-type-name">Wokwi 模拟项目</span>
+                <small>Wokwi 在线模拟器</small>
+              </div>
+            </div>
+            <div class="project-type-item" data-type="node">
+              <span class="project-type-icon">🟢</span>
+              <div class="project-type-info">
+                <span class="project-type-name">Node.js</span>
+                <small>JavaScript / TypeScript</small>
+              </div>
+            </div>
+            <div class="project-type-item" data-type="python">
+              <span class="project-type-icon">🐍</span>
+              <div class="project-type-info">
+                <span class="project-type-name">Python</span>
+                <small>脚本 / 应用</small>
+              </div>
+            </div>
             <div class="project-type-item" data-type="c">
               <span class="project-type-icon">©️</span>
               <div class="project-type-info">
                 <span class="project-type-name">C/C++</span>
                 <small>CMake 工程</small>
+              </div>
+            </div>
+            <div class="project-type-item" data-type="rust">
+              <span class="project-type-icon">🦀</span>
+              <div class="project-type-info">
+                <span class="project-type-name">Rust</span>
+                <small>Cargo 工程</small>
               </div>
             </div>
             <div class="project-type-item" data-type="generic">
@@ -1548,7 +1854,13 @@
           </div>
           <!-- 右侧：预览区 -->
           <div class="project-preview" id="project-preview">
-            <div class="project-preview-title" id="preview-title">Arduino 项目</div>
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+              <div id="preview-icon" style="width:36px;height:36px;border-radius:9px;background:rgba(59,130,246,0.15);display:flex;align-items:center;justify-content:center;font-size:19px;flex:none;">⚙️</div>
+              <div>
+                <div class="project-preview-title" id="preview-title" style="margin-bottom:2px;">Arduino 项目</div>
+                <div style="font-size:11px;color:var(--text-tertiary);" id="preview-subtitle">Arduino CLI 工具链</div>
+              </div>
+            </div>
             <div class="project-preview-desc" id="preview-desc">使用 Arduino CLI 工具链，支持 ESP32、Arduino Uno 等开发板的编译与烧录。</div>
             <div class="project-preview-files-title">将创建以下文件：</div>
             <div class="project-preview-files" id="preview-files">
@@ -1564,6 +1876,7 @@
           <input type="text" id="new-project-location" value="">
           <button class="btn btn-secondary" id="new-project-browse">浏览</button>
         </div>
+        <div style="margin-top:10px;font-size:12px;color:var(--text-secondary);">项目的唯一名称，将作为文件夹名。<a href="#" id="np-clone-link" style="color:var(--accent);text-decoration:none;">从 Git 克隆一个项目…</a></div>
       </div>
       <div class="modal-footer">
         <button class="btn btn-secondary" id="new-project-cancel">取消</button>
@@ -1819,6 +2132,14 @@
         <button id="ollama-help-ok" style="padding:9px 18px;background:#059669;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">知道了</button>
       </div>
     </div>
+  <!-- 命令面板（对齐 TrieCode command.invoke） -->
+  <div class="cmd-palette-overlay" id="cmd-palette" style="display:none;">
+    <div class="cmd-palette" role="dialog" aria-label="命令面板">
+      <input id="cmd-input" class="cmd-input" placeholder="输入命令…（如 编译 / 烧录 / 主题 / Git）" autocomplete="off" spellcheck="false">
+      <div id="cmd-list" class="cmd-list"></div>
+      <div class="cmd-hint"><span><kbd>↑</kbd><kbd>↓</kbd> 选择</span><span><kbd>Enter</kbd> 执行</span><span><kbd>Esc</kbd> 关闭</span></div>
+    </div>
+  </div>
   </div>
 </body>
 </html>

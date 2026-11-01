@@ -5602,6 +5602,14 @@ select:focus,
 .settings-panels { flex: 1; padding: 18px 22px; overflow-y: auto; max-height: 62vh; }
 .settings-panel { display: none; }
 .settings-panel.active { display: block; }
+.settings-placeholder { padding: 24px 12px; text-align: center; color: var(--text-tertiary); font-size: 13px; line-height: 1.7; background: rgba(128,128,128,0.05); border: 1px dashed var(--border-color); border-radius: 8px; }
+/* 开关（补全启用） */
+.switch { position: relative; display: inline-block; width: 40px; height: 22px; flex: none; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.switch .slider { position: absolute; cursor: pointer; inset: 0; background: var(--text-tertiary, #888); border-radius: 22px; transition: .2s; }
+.switch .slider:before { content: ""; position: absolute; height: 16px; width: 16px; left: 3px; bottom: 3px; background: #fff; border-radius: 50%; transition: .2s; }
+.switch input:checked + .slider { background: var(--accent, #3b82f6); }
+.switch input:checked + .slider:before { transform: translateX(18px); }
 
 /* ================================================================
    UI 质感升级层 v3 —— 软硬件开发主线（2026-10-17）
@@ -5681,6 +5689,72 @@ select:focus,
   font-size: 13px;
   user-select: none;
 }
+.dev-action-btn.dev-aifix {
+  background: linear-gradient(135deg, #7C5CFF, #5B8DEF);
+  border-color: transparent;
+  color: #fff;
+}
+.dev-action-btn.dev-aifix:hover {
+  filter: brightness(1.1);
+  color: #fff;
+}
+#editor-aifix-btn {
+  font-size: 11px;
+  font-weight: 600;
+  color: #7C5CFF;
+  padding: 0 6px;
+}
+#editor-aifix-btn:hover { color: #5B8DEF; }
+.aifix-loading { opacity: .6; cursor: progress; }
+.dev-action-btn.dev-export {
+  background: linear-gradient(135deg, #2BBF8A, #1FA9C9);
+  border-color: transparent;
+  color: #fff;
+}
+.dev-action-btn.dev-export:hover { filter: brightness(1.1); color: #fff; }
+#editor-export-btn {
+  font-size: 11px;
+  font-weight: 600;
+  color: #2BBF8A;
+  padding: 0 6px;
+}
+#editor-export-btn:hover { color: #1FA9C9; }
+/* Git 面板 AI 增强按钮 */
+.git-ai-btn {
+  background: linear-gradient(135deg, #7C5CFF, #5B8DEF) !important;
+  border-color: transparent !important;
+  color: #fff !important;
+}
+.git-ai-btn:hover { filter: brightness(1.1); color: #fff !important; }
+
+/* 命令面板（对齐 TrieCode command.invoke） */
+.cmd-palette-overlay {
+  position: fixed; inset: 0; z-index: 6000;
+  display: none; align-items: flex-start; justify-content: center;
+  background: rgba(0,0,0,0.35); padding-top: 12vh;
+}
+.cmd-palette {
+  width: 560px; max-width: 92vw; background: var(--card-color, #252526);
+  border: 1px solid var(--border-color, #3c3c3c); border-radius: 10px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.45); overflow: hidden;
+}
+.cmd-input {
+  width: 100%; box-sizing: border-box; padding: 14px 16px; font-size: 14px;
+  border: none; border-bottom: 1px solid var(--border-color, #3c3c3c);
+  background: transparent; color: var(--text-color, #ddd); outline: none;
+}
+.cmd-list { max-height: 360px; overflow-y: auto; padding: 6px; }
+.cmd-item {
+  display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 6px;
+  cursor: pointer; color: var(--text-color, #ddd); font-size: 13px;
+}
+.cmd-item.active { background: var(--accent-color, #0e639c); color: #fff; }
+.cmd-group { font-size: 11px; color: var(--text-tertiary, #888); min-width: 40px; }
+.cmd-item.active .cmd-group { color: rgba(255,255,255,0.75); }
+.cmd-title { flex: 1; }
+.cmd-empty { padding: 16px; color: var(--text-tertiary, #888); font-size: 13px; text-align: center; }
+.cmd-hint { display: flex; gap: 16px; padding: 8px 14px; border-top: 1px solid var(--border-color, #3c3c3c); font-size: 11px; color: var(--text-tertiary, #888); }
+.cmd-hint kbd { background: rgba(128,128,128,0.2); border-radius: 3px; padding: 1px 5px; margin-right: 3px; }
 
 /* ---------- 编辑器工具栏：快捷编译/烧录 ---------- */
 .editor-toolbar-sep {

@@ -1,7 +1,7 @@
 ﻿// ============ LabCode Electron 主进程============
 // 基于业界 IDE 设计实践：窗口管理/ IPC / 自动更新 / 代理 / 会话存储
 
-const { app, BrowserWindow, ipcMain, Menu, shell, dialog, net, webContents, desktopCapturer, clipboard, screen } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu, shell, dialog, net, webContents, desktopCapturer, clipboard, screen, Tray, nativeImage } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -147,6 +147,30 @@ function deleteSession(id) {
   }
 }
 
+// ============ 托盘（常规·关闭窗口时=最小化到托盘） ============
+let tray = null;
+let isQuitting = false;
+function ensureTray() {
+  if (tray) return;
+  try {
+    const icon = nativeImage.createFromPath(path.join(__dirname, '..', 'resources', 'icon.png'));
+    tray = new Tray(icon.isEmpty() ? nativeImage.createEmpty() : icon.resize({ width: 16, height: 16 }));
+    tray.setToolTip('LabCode');
+    tray.setContextMenu(Menu.buildFromTemplate([
+      { label: '显示 LabCode', click: () => { if (mainWindow) { mainWindow.show(); mainWindow.focus(); } } },
+      { type: 'separator' },
+      { label: '退出 LabCode', click: () => { isQuitting = true; try { tray.destroy(); } catch (e) {} tray = null; app.quit(); } }
+    ]));
+    tray.on('click', () => {
+      if (!mainWindow) return;
+      if (mainWindow.isVisible()) mainWindow.hide(); else { mainWindow.show(); mainWindow.focus(); }
+    });
+  } catch (e) {
+    console.error('创建托盘失败:', e.message);
+    tray = null;
+  }
+}
+
 // ============ 窗口管理 ============
 function createMainWindow() {
   const windowConfig = config.window || {};
@@ -203,6 +227,30 @@ function createMainWindow() {
     config.window = { ...config.window, maximized: false };
     saveConfig(config);
   });
+
+  // 关闭行为（常规·关闭窗口时）：tray=收进托盘，exit=直接退出
+  mainWindow.on('close', (e) => {
+    const g = (config.general || {});
+    if (!isQuitting && g.closeAction !== 'exit') {
+      e.preventDefault();
+      try { ensureTray(); } catch (err) {}
+      if (tray) {
+        try { mainWindow.hide(); } catch (err) {}
+      } else {
+        try { mainWindow.destroy(); } catch (err) {}
+      }
+    }
+  });
+
+  // 启动时应用代理配置（常规·网络）
+  try {
+    const p = config.proxy || {};
+    if (p.mode === 'manual' && p.host) {
+      mainWindow.webContents.session.setProxy({ proxyRules: `${p.host}:${p.port || 8080}` });
+    } else if (p.mode === 'direct') {
+      mainWindow.webContents.session.setProxy({ mode: 'direct' });
+    }
+  } catch (err) {}
 
   mainWindow.on('closed', () => {
     mainWindow = null;
@@ -719,6 +767,138 @@ function setupIPC() {
     const args = ['checkout', '--', ...(Array.isArray(paths) ? paths : [paths])];
     const r = await runGit(cwd, args);
     return { success: r.ok, error: r.stderr };
+  });
+
+  // ============ Git AI 增强（对齐 TrieCode AI 提交信息 / 冲突解决 / PR 描述）============
+  // 生成提交信息：优先 staged diff，无则 unstaged diff；附带最近提交风格
+  async function buildCommitMessage(cwd) {
+    let diff = '';
+    const staged = await runGit(cwd, ['diff', '--cached', '--unified=3']);
+    if (staged.ok && staged.stdout.trim()) diff = staged.stdout;
+    else {
+      const unstaged = await runGit(cwd, ['diff', '--unified=3']);
+      diff = unstaged.ok ? unstaged.stdout : '';
+    }
+    if (!diff.trim()) throw new Error('没有可提交的变更（请先暂存或修改文件）');
+    let trimmed = diff;
+    const MAX = 6000;
+    if (trimmed.length > MAX) trimmed = trimmed.slice(0, MAX) + '\n…(diff 已截断)';
+    let recent = '';
+    try {
+      const rl = await runGit(cwd, ['log', '--oneline', '-n', '5']);
+      if (rl.ok) recent = rl.stdout.trim();
+    } catch (e) {}
+    const messages = [
+      { role: 'system', content: '你是资深工程师。根据 git diff 生成一条简洁、遵循 Conventional Commits 风格的提交信息（中文，第一行不超过 72 字，可含简短正文，不要任何额外解释、引号或代码围栏）。' },
+      { role: 'user', content: '最近的提交风格参考：\n' + (recent || '(无)') + '\n\ngit diff：\n' + trimmed + '\n\n请直接输出提交信息：' }
+    ];
+    const msg = await callAiOnce(messages, { maxTokens: 300, temperature: 0.3 });
+    return (msg || '').replace(/^["'`]+|["'`]+$/g, '').trim();
+  }
+
+  ipcMain.handle('git:aiCommitMessage', async (_, cwd) => {
+    if (!cwd) return { success: false, error: '缺少 cwd' };
+    try {
+      const message = await buildCommitMessage(cwd);
+      if (!message) return { success: false, message: '', error: 'AI 未返回提交信息' };
+      return { success: true, message };
+    } catch (e) { return { success: false, error: e.message }; }
+  });
+
+  ipcMain.handle('git:aiCommit', async (_, cwd) => {
+    if (!cwd) return { success: false, error: '缺少 cwd' };
+    try {
+      const message = await buildCommitMessage(cwd);
+      if (!message) return { success: false, message: '', error: 'AI 未返回提交信息' };
+      // 先暂存全部改动（与「提交我的修改」预期一致；对齐 TrieCode AI 提交）
+      await runGit(cwd, ['add', '-A']);
+      const r = await runGit(cwd, ['commit', '-m', message]);
+      if (!r.ok) return { success: false, message, error: r.stderr || '提交失败（可能没有可提交的改动）' };
+      return { success: true, message, stdout: r.stdout };
+    } catch (e) { return { success: false, error: e.message }; }
+  });
+
+  // 解析冲突标记，逐文件交给 AI 解决后写回并暂存
+  ipcMain.handle('git:aiResolveConflicts', async (_, cwd) => {
+    if (!cwd) return { success: false, error: '缺少 cwd' };
+    try {
+      const st = await runGit(cwd, ['status', '--porcelain', '-b']);
+      if (!st.ok) return { success: false, error: st.stderr };
+      const conflicted = st.stdout.split('\n').filter(Boolean).map(l => {
+        const s2 = l.slice(0, 2).trim();
+        return (s2.length === 2 && /U/.test(s2)) ? l.slice(3) : null;
+      }).filter(Boolean);
+      if (!conflicted.length) return { success: true, resolved: 0, message: '没有检测到冲突文件' };
+      const CONFLICT_RE = /<<<<<<< .*?\r?\n([\s\S]*?)\r?\n=======\r?\n([\s\S]*?)\r?\n>>>>>>> .*?(\r?\n|$)/;
+      const report = [];
+      for (const rel of conflicted) {
+        const full = path.join(cwd, rel);
+        if (!fs.existsSync(full)) { report.push('✗ ' + rel + ': 文件不存在'); continue; }
+        let content = fs.readFileSync(full, 'utf8');
+        let guard = 0, ok = true;
+        while (CONFLICT_RE.test(content) && guard < 50) {
+          guard++;
+          const m = content.match(CONFLICT_RE);
+          const ours = m[1], theirs = m[2];
+          const before = content.slice(0, m.index), after = content.slice(m.index + m[0].length);
+          const ai = await callAiOnce([
+            { role: 'system', content: '你是资深工程师。合并冲突时，请输出冲突的最终正确内容（保留双方都需要的改动，删除冲突标记）。只输出解决后的代码，不要任何解释或代码围栏。' },
+            { role: 'user', content: '当前分支(ours)：\n' + ours + '\n\n传入分支(theirs)：\n' + theirs + '\n\n请输出合并后的最终内容：' }
+          ], { maxTokens: 2048, temperature: 0.1 });
+          const resolved = (ai || '').replace(/^```[a-zA-Z0-9_+-]*\n?/, '').replace(/```\s*$/, '').trim();
+          if (!resolved || CONFLICT_RE.test(resolved)) { ok = false; break; }
+          content = before + resolved + after;
+        }
+        if (!ok || guard >= 50) { report.push('✗ ' + rel + ': 模型未给出有效解决'); }
+        else {
+          fs.writeFileSync(full, content, 'utf8');
+          await runGit(cwd, ['add', rel]);
+          report.push('✓ ' + rel + ': 已解决并暂存');
+        }
+      }
+      return { success: true, resolved: conflicted.length, report: report.join('\n') };
+    } catch (e) { return { success: false, error: e.message }; }
+  });
+
+  // 生成 PR 标题 + 描述，对比 base 分支
+  ipcMain.handle('git:aiPrDescription', async (_, cwd) => {
+    if (!cwd) return { success: false, error: '缺少 cwd' };
+    try {
+      let base = null;
+      const remotes = await runGit(cwd, ['remote']);
+      const hasOrigin = remotes.ok && /origin/.test(remotes.stdout);
+      const candidates = hasOrigin ? ['origin/main', 'origin/master', 'main', 'master'] : ['main', 'master'];
+      for (const c of candidates) {
+        const rr = await runGit(cwd, ['rev-parse', '--verify', c]);
+        if (rr.ok && rr.stdout.trim()) { base = c; break; }
+      }
+      let diff = '';
+      if (base) {
+        const d = await runGit(cwd, ['diff', base + '...HEAD', '--unified=3']);
+        diff = d.ok ? d.stdout : '';
+      }
+      if (!diff.trim()) {
+        const d2 = await runGit(cwd, ['diff', 'HEAD', '--unified=3']);
+        diff = d2.ok ? d2.stdout : '';
+      }
+      if (!diff.trim()) return { success: false, error: '没有可生成 PR 描述的变更' };
+      let trimmed = diff;
+      if (trimmed.length > 6000) trimmed = trimmed.slice(0, 6000) + '\n…(diff 已截断)';
+      const logr = await runGit(cwd, ['log', '--oneline', '-n', '20']);
+      const log = logr.ok ? logr.stdout.trim() : '';
+      const out = await callAiOnce([
+        { role: 'system', content: '你是资深工程师。根据 git diff 生成 Pull Request 的标题（一行不超过 72 字）与描述（中文，分点说明改动目的与内容）。用分隔符分开标题和描述：先标题，然后一行 "===BODY==="，再描述。不要任何额外解释或代码围栏。' },
+        { role: 'user', content: '对比基准: ' + (base || '(HEAD)') + '\n提交历史:\n' + log + '\n\ndiff:\n' + trimmed + '\n\n请输出 PR 标题与描述：' }
+      ], { maxTokens: 1024, temperature: 0.3 });
+      const text = (out || '').trim();
+      const sep = text.indexOf('===BODY===');
+      let title = '', body = '';
+      if (sep >= 0) { title = text.slice(0, sep).trim(); body = text.slice(sep + '===BODY==='.length).trim(); }
+      else { title = text.split('\n')[0].trim(); body = text; }
+      title = title.replace(/^#+\s*/, '').replace(/^["'`]+|["'`]+$/g, '');
+      if (!title) return { success: false, error: 'AI 未返回有效 PR 描述' };
+      return { success: true, title, body, base };
+    } catch (e) { return { success: false, error: e.message }; }
   });
 
   // ============ 工具自动下载（clangd 等，不打包进安装包，首次用时拉）============
@@ -2738,8 +2918,8 @@ function setupIPC() {
     return { target, cleanup: tmpRoot, created: copied > 0 };
   }
 
-  ipcMain.handle('compile:arduino', async (_, options) => {
-    const { sketchPath, fqbn, outputDir } = options || {};
+  // 编译核心：供 compile:arduino 与 compile:aiFix 复用
+  async function doCompile(sketchPath, fqbn, outputDir) {
     if (!sketchPath) return { success: false, error: '缺少 sketchPath' };
     // 2026-10-17：fqbn 缺失时用 Board.guessFQBN 兜底（无需先 select_board）
     let effectiveFqbn = fqbn;
@@ -2755,6 +2935,10 @@ function setupIPC() {
     const result = await runArduinoCli(args, path.dirname(norm.target));
     if (norm.cleanup) { try { fs.rmSync(norm.cleanup, { recursive: true, force: true }); } catch (e) {} }
     return result;
+  }
+  ipcMain.handle('compile:arduino', async (_, options) => {
+    const { sketchPath, fqbn, outputDir } = options || {};
+    return doCompile(sketchPath, fqbn, outputDir);
   });
 
   ipcMain.handle('compile:upload', async (_, options) => {
@@ -2773,6 +2957,129 @@ function setupIPC() {
     const result = await runArduinoCli(args, path.dirname(norm.target));
     if (norm.cleanup) { try { fs.rmSync(norm.cleanup, { recursive: true, force: true }); } catch (e) {} }
     return result;
+  });
+
+  // 从 AI 返回文本中提取首个代码块（```lang ... ```），无则返回 null
+  function extractCodeBlock(text) {
+    const m = String(text || '').match(/```[a-zA-Z0-9_+\-]*\n([\s\S]*?)```/);
+    if (m && m[1] && m[1].trim()) return m[1].replace(/\r\n/g, '\n');
+    return null;
+  }
+
+  // 编译错误 AI 自修复：编译收集错误 → 调 AI 产出修复后源码 →（可选）写回并重新编译验证
+  ipcMain.handle('compile:aiFix', async (_, options) => {
+    const { sketchPath, fqbn, outputDir, apply = true, maxRounds = 1 } = options || {};
+    if (!sketchPath) return { success: false, error: '缺少 sketchPath' };
+    if (!fs.existsSync(sketchPath)) return { success: false, error: '文件不存在: ' + sketchPath };
+    try {
+      const first = await doCompile(sketchPath, fqbn, outputDir);
+      if (first.success) {
+        return { success: true, alreadyOk: true, message: '编译已通过，无需修复', output: first.output };
+      }
+      const ext = path.extname(sketchPath).toLowerCase();
+      const sourceCode = fs.readFileSync(sketchPath, 'utf8');
+      const langHint = (ext === '.c' || ext === '.h') ? 'c' : 'cpp';
+      let current = sourceCode;
+      let lastError = String(first.error || '') + '\n' + String(first.output || '');
+      let lastExplanation = null, lastFixed = null;
+      const rounds = Math.max(1, Math.min(3, maxRounds | 0));
+      for (let i = 0; i < rounds; i++) {
+        const messages = [
+          { role: 'system', content: '你是资深嵌入式 C/C++ 工程师，擅长修复 Arduino/ESP32 编译错误。只返回修复后的完整源文件内容，放在一个 ```' + langHint + ' 代码块中，不要任何额外解释。务必保证修复后代码可编译通过。' },
+          { role: 'user', content: '编译错误日志：\n\n' + lastError + '\n\n当前源文件（' + path.basename(sketchPath) + '）内容：\n\n' + current + '\n\n请分析错误并给出修复后的完整源码。' }
+        ];
+        let aiText;
+        try {
+          aiText = await callAiOnce(messages, { maxTokens: 4096, temperature: 0.2 });
+        } catch (e) {
+          return { success: false, stage: 'ai-error', message: 'AI 调用失败：' + (e.message || e), compileError: lastError };
+        }
+        if (!aiText || !aiText.trim()) {
+          return { success: false, stage: 'ai-empty', message: 'AI 未返回有效内容', compileError: lastError };
+        }
+        const fixed = extractCodeBlock(aiText) || aiText;
+        lastExplanation = aiText; lastFixed = fixed;
+        if (!apply) {
+          return { success: true, applied: false, fixedCode: fixed, explanation: aiText, compileError: lastError, roundsUsed: i + 1 };
+        }
+        // 备份并写回
+        const backup = sketchPath + '.aifix.bak';
+        try { fs.copyFileSync(sketchPath, backup); } catch (e) {}
+        fs.writeFileSync(sketchPath, fixed, 'utf8');
+        current = fixed;
+        const second = await doCompile(sketchPath, fqbn, outputDir);
+        if (second.success) {
+          return {
+            success: true, applied: true, fixedCode: fixed, explanation: aiText,
+            compileErrorBefore: String(first.error || '') + '\n' + String(first.output || ''),
+            backupPath: fs.existsSync(backup) ? backup : null,
+            recompiled: { success: true, output: second.output, error: second.error },
+            roundsUsed: i + 1, message: 'AI 已修复，重新编译通过'
+          };
+        }
+        // 仍失败：把新错误喂回下一轮
+        lastError = String(second.error || '') + '\n' + String(second.output || '');
+      }
+      return {
+        success: false, applied: true, fixedCode: lastFixed, explanation: lastExplanation,
+        compileErrorBefore: String(first.error || '') + '\n' + String(first.output || ''),
+        recompiled: { success: false, error: '多次尝试仍未通过编译' },
+        roundsUsed: rounds, message: 'AI 已尝试修复，但重新编译仍失败'
+      };
+    } catch (e) {
+      return { success: false, error: 'aiFix 异常：' + (e.message || e) };
+    }
+  });
+
+  // 递归查找编译产物：.bin / .hex / .elf（优先匹配 sketch 名）
+  function findBinaries(dir, base) {
+    const out = [];
+    if (!dir || !fs.existsSync(dir)) return out;
+    const walk = (d) => {
+      let entries = [];
+      try { entries = fs.readdirSync(d, { withFileTypes: true }); } catch (e) { return; }
+      for (const e of entries) {
+        const p = path.join(d, e.name);
+        if (e.isDirectory()) walk(p);
+        else if (/\.(bin|hex|elf)$/i.test(e.name)) out.push(p);
+      }
+    };
+    walk(dir);
+    if (base) {
+      out.sort((a, b) => {
+        const am = path.basename(a).startsWith(base) ? 0 : 1;
+        const bm = path.basename(b).startsWith(base) ? 0 : 1;
+        return am - bm;
+      });
+    }
+    return out;
+  }
+
+  // 导出固件：编译并复制二进制产物到用户指定路径（保存对话框）
+  ipcMain.handle('compile:exportBinary', async (_, options) => {
+    const { sketchPath, fqbn, outputDir, exportPath } = options || {};
+    if (!sketchPath) return { success: false, error: '缺少 sketchPath' };
+    if (!fs.existsSync(sketchPath)) return { success: false, error: '文件不存在: ' + sketchPath };
+    if (!exportPath) return { success: false, error: '未指定导出路径（exportPath）' };
+    const buildDir = outputDir || path.join(path.dirname(sketchPath), 'build');
+    try { if (!fs.existsSync(buildDir)) fs.mkdirSync(buildDir, { recursive: true }); } catch (e) {}
+    const res = await doCompile(sketchPath, fqbn, buildDir);
+    if (!res.success) {
+      return { success: false, stage: 'compile', error: res.error, output: res.output };
+    }
+    const base = path.basename(sketchPath, path.extname(sketchPath));
+    const binaries = findBinaries(buildDir, base);
+    if (!binaries.length) {
+      return { success: false, stage: 'no-binary', error: '编译成功但未找到二进制产物', buildDir, output: res.output };
+    }
+    try {
+      fs.copyFileSync(binaries[0], exportPath);
+    } catch (e) {
+      return { success: false, stage: 'copy', error: '导出失败：' + e.message, binaries, output: res.output };
+    }
+    let size = 0;
+    try { size = fs.statSync(exportPath).size; } catch (e) {}
+    return { success: true, binaryPath: binaries[0], exportedTo: exportPath, size, binaries, output: res.output };
   });
 
   ipcMain.handle('compile:list-cores', async () => {
@@ -3755,6 +4062,17 @@ function setupIPC() {
     }
   });
 
+  // 检测系统代理（常规·网络「检测到的系统代理」）
+  ipcMain.handle('proxy:detect', async () => {
+    try {
+      const w = mainWindow || BrowserWindow.getAllWindows()[0];
+      if (!w) return '未知';
+      return (await w.webContents.session.resolveProxy('https://www.baidu.com')) || 'DIRECT';
+    } catch (e) {
+      return '未知';
+    }
+  });
+
   // ============ fs helpers referenced by preload but never registered ============
   ipcMain.handle('fs:deleteFile', (_, filePath) => {
     try {
@@ -4138,6 +4456,7 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', () => {
+  isQuitting = true;
   saveConfig(config);
   // 清理所有终端
   try {

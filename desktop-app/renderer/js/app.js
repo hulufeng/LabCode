@@ -44,8 +44,15 @@ if (isElectron) {
   console.log('💻 LabCode 运行在浏览器环境中，使用内存文件系统');
 }
 
-// 获取默认项目目录（动态根据当前用户）
+// 获取默认项目目录（动态根据当前用户；常规设置「默认工作空间」优先）
 async function getDefaultProjectDir() {
+  if (isElectron && window.LabCode && window.LabCode.config) {
+    try {
+      const cfg = await window.LabCode.config.get();
+      const ws = cfg && cfg.general && cfg.general.defaultWorkspace;
+      if (ws && String(ws).trim()) return String(ws).trim().replace(/\\/g, '/');
+    } catch (e) { /* 配置读取失败走默认 */ }
+  }
   if (isElectron && window.LabCode && window.LabCode.app) {
     try {
       const home = await window.LabCode.app.getPath('home');
@@ -367,6 +374,86 @@ add_executable(main main.c)
       'README.md': '# C/C++ Project\n'
     }
   },
+  rust: {
+    folder: 'Rust',
+    files: {
+      'Cargo.toml': `[package]
+name = "labcode_project"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+`,
+      'src/main.rs': `fn main() {
+    println!("Hello from LabCode Rust project!");
+}
+`,
+      'README.md': '# Rust Project\n'
+    }
+  },
+  plugin: {
+    folder: 'Plugin',
+    files: {
+      'package.json': `{
+  "name": "labcode-plugin",
+  "version": "1.0.0",
+  "main": "index.js",
+  "labcode-plugin": {
+    "id": "com.example.plugin",
+    "name": "LabCode 插件",
+    "version": "1.0.0",
+    "engines": { "labcode": ">0.1.0" }
+  }
+}
+`,
+      'index.js': `// LabCode 插件入口
+module.exports = {
+  id: 'com.example.plugin',
+  activate(ctx) {
+    // ctx 提供编辑器 / 命令 / 文件等扩展点
+    console.log('LabCode 插件已加载');
+  },
+  deactivate() {}
+};
+`,
+      'README.md': '# LabCode 插件\n\n本目录为 LabCode 插件脚手架，放入插件目录后可在「插件市场」加载。\n'
+    }
+  },
+  stm32f103: { folder: 'STM32', files: stm32Template('STM32F103C8T6', '8000000', '72000000') },
+  stm32f401: { folder: 'STM32', files: stm32Template('STM32F401CCU6', '8000000', '84000000') },
+  stm32f411: { folder: 'STM32', files: stm32Template('STM32F411CEU6', '8000000', '100000000') },
+  wokwi: {
+    folder: 'Wokwi',
+    files: {
+      'SKETCH.ino': `void setup() {
+  pinMode(LED_BUILTIN, OUTPUT);
+  Serial.begin(115200);
+}
+void loop() {
+  digitalWrite(LED_BUILTIN, HIGH);
+  delay(500);
+  digitalWrite(LED_BUILTIN, LOW);
+  delay(500);
+}
+`,
+      'diagram.json': `{
+  "version": 1,
+  "editor": "wokwi",
+  "parts": [
+    { "type": "wokwi-esp32-devkit-v1", "id": "esp", "top": 0, "left": 0, "attrs": {} },
+    { "type": "wokwi-led", "id": "led", "top": 0, "left": 200, "attrs": { "color": "red", "pin": "GPIO2" } }
+  ],
+  "connections": [
+    [ "esp:GPIO2", "led:Anode", "" ]
+  ]
+}
+`,
+      'wokwi.toml': `[wokwi]
+version = 1
+`,
+      'README.md': '# Wokwi 模拟项目\n\n在 Wokwi 在线模拟器中打开 diagram.json 即可仿真运行。\n'
+    }
+  },
   generic: {
     folder: 'Generic',
     files: {
@@ -375,6 +462,56 @@ add_executable(main main.c)
   }
 };
 
+// STM32Cube 工程脚手架（HAL 风格，板级参数化）
+function stm32Template(chip, hse, sysclk) {
+  return {
+    'Core/Src/main.c': `/* ${chip} — LabCode STM32Cube 工程脚手架 */
+#include "main.h"
+
+void SystemClock_Config(void);
+static void MX_GPIO_Init(void);
+
+int main(void) {
+  HAL_Init();
+  SystemClock_Config();
+  MX_GPIO_Init();
+  while (1) {
+    HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
+    HAL_Delay(500);
+  }
+}
+
+void SystemClock_Config(void) {
+  /* HSE = ${hse} Hz, SYSCLK = ${sysclk} Hz (占位，请按 CubeMX 生成填充) */
+}
+
+static void MX_GPIO_Init(void) {
+  GPIO_InitTypeDef gpio = {0};
+  __HAL_RCC_GPIOA_CLK_ENABLE();
+  gpio.Pin = LED_Pin;
+  gpio.Mode = GPIO_MODE_OUTPUT_PP;
+  gpio.Pull = GPIO_NOPULL;
+  gpio.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(LED_GPIO_Port, &gpio);
+}
+`,
+    'Core/Inc/main.h': `#ifndef MAIN_H
+#define MAIN_H
+#include "stm32f4xx_hal.h"
+#define LED_Pin GPIO_PIN_5
+#define LED_GPIO_Port GPIOA
+#endif /* MAIN_H */
+`,
+    'CMakeLists.txt': `cmake_minimum_required(VERSION 3.20)
+project(${chip}_project)
+enable_language(C ASM)
+add_executable(${chip}_firmware Core/Src/main.c)
+target_include_directories(${chip}_firmware PRIVATE Core/Inc)
+`,
+    'README.md': `# STM32 工程 (${chip})\n\n使用 STM32Cube 工具链（arm-none-eabi-gcc + OpenOCD）编译与烧录。\n`
+  };
+}
+
 let projectModalCallback = null;
 
 async function showNewProjectModal() {
@@ -382,6 +519,8 @@ async function showNewProjectModal() {
   if (!modal) return;
   modal.style.display = 'flex';
   document.getElementById('new-project-name').value = '';
+  const npSearchReset = document.getElementById('project-type-search');
+  if (npSearchReset) { npSearchReset.value = ''; document.querySelectorAll('#project-type-list .project-type-item').forEach(it => { it.style.display = ''; }); }
   const locationInput = document.getElementById('new-project-location');
   if (state.projectPath && isElectron) {
     locationInput.value = state.projectPath;
@@ -407,37 +546,79 @@ function getSelectedProjectType() {
   return active ? active.dataset.type : 'arduino';
 }
 
-// 项目类型预览数据
+// 项目类型预览数据（icon + subtitle 对齐 TrieCode 预览区）
 const PROJECT_PREVIEW_DATA = {
   arduino: {
+    icon: '⚙️', subtitle: 'Arduino CLI 工具链',
     title: 'Arduino 项目',
     desc: '使用 Arduino CLI 工具链，支持 ESP32、Arduino Uno、Nano 等开发板的编译与烧录。集成串口监视器和绘图仪。',
-    files: ['sketch.ino', '.labcode.json']
+    files: (name) => [(name || 'MySketch') + '.ino', '.labcode.json', 'README.md']
   },
   python: {
+    icon: '🐍', subtitle: 'Python 解释器',
     title: 'Python 项目',
     desc: 'Python 脚本与应用开发，支持直接运行和调试。可用于数据分析、爬虫、自动化脚本等场景。',
-    files: ['main.py', 'requirements.txt', '.labcode.json']
+    files: () => ['main.py', 'requirements.txt', '.labcode.json']
   },
   node: {
+    icon: '🟢', subtitle: 'Node.js 运行时',
     title: 'Node.js 项目',
     desc: 'JavaScript / TypeScript 服务端与前端开发，支持 npm 包管理和直接运行。',
-    files: ['index.js', 'package.json', '.labcode.json']
+    files: () => ['index.js', 'package.json', '.labcode.json']
   },
   'esp-idf': {
+    icon: '🔧', subtitle: 'ESP-IDF 工具链',
     title: 'ESP-IDF 项目',
     desc: 'ESP-IDF 官方开发框架，支持 ESP32 系列芯片的原生开发，功能更强大但配置较复杂。',
-    files: ['main/main.c', 'CMakeLists.txt', '.labcode.json']
+    files: () => ['main/main.c', 'CMakeLists.txt', '.labcode.json']
   },
   c: {
+    icon: '©️', subtitle: 'CMake 工具链',
     title: 'C/C++ 项目',
     desc: 'C/C++ 原生开发，使用 CMake 构建系统，支持 gcc/g++ 编译运行。',
-    files: ['main.cpp', 'CMakeLists.txt', '.labcode.json']
+    files: () => ['main.c', 'CMakeLists.txt', '.labcode.json']
+  },
+  rust: {
+    icon: '🦀', subtitle: 'Cargo 工具链',
+    title: 'Rust 项目',
+    desc: 'Rust 语言开发，标准 Cargo 工程结构（Cargo.toml + src/main.rs），可用 cargo build / cargo run 构建运行。',
+    files: () => ['Cargo.toml', 'src/main.rs', '.labcode.json']
+  },
+  plugin: {
+    icon: '🧩', subtitle: 'LabCode 插件开发',
+    title: '插件项目',
+    desc: 'LabCode 插件脚手架，包含 package.json 插件清单与 index.js 入口，放入插件目录即可在「插件市场」加载。',
+    files: () => ['package.json', 'index.js', '.labcode.json', 'README.md']
+  },
+  stm32f103: {
+    icon: '🔩', subtitle: 'STM32Cube 工具链',
+    title: 'STM32 F103C8T6',
+    desc: '基于 STM32Cube HAL 的工程脚手架（Core/Src/main.c + CMakeLists），需 arm-none-eabi-gcc 与 OpenOCD 编译烧录。',
+    files: () => ['Core/Src/main.c', 'Core/Inc/main.h', 'CMakeLists.txt', '.labcode.json']
+  },
+  stm32f401: {
+    icon: '🔩', subtitle: 'STM32Cube 工具链',
+    title: 'STM32 F401CC',
+    desc: '基于 STM32Cube HAL 的工程脚手架（Core/Src/main.c + CMakeLists），需 arm-none-eabi-gcc 与 OpenOCD 编译烧录。',
+    files: () => ['Core/Src/main.c', 'Core/Inc/main.h', 'CMakeLists.txt', '.labcode.json']
+  },
+  stm32f411: {
+    icon: '🔩', subtitle: 'STM32Cube 工具链',
+    title: 'STM32 F411CE',
+    desc: '基于 STM32Cube HAL 的工程脚手架（Core/Src/main.c + CMakeLists），需 arm-none-eabi-gcc 与 OpenOCD 编译烧录。',
+    files: () => ['Core/Src/main.c', 'Core/Inc/main.h', 'CMakeLists.txt', '.labcode.json']
+  },
+  wokwi: {
+    icon: '🖥️', subtitle: 'Wokwi 在线模拟器',
+    title: 'Wokwi 模拟项目',
+    desc: '生成 diagram.json + sketch.ino，可在 Wokwi 在线模拟器中仿真 ESP32/Arduino 电路与代码，无需本地工具链。',
+    files: (name) => [(name || 'sketch') + '.ino', 'diagram.json', 'wokwi.toml', '.labcode.json']
   },
   generic: {
+    icon: '📁', subtitle: '空白工程',
     title: '通用项目',
     desc: '空白文件夹，可自由创建任意类型的文件和项目结构。',
-    files: ['.labcode.json']
+    files: () => ['.labcode.json']
   }
 };
 
@@ -446,10 +627,16 @@ function updateProjectPreview(type) {
   const titleEl = document.getElementById('preview-title');
   const descEl = document.getElementById('preview-desc');
   const filesEl = document.getElementById('preview-files');
+  const iconEl = document.getElementById('preview-icon');
+  const subEl = document.getElementById('preview-subtitle');
   if (titleEl) titleEl.textContent = data.title;
   if (descEl) descEl.textContent = data.desc;
+  if (iconEl) iconEl.textContent = data.icon || '📁';
+  if (subEl) subEl.textContent = data.subtitle || '';
   if (filesEl) {
-    filesEl.innerHTML = data.files.map(f => '<div class="preview-file">📄 ' + f + '</div>').join('');
+    const name = (document.getElementById('new-project-name') || {}).value || '';
+    const files = typeof data.files === 'function' ? data.files(name.trim()) : data.files;
+    filesEl.innerHTML = files.map(f => '<div class="preview-file">📄 ' + f + '</div>').join('');
   }
 }
 
@@ -473,7 +660,10 @@ async function createProject(type, name, location) {
       const meta = {
         name: safeName, type, version: 1,
         toolchain: type === 'arduino' ? 'arduino-cli-toolchain'
-          : type === 'esp-idf' ? 'esp-idf-toolchain' : null,
+          : type === 'esp-idf' ? 'esp-idf-toolchain'
+          : type === 'stm32f103' || type === 'stm32f401' || type === 'stm32f411' ? 'stm32cube-toolchain'
+          : type === 'wokwi' ? 'wokwi-simulator'
+          : type === 'plugin' ? 'labcode-plugin' : null,
         createdAt: new Date().toISOString()
       };
       const entries = [
@@ -698,8 +888,18 @@ function ensureMonacoEditor() {
     state.editor = monaco.editor.create(document.getElementById('monaco-editor'), {
       value: '', language: 'plaintext', theme: 'vs', fontSize: 13,
       fontFamily: "'Cascadia Code','Fira Code','Consolas',monospace",
-      minimap: { enabled: true }, scrollBeyondLastLine: false, automaticLayout: true, padding: { top: 8 }, glyphMargin: true,
+      minimap: { enabled: true }, scrollBeyondLastLine: false, automaticLayout: true, padding: { top: 8 }, glyphMargin: true, wordWrap: 'off',
     });
+    // 应用已保存的编辑器设置（字号 / 自动换行）
+    try {
+      if (window.LabCode && window.LabCode.config && window.LabCode.config.get) {
+        window.LabCode.config.get().then((c) => {
+          if (c && c.editor && state.editor) {
+            state.editor.updateOptions({ fontSize: c.editor.fontSize || 13, wordWrap: c.editor.wordWrap || 'off' });
+          }
+        }).catch(() => {});
+      }
+    } catch (e) {}
     monaco.editor.defineTheme('labcode-dark', {
       base: 'vs-dark', inherit: true,
       rules: [
@@ -11632,6 +11832,31 @@ function bindEvents() {
       if (e.key === 'Enter') document.getElementById('new-project-confirm').click();
       if (e.key === 'Escape') hideNewProjectModal();
     });
+    // 项目名实时同步到预览文件名（如 MySketch.ino）
+    newProjectNameInput.addEventListener('input', () => {
+      updateProjectPreview(getSelectedProjectType());
+    });
+  }
+  // 项目类型搜索过滤（对齐 TrieCode「搜索项目类型…」）
+  const npSearch = document.getElementById('project-type-search');
+  if (npSearch) {
+    npSearch.addEventListener('input', () => {
+      const q = npSearch.value.trim().toLowerCase();
+      document.querySelectorAll('#project-type-list .project-type-item').forEach((it) => {
+        const t = (it.textContent || '').toLowerCase();
+        it.style.display = (!q || t.indexOf(q) !== -1) ? '' : 'none';
+      });
+    });
+  }
+  // 「从 Git 克隆一个项目…」提示链接 → 复用欢迎面板的克隆流程
+  const npCloneLink = document.getElementById('np-clone-link');
+  if (npCloneLink) {
+    npCloneLink.addEventListener('click', (e) => {
+      e.preventDefault();
+      hideNewProjectModal();
+      const wcp = document.getElementById('welcome-clone-project');
+      if (wcp) wcp.click();
+    });
   }
   
   // 快捷指令按钮
@@ -13408,7 +13633,9 @@ function bindEvents() {
     const v = pickZhVoice();
     if (v) u.voice = v;
     u.lang = v ? v.lang : 'zh-CN';
-    u.rate = 1.0;
+    let rate = 1.0;
+    try { const c = await window.LabCode.config.get(); rate = (c.voice && c.voice.rate) || 1.0; } catch (e) {}
+    u.rate = rate;
     u.onend = () => { ttsSpeaking = false; };
     u.onerror = () => { ttsSpeaking = false; showToast('朗读中断', 'warn'); };
     ttsUtterance = u;
@@ -13587,6 +13814,82 @@ function bindEvents() {
     else showToast('创建失败: ' + (r.error || ''), 'error');
   });
 
+  // ===== Git AI 增强（对齐 TrieCode AI 提交信息 / 冲突解决 / PR 描述）=====
+  const gitAiMsgBtn = document.getElementById('git-ai-commit-msg-btn');
+  if (gitAiMsgBtn) gitAiMsgBtn.addEventListener('click', async () => {
+    const cwd = state.projectPath;
+    if (!cwd) { showToast('请先打开项目', 'warn'); return; }
+    gitAiMsgBtn.disabled = true;
+    showToast('AI 正在生成提交信息…', 'info');
+    try {
+      const r = await window.LabCode.git.aiCommitMessage(cwd);
+      if (r.success && r.message) {
+        const inp = document.getElementById('git-commit-msg');
+        if (inp) inp.value = r.message;
+        showToast('已生成提交信息', 'success');
+      } else {
+        showToast('生成失败: ' + (r.error || ''), 'error');
+      }
+    } catch (e) { showToast('生成异常: ' + e.message, 'error'); }
+    finally { gitAiMsgBtn.disabled = false; }
+  });
+  const gitAiCommitBtn = document.getElementById('git-ai-commit-btn');
+  if (gitAiCommitBtn) gitAiCommitBtn.addEventListener('click', async () => {
+    const cwd = state.projectPath;
+    if (!cwd) { showToast('请先打开项目', 'warn'); return; }
+    gitAiCommitBtn.disabled = true;
+    showToast('AI 正在生成并提交…', 'info');
+    try {
+      const r = await window.LabCode.git.aiCommit(cwd);
+      if (r.success) {
+        showToast('AI 提交成功: ' + (r.message || ''), 'success');
+        const inp = document.getElementById('git-commit-msg');
+        if (inp) inp.value = '';
+        refreshGitStatus();
+      } else {
+        showToast('提交失败: ' + (r.error || ''), 'error');
+      }
+    } catch (e) { showToast('提交异常: ' + e.message, 'error'); }
+    finally { gitAiCommitBtn.disabled = false; }
+  });
+  const gitAiResolveBtn = document.getElementById('git-ai-resolve-btn');
+  if (gitAiResolveBtn) gitAiResolveBtn.addEventListener('click', async () => {
+    const cwd = state.projectPath;
+    if (!cwd) { showToast('请先打开项目', 'warn'); return; }
+    gitAiResolveBtn.disabled = true;
+    showToast('AI 正在解决冲突…', 'info');
+    try {
+      const r = await window.LabCode.git.aiResolveConflicts(cwd);
+      if (r.success) {
+        showToast(r.resolved ? ('已解决 ' + r.resolved + ' 个冲突文件') : (r.message || '无冲突'), r.resolved ? 'success' : 'info');
+        if (r.report) addOutputLog('AI 冲突解决:\n' + r.report, 'success');
+        refreshGitStatus();
+      } else {
+        showToast('冲突解决失败: ' + (r.error || ''), 'error');
+      }
+    } catch (e) { showToast('冲突解决异常: ' + e.message, 'error'); }
+    finally { gitAiResolveBtn.disabled = false; }
+  });
+  const gitAiPrBtn = document.getElementById('git-ai-pr-btn');
+  if (gitAiPrBtn) gitAiPrBtn.addEventListener('click', async () => {
+    const cwd = state.projectPath;
+    if (!cwd) { showToast('请先打开项目', 'warn'); return; }
+    gitAiPrBtn.disabled = true;
+    showToast('AI 正在生成 PR 描述…', 'info');
+    try {
+      const r = await window.LabCode.git.aiPrDescription(cwd);
+      if (r.success) {
+        const ta = document.getElementById('git-pr-desc');
+        if (ta) ta.value = (r.title ? '# ' + r.title + '\n\n' : '') + (r.body || '');
+        showToast('已生成 PR 描述（对比基准: ' + (r.base || 'HEAD') + '）', 'success');
+        addOutputLog('AI PR 描述:\n' + (r.title || '') + '\n' + (r.body || ''), 'success');
+      } else {
+        showToast('生成失败: ' + (r.error || ''), 'error');
+      }
+    } catch (e) { showToast('生成异常: ' + e.message, 'error'); }
+    finally { gitAiPrBtn.disabled = false; }
+  });
+
   // ===== capabilities 路由:UI 按钮统一入口(对齐 TrieCode runCapability)=====
   // 编译/烧录/串口监视等不再直调插件工具或硬编码 terminal 命令,
   // 一律经 runCapability(cap) → 项目绑定的主动工具链 → transport 分发。
@@ -13634,6 +13937,164 @@ function bindEvents() {
     const r = await window.PluginSystem.runCapability('monitor', { port, baud: 115200 });
     if (r.ok) showToast('串口监视已打开 ' + port, 'success');
     else showToast(String(r.text || r.error || '串口监视打开失败'), 'error');
+  });
+
+  // ===== AI 自动修复编译错误 =====
+  async function runAiFix() {
+    let sketchPath = state.activeTab;
+    if (!sketchPath) { showToast('请先打开要编译的文件', 'warn'); return; }
+    const isAbs = /^[A-Za-z]:[\\/]/.test(sketchPath) || sketchPath.startsWith('/') || sketchPath.startsWith('\\\\');
+    if (state.projectPath && !isAbs) sketchPath = state.projectPath + '/' + sketchPath;
+    const fqbn = state.compileFqbn || 'esp32:esp32:esp32c3';
+    const outputDir = state.projectPath ? state.projectPath + '/build' : undefined;
+    const btns = [document.getElementById('dev-aifix-btn'), document.getElementById('editor-aifix-btn')].filter(Boolean);
+    btns.forEach(b => { b.disabled = true; b.classList.add('aifix-loading'); });
+    showToast('AI 正在分析编译错误并修复…', 'info');
+    try {
+      const result = await window.LabCode.compile.aiFix({ sketchPath, fqbn, outputDir });
+      if (state.terminal) {
+        state.terminal.writeln('');
+        state.terminal.writeln('AI 修复完成');
+        if (result.message) state.terminal.writeln('→ ' + result.message);
+        if (result.compileErrorBefore) {
+          state.terminal.writeln('— 原编译错误 —');
+          result.compileErrorBefore.split('\n').slice(0, 25).forEach(l => state.terminal.writeln(l));
+        }
+      }
+      addOutputLog('AI 修复: ' + (result.message || result.error || ''), result.success ? 'success' : 'error');
+      if (result.applied && result.fixedCode && state.editor) {
+        state.editor.setValue(result.fixedCode);
+        showToast('已用修复后代码更新编辑器', 'info');
+      }
+      if (result.alreadyOk) showToast('编译已通过，无需修复', 'success');
+      else if (result.success && result.recompiled && result.recompiled.success) showToast('AI 已修复，重新编译通过', 'success');
+      else if (result.success && result.applied && result.recompiled && !result.recompiled.success) showToast('AI 已尝试修复，但编译仍失败', 'warn');
+      else if (!result.success) showToast('AI 修复未完成: ' + (result.message || result.error || ''), 'error');
+    } catch (e) {
+      showToast('AI 修复异常: ' + e.message, 'error');
+    } finally {
+      btns.forEach(b => { b.disabled = false; b.classList.remove('aifix-loading'); });
+    }
+  }
+  const devAifixBtn = document.getElementById('dev-aifix-btn');
+  if (devAifixBtn) devAifixBtn.addEventListener('click', runAiFix);
+  const editorAifixBtn = document.getElementById('editor-aifix-btn');
+  if (editorAifixBtn) editorAifixBtn.addEventListener('click', runAiFix);
+
+  // ===== 导出固件（编译并复制二进制到用户指定路径）=====
+  async function runExportBinary() {
+    let sketchPath = state.activeTab;
+    if (!sketchPath) { showToast('请先打开要编译的文件', 'warn'); return; }
+    const isAbs = /^[A-Za-z]:[\\/]/.test(sketchPath) || sketchPath.startsWith('/') || sketchPath.startsWith('\\\\');
+    if (state.projectPath && !isAbs) sketchPath = state.projectPath + '/' + sketchPath;
+    const fqbn = state.compileFqbn || 'esp32:esp32:esp32c3';
+    const outputDir = state.projectPath ? state.projectPath + '/build' : undefined;
+    const segs = sketchPath.split(/[\\/]/);
+    const fname = segs[segs.length - 1] || 'firmware';
+    const base = fname.replace(/\.[^.]+$/, '');
+    let exportPath = null;
+    try { exportPath = await window.LabCode.dialog.saveFile(base + '.bin'); } catch (e) {}
+    if (!exportPath) { showToast('已取消导出', 'info'); return; }
+    const btns = [document.getElementById('dev-export-btn'), document.getElementById('editor-export-btn')].filter(Boolean);
+    btns.forEach(b => { b.disabled = true; b.classList.add('aifix-loading'); });
+    showToast('正在编译并导出固件…', 'info');
+    try {
+      const result = await window.LabCode.compile.exportBinary({ sketchPath, fqbn, outputDir, exportPath });
+      if (result.success) {
+        showToast('固件已导出: ' + result.exportedTo + ' (' + (result.size || 0) + ' 字节)', 'success');
+        if (state.terminal) { state.terminal.writeln(''); state.terminal.writeln('固件导出: ' + result.exportedTo + '  (' + (result.size || 0) + ' 字节)'); }
+        addOutputLog('导出固件成功: ' + result.exportedTo, 'success');
+      } else {
+        showToast('导出失败: ' + (result.error || result.message || ''), 'error');
+        addOutputLog('导出固件失败: ' + (result.error || result.message || ''), 'error');
+      }
+    } catch (e) {
+      showToast('导出异常: ' + e.message, 'error');
+    } finally {
+      btns.forEach(b => { b.disabled = false; b.classList.remove('aifix-loading'); });
+    }
+  }
+  const devExportBtn = document.getElementById('dev-export-btn');
+  if (devExportBtn) devExportBtn.addEventListener('click', runExportBinary);
+  const editorExportBtn = document.getElementById('editor-export-btn');
+  if (editorExportBtn) editorExportBtn.addEventListener('click', runExportBinary);
+
+  // ===== 命令面板（对齐 TrieCode command.invoke）=====
+  const COMMANDS = [
+    { id: 'new-project', title: '新建项目', group: '项目', keywords: 'new project 新建 工程', run: () => { const b = document.getElementById('welcome-new-project'); if (b) b.click(); else showToast('请先回到欢迎页', 'warn'); } },
+    { id: 'open-project', title: '打开项目', group: '项目', keywords: 'open 打开', run: () => { const b = document.getElementById('welcome-open-project'); if (b) b.click(); } },
+    { id: 'new-file', title: '新建文件', group: '项目', keywords: 'new file 新建文件', run: () => { const b = document.getElementById('welcome-new-file'); if (b) b.click(); } },
+    { id: 'compile', title: '编译', group: '开发', keywords: 'compile build 编译', run: () => runCapBtn('compile') },
+    { id: 'upload', title: '烧录', group: '开发', keywords: 'upload flash 烧录 上传', run: () => runCapBtn('upload') },
+    { id: 'ai-fix', title: 'AI 修复编译错误', group: '开发', keywords: 'ai fix 修复 自动', run: () => runAiFix() },
+    { id: 'export-bin', title: '导出固件', group: '开发', keywords: 'export binary 导出 固件', run: () => runExportBinary() },
+    { id: 'settings', title: '打开设置', group: '视图', keywords: 'settings 设置 配置', run: () => openSettingsModal() },
+    { id: 'toggle-theme', title: '切换深浅色主题', group: '视图', keywords: 'theme 主题 深色 浅色 切换', run: () => { const cur = document.documentElement.getAttribute('data-theme') || 'dark'; applyTheme(cur === 'dark' ? 'light' : 'dark', true); } },
+    { id: 'panel-device', title: '打开设备面板', group: '视图', keywords: 'device 设备 开发板', run: () => { const b = document.querySelector('.activity-btn[data-panel="device"]'); if (b) b.click(); } },
+    { id: 'panel-git', title: '打开 Git 面板', group: '视图', keywords: 'git vcs 版本控制', run: () => { const b = document.getElementById('open-vcs-panel'); if (b) b.click(); else { const a = document.querySelector('.activity-btn[data-panel="git"]'); if (a) a.click(); } } },
+    { id: 'panel-terminal', title: '打开终端', group: '视图', keywords: 'terminal 终端', run: () => { const b = document.getElementById('open-terminal-panel'); if (b) b.click(); else { const t = document.getElementById('terminal-toggle-btn'); if (t) t.click(); } } },
+    { id: 'panel-plugins', title: '打开插件市场', group: '视图', keywords: 'plugins 插件 扩展', run: () => { const b = document.getElementById('open-plugins-panel'); if (b) b.click(); else { const a = document.querySelector('.activity-btn[data-panel="plugins"]'); if (a) a.click(); } } },
+    { id: 'panel-models', title: '打开模型管理', group: '视图', keywords: 'models 模型 ai', run: () => { const a = document.querySelector('.activity-btn[data-panel="models"]'); if (a) a.click(); } },
+    { id: 'panel-mcp', title: '打开 MCP 服务', group: '视图', keywords: 'mcp', run: () => { const a = document.querySelector('.activity-btn[data-panel="mcp"]'); if (a) a.click(); } },
+    { id: 'panel-dashboard', title: '打开看板', group: '视图', keywords: 'dashboard 看板 统计', run: () => { const a = document.querySelector('.activity-btn[data-panel="dashboard"]'); if (a) a.click(); } },
+    { id: 'search', title: '搜索', group: '视图', keywords: 'search 搜索', run: () => { const b = document.getElementById('search-btn'); if (b) b.click(); } }
+  ];
+  const cmdPalette = document.getElementById('cmd-palette');
+  const cmdInput = document.getElementById('cmd-input');
+  const cmdList = document.getElementById('cmd-list');
+  let cmdActive = -1;
+  function filterCommands(q) {
+    q = (q || '').trim().toLowerCase();
+    return COMMANDS.filter(c => !q || c.title.toLowerCase().includes(q) || c.keywords.toLowerCase().includes(q) || c.group.toLowerCase().includes(q));
+  }
+  function renderCommands(filter) {
+    const items = filterCommands(filter);
+    cmdList.innerHTML = '';
+    if (!items.length) { cmdList.innerHTML = '<div class="cmd-empty">无匹配命令</div>'; cmdActive = -1; return; }
+    items.forEach((c, i) => {
+      const d = document.createElement('div');
+      d.className = 'cmd-item' + (i === cmdActive ? ' active' : '');
+      d.innerHTML = '<span class="cmd-group">' + c.group + '</span><span class="cmd-title">' + c.title + '</span>';
+      d.addEventListener('click', () => execCommand(c));
+      d.addEventListener('mousemove', () => { cmdActive = i; updateActive(); });
+      cmdList.appendChild(d);
+    });
+    if (cmdActive >= items.length) cmdActive = items.length - 1;
+    updateActive();
+  }
+  function updateActive() {
+    const els = cmdList.querySelectorAll('.cmd-item');
+    els.forEach((el, i) => el.classList.toggle('active', i === cmdActive));
+    if (cmdActive >= 0 && els[cmdActive]) els[cmdActive].scrollIntoView({ block: 'nearest' });
+  }
+  async function execCommand(c) {
+    closeCommandPalette();
+    try { await c.run(); } catch (e) { showToast('命令执行失败: ' + e.message, 'error'); }
+  }
+  function openCommandPalette() {
+    if (!cmdPalette) return;
+    cmdPalette.style.display = 'flex';
+    cmdActive = 0;
+    cmdInput.value = '';
+    renderCommands('');
+    setTimeout(() => cmdInput.focus(), 0);
+  }
+  function closeCommandPalette() {
+    if (cmdPalette) cmdPalette.style.display = 'none';
+  }
+  if (cmdInput) {
+    cmdInput.addEventListener('input', () => { cmdActive = 0; renderCommands(cmdInput.value); });
+    cmdInput.addEventListener('keydown', (e) => {
+      const items = filterCommands(cmdInput.value);
+      if (e.key === 'ArrowDown') { e.preventDefault(); cmdActive = Math.min(cmdActive + 1, items.length - 1); updateActive(); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); cmdActive = Math.max(cmdActive - 1, 0); updateActive(); }
+      else if (e.key === 'Enter') { e.preventDefault(); if (items[cmdActive]) execCommand(items[cmdActive]); }
+      else if (e.key === 'Escape') { e.preventDefault(); closeCommandPalette(); }
+    });
+  }
+  if (cmdPalette) cmdPalette.addEventListener('click', (e) => { if (e.target === cmdPalette) closeCommandPalette(); });
+  document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'P' || e.key === 'p')) { e.preventDefault(); openCommandPalette(); }
   });
 
   // ============ 编辑器工具栏快捷：编译 / 烧录（软硬件开发流水线）============
@@ -14117,6 +14578,23 @@ function bindEvents() {
     });
   }
 
+  function updateProxyManualVisibility() {
+    const m = document.getElementById('general-proxy-mode');
+    const box = document.getElementById('general-proxy-manual');
+    if (m && box) box.style.display = (m.value === 'manual') ? 'flex' : 'none';
+  }
+  async function refreshProxyDetected() {
+    const el = document.getElementById('general-proxy-detected');
+    if (!el) return;
+    el.textContent = '检测中…';
+    try {
+      if (window.LabCode.proxy && window.LabCode.proxy.detect) {
+        const r = await window.LabCode.proxy.detect();
+        el.textContent = r || 'DIRECT';
+      } else { el.textContent = '—'; }
+    } catch (err) { el.textContent = '—'; }
+  }
+
   async function openSettingsModal() {
     const modal = document.getElementById('settings-modal');
     if (!modal) return;
@@ -14154,6 +14632,67 @@ function bindEvents() {
     document.getElementById('ai-test-result').textContent = '';
     updateAiSettingsVisibility();
     renderAgentMarket();
+    // 常规（对齐 TrieCode 常规页）：关闭窗口时 / 默认工作空间 / 代理模式
+    try {
+      const gen = cfg.general || {};
+      const gca = document.getElementById('general-close-action');
+      if (gca) gca.value = gen.closeAction || 'tray';
+      const gws = document.getElementById('general-workspace');
+      if (gws) gws.value = gen.defaultWorkspace || '';
+      const gpm = document.getElementById('general-proxy-mode');
+      if (gpm) gpm.value = (cfg.proxy && cfg.proxy.mode) || 'system';
+      const gph = document.getElementById('general-proxy-host');
+      if (gph) gph.value = (cfg.proxy && cfg.proxy.host) || '';
+      const gpp = document.getElementById('general-proxy-port');
+      if (gpp) gpp.value = (cfg.proxy && cfg.proxy.port) || '';
+      updateProxyManualVisibility();
+      refreshProxyDetected();
+    } catch (err) { /* 常规面板填充失败不阻塞 */ }
+
+    // 外观 / 语音 / 补全 / 编辑器（对齐 TrieCode 个人·AI·开发 设置）
+    try {
+      const appearanceTheme = document.getElementById('appearance-theme');
+      if (appearanceTheme) appearanceTheme.value = (cfg.ui && cfg.ui.theme) || 'light';
+      const vr = document.getElementById('voice-rate'), vrv = document.getElementById('voice-rate-val');
+      const voiceRate = (cfg.voice && cfg.voice.rate) || 1.0;
+      if (vr) { vr.value = voiceRate; if (vrv) vrv.textContent = Number(voiceRate).toFixed(1) + 'x'; }
+      const ce = document.getElementById('completion-enabled');
+      if (ce) ce.checked = (cfg.completion && cfg.completion.enabled === false) ? false : true;
+      const cd = document.getElementById('completion-delay');
+      if (cd) cd.value = (cfg.completion && cfg.completion.delay) || 350;
+      const efs = document.getElementById('editor-font-size');
+      if (efs) efs.value = (cfg.editor && cfg.editor.fontSize) || 13;
+      const eww = document.getElementById('editor-word-wrap');
+      if (eww) eww.value = (cfg.editor && cfg.editor.wordWrap) || 'off';
+      // 记忆列表
+      const mem = await loadMemoriesFromDisk();
+      const mlist = document.getElementById('memory-list');
+      const mcount = document.getElementById('memory-count');
+      if (mlist) {
+        mlist.innerHTML = '';
+        if (!mem.length) {
+          mlist.innerHTML = '<div style="font-size:12px;color:var(--text-tertiary);">暂无记忆</div>';
+        } else {
+          mem.slice(0, 50).forEach((m) => {
+            const d = document.createElement('div');
+            d.style.cssText = 'padding:8px 10px;background:rgba(128,128,128,0.08);border-radius:6px;font-size:12px;color:var(--text-secondary);white-space:pre-wrap;word-break:break-all;';
+            d.textContent = (m.content || m.text || JSON.stringify(m)).slice(0, 200);
+            mlist.appendChild(d);
+          });
+        }
+        if (mcount) mcount.textContent = '共 ' + mem.length + ' 条';
+      }
+      // 技能 / 搜索 / 解释器 / 钩子 填充（Step 1：占位 → 真实后端）
+      try {
+        skillsData = ((cfg.skills && cfg.skills.list) || []);
+        renderSkills();
+        const se = document.getElementById('search-enabled'); if (se) se.checked = !!(cfg.search && cfg.search.enabled);
+        const ipy = document.getElementById('interp-python'); if (ipy) ipy.value = (cfg.interpreters && cfg.interpreters.python) || '';
+        const ino = document.getElementById('interp-node'); if (ino) ino.value = (cfg.interpreters && cfg.interpreters.node) || '';
+        const hp = document.getElementById('hook-pre'); if (hp) hp.value = (cfg.hooks && cfg.hooks.preToolUse) || '';
+        const hpo = document.getElementById('hook-post'); if (hpo) hpo.value = (cfg.hooks && cfg.hooks.postToolUse) || '';
+      } catch (e) {}
+    } catch (err) { /* 新面板填充失败不阻塞 */ }
     // 刷新网关账号状态（登录态 + 余额）
     refreshGatewayUI();
     modal.style.display = 'flex';
@@ -14419,6 +14958,120 @@ function bindEvents() {
         it.style.display = (!q || t.indexOf(q) !== -1) ? '' : 'none';
       });
     });
+    // 常规面板（对齐 TrieCode 常规页）：浏览目录 / 代理模式切换 / 检测刷新
+    const gpBrowse = document.getElementById('general-workspace-browse');
+    if (gpBrowse) gpBrowse.addEventListener('click', async () => {
+      try {
+        const d = await window.LabCode.dialog.openDirectory('选择默认工作空间');
+        let picked = null;
+        if (typeof d === 'string') picked = d;
+        else if (d && d.filePaths && d.filePaths[0]) picked = d.filePaths[0];
+        const gws = document.getElementById('general-workspace');
+        if (picked && gws) gws.value = picked;
+      } catch (err) { /* 用户取消或失败 */ }
+    });
+    const gpMode = document.getElementById('general-proxy-mode');
+    if (gpMode) gpMode.addEventListener('change', updateProxyManualVisibility);
+    const gpRefresh = document.getElementById('general-proxy-refresh');
+    if (gpRefresh) gpRefresh.addEventListener('click', refreshProxyDetected);
+
+    // ===== 外观 / 语音 / 补全 / 编辑器 / 记忆 / 跳转（对齐 TrieCode 分组设置）=====
+    const apTheme = document.getElementById('appearance-theme');
+    if (apTheme) apTheme.addEventListener('change', async () => {
+      try { await applyTheme(apTheme.value, true); showToast('主题已切换为' + (apTheme.value === 'light' ? '浅色' : '深色'), 'success'); } catch (e) {}
+    });
+    const voiceRate = document.getElementById('voice-rate');
+    const voiceRateVal = document.getElementById('voice-rate-val');
+    if (voiceRate) voiceRate.addEventListener('input', () => { if (voiceRateVal) voiceRateVal.textContent = Number(voiceRate.value).toFixed(1) + 'x'; });
+    const voiceTest = document.getElementById('voice-test');
+    if (voiceTest) voiceTest.addEventListener('click', () => {
+      try { speakText('这是一段语音试听示例，用于确认朗读效果是否清晰。'); showToast('正在朗读…', 'info'); } catch (e) {}
+    });
+    const compEn = document.getElementById('completion-enabled');
+    const compDel = document.getElementById('completion-delay');
+    const syncCompletionLive = () => {
+      try {
+        window.LabCodeUI = window.LabCodeUI || {};
+        window.LabCodeUI.completionEnabled = compEn ? !!compEn.checked : true;
+        window.LabCodeUI.completionDelay = compDel ? (parseInt(compDel.value, 10) || 350) : 350;
+      } catch (e) {}
+    };
+    if (compEn) compEn.addEventListener('change', syncCompletionLive);
+    if (compDel) compDel.addEventListener('input', syncCompletionLive);
+    const edFs = document.getElementById('editor-font-size');
+    const edWw = document.getElementById('editor-word-wrap');
+    const applyEditorLive = () => {
+      try { if (state.editor && state.editor.updateOptions) state.editor.updateOptions({ fontSize: parseInt(edFs.value, 10) || 13, wordWrap: edWw ? edWw.value : 'off' }); } catch (e) {}
+    };
+    if (edFs) edFs.addEventListener('change', applyEditorLive);
+    if (edWw) edWw.addEventListener('change', applyEditorLive);
+    const memClear = document.getElementById('memory-clear');
+    if (memClear) memClear.addEventListener('click', async () => {
+      try {
+        if (!(await loadMemoriesFromDisk()).length) { showToast('记忆已为空', 'info'); return; }
+        await saveMemoriesToDisk([]);
+        const mlist = document.getElementById('memory-list');
+        if (mlist) mlist.innerHTML = '<div style="font-size:12px;color:var(--text-tertiary);">暂无记忆</div>';
+        const mcount = document.getElementById('memory-count');
+        if (mcount) mcount.textContent = '共 0 条';
+        showToast('记忆已清空', 'success');
+      } catch (e) { showToast('清空失败：' + (e && e.message || e), 'error'); }
+    });
+    // 跳转按钮：关闭设置框并打开对应活动面板
+    const jump = (name) => { try { settingsModal.style.display = 'none'; switchPanel(name, 'activity'); } catch (e) {} };
+    ['mcp', 'plugins', 'git', 'terminal', 'schedule'].forEach((name) => {
+      const btn = document.getElementById('open-' + name + '-panel');
+      if (btn) btn.addEventListener('click', () => jump(name));
+    });
+    // 初始化补全开关全局态（供 ghost-completion 读取）
+    syncCompletionLive();
+
+    // ===== 技能 / 搜索 / 解释器 / 钩子 事件接线（Step 1：占位 → 真实后端）=====
+    let skillsData = [];
+    function renderSkills() {
+      const skList = document.getElementById('skills-list');
+      if (!skList) return;
+      skList.innerHTML = '';
+      if (!skillsData.length) { skList.innerHTML = '<div style="font-size:12px;color:var(--text-tertiary);">暂无技能，可在下方添加</div>'; return; }
+      skillsData.forEach((s, i) => {
+        const d = document.createElement('div');
+        d.style.cssText = 'display:flex;justify-content:space-between;gap:8px;padding:8px 10px;background:rgba(128,128,128,0.08);border-radius:6px;font-size:12px;';
+        const t = document.createElement('span'); t.style.cssText = 'color:var(--text-secondary);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+        t.textContent = (s.name || ('技能' + i)) + (s.prompt ? '：' + s.prompt.slice(0, 40) : '');
+        const x = document.createElement('button'); x.className = 'btn btn-secondary'; x.style.cssText = 'flex:none;padding:2px 8px;font-size:11px;';
+        x.textContent = '删除';
+        x.addEventListener('click', () => { skillsData.splice(i, 1); window.LabCode.config.set('skills.list', skillsData); renderSkills(); });
+        d.appendChild(t); d.appendChild(x); skList.appendChild(d);
+      });
+    }
+    const skillAdd = document.getElementById('skill-add');
+    if (skillAdd) skillAdd.addEventListener('click', () => {
+      const n = document.getElementById('skill-name'); const p = document.getElementById('skill-prompt');
+      if (!n || !n.value.trim()) { showToast('请填写技能名称', 'warn'); return; }
+      skillsData.push({ name: n.value.trim(), prompt: p ? p.value.trim() : '' });
+      window.LabCode.config.set('skills.list', skillsData);
+      if (n) n.value = ''; if (p) p.value = ''; renderSkills();
+      showToast('已添加技能', 'success');
+    });
+    const searchTest = document.getElementById('search-test');
+    if (searchTest) searchTest.addEventListener('click', async () => {
+      const res = document.getElementById('search-result'); const st = document.getElementById('search-stats');
+      try {
+        const r = await window.LabCode.web.search('LabCode 嵌入式开发', { max: 3 });
+        if (r && r.success) { res.textContent = '✓ 搜索成功，返回 ' + (r.results ? r.results.length : 0) + ' 条结果'; res.style.color = '#52C41A'; }
+        else { res.textContent = '✗ 搜索失败：' + ((r && r.error) || '未知'); res.style.color = '#EA6668'; }
+        if (window.LabCode.web.stats) { const s = await window.LabCode.web.stats(); if (st) st.textContent = '本会话搜索 ' + (s.count || 0) + ' 次'; }
+      } catch (e) { res.textContent = '✗ 异常：' + e.message; res.style.color = '#EA6668'; }
+    });
+    const searchClear = document.getElementById('search-clear');
+    if (searchClear) searchClear.addEventListener('click', async () => {
+      try { if (window.LabCode.web.clearCache) await window.LabCode.web.clearCache(); const st = document.getElementById('search-stats'); if (st) st.textContent = '缓存已清空'; showToast('搜索缓存已清空', 'success'); } catch (e) {}
+    });
+    const browsePath = async (inputId) => {
+      try { const d = await window.LabCode.dialog.openFile('选择解释器 / 脚本'); let p = null; if (typeof d === 'string') p = d; else if (d && d.filePaths && d.filePaths[0]) p = d.filePaths[0]; const el = document.getElementById(inputId); if (p && el) el.value = p; } catch (e) {}
+    };
+    ['interp-python', 'interp-node', 'hook-pre', 'hook-post'].forEach((id) => { const b = document.getElementById(id + '-browse'); if (b) b.addEventListener('click', () => browsePath(id)); });
+
     document.getElementById('settings-cancel').addEventListener('click', () => { settingsModal.style.display = 'none'; });
     document.getElementById('ai-provider').addEventListener('change', updateAiSettingsVisibility);
     document.getElementById('ai-apikey').addEventListener('input', updateAiSettingsVisibility);
@@ -14436,6 +15089,55 @@ function bindEvents() {
       await window.LabCode.config.set('ai.localToolGrammar', document.getElementById('ai-local-tool-grammar').value || 'auto');
       const loraEl = document.getElementById('ai-local-lora');
       if (loraEl) await window.LabCode.config.set('ai.localLora', loraEl.value || 'auto');
+      // 常规 + 代理（对齐 TrieCode 常规页）
+      const gca = document.getElementById('general-close-action');
+      const gws = document.getElementById('general-workspace');
+      const gpm = document.getElementById('general-proxy-mode');
+      const gph = document.getElementById('general-proxy-host');
+      const gpp = document.getElementById('general-proxy-port');
+      if (gca) await window.LabCode.config.set('general.closeAction', gca.value || 'tray');
+      if (gws) await window.LabCode.config.set('general.defaultWorkspace', (gws.value || '').trim());
+      if (gpm) await window.LabCode.config.set('proxy.mode', gpm.value || 'system');
+      if (gph) await window.LabCode.config.set('proxy.host', (gph.value || '').trim());
+      if (gpp) await window.LabCode.config.set('proxy.port', (gpp.value || '').trim());
+      // 立即应用代理（无需重启）
+      try {
+        if (window.LabCode.proxy && window.LabCode.proxy.set) {
+          await window.LabCode.proxy.set({ mode: gpm ? gpm.value : 'system', host: gph ? gph.value.trim() : '', port: gpp ? gpp.value.trim() : '' });
+        }
+      } catch (err) { /* 代理应用失败不阻塞保存 */ }
+      // 外观 / 语音 / 补全 / 编辑器（对齐 TrieCode 个人·AI·开发 设置）
+      const aTheme = document.getElementById('appearance-theme');
+      const vRate = document.getElementById('voice-rate');
+      const cEn = document.getElementById('completion-enabled');
+      const cDel = document.getElementById('completion-delay');
+      const eFs = document.getElementById('editor-font-size');
+      const eWw = document.getElementById('editor-word-wrap');
+      if (aTheme) await window.LabCode.config.set('ui.theme', aTheme.value || 'light');
+      if (vRate) await window.LabCode.config.set('voice.rate', parseFloat(vRate.value) || 1.0);
+      if (cEn) await window.LabCode.config.set('completion.enabled', !!cEn.checked);
+      if (cDel) await window.LabCode.config.set('completion.delay', parseInt(cDel.value, 10) || 350);
+      if (eFs) await window.LabCode.config.set('editor.fontSize', parseInt(eFs.value, 10) || 13);
+      if (eWw) await window.LabCode.config.set('editor.wordWrap', eWw.value || 'off');
+      // 立即应用：主题 / 补全开关 / 编辑器字号换行
+      try { if (aTheme) await applyTheme(aTheme.value, false); } catch (e) {}
+      try {
+        window.LabCodeUI = window.LabCodeUI || {};
+        window.LabCodeUI.completionEnabled = cEn ? !!cEn.checked : true;
+        window.LabCodeUI.completionDelay = cDel ? (parseInt(cDel.value, 10) || 350) : 350;
+      } catch (e) {}
+      try {
+        if (state.editor && state.editor.updateOptions) state.editor.updateOptions({ fontSize: parseInt(eFs.value, 10) || 13, wordWrap: eWw ? eWw.value : 'off' });
+      } catch (e) {}
+      // 技能 / 搜索 / 解释器 / 钩子（Step 1：占位 → 真实后端）
+      const se = document.getElementById('search-enabled');
+      if (se) await window.LabCode.config.set('search.enabled', !!se.checked);
+      const ipy = document.getElementById('interp-python');
+      const ino = document.getElementById('interp-node');
+      if (ipy || ino) await window.LabCode.config.set('interpreters', { python: ipy ? ipy.value.trim() : '', node: ino ? ino.value.trim() : '' });
+      const hp = document.getElementById('hook-pre');
+      const hpo = document.getElementById('hook-post');
+      if (hp || hpo) await window.LabCode.config.set('hooks', { preToolUse: hp ? hp.value.trim() : '', postToolUse: hpo ? hpo.value.trim() : '' });
         // 刷新 RealAIClient 配置，使新设置立即生效
         if (state.agent && state.agent.ai && typeof state.agent.ai._loadConfig === 'function') {
           await state.agent.ai._loadConfig();
@@ -14742,8 +15444,28 @@ function bindEvents() {
             resultEl.textContent = `✓ 连接成功 (${r.status})`;
             resultEl.style.color = '#52C41A';
           } else {
-            resultEl.textContent = `✗ 连接失败: ${r.error || r.status}`;
+            // 原始网络错误 → 按 provider 映射为可操作提示
+            const raw = String(r.error || r.status || '');
+            const pv = testCfg.provider;
+            let msg;
+            if (/ERR_CONNECTION_REFUSED|ECONNREFUSED/i.test(raw)) {
+              msg = pv === 'ollama'
+                ? '✗ 本地模型服务未启动（默认 localhost:11434）。请先启动 Ollama，或改用「本地 AI 引擎（内置，无需安装）」'
+                : pv === 'local'
+                  ? '✗ 本地 AI 引擎未运行。请到插件市场安装大模型并启动引擎后重试'
+                  : '✗ 无法连接 ' + (testCfg.baseURL || '目标服务') + '：服务未启动或地址错误';
+            } else if (r.status === 401 || /401|unauthorized|api key|invalid.*key/i.test(raw)) {
+              msg = '✗ 认证失败：API Key 无效或未填写';
+            } else if (/timeout|ETIMEDOUT|aborted/i.test(raw)) {
+              msg = '✗ 连接超时：服务无响应，请检查地址与网络';
+            } else if (/ENOTFOUND|getaddrinfo|ERR_NAME_NOT_RESOLVED/i.test(raw)) {
+              msg = '✗ 地址无法解析：请检查 Base URL 是否正确';
+            } else {
+              msg = `✗ 连接失败: ${raw}`;
+            }
+            resultEl.textContent = msg;
             resultEl.style.color = '#EA6668';
+            resultEl.style.wordBreak = 'break-all';
           }
         } catch (e) {
           resultEl.textContent = `✗ 异常: ${e.message}`;

@@ -14,8 +14,13 @@
     registered = true;
     m.languages.registerInlineCompletionsProvider({ pattern: '**' }, {
       provideInlineCompletions: async function (model, position, context, token) {
+        // 实时读取设置（开启开关 / 触发延迟），无需重启
+        const ui = (window.LabCodeUI = window.LabCodeUI || {});
+        const enabled = (ui.completionEnabled === undefined ? true : ui.completionEnabled);
+        if (!enabled) return { items: [] };
+        const DEB = (ui.completionDelay || DEBOUNCE_MS);
         const mySeq = ++seq, now = Date.now();
-        if (now - lastInvokeAt < DEBOUNCE_MS) return { items: [] };
+        if (now - lastInvokeAt < DEB) return { items: [] };
         if (token.isCancellationRequested) return { items: [] };
         const prefix = model.getValueInRange({ startLineNumber: 1, startColumn: 1, endLineNumber: position.lineNumber, endColumn: position.column });
         const suffix = model.getValueInRange({ startLineNumber: position.lineNumber, startColumn: position.column, endLineNumber: model.getLineCount(), endColumn: model.getLineMaxColumn(model.getLineCount()) });

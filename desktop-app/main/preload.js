@@ -116,6 +116,12 @@ contextBridge.exposeInMainWorld('LabCode', {
     cancel: () => ipcRenderer.invoke('region:cancel')
   },
 
+  // 代理（常规设置·网络：代理模式/检测系统代理）
+  proxy: {
+    set: (p) => ipcRenderer.invoke('proxy:set', p),
+    detect: () => ipcRenderer.invoke('proxy:detect')
+  },
+
   // 剪贴板（朗读用）
   clipboard: {
     readText: () => ipcRenderer.invoke('clipboard:readText'),
@@ -190,7 +196,11 @@ contextBridge.exposeInMainWorld('LabCode', {
     createBranch: (cwd, branch) => ipcRenderer.invoke('git:createBranch', cwd, branch),
     unstage: (cwd, paths) => ipcRenderer.invoke('git:unstage', cwd, paths),
     discard: (cwd, paths) => ipcRenderer.invoke('git:discard', cwd, paths),
-    clone: (url, destDir) => ipcRenderer.invoke('git:clone', url, destDir)
+    clone: (url, destDir) => ipcRenderer.invoke('git:clone', url, destDir),
+    aiCommitMessage: (cwd) => ipcRenderer.invoke('git:aiCommitMessage', cwd),
+    aiCommit: (cwd) => ipcRenderer.invoke('git:aiCommit', cwd),
+    aiResolveConflicts: (cwd) => ipcRenderer.invoke('git:aiResolveConflicts', cwd),
+    aiPrDescription: (cwd) => ipcRenderer.invoke('git:aiPrDescription', cwd)
   },
 
   // Hermes: 记忆搜索 + Webhook + SSH
@@ -309,6 +319,8 @@ contextBridge.exposeInMainWorld('LabCode', {
   compile: {
     arduino: (options) => ipcRenderer.invoke('compile:arduino', options),
     upload: (options) => ipcRenderer.invoke('compile:upload', options),
+    aiFix: (options) => ipcRenderer.invoke('compile:aiFix', options),
+    exportBinary: (options) => ipcRenderer.invoke('compile:exportBinary', options),
     listCores: () => ipcRenderer.invoke('compile:list-cores'),
     listBoards: () => ipcRenderer.invoke('compile:list-boards'),
     listPorts: () => ipcRenderer.invoke('compile:list-ports'),
