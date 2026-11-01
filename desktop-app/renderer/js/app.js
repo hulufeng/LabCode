@@ -14765,6 +14765,23 @@ function bindEvents() {
     }
   });
 
+  // 账户权益渲染（对齐 TrieCode getProfile：套餐/积分/额度/邀请码；字段缺失即不显示该行）
+  function renderGwEntitlement(u) {
+    const el = document.getElementById('gw-entitlement');
+    if (!el) return;
+    const items = [];
+    if (u.plan) items.push(['套餐', u.plan]);
+    if (typeof u.totalCredits === 'number') items.push(['总积分', Math.round(u.totalCredits * 1000) / 1000]);
+    if (typeof u.planCredits === 'number') items.push(['套餐积分', u.planCredits]);
+    if (typeof u.rechargeCredits === 'number') items.push(['充值积分', u.rechargeCredits]);
+    if (typeof u.dailyRemaining === 'number') items.push(['今日剩余', u.dailyRemaining]);
+    if (typeof u.dailyUsed === 'number') items.push(['今日已用', u.dailyUsed]);
+    if (u.inviteCode) items.push(['邀请码', u.inviteCode]);
+    if (!items.length) { el.style.display = 'none'; return; }
+    el.innerHTML = items.map(([k, v]) => '<span><b style="color:var(--text-color);">' + k + '</b> ' + v + '</span>').join('');
+    el.style.display = 'flex';
+  }
+
   async function refreshGatewayUI() {
     try {
       const gwLoginForm = document.getElementById('gw-login-form');
@@ -14782,12 +14799,14 @@ function bindEvents() {
         gwLoginForm.style.display = 'none';
         gwUserInfo.style.display = 'block';
         document.getElementById('gw-email-show').textContent = ai.gatewayEmail;
-        // 校验登录态：失效则回退到未登录
+        // 校验登录态：失效则回退到未登录；有效则填充账户权益
         if (window.LabCode && window.LabCode.ai && window.LabCode.ai.gatewayAuth) {
           const r = await window.LabCode.ai.gatewayAuth({ action: 'me' });
           if (!(r && r.success && r.user)) {
             gwLoginForm.style.display = 'flex';
             gwUserInfo.style.display = 'none';
+          } else {
+            renderGwEntitlement(r.user);
           }
         }
         return;
@@ -14798,6 +14817,11 @@ function bindEvents() {
       console.warn('[网关账号] 刷新失败:', e);
     }
   }
+
+  // 对齐 TrieCode getProfile 轮询：60s + 窗口聚焦时刷新账户权益
+  setInterval(() => { try { refreshGatewayUI(); refreshCreditsBadge(); } catch (e) {} }, 60000);
+  window.addEventListener('focus', () => { try { refreshGatewayUI(); refreshCreditsBadge(); } catch (e) {} });
+  try { window.__labGwRefresh = refreshGatewayUI; } catch (e) {}
 
   // 网关登录 / 注册（对齐 TrieCode：tab 切换 + 邀请码选填 + 忘记密码）
   async function gatewayAuth(action) {

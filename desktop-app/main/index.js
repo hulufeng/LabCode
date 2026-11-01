@@ -1895,7 +1895,8 @@ function setupIPC() {
         const data = await res.json().catch(() => ({}));
         if (!res.ok) return { success: false, error: data.error || `网关返回 ${res.status}` };
         const u = data.user || {};
-        return { success: true, user: { email: u.email, totalCredits: u.totalCredits, planCredits: u.planCredits, rechargeCredits: u.rechargeCredits, dailyRemaining: u.dailyRemaining, dailyUsed: u.dailyUsed } };
+        // 对齐 TrieCode getProfile：透传套餐/邀请码/用户名（网关返回什么透什么，缺失则 undefined）
+        return { success: true, user: { email: u.email, username: u.username, plan: u.plan, inviteCode: u.inviteCode, totalCredits: u.totalCredits, planCredits: u.planCredits, rechargeCredits: u.rechargeCredits, dailyRemaining: u.dailyRemaining, dailyUsed: u.dailyUsed } };
       }
       if (action === 'logout') {
         const aiCfg = config.ai || {};
