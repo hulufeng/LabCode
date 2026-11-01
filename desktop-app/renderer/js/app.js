@@ -11631,7 +11631,9 @@ function bindEvents() {
       if (seen.has(v.pluginId)) return; seen.add(v.pluginId);
       const inst = installedPlugins.find(p => p.id === v.pluginId) || {};
       const title = inst.name || v.title || v.pluginId;
-      html += '<button class="activity-btn" data-plugin-view="' + encodeURIComponent(v.pluginId + '|' + v.id) + '" title="' + title + '" style="font-size:17px;line-height:1;">' + (inst.icon || '🧩') + '</button>';
+      // icon 防脏：剔除引号/空白，空值回退 🧩（历史数据曾把引号存进 icon 导致按钮 HTML 截断成空块）
+      const icon = String(inst.icon || '🧩').replace(/["'\s]/g, '') || '🧩';
+      html += '<button class="activity-btn" data-plugin-view="' + encodeURIComponent(v.pluginId + '|' + v.id) + '" title="' + title + '" style="font-size:17px;line-height:1;">' + icon + '</button>';
     });
     host.innerHTML = html;
     host.querySelectorAll('[data-plugin-view]').forEach(btn => {
