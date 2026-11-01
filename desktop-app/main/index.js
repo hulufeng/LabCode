@@ -3107,6 +3107,28 @@ function setupIPC() {
     return { ...r, stage: 'run' };
   });
 
+  // 代码格式化（真实执行：JSON 内置；C/C++ → clang-format；Python → black；stdin/stdout 管道）
+  ipcMain.handle('formatter:format', async (_, { code = '', lang = 'json' } = {}) => {
+    try {
+      if (lang === 'json') return { success: true, code: JSON.stringify(JSON.parse(code), null, 2) };
+      const isPy = lang === 'python' || lang === 'py';
+      const tool = isPy ? 'black' : 'clang-format';
+      const args = isPy ? ['-'] : ['--assume-filename', 'input.' + (lang === 'c' ? 'c' : 'cpp')];
+      const r = await new Promise((resolve) => {
+        const { spawn } = require('child_process');
+        let p;
+        try { p = spawn(tool, args, { shell: true }); } catch (e) { resolve({ success: false, error: e.message }); return; }
+        let out = '', err = '';
+        p.stdout.on('data', d => out += d); p.stderr.on('data', d => err += d);
+        try { p.stdin.write(code); p.stdin.end(); } catch (e) {}
+        const to = setTimeout(() => { try { p.kill(); } catch (e) {} resolve({ success: false, error: tool + ' 超时' }); }, 15000);
+        p.on('error', (e) => { clearTimeout(to); resolve({ success: false, error: tool + ' 未安装: ' + e.message }); });
+        p.on('close', (c) => { clearTimeout(to); resolve({ success: c === 0, code: out, error: err }); });
+      });
+      return r;
+    } catch (e) { return { success: false, error: e.message }; }
+  });
+
   // 本地导入模型（用户上传 .gguf → 复制进模型目录，引擎即刻可扫描）
   ipcMain.handle('models:import', async () => {
     try {

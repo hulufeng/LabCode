@@ -10241,6 +10241,35 @@ function bindEvents() {
   // 与「假安装」说再见：装这些插件时会把 plugin.json 真写到 <userData>/plugins/<id>/，
   // 并通过 PluginSystem 注册工具（重启后由 loadPluginsFromDir 重新加载，依然生效）。
   const BUILTIN_PLUGIN_MANIFESTS = {
+    'git-integration': {
+      id: 'git-integration', name: 'Git 集成', version: '1.0.0', icon: '🌿', category: 'tool',
+      description: '真实 Git 操作：状态/差异/日志/暂存/提交/分支（复用 LabCode 内置 git 引擎）',
+      tools: [
+        { name: 'git_status', description: '查看工作区状态（变更/暂存/未跟踪）', parameters: { type: 'object', properties: { cwd: { type: 'string', description: '仓库路径，默认当前项目' } } }, category: 'query', transport: 'internal', internal: { service: 'git', method: 'status' } },
+        { name: 'git_diff', description: '查看文件差异', parameters: { type: 'object', properties: { file: { type: 'string', description: '可选，指定文件' } } }, category: 'query', transport: 'internal', internal: { service: 'git', method: 'diff' } },
+        { name: 'git_log', description: '查看最近提交历史', parameters: { type: 'object', properties: { n: { type: 'number', description: '条数，默认 10' } } }, category: 'query', transport: 'internal', internal: { service: 'git', method: 'log' } },
+        { name: 'git_commit', description: '暂存全部并提交（需 message）', parameters: { type: 'object', properties: { message: { type: 'string', description: '提交信息' } }, required: ['message'] }, category: 'execute', transport: 'internal', internal: { service: 'git', method: 'commit' } },
+        { name: 'git_branches', description: '列出本地/远程分支', parameters: { type: 'object', properties: {} }, category: 'query', transport: 'internal', internal: { service: 'git', method: 'branches' } }
+      ],
+      skills: [
+        { name: 'git-flow', description: 'Git 日常流程', prompt: '提交前先 git_status → git_diff 检查改动，再用 git_commit 带清晰的中文提交信息。', metadata: { keywords: ['git', '提交', '状态'] } }
+      ]
+    },
+    'code-formatter': {
+      id: 'code-formatter', name: '代码格式化', version: '1.0.0', icon: '✨', category: 'tool',
+      description: '真实格式化：JSON 内置引擎；C/C++ 调 clang-format；Python 调 black（stdin 管道，未安装时明确提示）',
+      tools: [
+        { name: 'format_code', description: '格式化代码（lang: json/c/cpp/python）', parameters: { type: 'object', properties: { code: { type: 'string', description: '源代码' }, lang: { type: 'string', description: '语言：json/c/cpp/python' } }, required: ['code', 'lang'] }, category: 'modify', transport: 'internal', internal: { service: 'formatter', method: 'format' } }
+      ]
+    },
+    'themes': {
+      id: 'themes', name: '主题扩展', version: '1.0.0', icon: '🎨', category: 'theme',
+      description: '切换浅色/深色主题（真实应用 data-theme，全 UI 即时生效）',
+      tools: [
+        { name: 'list_themes', description: '列出可用主题与当前主题', parameters: { type: 'object', properties: {} }, category: 'query', transport: 'internal', internal: { service: 'theme', method: 'list' } },
+        { name: 'set_theme', description: '切换主题（light/dark）', parameters: { type: 'object', properties: { theme: { type: 'string', description: 'light 或 dark' } }, required: ['theme'] }, category: 'execute', transport: 'internal', internal: { service: 'theme', method: 'set' } }
+      ]
+    },
     'serial-monitor': {
       id: 'serial-monitor', name: '串口监视器', version: '1.0.0', icon: '📟', category: 'tool',
       description: '列出串口、打开/读取/发送数据、崩溃日志分析（走 LabCode 内置串口桥）',
@@ -10412,6 +10441,25 @@ function bindEvents() {
   // 首次启动自动安装核心插件（编译/串口/绘图仪），对标内置工具链开箱即用
   // 大模型运行时与模型插件仍由用户在插件市场自行安装
   const CORE_PLUGIN_IDS = ['arduino', 'serial-monitor', 'plotter'];
+
+  // ===== 内置插件 internal services（TrieCode 式宿主服务注册：manifest.tools → dispatchTool → 这里）=====
+  if (window.PluginSystem && window.PluginSystem.registerInternalService) {
+    window.PluginSystem.registerInternalService('git', {
+      status: async (a) => window.LabCode.git.status((a && a.cwd) || state.projectPath),
+      diff: async (a) => window.LabCode.git.diff((a && a.cwd) || state.projectPath, a && a.file),
+      log: async (a) => window.LabCode.git.log((a && a.cwd) || state.projectPath, (a && a.n) || 10),
+      add: async (a) => window.LabCode.git.add(state.projectPath, (a && a.paths) || ['.']),
+      commit: async (a) => window.LabCode.git.commit(state.projectPath, a && a.message),
+      branches: async (a) => window.LabCode.git.branches(state.projectPath)
+    });
+    window.PluginSystem.registerInternalService('theme', {
+      list: async () => ({ themes: ['light', 'dark'], current: document.documentElement.getAttribute('data-theme') || 'dark' }),
+      set: async (a) => { const t = (a && a.theme) === 'light' ? 'light' : 'dark'; applyTheme(t, true); return { ok: true, theme: t }; }
+    });
+    window.PluginSystem.registerInternalService('formatter', {
+      format: async (a) => window.LabCode.formatter.format({ code: (a && a.code) || '', lang: (a && a.lang) || 'json' })
+    });
+  }
   if (!localStorage.getItem('labcode_core_plugins_initialized')) {
     const existingIds = new Set(installedPlugins.map(p => p.id));
     for (const pid of CORE_PLUGIN_IDS) {

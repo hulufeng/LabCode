@@ -337,6 +337,11 @@ contextBridge.exposeInMainWorld('LabCode', {
     import: () => ipcRenderer.invoke('models:import')
   },
 
+  // 代码格式化（真实执行）
+  formatter: {
+    format: (o) => ipcRenderer.invoke('formatter:format', o)
+  },
+
   // 串口监视器
   serial: {
     list: () => ipcRenderer.invoke('serial:list'),
