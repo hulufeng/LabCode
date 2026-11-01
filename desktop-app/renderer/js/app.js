@@ -10794,7 +10794,24 @@ function bindEvents() {
         '<div class="plg-row-act">' + srcLink + actions + '</div>' +
       '</div>';
     }).join('');
+    if (currentPluginsTab === 'market') {
+      // TrieCode 式：社区插件入口收进官方市场底部（不再单占一个 tab）
+      html += '<div class="plg-row" data-action="open-community" style="cursor:pointer;opacity:.75;"><div class="plg-row-icon">🌐</div><div style="flex:1;min-width:0;"><div class="plg-row-top"><span class="plg-row-name">社区插件</span><span class="plg-row-ver">GitHub</span></div><div class="plg-row-desc">浏览社区开发者发布的插件（labcode-plugin topic）</div></div><div class="plg-row-act"><span style="font-size:11px;color:var(--text-secondary);">浏览 →</span></div></div>';
+    }
     listEl.innerHTML = html;
+    if (currentPluginsTab === 'market') {
+      const oc = listEl.querySelector('[data-action="open-community"]');
+      if (oc) oc.addEventListener('click', () => {
+        currentPluginsTab = 'community';
+        renderPluginsList();
+        const back = document.createElement('button');
+        back.className = 'btn btn-secondary btn-sm';
+        back.style.cssText = 'margin:8px 12px 0;';
+        back.textContent = '← 返回官方市场';
+        back.addEventListener('click', () => { currentPluginsTab = 'market'; document.querySelectorAll('.plugins-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === 'market')); renderPluginsList(); });
+        listEl.prepend(back);
+      });
+    }
 
     // 绑定 AI 能力安装口（内置云端 / 自带 Key）
     bindAiHub();
