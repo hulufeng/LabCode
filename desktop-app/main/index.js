@@ -175,9 +175,18 @@ function ensureTray() {
 function createMainWindow() {
   const windowConfig = config.window || {};
 
+  // 自愈历史污染：早期版本曾把"最大化时的全屏尺寸"存成普通窗口尺寸（resize 守卫之前），
+  // 导致"最大化/还原"切换肉眼无变化（还原后仍是满屏大小）。≥工作区大小即视为污染，回退默认。
+  let cfgW = windowConfig.width || 1400;
+  let cfgH = windowConfig.height || 900;
+  try {
+    const wa = screen.getPrimaryDisplay().workAreaSize;
+    if (cfgW >= wa.width - 4 && cfgH >= wa.height - 4) { cfgW = 1400; cfgH = 900; }
+  } catch (e) {}
+
   mainWindow = new BrowserWindow({
-    width: windowConfig.width || 1400,
-    height: windowConfig.height || 900,
+    width: cfgW,
+    height: cfgH,
     minWidth: 1024,
     minHeight: 680,
     frame: false,
