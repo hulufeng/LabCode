@@ -10813,6 +10813,23 @@ function bindEvents() {
       });
     }
 
+    // 模型视图：本地上传为主入口（用户上传 .gguf → 复制进模型目录）
+    if (currentPluginsTab === 'models') {
+      html = '<div style="display:flex;gap:8px;align-items:center;padding:0 0 10px;flex-wrap:wrap;"><button class="btn btn-primary btn-sm" id="model-import-btn">📥 导入本地模型（.gguf）</button><span style="font-size:11px;color:var(--text-secondary);">导入后即可被引擎扫描并直接使用</span></div>' + html;
+    }
+    listEl.innerHTML = html;
+    if (currentPluginsTab === 'models') {
+      const ib = document.getElementById('model-import-btn');
+      if (ib) ib.addEventListener('click', async () => {
+        const r = await window.LabCode.models.import();
+        if (r && r.success) {
+          showToast('模型已导入: ' + r.file, 'success');
+          if (typeof refreshLocalModelsInSelector === 'function') { try { refreshLocalModelsInSelector(); } catch (e) {} }
+          renderPluginsList();
+        } else if (r && !r.canceled) showToast('导入失败: ' + (r.error || ''), 'error');
+      });
+    }
+
     // 绑定 AI 能力安装口（内置云端 / 自带 Key）——仅插件市场视图；模型视图只保留模型
     if (currentPluginsTab !== 'models') bindAiHub();
 

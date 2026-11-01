@@ -3107,6 +3107,20 @@ function setupIPC() {
     return { ...r, stage: 'run' };
   });
 
+  // 本地导入模型（用户上传 .gguf → 复制进模型目录，引擎即刻可扫描）
+  ipcMain.handle('models:import', async () => {
+    try {
+      const r = await dialog.showOpenDialog(mainWindow, { title: '选择模型文件（.gguf）', filters: [{ name: 'GGUF 模型', extensions: ['gguf'] }], properties: ['openFile'] });
+      if (r.canceled || !r.filePaths || !r.filePaths.length) return { success: false, canceled: true };
+      const src = r.filePaths[0];
+      const dir = getModelsDir();
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      const dest = path.join(dir, path.basename(src));
+      fs.copyFileSync(src, dest);
+      return { success: true, file: path.basename(src), dest, size: fs.statSync(dest).size, modelsDir: dir };
+    } catch (e) { return { success: false, error: e.message }; }
+  });
+
   ipcMain.handle('compile:exportBinary', async (_, options) => {
     const { sketchPath, fqbn, outputDir, exportPath } = options || {};
     if (!sketchPath) return { success: false, error: '缺少 sketchPath' };

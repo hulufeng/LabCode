@@ -332,6 +332,11 @@ contextBridge.exposeInMainWorld('LabCode', {
     run: (options) => ipcRenderer.invoke('wokwi:run', options)
   },
 
+  // 模型（本地导入）
+  models: {
+    import: () => ipcRenderer.invoke('models:import')
+  },
+
   // 串口监视器
   serial: {
     list: () => ipcRenderer.invoke('serial:list'),
