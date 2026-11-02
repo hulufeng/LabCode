@@ -11684,14 +11684,41 @@ function bindEvents() {
       '<div style="width:80%;height:80%;background:var(--bg-color);border:1px solid var(--border-color);border-radius:10px;display:flex;flex-direction:column;overflow:hidden;">' +
         '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-bottom:1px solid var(--border-color);">' +
           '<span style="font-size:13px;font-weight:600;color:var(--text-color);">' + (title || '插件面板') + '</span>' +
-          '<button id="plugin-view-close" style="border:none;background:transparent;color:var(--text-secondary);cursor:pointer;font-size:16px;">✕</button>' +
+          '<span style="display:flex;align-items:center;gap:8px;">' +
+            '<button id="plugin-view-openext" title="部分站点（如立创EDA 编辑器）自带反内嵌逻辑，内嵌白屏时用新窗口打开" style="border:1px solid var(--border-color);background:transparent;color:var(--text-color);cursor:pointer;font-size:12px;padding:3px 10px;border-radius:6px;">↗ 新窗口打开</button>' +
+            '<button id="plugin-view-close" style="border:none;background:transparent;color:var(--text-secondary);cursor:pointer;font-size:16px;">✕</button>' +
+          '</span>' +
         '</div>' +
-        '<iframe src="' + url + '" style="flex:1;border:none;background:#fff;"></iframe>' +
+        '<div style="flex:1;display:flex;flex-direction:column;min-height:0;">' +
+          '<div id="plugin-view-fallback" style="display:none;padding:10px 14px;background:rgba(255,180,0,.12);color:var(--text-color);font-size:12.5px;border-bottom:1px solid var(--border-color);">该站点拒绝了内嵌显示（面板空白时会出现此提示）——点击右上角「↗ 新窗口打开」在独立窗口中使用。</div>' +
+          '<iframe src="' + url + '" style="flex:1;border:none;background:#fff;"></iframe>' +
+        '</div>' +
       '</div>';
     document.body.appendChild(wrap);
     const close = () => wrap.remove();
     wrap.querySelector('#plugin-view-close').addEventListener('click', close);
+    const extBtn = wrap.querySelector('#plugin-view-openext');
+    if (extBtn) extBtn.addEventListener('click', () => {
+      try { window.LabCode.shell.openExternal(url); } catch (e) { window.open(url, '_blank'); }
+    });
     wrap.addEventListener('click', (e) => { if (e.target === wrap) close(); });
+    // 空白检测：load 后导航仍未提交（contentDocument 仍是 about:blank 同源可读）→ 反内嵌拦截，亮出引导条
+    const frame = wrap.querySelector('iframe');
+    const fallback = wrap.querySelector('#plugin-view-fallback');
+    let checked = false;
+    const checkBlank = () => {
+      if (checked || !document.body.contains(frame)) return;
+      try {
+        const d = frame.contentDocument;
+        if (d && (d.location.href === 'about:blank')) {
+          checked = true;
+          if (fallback) fallback.style.display = 'block';
+          return;
+        }
+      } catch (e) { /* 跨域可读性异常 = 已成功加载，不提示 */ }
+    };
+    frame.addEventListener('load', () => setTimeout(checkBlank, 2500));
+    setTimeout(checkBlank, 6000);
   }
 
   // 设备 tab 切换（1:1 对齐 TrieCode）
