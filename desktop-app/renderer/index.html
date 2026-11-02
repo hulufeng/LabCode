@@ -652,8 +652,10 @@
         <!-- 顶部标签栏 -->
         <div class="device-tabs" style="display:flex;border-bottom:1px solid var(--border-color);flex-shrink:0;padding:0 8px;">
           <button class="device-tab active" data-tab="device">设备</button>
-          <button class="device-tab" data-tab="platform">平台管理</button>
-          <button class="device-tab" data-tab="library">库管理</button>
+          <button class="device-tab esp-only" data-tab="target" style="display:none;">目标与工具链</button>
+          <button class="device-tab esp-only" data-tab="espconfig" style="display:none;">配置</button>
+          <button class="device-tab ard-only" data-tab="platform">平台管理</button>
+          <button class="device-tab ard-only" data-tab="library">库管理</button>
           <button class="device-tab" data-tab="settings">设置</button>
           <button class="device-tab-cta" id="add-model-btn" style="margin-left:auto;align-self:center;" title="添加你自己的模型 API Key（不经过 LabCode 服务器）">＋ 添加模型</button>
           <button class="btn btn-secondary btn-sm" id="device-refresh" style="align-self:center;" title="刷新设备与端口">刷新</button>
@@ -720,8 +722,73 @@
           </div>
         </div>
 
+        <!-- 目标与工具链标签内容（ESP-IDF 专属，对标 TrieCode：目标芯片选择 + 工具链检测） -->
+        <div class="device-tab-content esp-only" id="device-tab-target" style="flex:1;overflow-y:auto;padding:16px;display:none;">
+          <div class="device-section">
+            <div class="device-section-title">目标芯片</div>
+            <div class="device-form-group">
+              <label class="device-label">芯片目标（idf.py set-target）</label>
+              <select class="device-select" id="esp-target-select">
+                <option value="esp32" selected>ESP32</option>
+                <option value="esp32s3">ESP32-S3</option>
+                <option value="esp32c3">ESP32-C3</option>
+              </select>
+              <div style="font-size:11px;color:var(--text-tertiary);margin-top:4px;">切换目标后需重新 fullconfig/build；写入项目编译配置。</div>
+            </div>
+          </div>
+          <div class="device-section" style="margin-top:16px;">
+            <div class="device-section-title">工具链状态</div>
+            <div class="dev-card" style="padding:14px;background:var(--bg-elevated);border:1px solid var(--border-color);border-radius:8px;margin-bottom:12px;">
+              <div style="font-weight:600;margin-bottom:8px;">检测状态</div>
+              <div id="espidf-det-status" style="font-size:12.5px;color:var(--text-secondary);">检测中…</div>
+              <button id="espidf-redetect" class="btn btn-secondary btn-sm" style="margin-top:10px;">重新检测</button>
+            </div>
+            <div class="dev-card" id="espidf-guide" style="display:none;padding:14px;background:var(--bg-elevated);border:1px solid var(--border-color);border-radius:8px;margin-bottom:12px;">
+              <div style="font-weight:600;margin-bottom:6px;">安装指引</div>
+              <div style="font-size:12.5px;color:var(--text-secondary);line-height:1.7;">
+                未检测到 ESP-IDF（idf.py 不在 PATH）。任选其一安装：<br>
+                ① Windows 离线安装器（推荐，自动配好环境）<br>
+                ② 手动安装后运行 export.ps1 将工具链加入 PATH
+              </div>
+              <button id="espidf-open-docs" class="btn btn-secondary btn-sm" style="margin-top:10px;">打开安装文档</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 配置标签内容（ESP-IDF 专属，对标 TrieCode：烧录方式等构建配置） -->
+        <div class="device-tab-content esp-only" id="device-tab-espconfig" style="flex:1;overflow-y:auto;padding:16px;display:none;">
+          <div class="device-section">
+            <div class="device-section-title">烧录配置</div>
+            <div class="device-form-group">
+              <label class="device-label">烧录方式</label>
+              <select class="device-select" id="esp-flash-method">
+                <option value="uart" selected>UART（串口）</option>
+                <option value="usb-jtag">USB-Serial-JTAG</option>
+              </select>
+            </div>
+            <div class="device-form-group">
+              <label class="device-label">烧录波特率</label>
+              <select class="device-select" id="esp-flash-baud">
+                <option value="115200">115200</option>
+                <option value="230400">230400</option>
+                <option value="460800">460800</option>
+                <option value="921600" selected>921600</option>
+              </select>
+            </div>
+            <div style="font-size:11px;color:var(--text-tertiary);margin-top:4px;">配置保存在本机，编译/烧录时自动套用（idf.py -b &lt;波特率&gt; flash）。</div>
+          </div>
+          <div class="device-section" style="margin-top:16px;">
+            <div class="device-section-title">使用流程</div>
+            <ol style="margin:0;padding-left:18px;font-size:12.5px;color:var(--text-secondary);line-height:1.8;">
+              <li>「设备」页选好端口，点「编译」（idf.py build）</li>
+              <li>编译通过后点「烧录」（idf.py flash）写入芯片</li>
+              <li>点「串口监视」查看运行输出（idf.py monitor）</li>
+            </ol>
+          </div>
+        </div>
+
         <!-- 平台管理标签内容 -->
-        <div class="device-tab-content" id="device-tab-platform" style="flex:1;overflow-y:auto;padding:16px;display:none;">
+        <div class="device-tab-content ard-only" id="device-tab-platform" style="flex:1;overflow-y:auto;padding:16px;display:none;">
           <div class="device-section">
             <div class="device-section-title">已安装平台</div>
             <!-- 真实数据由 refreshCores() 填充；此处不再写死假平台（失败时会残留误导） -->
@@ -742,7 +809,7 @@
         </div>
 
         <!-- 库管理标签内容 -->
-        <div class="device-tab-content" id="device-tab-library" style="flex:1;overflow-y:auto;padding:16px;display:none;">
+        <div class="device-tab-content ard-only" id="device-tab-library" style="flex:1;overflow-y:auto;padding:16px;display:none;">
           <div class="device-section">
             <div class="device-section-title">库管理</div>
             <div class="device-form-group">

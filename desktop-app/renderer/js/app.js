@@ -9829,15 +9829,9 @@ function bindEvents() {
         // 初始化设备面板真实数据
         initDevicePanel();
         startDeviceRefresh();
-        // 工具链活动项（Arduino/ESP-IDF/Wokwi）预选对应工具链
-        if (toolchain) {
-          const sel = devicePanel ? devicePanel.querySelector('select[data-toolchain], #device-toolchain-select, [id*="toolchain"]') : null;
-          if (sel && Array.from(sel.options).some(o => o.value === toolchain)) {
-            sel.value = toolchain;
-            sel.dispatchEvent(new Event('change', { bubbles: true }));
-          } else if (window.selectDeviceToolchain && typeof window.selectDeviceToolchain === 'function') {
-            window.selectDeviceToolchain(toolchain);
-          }
+        // 工具链活动项（Arduino/ESP-IDF）切换设备面板对应工具链视图
+        if (toolchain && typeof window.selectDeviceToolchain === 'function') {
+          window.selectDeviceToolchain(toolchain);
         }
       } else if (panel === 'wokwi') {
         sidebar.style.display = 'flex';
@@ -11825,6 +11819,8 @@ function bindEvents() {
         if (deviceTab === 'library') refreshLibraries();
         // 已安装 + 可安装都走真实检索（此前"可安装"是写死的假数据）
         if (deviceTab === 'platform') { refreshCores(); refreshAvailableCores(); }
+        // ESP-IDF「目标与工具链」：每次进入实时检测 idf.py
+        if (deviceTab === 'target' && typeof detectEspIdf === 'function') detectEspIdf();
       }
     });
   });
@@ -12883,6 +12879,74 @@ function bindEvents() {
     setTimeout(() => { if (!done) finish(false); }, 6500);
   }
 
+  // ============ ESP-IDF 工具链视图（对标 TrieCode：设备/目标与工具链/配置）============
+  // Arduino 视图: 设备/平台管理/库管理/设置；ESP-IDF 视图: 设备/目标与工具链/配置/设置
+  function applyToolchainView(tc) {
+    const isEsp = tc === 'esp-idf-toolchain';
+    document.querySelectorAll('.device-tab.esp-only').forEach(el => { el.style.display = isEsp ? '' : 'none'; });
+    document.querySelectorAll('.device-tab.ard-only').forEach(el => { el.style.display = isEsp ? 'none' : ''; });
+    document.querySelectorAll('.device-tab-content.esp-only').forEach(el => { if (!isEsp) el.style.display = 'none'; });
+    // 当前激活标签若被隐藏（如停在平台管理切到 ESP-IDF）→ 回到「设备」
+    const active = document.querySelector('.device-tab.active');
+    if (active && active.style.display === 'none') {
+      const devTab = document.querySelector('.device-tab[data-tab="device"]');
+      if (devTab) devTab.click();
+    }
+  }
+  window.selectDeviceToolchain = function (tc) {
+    if (tc !== 'esp-idf-toolchain' && tc !== 'arduino-cli-toolchain') return;
+    state.deviceToolchain = tc;
+    try { localStorage.setItem('labcode_device_toolchain', tc); } catch (e) {}
+    applyToolchainView(tc);
+  };
+  function detectEspIdf() {
+    const st = document.getElementById('espidf-det-status');
+    const guide = document.getElementById('espidf-guide');
+    if (!st) return;
+    let done = false;
+    st.textContent = '检测中…';
+    st.style.color = 'var(--text-secondary)';
+    if (guide) guide.style.display = 'none';
+    const finish = (ok, msg) => {
+      if (done) return; done = true;
+      if (ok) { st.textContent = '✅ 已检测到 ESP-IDF（' + msg + '）'; st.style.color = 'var(--success, #4caf50)'; if (guide) guide.style.display = 'none'; }
+      else { st.textContent = '⚠️ 未检测到 ESP-IDF（idf.py 不在 PATH）'; st.style.color = 'var(--warning, #e0a000)'; if (guide) guide.style.display = ''; }
+    };
+    try {
+      if (window.LabCode && window.LabCode.terminal && window.LabCode.terminal.execute) {
+        window.LabCode.terminal.execute('idf.py --version', undefined, 8000).then(r => {
+          if (r && r.blocked) { finish(false); return; }
+          const ok = r && r.exitCode === 0 && !(r.stderr && /not recognized|not found|command not found|不是内部|找不到|no such file/i.test(r.stderr || ''));
+          finish(ok, (r && (r.stdout || '').trim().slice(0, 60)) || 'ok');
+        }).catch(() => finish(false));
+      } else { finish(false); }
+    } catch (e) { finish(false); }
+    setTimeout(() => { if (!done) finish(false); }, 8500);
+  }
+  function bindEspIdfControls() {
+    if (bindEspIdfControls._bound) return;
+    bindEspIdfControls._bound = true;
+    const tSel = document.getElementById('esp-target-select');
+    const fSel = document.getElementById('esp-flash-method');
+    const bSel = document.getElementById('esp-flash-baud');
+    const docsBtn = document.getElementById('espidf-open-docs');
+    const reBtn = document.getElementById('espidf-redetect');
+    // 恢复持久化配置
+    try {
+      const t = localStorage.getItem('labcode_esp_target'); if (t && tSel) tSel.value = t;
+      const f = localStorage.getItem('labcode_esp_flash_method'); if (f && fSel) fSel.value = f;
+      const b = localStorage.getItem('labcode_esp_flash_baud'); if (b && bSel) bSel.value = b;
+    } catch (e) {}
+    if (tSel) tSel.addEventListener('change', () => {
+      try { localStorage.setItem('labcode_esp_target', tSel.value); } catch (e) {}
+      showToast('目标芯片已设为 ' + tSel.value + '（idf.py set-target）', 'success');
+    });
+    if (fSel) fSel.addEventListener('change', () => { try { localStorage.setItem('labcode_esp_flash_method', fSel.value); } catch (e) {} });
+    if (bSel) bSel.addEventListener('change', () => { try { localStorage.setItem('labcode_esp_flash_baud', bSel.value); } catch (e) {} });
+    if (docsBtn) docsBtn.addEventListener('click', () => { try { window.LabCode.shell.openExternal('https://docs.espressif.com/projects/esp-idf/zh_CN/latest/esp32/get-started/windows-setup.html'); } catch (e) {} });
+    if (reBtn) reBtn.addEventListener('click', detectEspIdf);
+  }
+
   function startDeviceRefresh() {
     stopDeviceRefresh();
     deviceRefreshTimer = setInterval(() => {
@@ -12894,6 +12958,13 @@ function bindEvents() {
 
   // ============ 设备面板真实数据（对齐 TrieCode）============
   async function initDevicePanel() {
+    // ESP-IDF / Arduino 工具链视图初始化（早于 compile 依赖的早退分支，保证视图总能就位）
+    bindEspIdfControls();
+    if (!state.deviceToolchain) {
+      try { const savedTc = localStorage.getItem('labcode_device_toolchain'); if (savedTc) state.deviceToolchain = savedTc; } catch (e) {}
+    }
+    if (!state.deviceToolchain) state.deviceToolchain = (state.projectType === 'esp-idf') ? 'esp-idf-toolchain' : 'arduino-cli-toolchain';
+    applyToolchainView(state.deviceToolchain);
     if (!window.LabCode?.compile) {
       populateDefaultBoards();
       populateSystemPorts();
