@@ -10535,6 +10535,12 @@ function bindEvents() {
   }
 
   function isPluginInstalled(id) {
+    // 双真相源合一：市场徽章以「运行时注册表」为准（bundles 插件从未进 installedPlugins，
+    // 曾导致 serial-monitor/openscad/wokwi 等实际已加载却显示「安装」可再装）
+    try {
+      if (window.PluginSystem && typeof window.PluginSystem.listPlugins === 'function'
+          && window.PluginSystem.listPlugins().some(p => p.id === id)) return true;
+    } catch (e) { /* 注册表未就绪时回退持久化列表 */ }
     return installedPlugins.some(p => p.id === id);
   }
 
