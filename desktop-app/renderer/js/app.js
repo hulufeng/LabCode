@@ -10222,7 +10222,7 @@ function bindEvents() {
     { id: 'micropython', name: 'MicroPython 支持', description: 'MicroPython 固件烧录、REPL 交互、文件传输', version: '1.0.0', author: 'LabCode', icon: '🐍', category: 'runtime', channels: ['cli'], capabilities: ['upload', 'repl'] },
     { id: 'serial-monitor', name: '串口监视器', description: '多串口同时监控，支持波特率配置、HEX/文本模式、时间戳', version: '1.0.0', author: 'LabCode', icon: '📟', category: 'tool', channels: ['internal'], capabilities: ['serial'] },
     { id: 'plotter', name: '串口绘图仪', description: '实时绘制串口数据波形，支持多通道、暂停、导出 CSV', version: '1.0.0', author: 'LabCode', icon: '📈', category: 'tool', channels: ['internal'], capabilities: ['plot'] },
-    { id: 'formatter', name: '代码格式化', description: '支持 C/C++/Python/JS 等多语言代码格式化，Clang-Format/Black', version: '1.0.0', author: 'LabCode', icon: '✨', category: 'tool', channels: ['cli'], capabilities: ['format'] },
+    { id: 'code-formatter', name: '代码格式化', description: '支持 C/C++/Python/JS 等多语言代码格式化，Clang-Format/Black', version: '1.0.0', author: 'LabCode', icon: '✨', category: 'tool', channels: ['cli'], capabilities: ['format'] },
     { id: 'git-integration', name: 'Git 集成', description: 'Git 版本控制集成，提交、差异对比、分支管理', version: '1.0.0', author: 'LabCode', icon: '🌿', category: 'tool', channels: ['cli'], capabilities: ['git'] },
     { id: 'themes', name: '主题扩展', description: '多款编辑器主题，浅色/深色/高对比度，一键切换', version: '1.0.0', author: 'LabCode', icon: '🎨', category: 'theme', channels: ['internal'], capabilities: ['theme'] },
     // ============ 大模型插件（本地运行，内置 llama 引擎，模型走国内直链）============
@@ -10234,7 +10234,8 @@ function bindEvents() {
     { id: 'qwen35-9b', name: 'Qwen3.5-9B（强推理）', description: '通义千问 3.5 系列 9B，代码理解与多步推理更强，支持思考模式，需 10GB+ 显存或 24GB 内存', version: '1.0.0', author: 'LabCode', icon: '🧠', category: 'ai-model', channels: ['http'], capabilities: ['llm-model', 'code', 'reasoning'], requires: 'llama-runtime', modelName: 'Qwen_Qwen3.5-9B-Q4_K_M.gguf', ggufFile: 'Qwen_Qwen3.5-9B-Q4_K_M.gguf', downloadUrl: 'https://modelscope.cn/models/bartowski/Qwen_Qwen3.5-9B-GGUF/resolve/main/Qwen_Qwen3.5-9B-Q4_K_M.gguf', minRamGB: 10, minDiskGB: 7, recommendedFor: 'strong' },
     { id: 'serial-monitor', name: '串口监视器', description: '列出本机串口、打开/读取/发送数据、崩溃日志分析；装好后 AI 可直接查串口日志', version: '1.0.0', author: 'LabCode', icon: '📟', category: 'tool', channels: ['internal'], capabilities: ['serial', 'debug', 'tool'] },
     // 工程统计暂不上架：加载该插件会导致渲染进程崩溃，定位前不上线
-    { id: 'demo-echo', name: '插件开发示例', description: '插件系统自带示例（回显参数），验证 manifest → 工具注册 → AI 调用整条链路', version: '1.0.0', author: 'LabCode', icon: '🧩', category: 'tool', channels: ['internal'], capabilities: ['demo', 'tool'] }
+    { id: 'demo-echo', name: '插件开发示例', description: '插件系统自带示例（回显参数），验证 manifest → 工具注册 → AI 调用整条链路', version: '1.0.0', author: 'LabCode', icon: '🧩', category: 'tool', channels: ['internal'], capabilities: ['demo', 'tool'] },
+    { id: 'ai-hardware-lab', name: 'AI 硬件拆解工坊', description: '一句话描述想做的设备，AI 拆解为可落地手搓方案：方案概览/模块选型/接线示意/示例代码/组装步骤/避坑提示', version: '1.0.0', author: 'LabCode', icon: '🤖', category: 'tool', channels: ['internal'], capabilities: ['hwlab', 'ai'] }
   ];
 
   // ============ 内置可安装插件的真 manifest ============

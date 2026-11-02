@@ -90,7 +90,23 @@ async function dispatchTool(t, id, autoName, args) {
         if (cur) out.push(cur);
         return out;
       };
-      const argv = tokenize(cmdTpl).map(tok => tok.replace(/\{(\w+)\}/g, (m, k) => (ctx[k] != null ? String(ctx[k]) : m)));
+      // 插件自身设置（工具链检测/一键安装结果存 pluginSettings.<id>.toolchain，供 {settings.*} 占位符用）
+      let pset = {};
+      try {
+        const cfg = (window.LabCode && window.LabCode.config && await window.LabCode.config.get()) || {};
+        pset = (cfg.pluginSettings && cfg.pluginSettings[id]) || {};
+      } catch (e) { /* 设置读取失败按未配置处理 */ }
+      const getDeep = (obj, path) => String(path).split('.').reduce((o, k) => (o == null || o[k] == null ? undefined : o[k]), obj);
+      const unresolved = [];
+      // 引号感知分词后按 token 替换；占位符支持点路径（{settings.toolchain.active.pythonExe}）
+      const argv = tokenize(cmdTpl).map(tok => tok.replace(/\{([\w.]+)\}/g, (m, k) => {
+        if (k.indexOf('settings.') === 0) {
+          const v = getDeep(pset, k.slice(9));
+          if (v == null || v === '') { unresolved.push(k); return m; }
+          return String(v);
+        }
+        return (ctx[k] != null ? String(ctx[k]) : m);
+      }));
       // resolve: 用宿主已有的路径解析器替换命令首段（arduino-cli 不在 PATH，必须解析）
       const tc = window.LabCode && window.LabCode.toolchain;
       if (argv.length && tc && tc.getArduinoCliPath && (cli.resolve === 'arduino-cli' || argv[0] === 'arduino-cli')) {
@@ -100,6 +116,9 @@ async function dispatchTool(t, id, autoName, args) {
         } catch (e) { /* 解析失败就用原命令 */ }
       }
       if (!argv.length || !argv[0]) return 'Error: cli.command 解析后为空';
+      if (unresolved.length) {
+        return 'Error: 工具链未配置——占位符 {' + unresolved.join('},{') + '} 无值（pluginSettings.' + id + ' 中未找到）。请先在「设备」面板完成该工具链的检测/一键安装，或在插件设置中手动填写路径（如 IDF_PATH / pythonExe）。';
+      }
       // 主进程 spawn（数组参数，无 shell）；envScript 由主进程逐参数安全引用后包装
       const bridge = window.LabCode && window.LabCode.plugin;
       if (!bridge || !bridge.cliCall) return 'Error: plugin bridge 不可用（cli，需升级主进程）';

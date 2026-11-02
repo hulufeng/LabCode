@@ -672,9 +672,30 @@ function setupIPC() {
 
   // ============ Git 操作 ============
   const { execFile: gitExec } = require('child_process');
+  // 打包后的 GUI 进程常拿不到 shell PATH（裸 'git' → ENOENT 且 stderr 为空）。
+  // 解析顺序：常见安装路径（existsSync 确认）→ 兜底 PATH 里的 'git'。结果缓存。
+  let _gitPath = null;
+  function resolveGit() {
+    if (_gitPath !== null) return _gitPath;
+    const candidates = [
+      process.env.ProgramFiles ? process.env.ProgramFiles + '\\Git\\cmd\\git.exe' : '',
+      'C:\\Program Files\\Git\\cmd\\git.exe',
+      'C:\\Program Files (x86)\\Git\\cmd\\git.exe',
+      (process.env.LOCALAPPDATA || '') + '\\Programs\\Git\\cmd\\git.exe'
+    ].filter(Boolean);
+    for (const c of candidates) {
+      try { if (fs.existsSync(c)) { _gitPath = c; return _gitPath; } } catch (e) { /* 忽略 */ }
+    }
+    _gitPath = 'git';
+    return _gitPath;
+  }
   function runGit(cwd, args) {
     return new Promise((resolve) => {
-      gitExec('git', args, { cwd, encoding: 'utf8', timeout: 30000, maxBuffer: 4 * 1024 * 1024 }, (err, stdout, stderr) => {
+      gitExec(resolveGit(), args, { cwd, encoding: 'utf8', timeout: 30000, maxBuffer: 4 * 1024 * 1024 }, (err, stdout, stderr) => {
+        if (err && err.code === 'ENOENT') {
+          resolve({ ok: false, stdout: '', stderr: '未找到 git.exe（已尝试 Program Files 常见路径与 PATH）。请安装 Git for Windows 后重试。', code: 1 });
+          return;
+        }
         resolve({ ok: !err, stdout: stdout || '', stderr: stderr || '', code: err ? (err.code || 1) : 0 });
       });
     });
