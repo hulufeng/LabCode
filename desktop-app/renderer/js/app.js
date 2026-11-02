@@ -10907,10 +10907,11 @@ function bindEvents() {
       if (!installed) {
         actions = '<button class="btn btn-primary btn-sm" data-action="install" data-id="' + p.id + '">安装</button>';
       } else if (currentPluginsTab === 'installed' || currentPluginsTab === 'models') {
-        actions = '<button class="btn btn-danger btn-sm" data-action="uninstall" data-id="' + p.id + '">卸载</button>' +
-          (pluginRegistered(p.id)
-            ? '<button class="btn btn-secondary btn-sm" data-action="toggle" data-id="' + p.id + '">' + (pluginActive(p.id) ? '禁用' : '启用') + '</button>'
-            : '');
+        actions = (pluginRegistered(p.id)
+            ? '<button class="btn btn-secondary btn-sm" data-action="settings" data-id="' + p.id + '" title="打开该插件的设置面板">设置</button>' +
+              '<button class="btn btn-secondary btn-sm" data-action="toggle" data-id="' + p.id + '">' + (pluginActive(p.id) ? '禁用' : '启用') + '</button>'
+            : '') +
+          '<button class="btn btn-danger btn-sm" data-action="uninstall" data-id="' + p.id + '">卸载</button>';
       } else {
         actions = '<span class="plg-installed">已安装</span>';
       }
@@ -10980,6 +10981,10 @@ function bindEvents() {
     listEl.querySelectorAll('[data-action="uninstall"]').forEach(btn => {
       btn.addEventListener('click', () => uninstallPlugin(btn.dataset.id));
     });
+    // 绑定「设置」按钮（对标 TrieCode 卡片「打开该插件的设置面板」）
+    listEl.querySelectorAll('[data-action="settings"]').forEach(btn => {
+      btn.addEventListener('click', () => showPluginSettingsModal(btn.dataset.id));
+    });
     // 绑定「查看源码 / 查看详情」外链（浏览器打开，不占用 WebView）
     listEl.querySelectorAll('[data-action="source"]').forEach(el => {
       el.addEventListener('click', (ev) => {
@@ -11007,6 +11012,106 @@ function bindEvents() {
       console.error('renderPluginsList error:', e);
       listEl.innerHTML = '<div style="padding:16px;color:#ef4444;font-size:12px;font-family:monospace;white-space:pre-wrap;">插件列表渲染错误:\n' + e.message + '\n' + e.stack + '</div>';
     }
+  }
+
+  // ============ 插件设置面板（对标 TrieCode 卡片「打开该插件的设置面板」）============
+  async function showPluginSettingsModal(pluginId) {
+    const ps = window.PluginSystem;
+    if (!ps) { showToast('插件系统未就绪', 'error'); return; }
+    const manifest = (ps.listPlugins() || []).find(p => p.id === pluginId);
+    if (!manifest) { showToast('插件不存在: ' + pluginId, 'error'); return; }
+    const old = document.getElementById('plugin-settings-modal');
+    if (old) old.remove();
+    const wrap = document.createElement('div');
+    wrap.id = 'plugin-settings-modal';
+    wrap.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:10000;';
+    // settings 表单（插件声明项；支持 bool/select/number/text）
+    const defs = ps.getSettings(pluginId) || [];
+    let formHtml = '';
+    if (!defs.length) {
+      formHtml = '<div style="font-size:12.5px;color:var(--text-secondary);line-height:1.7;">该插件未声明可配置项（manifest.settings）。能力与状态如下。</div>';
+    } else {
+      formHtml = defs.map((s, idx) => {
+        const key = s.key || s.id || ('opt' + idx);
+        const label = s.label || s.name || key;
+        const type = (s.type || 'text').toLowerCase();
+        const fieldId = 'plgset-' + pluginId + '-' + idx;
+        let field;
+        if (type === 'bool') {
+          field = '<input type="checkbox" id="' + fieldId + '" data-key="' + key + '" data-type="bool">';
+        } else if (type === 'select' && Array.isArray(s.options) && s.options.length) {
+          field = '<select id="' + fieldId + '" data-key="' + key + '" data-type="select" style="background:var(--card-color);border:1px solid var(--border-color);color:var(--text-color);padding:5px 8px;border-radius:5px;font-size:12px;">' +
+            s.options.map(o => { const v = (o && typeof o === 'object') ? (o.value ?? o.key ?? o.id) : o; const t = (o && typeof o === 'object') ? (o.label ?? o.name ?? v) : o; return '<option value="' + escapeHtml(String(v)) + '">' + escapeHtml(String(t)) + '</option>'; }).join('') +
+            '</select>';
+        } else if (type === 'number') {
+          field = '<input type="number" id="' + fieldId + '" data-key="' + key + '" data-type="number" style="width:200px;background:var(--card-color);border:1px solid var(--border-color);color:var(--text-color);padding:5px 8px;border-radius:5px;font-size:12px;">';
+        } else {
+          field = '<input type="text" id="' + fieldId + '" data-key="' + key + '" data-type="text" spellcheck="false" style="width:260px;background:var(--card-color);border:1px solid var(--border-color);color:var(--text-color);padding:5px 8px;border-radius:5px;font-size:12px;font-family:Consolas,monospace;">';
+        }
+        return '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">' +
+          '<div style="flex:1;min-width:0;"><div style="font-size:12.5px;color:var(--text-color);">' + escapeHtml(label) + '</div>' +
+          (s.description ? '<div style="font-size:11px;color:var(--text-tertiary);margin-top:2px;">' + escapeHtml(s.description) + '</div>' : '') + '</div>' +
+          field + '</div>';
+      }).join('');
+    }
+    const caps = (ps.listCapabilities ? ps.listCapabilities(pluginId) : []) || [];
+    wrap.innerHTML =
+      '<div style="width:560px;max-height:80vh;overflow-y:auto;background:var(--bg-color);border:1px solid var(--border-color);border-radius:10px;padding:18px;box-shadow:0 12px 40px rgba(0,0,0,.4);">' +
+        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">' +
+          '<div style="font-size:14px;font-weight:600;color:var(--text-color);">' + escapeHtml(manifest.name || pluginId) + '<span style="font-size:11px;color:var(--text-tertiary);font-weight:400;margin-left:6px;">v' + escapeHtml(manifest.version || '') + '</span></div>' +
+          '<button id="plgset-close" style="border:none;background:transparent;color:var(--text-secondary);cursor:pointer;font-size:16px;">✕</button>' +
+        '</div>' +
+        (manifest.description ? '<div style="font-size:12px;color:var(--text-secondary);margin-bottom:10px;line-height:1.6;">' + escapeHtml(manifest.description) + '</div>' : '') +
+        (caps.length ? '<div style="font-size:11.5px;color:var(--text-tertiary);margin-bottom:12px;">能力：' + caps.map(c => '<span style="display:inline-block;padding:1px 7px;margin-right:4px;background:rgba(37,99,235,.12);color:var(--primary);border-radius:4px;">' + escapeHtml(String(c)) + '</span>').join('') + '</div>' : '') +
+        '<div style="border-top:1px solid var(--border-color);padding-top:12px;">' + formHtml + '</div>' +
+        '<div style="display:flex;align-items:center;justify-content:space-between;margin-top:14px;border-top:1px solid var(--border-color);padding-top:12px;">' +
+          '<span id="plgset-active" style="font-size:12px;color:var(--text-secondary);"></span>' +
+          '<button id="plgset-toggle" class="btn btn-secondary btn-sm"></button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(wrap);
+    const closeBtn = wrap.querySelector('#plgset-close');
+    if (closeBtn) closeBtn.addEventListener('click', () => wrap.remove());
+    wrap.addEventListener('click', (e) => { if (e.target === wrap) wrap.remove(); });
+    // 回填当前值
+    for (const field of wrap.querySelectorAll('[data-key]')) {
+      try {
+        const v = await ps.getSetting(pluginId, field.dataset.key);
+        const def = (defs[parseInt(field.id.split('-').pop(), 10)] || {}).default;
+        const val = (v === undefined || v === null) ? def : v;
+        if (field.dataset.type === 'bool') field.checked = !!val;
+        else field.value = val === undefined ? '' : val;
+      } catch (e) { /* 回填失败保持默认 */ }
+    }
+    // 变更即持久化
+    for (const field of wrap.querySelectorAll('[data-key]')) {
+      field.addEventListener('change', async () => {
+        let v;
+        if (field.dataset.type === 'bool') v = field.checked;
+        else if (field.dataset.type === 'number') v = field.value === '' ? '' : Number(field.value);
+        else v = field.value;
+        const ok = await ps.setSetting(pluginId, field.dataset.key, v);
+        showToast((ok ? '已保存 ' : '保存失败 ') + field.dataset.key, ok ? 'success' : 'error');
+      });
+    }
+    // 启用/禁用
+    const activeSpan = wrap.querySelector('#plgset-active');
+    const toggleBtn = wrap.querySelector('#plgset-toggle');
+    const paintActive = () => {
+      const list = ps.listPlugins().find(p => p.id === pluginId);
+      const active = !!(list && list.active);
+      activeSpan.textContent = active ? '状态：已启用（工具已注入 AI）' : '状态：已禁用（工具不注入 AI）';
+      toggleBtn.textContent = active ? '禁用插件' : '启用插件';
+    };
+    paintActive();
+    toggleBtn.addEventListener('click', async () => {
+      const list = ps.listPlugins().find(p => p.id === pluginId);
+      const next = !(list && list.active);
+      await ps.setActive(pluginId, next);
+      paintActive();
+      showToast((next ? '已启用：' : '已禁用：') + pluginId, next ? 'success' : 'info');
+      renderPluginsList();
+    });
   }
 
   // ============ 社区插件渲染（GitHub 仓库卡片，去中心化生态）============
@@ -14237,6 +14342,84 @@ function bindEvents() {
     if (r.success) { showToast('已暂存全部', 'success'); refreshGitStatus(); }
     else showToast('暂存失败: ' + (r.error || ''), 'error');
   });
+
+  // ============ 从 Git 克隆项目（对标 TrieCode「从 Git 克隆项目…」）============
+  function showGitCloneModal() {
+    const old = document.getElementById('git-clone-modal');
+    if (old) old.remove();
+    const wrap = document.createElement('div');
+    wrap.id = 'git-clone-modal';
+    wrap.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:10000;';
+    wrap.innerHTML =
+      '<div style="width:520px;background:var(--bg-color);border:1px solid var(--border-color);border-radius:10px;padding:18px;box-shadow:0 12px 40px rgba(0,0,0,.4);">' +
+        '<div style="font-size:14px;font-weight:600;color:var(--text-color);margin-bottom:12px;">从 Git 克隆项目</div>' +
+        '<div style="font-size:12px;color:var(--text-secondary);margin-bottom:6px;">仓库地址（HTTPS / SSH）</div>' +
+        '<input id="git-clone-url" placeholder="https://github.com/user/repo.git" spellcheck="false" style="width:100%;background:var(--card-color);border:1px solid var(--border-color);color:var(--text-color);padding:8px 10px;border-radius:6px;font-size:12.5px;font-family:Consolas,monospace;margin-bottom:12px;">' +
+        '<div style="font-size:12px;color:var(--text-secondary);margin-bottom:6px;">克隆到（选择父目录）</div>' +
+        '<div style="display:flex;gap:8px;align-items:center;margin-bottom:4px;">' +
+          '<button id="git-clone-pick" class="btn btn-secondary btn-sm">选择位置…</button>' +
+          '<span id="git-clone-dir" style="font-size:11.5px;color:var(--text-tertiary);font-family:Consolas,monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;">未选择（默认为当前项目同级目录）</span>' +
+        '</div>' +
+        '<div id="git-clone-hint" style="font-size:11.5px;color:var(--text-tertiary);margin:10px 0 0;line-height:1.6;">私有仓库请确保本机 git 已配置凭据（SSH key 或凭据管理器）。克隆完成后自动打开项目。</div>' +
+        '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px;">' +
+          '<button id="git-clone-cancel" class="btn btn-secondary btn-sm">取消</button>' +
+          '<button id="git-clone-go" class="btn btn-primary btn-sm">克隆</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(wrap);
+    let parentDir = '';
+    const dirSpan = wrap.querySelector('#git-clone-dir');
+    wrap.querySelector('#git-clone-cancel').addEventListener('click', () => wrap.remove());
+    wrap.addEventListener('click', (e) => { if (e.target === wrap) wrap.remove(); });
+    wrap.querySelector('#git-clone-pick').addEventListener('click', async () => {
+      if (!(isElectron && window.LabCode && window.LabCode.dialog)) { showToast('当前环境不支持选择目录', 'error'); return; }
+      const d = await window.LabCode.dialog.openDirectory('选择克隆位置（父目录）');
+      let picked = null;
+      if (typeof d === 'string') picked = d;
+      else if (d && d.filePaths && d.filePaths[0]) picked = d.filePaths[0];
+      if (picked) { parentDir = picked; dirSpan.textContent = picked; dirSpan.title = picked; }
+    });
+    wrap.querySelector('#git-clone-go').addEventListener('click', async () => {
+      const url = (wrap.querySelector('#git-clone-url').value || '').trim();
+      if (!url) { showToast('请输入仓库地址', 'warn'); return; }
+      if (url.length > 300 || /[<>"'`|&;$\r\n]/.test(url)) { showToast('仓库地址含非法字符', 'error'); return; }
+      if (!/^(https?:\/\/|git@|ssh:\/\/)/.test(url) && !/\.git$/.test(url)) { showToast('地址需为 HTTPS/SSH Git 仓库', 'warn'); return; }
+      let destParent = parentDir;
+      if (!destParent) {
+        // 默认：当前项目的同级目录；无项目时退回用户目录
+        const pp = state.projectPath || '';
+        destParent = pp ? pp.replace(/[\\/][^\\/]+$/, '') : '';
+        if (!destParent) { showToast('请先选择克隆位置', 'warn'); return; }
+      }
+      const seg = url.split('/').pop().replace(/\.git$/i, '').replace(/[^A-Za-z0-9._-]/g, '');
+      if (!seg) { showToast('无法从地址解析仓库名', 'error'); return; }
+      const dest = destParent.replace(/[\\/]+$/, '') + '\\' + seg;
+      const hint = wrap.querySelector('#git-clone-hint');
+      const goBtn = wrap.querySelector('#git-clone-go');
+      goBtn.disabled = true; goBtn.textContent = '克隆中…';
+      hint.textContent = '正在克隆到 ' + dest + ' …（大仓库可能需要几分钟）';
+      try {
+        const r = await window.LabCode.terminal.execute('git clone "' + url + '" "' + dest + '"', undefined, 600000);
+        if (r && r.exitCode === 0) {
+          wrap.remove();
+          showToast('克隆完成: ' + dest, 'success');
+          try { await loadProjectFromDisk(dest); } catch (e) { showToast('克隆成功但打开失败: ' + ((e && e.message) || e), 'warn'); }
+        } else {
+          const err = ((r && (r.stderr || r.stdout)) || '').trim().split('\n').filter(Boolean).slice(-3).join(' | ') || '未知错误';
+          hint.textContent = '克隆失败：' + err;
+          hint.style.color = '#ef4444';
+          goBtn.disabled = false; goBtn.textContent = '克隆';
+        }
+      } catch (e) {
+        hint.textContent = '克隆失败：' + ((e && e.message) || e);
+        hint.style.color = '#ef4444';
+        goBtn.disabled = false; goBtn.textContent = '克隆';
+      }
+    });
+    setTimeout(() => { const u = wrap.querySelector('#git-clone-url'); if (u) u.focus(); }, 50);
+  }
+  const gitCloneBtn = document.getElementById('git-clone-btn');
+  if (gitCloneBtn) gitCloneBtn.addEventListener('click', showGitCloneModal);
   const gitNewBranchBtn = document.getElementById('git-newbranch-btn');
   if (gitNewBranchBtn) gitNewBranchBtn.addEventListener('click', async () => {
     const inp = document.getElementById('git-newbranch-name');
@@ -14370,6 +14553,12 @@ function bindEvents() {
     const r = await window.PluginSystem.runCapability('monitor', { port, baud: 115200 });
     if (r.ok) showToast('串口监视已打开 ' + port, 'success');
     else showToast(String(r.text || r.error || '串口监视打开失败'), 'error');
+  });
+  // 顶栏「串口监视器」常驻入口（对标 TrieCode 顶栏 ui-toolbar__btn 串口监视器）
+  const serialToggleBtn = document.getElementById('serial-toggle-btn');
+  if (serialToggleBtn) serialToggleBtn.addEventListener('click', () => {
+    if (typeof showBottomPanel === 'function') showBottomPanel('serial');
+    else switchPanel('serial', 'bottom');
   });
 
   // ===== AI 自动修复编译错误 =====
