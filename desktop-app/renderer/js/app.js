@@ -9741,6 +9741,7 @@ function bindEvents() {
       document.querySelectorAll('.activity-btn').forEach(i => i.classList.remove('active'));
       item.classList.add('active');
       const panel = item.dataset.panel;
+      const toolchain = item.dataset.toolchain;
       const gcView = document.getElementById('groupchat-view');
       if (gcView) gcView.style.display = 'none';
       const wfView = document.getElementById('workflow-view');
@@ -9828,6 +9829,16 @@ function bindEvents() {
         // 初始化设备面板真实数据
         initDevicePanel();
         startDeviceRefresh();
+        // 工具链活动项（Arduino/ESP-IDF/Wokwi）预选对应工具链
+        if (toolchain) {
+          const sel = devicePanel ? devicePanel.querySelector('select[data-toolchain], #device-toolchain-select, [id*="toolchain"]') : null;
+          if (sel && Array.from(sel.options).some(o => o.value === toolchain)) {
+            sel.value = toolchain;
+            sel.dispatchEvent(new Event('change', { bubbles: true }));
+          } else if (window.selectDeviceToolchain && typeof window.selectDeviceToolchain === 'function') {
+            window.selectDeviceToolchain(toolchain);
+          }
+        }
       } else if (panel === 'mcp') {
         sidebar.style.display = 'flex';
         if (fileTree) fileTree.style.display = 'none';

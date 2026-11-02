@@ -317,21 +317,16 @@
 
   <!-- 主内容区 -->
   <div class="main-container">
-    <!-- 活动栏 -->
+    <!-- 活动栏（对标 TrieCode：文件/源代码管理/插件 + 工具链独立项 + 动态插件入口） -->
     <div class="activity-bar">
-      <button class="activity-btn active" data-panel="explorer" title="资源管理器"><svg class="icon"><use href="#icon-folder"></use></svg></button>
-      <button class="activity-btn" data-panel="device" title="设备（选板/端口/编译烧录）"><svg class="icon"><use href="#icon-infinity"></use></svg></button>
-      <button class="activity-btn" data-panel="workflow" title="工作流（可视化编排）" style="display:none;"><svg class="icon"><use href="#icon-flow"></use></svg></button>
-      <button class="activity-btn" data-panel="groupchat" title="群聊（多 Agent 房间）" style="display:none;"><svg class="icon"><use href="#icon-user"></use></svg></button>
-      <button class="activity-btn" data-panel="git" title="Git"><svg class="icon"><use href="#icon-git-branch"></use></svg></button>
-      <button class="activity-btn" data-panel="context" title="上下文用量" style="display:none;"><svg class="icon"><use href="#icon-chart-bar"></use></svg></button>
-      <button class="activity-btn" data-panel="schedule" title="定时任务" style="display:none;"><svg class="icon"><use href="#icon-clock"></use></svg></button>
-      <button class="activity-btn" data-panel="mcp" title="MCP 服务" style="display:none;"><svg class="icon"><use href="#icon-bolt"></use></svg></button>
-      <button class="activity-btn" data-panel="plugins" title="插件市场"><svg class="icon"><use href="#icon-puzzle"></use></svg></button>
-      <button class="activity-btn" data-panel="models" title="AI 模型（下载/管理）"><svg class="icon"><use href="#icon-chip"></use></svg></button>
-      <button class="activity-btn" data-panel="dashboard" title="看板（项目统计，对齐 Ekko 看板）"><svg class="icon"><use href="#icon-layout"></use></svg></button>
-      <!-- 已安装插件动态入口（TrieCode 式：装了就显示，卸载即消失） -->
+      <button class="activity-btn active" data-panel="explorer" title="文件"><svg class="icon"><use href="#icon-folder"></use></svg></button>
+      <button class="activity-btn" data-panel="git" title="源代码管理"><svg class="icon"><use href="#icon-git-branch"></use></svg></button>
+      <button class="activity-btn" data-panel="plugins" title="插件"><svg class="icon"><use href="#icon-puzzle"></use></svg></button>
+      <button class="activity-btn" data-panel="device" data-toolchain="arduino-cli-toolchain" title="Arduino CLI 工具链"><svg class="icon"><use href="#icon-infinity"></use></svg></button>
+      <button class="activity-btn" data-panel="device" data-toolchain="esp-idf-toolchain" title="ESP-IDF 工具链"><svg class="icon"><use href="#icon-chip"></use></svg></button>
+      <!-- 已安装插件动态入口（TrieCode 式：装了就显示，卸载即消失），含立创EDA 等 -->
       <div id="plugin-activity-btns" style="display:contents;"></div>
+      <button class="activity-btn" data-panel="device" data-toolchain="wokwi-simulator" title="Wokwi 模拟器"><svg class="icon"><use href="#icon-bolt"></use></svg></button>
     </div>
 
     <!-- 群聊 / 多 Agent 房间（全屏覆盖视图，对标 Ekko「群聊」） -->
