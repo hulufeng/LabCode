@@ -9839,6 +9839,17 @@ function bindEvents() {
             window.selectDeviceToolchain(toolchain);
           }
         }
+      } else if (panel === 'wokwi') {
+        sidebar.style.display = 'flex';
+        if (fileTree) fileTree.style.display = 'none';
+        if (welcomePanel) welcomePanel.style.display = 'none';
+        if (pluginsPanel) pluginsPanel.style.display = 'none';
+        if (devicePanel) devicePanel.style.display = 'none';
+        if (gitPanel) gitPanel.style.display = 'none';
+        const wokwiPanel = document.getElementById('wokwi-panel');
+        if (wokwiPanel) wokwiPanel.style.display = 'flex';
+        if (sidebarHeader) sidebarHeader.style.display = 'none';
+        initWokwiPanel();
       } else if (panel === 'mcp') {
         sidebar.style.display = 'flex';
         if (fileTree) fileTree.style.display = 'none';
@@ -11657,7 +11668,7 @@ function bindEvents() {
       btn.addEventListener('click', () => {
         const [pid, vid] = decodeURIComponent(btn.dataset.pluginView).split('|');
         const v = views.find(x => x.pluginId === pid && x.id === vid);
-        if (v) showPluginViewModal(v.title || v.id, v.webviewUrl);
+        if (v) { if (v.webviewUrl && v.webviewUrl.indexOf('lceda') >= 0) { showLcedaPanel(); } else { showPluginViewModal(v.title || v.id, v.webviewUrl); } }
       });
     });
   }
@@ -11680,7 +11691,70 @@ function bindEvents() {
       btn.addEventListener('click', () => {
         const [pid, vid] = decodeURIComponent(btn.dataset.view).split('|');
         const v = views.find(x => x.pluginId === pid && x.id === vid);
-        if (v) showPluginViewModal(v.title, v.webviewUrl);
+        if (v) { if (v.webviewUrl && v.webviewUrl.indexOf('lceda') >= 0) { showLcedaPanel(); } else { showPluginViewModal(v.title, v.webviewUrl); } }
+      });
+    });
+  }
+
+  // 立创EDA：对标 TrieCode——编辑器无法内嵌（反嵌入），改做「状态 / 扩展导入向导」面板，而非白屏 iframe
+  function showLcedaPanel() {
+    const old = document.getElementById('plugin-view-modal');
+    if (old) old.remove();
+    const wrap = document.createElement('div');
+    wrap.id = 'plugin-view-modal';
+    wrap.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:10000;';
+    wrap.innerHTML =
+      '<div style="width:80%;height:80%;background:var(--bg-color);border:1px solid var(--border-color);border-radius:10px;display:flex;flex-direction:column;overflow:hidden;">' +
+        '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-bottom:1px solid var(--border-color);">' +
+          '<span style="font-size:13px;font-weight:600;color:var(--text-color);">立创EDA</span>' +
+          '<button id="lceda-close" style="border:none;background:transparent;color:var(--text-secondary);cursor:pointer;font-size:16px;">✕</button>' +
+        '</div>' +
+        '<div style="display:flex;border-bottom:1px solid var(--border-color);padding:0 12px;">' +
+          '<button class="lceda-tab active" data-lt="status" style="border:none;background:transparent;color:var(--primary);cursor:pointer;font-size:13px;padding:8px 10px;border-bottom:2px solid var(--primary);">状态</button>' +
+          '<button class="lceda-tab" data-lt="wizard" style="border:none;background:transparent;color:var(--text-secondary);cursor:pointer;font-size:13px;padding:8px 10px;">扩展导入向导</button>' +
+        '</div>' +
+        '<div class="lceda-page" data-lp="status" style="flex:1;overflow-y:auto;padding:16px;">' +
+          '<div style="padding:14px;background:var(--bg-elevated);border:1px solid var(--border-color);border-radius:8px;margin-bottom:14px;">' +
+            '<div style="font-weight:600;margin-bottom:8px;">编辑器说明</div>' +
+            '<div style="font-size:12.5px;color:var(--text-secondary);line-height:1.7;">立创EDA 在线编辑器无法在应用内嵌（其自带反嵌入限制），点击下方按钮在系统浏览器中打开编辑器。</div>' +
+            '<button id="lceda-open" class="btn btn-primary btn-sm" style="margin-top:10px;">打开立创EDA 编辑器</button>' +
+          '</div>' +
+          '<div style="padding:14px;background:var(--bg-elevated);border:1px solid var(--border-color);border-radius:8px;">' +
+            '<div style="font-weight:600;margin-bottom:6px;">使用流程</div>' +
+            '<ol style="margin:0;padding-left:18px;font-size:12.5px;color:var(--text-secondary);line-height:1.8;">' +
+              '<li>在浏览器中登录立创EDA，完成电路设计与原理图</li>' +
+              '<li>导出 Gerber / BOM / 坐标文件，或导出工程包</li>' +
+              '<li>回到 LabCode，在「设备」面板选择对应板卡与端口，编译烧录你的固件</li>' +
+            '</ol>' +
+          '</div>' +
+        '</div>' +
+        '<div class="lceda-page" data-lp="wizard" style="display:none;flex:1;overflow-y:auto;padding:16px;">' +
+          '<div style="padding:14px;background:var(--bg-elevated);border:1px solid var(--border-color);border-radius:8px;">' +
+            '<div style="font-weight:600;margin-bottom:6px;">扩展导入向导</div>' +
+            '<div style="font-size:12.5px;color:var(--text-secondary);line-height:1.7;">想把立创EDA 的「扩展」（器件库、面板、工程模板）导入到本地工作区？步骤如下：</div>' +
+            '<ol style="margin:0;padding-left:18px;font-size:12.5px;color:var(--text-secondary);line-height:1.8;">' +
+              '<li>在立创EDA 中导出扩展文件（.json 工程包 / 器件库）</li>' +
+              '<li>点击下方「打开立创EDA 扩展市场」获取可导入的扩展</li>' +
+              '<li>导入后在 LabCode 文件树中可见，可直接参与编译</li>' +
+            '</ol>' +
+            '<button id="lceda-market" class="btn btn-secondary btn-sm" style="margin-top:10px;">打开立创EDA 扩展市场</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(wrap);
+    const close = () => wrap.remove();
+    wrap.querySelector('#lceda-close').addEventListener('click', close);
+    const openBtn = wrap.querySelector('#lceda-open');
+    if (openBtn) openBtn.addEventListener('click', () => { try { window.LabCode.shell.openExternal('https://lceda.cn/editor'); } catch (e) {} });
+    const marketBtn = wrap.querySelector('#lceda-market');
+    if (marketBtn) marketBtn.addEventListener('click', () => { try { window.LabCode.shell.openExternal('https://lceda.cn/products'); } catch (e) {} });
+    wrap.addEventListener('click', (e) => { if (e.target === wrap) close(); });
+    wrap.querySelectorAll('.lceda-tab').forEach(t => {
+      t.addEventListener('click', () => {
+        wrap.querySelectorAll('.lceda-tab').forEach(x => { x.classList.remove('active'); x.style.color = 'var(--text-secondary)'; x.style.borderBottom = 'none'; });
+        t.classList.add('active'); t.style.color = 'var(--primary)'; t.style.borderBottom = '2px solid var(--primary)';
+        const lt = t.dataset.lt;
+        wrap.querySelectorAll('.lceda-page').forEach(p => { p.style.display = p.dataset.lp === lt ? '' : 'none'; });
       });
     });
   }
@@ -12762,6 +12836,53 @@ function bindEvents() {
   function stopDeviceRefresh() {
     if (deviceRefreshTimer) { clearInterval(deviceRefreshTimer); deviceRefreshTimer = null; }
   }
+  // ============ Wokwi 模拟器面板（对标 TrieCode：状态/设置，检测 wokwi-cli）============
+  function initWokwiPanel() {
+    const panel = document.getElementById('wokwi-panel');
+    if (!panel || panel.dataset.bound) return;
+    panel.dataset.bound = '1';
+    // 子标签切换
+    panel.querySelectorAll('.dev-subtab[data-wtab]').forEach(t => {
+      t.addEventListener('click', () => {
+        panel.querySelectorAll('.dev-subtab[data-wtab]').forEach(x => x.classList.remove('active'));
+        t.classList.add('active');
+        const tab = t.dataset.wtab;
+        panel.querySelectorAll('.wokwi-page').forEach(p => { p.style.display = p.dataset.wpage === tab ? '' : 'none'; });
+      });
+    });
+    const detectBtn = document.getElementById('wokwi-detect-btn');
+    const simBtn = document.getElementById('wokwi-sim-btn');
+    const releasesBtn = document.getElementById('wokwi-open-releases');
+    if (detectBtn) detectBtn.addEventListener('click', detectWokwiCli);
+    if (releasesBtn) releasesBtn.addEventListener('click', () => { try { window.LabCode.shell.openExternal('https://github.com/wokwi/wokwi-cli/releases'); } catch (e) {} });
+    if (simBtn) simBtn.addEventListener('click', () => { try { if (typeof runWokwiSim === 'function') runWokwiSim(); } catch (e) {} });
+    detectWokwiCli();
+  }
+  function detectWokwiCli() {
+    const st = document.getElementById('wokwi-det-status');
+    const guide = document.getElementById('wokwi-guide');
+    if (!st) return;
+    let done = false;
+    st.textContent = '检测中…';
+    st.style.color = 'var(--text-secondary)';
+    if (guide) guide.style.display = 'none';
+    const finish = (ok, msg) => {
+      if (done) return; done = true;
+      if (ok) { st.textContent = '✅ 已检测到 wokwi-cli（' + msg + '）'; st.style.color = 'var(--success, #4caf50)'; if (guide) guide.style.display = 'none'; }
+      else { st.textContent = '⚠️ 未检测到 wokwi-cli'; st.style.color = 'var(--warning, #e0a000)'; if (guide) guide.style.display = ''; }
+    };
+    try {
+      if (window.LabCode && window.LabCode.terminal && window.LabCode.terminal.execute) {
+        window.LabCode.terminal.execute('wokwi-cli --version', undefined, 6000).then(r => {
+          if (r && r.blocked) { finish(false); return; }
+          const ok = r && r.exitCode === 0 && !(r.stderr && /not recognized|not found|command not found|不是内部|找不到|no such file/i.test(r.stderr || ''));
+          finish(ok, (r && (r.stdout || '').trim().slice(0, 40)) || 'ok');
+        }).catch(() => finish(false));
+      } else { finish(false); }
+    } catch (e) { finish(false); }
+    setTimeout(() => { if (!done) finish(false); }, 6500);
+  }
+
   function startDeviceRefresh() {
     stopDeviceRefresh();
     deviceRefreshTimer = setInterval(() => {

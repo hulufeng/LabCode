@@ -326,7 +326,7 @@
       <button class="activity-btn" data-panel="device" data-toolchain="esp-idf-toolchain" title="ESP-IDF 工具链"><svg class="icon"><use href="#icon-chip"></use></svg></button>
       <!-- 已安装插件动态入口（TrieCode 式：装了就显示，卸载即消失），含立创EDA 等 -->
       <div id="plugin-activity-btns" style="display:contents;"></div>
-      <button class="activity-btn" data-panel="device" data-toolchain="wokwi-simulator" title="Wokwi 模拟器"><svg class="icon"><use href="#icon-bolt"></use></svg></button>
+      <button class="activity-btn" data-panel="wokwi" title="Wokwi 模拟器"><svg class="icon"><use href="#icon-bolt"></use></svg></button>
     </div>
 
     <!-- 群聊 / 多 Agent 房间（全屏覆盖视图，对标 Ekko「群聊」） -->
@@ -533,6 +533,50 @@
         </div>
         <div class="plugins-list" id="plugins-list" style="flex:1;overflow-y:auto;padding:8px;">
           <!-- 插件卡片动态生成 -->
+        </div>
+      </div>
+
+      <!-- Wokwi 模拟器面板（对标 TrieCode：状态/设置——检测 wokwi-cli） -->
+      <div class="device-panel" id="wokwi-panel" style="display:none;flex:1;flex-direction:column;overflow:hidden;">
+        <div class="sidebar-header"><span class="sidebar-title">Wokwi 模拟器</span></div>
+        <div class="dev-subtabs" style="display:flex;border-bottom:1px solid var(--border-color);flex-shrink:0;padding:0 8px;">
+          <button class="dev-subtab active" data-wtab="status">状态</button>
+          <button class="dev-subtab" data-wtab="settings">设置</button>
+        </div>
+        <div class="wokwi-page" data-wpage="status" style="flex:1;overflow-y:auto;padding:16px;">
+          <div class="dev-card" style="padding:14px;background:var(--bg-elevated);border:1px solid var(--border-color);border-radius:8px;margin-bottom:14px;">
+            <div style="font-weight:600;margin-bottom:8px;">检测状态</div>
+            <div id="wokwi-det-status" style="font-size:12.5px;color:var(--text-secondary);">检测中…</div>
+          </div>
+          <div class="dev-card" id="wokwi-guide" style="display:none;padding:14px;background:var(--bg-elevated);border:1px solid var(--border-color);border-radius:8px;margin-bottom:14px;">
+            <div style="font-weight:600;margin-bottom:6px;">安装指引</div>
+            <div style="font-size:12.5px;color:var(--text-secondary);line-height:1.7;">
+              未检测到 wokwi-cli。任选其一安装：<br>
+              ① npm 全局：<code style="background:rgba(127,127,127,.15);padding:1px 5px;border-radius:3px;">npm i -g wokwi-cli</code><br>
+              ② 从 GitHub Release 下载可执行文件放入 PATH
+            </div>
+            <button id="wokwi-open-releases" class="btn btn-secondary btn-sm" style="margin-top:10px;">打开下载页</button>
+          </div>
+          <div class="dev-card" style="padding:14px;background:var(--bg-elevated);border:1px solid var(--border-color);border-radius:8px;">
+            <div style="font-weight:600;margin-bottom:6px;">使用流程</div>
+            <ol style="margin:0;padding-left:18px;font-size:12.5px;color:var(--text-secondary);line-height:1.8;">
+              <li>新建 Wokwi 项目（含 diagram.json 电路 + sketch.ino 代码）</li>
+              <li>在 Wokwi 在线模拟器中打开 diagram.json 仿真电路与代码</li>
+              <li>或用「Wokwi 仿真运行」把本地工程交给 wokwi-cli 仿真</li>
+            </ol>
+          </div>
+        </div>
+        <div class="wokwi-page" data-wpage="settings" style="display:none;flex:1;overflow-y:auto;padding:16px;">
+          <div class="dev-card" style="padding:14px;background:var(--bg-elevated);border:1px solid var(--border-color);border-radius:8px;">
+            <div style="font-weight:600;margin-bottom:6px;">仿真说明</div>
+            <div style="font-size:12.5px;color:var(--text-secondary);line-height:1.7;">
+              Wokwi 仿真通过 wokwi-cli 运行，无需本地 Arduino/ESP-IDF 编译器。Wokwi 在线版免费可用；本机运行需自行安装 wokwi-cli。
+            </div>
+          </div>
+        </div>
+        <div style="padding:8px 12px;border-top:1px solid var(--border-color);display:flex;gap:8px;">
+          <button id="wokwi-detect-btn" class="btn btn-secondary btn-sm">重新检测</button>
+          <button id="wokwi-sim-btn" class="btn btn-primary btn-sm">Wokwi 仿真运行</button>
         </div>
       </div>
 
