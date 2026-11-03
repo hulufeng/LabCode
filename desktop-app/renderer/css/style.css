@@ -5748,13 +5748,13 @@ select:focus,
   padding: 0 6px;
 }
 #editor-export-btn:hover { color: #1FA9C9; }
-/* Git 面板 AI 增强按钮 */
+/* Git 面板 AI 增强按钮（对齐 TrieCode：普通次级样式，去紫色渐变堆砌） */
 .git-ai-btn {
-  background: linear-gradient(135deg, #7C5CFF, #5B8DEF) !important;
-  border-color: transparent !important;
-  color: #fff !important;
+  background: var(--surface-1) !important;
+  border-color: var(--border-color) !important;
+  color: var(--text-secondary) !important;
 }
-.git-ai-btn:hover { filter: brightness(1.1); color: #fff !important; }
+.git-ai-btn:hover { color: var(--primary) !important; border-color: var(--primary) !important; }
 
 /* 命令面板（对齐 TrieCode command.invoke） */
 .cmd-palette-overlay {

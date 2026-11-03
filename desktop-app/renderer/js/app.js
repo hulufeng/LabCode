@@ -14524,7 +14524,7 @@ function bindEvents() {
       const r = await window.LabCode.git.aiPrDescription(cwd);
       if (r.success) {
         const ta = document.getElementById('git-pr-desc');
-        if (ta) ta.value = (r.title ? '# ' + r.title + '\n\n' : '') + (r.body || '');
+        if (ta) { ta.value = (r.title ? '# ' + r.title + '\n\n' : '') + (r.body || ''); ta.style.display = 'block'; }
         showToast('已生成 PR 描述（对比基准: ' + (r.base || 'HEAD') + '）', 'success');
         addOutputLog('AI PR 描述:\n' + (r.title || '') + '\n' + (r.body || ''), 'success');
       } else {
