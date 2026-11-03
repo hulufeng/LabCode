@@ -15271,6 +15271,16 @@ function bindEvents() {
     });
   }
 
+  // 无项目态：中央品牌空态卡整体可点=打开项目（操作入口收敛到左侧欢迎面板，卡不再重复放按钮）
+  const brandWelcomeCard = document.getElementById('welcome-screen');
+  if (brandWelcomeCard) {
+    brandWelcomeCard.addEventListener('click', (e) => {
+      if (!document.body.classList.contains('app-welcome')) return;
+      const opener = document.getElementById('welcome-open-project');
+      if (opener) opener.click();
+    });
+  }
+
   // 顶栏撤销（对齐 TrieCode 顶栏按钮组）
   const topUndoBtn = document.getElementById('undo-btn');
   if (topUndoBtn) {
