@@ -306,14 +306,8 @@
       </div>
     </div>
     <div class="titlebar-right">
-      <button class="titlebar-btn icon-only" id="user-avatar-btn" title="用户账户">
-        <svg class="icon"><use href="#icon-user"></use></svg>
-      </button>
-      <button class="titlebar-btn icon-only" id="notification-btn" title="通知">
-        <svg class="icon"><use href="#icon-bell"></use></svg>
-        <!-- 默认隐藏：没有真实通知系统，不要常驻一个假的未读角标 -->
-        <span class="notification-badge" id="notification-badge" style="display:none;">0</span>
-      </button>
+      <!-- 账号/积分数字徽章（对齐 TrieCode ①：蓝底白字圆徽章，真实今日剩余额度，点击=账号卡；无通知系统不放假角标） -->
+      <button class="titlebar-btn credits-pill" id="credits-pill" title="LabCode 账号（今日剩余额度）" style="display:none;">–</button>
       <button class="titlebar-btn icon-only" id="settings-btn" title="设置"><svg class="icon"><use href="#icon-settings"></use></svg></button>
       <div class="window-controls">
         <button class="win-btn minimize" id="minimize-btn"><svg class="icon icon-xs"><use href="#icon-minus"></use></svg></button>

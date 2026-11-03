@@ -15089,23 +15089,25 @@ function bindEvents() {
     userPopoverOpen = true;
   }
   window.__openUserPopover = openUserPopover;   // 供外部/测试拉起账号 popover
-  const userBtn = document.getElementById('user-avatar-btn');
-  if (userBtn) {
-    userBtn.addEventListener('click', async (e) => {
-      e.stopPropagation();
-      let loggedIn = false;
-      try {
-        const cfg = await window.LabCode.config.get();
-        loggedIn = !!(cfg.ai && cfg.ai.gatewayToken);
-      } catch (err) { /* 读不到配置按未登录处理 */ }
-      if (!loggedIn) {
-        if (userPopoverOpen) closeUserPopover(); else openUserPopover();
-      } else {
-        closeUserPopover();
-        openAccountPopover();
-      }
-    });
-  }
+  const accountEntryHandler = async (e) => {
+    e.stopPropagation();
+    let loggedIn = false;
+    try {
+      const cfg = await window.LabCode.config.get();
+      loggedIn = !!(cfg.ai && cfg.ai.gatewayToken);
+    } catch (err) { /* 读不到配置按未登录处理 */ }
+    if (!loggedIn) {
+      if (userPopoverOpen) closeUserPopover(); else openUserPopover();
+    } else {
+      closeUserPopover();
+      openAccountPopover();
+    }
+  };
+  // 账号入口（顶栏用户头像已撤除，对齐 TrieCode ① ⚙ 布局）：积分徽章 + 状态栏账号均可打开
+  const userBtn = document.getElementById('credits-pill');
+  if (userBtn) userBtn.addEventListener('click', accountEntryHandler);
+  const acctStatusEntry = document.getElementById('user-account-status');
+  if (acctStatusEntry) { acctStatusEntry.style.cursor = 'pointer'; acctStatusEntry.addEventListener('click', accountEntryHandler); }
   document.addEventListener('click', (e) => {
     if (userPopoverOpen && userPopover && !userPopover.contains(e.target) && e.target !== userBtn) closeUserPopover();
   });
@@ -15486,7 +15488,9 @@ function bindEvents() {
         try { cfg = await window.LabCode.config.get(); } catch (e) {}
       }
       const ai = cfg.ai || {};
-      if (!ai.gatewayToken) { updateCreditsBadge(null); updateDailyCredits(null); return; }
+      const pill = document.getElementById('credits-pill');
+      const setPill = (v) => { if (!pill) return; if (v == null) { pill.style.display = 'none'; } else { pill.textContent = v; pill.style.display = 'flex'; } };
+      if (!ai.gatewayToken) { updateCreditsBadge(null); updateDailyCredits(null); setPill(null); return; }
       // 先用本地缓存邮箱回显，再校验登录态
       if (ai.gatewayEmail) { updateCreditsBadge(ai.gatewayEmail); }
       if (window.LabCode && window.LabCode.ai && window.LabCode.ai.gatewayAuth) {
@@ -15495,9 +15499,12 @@ function bindEvents() {
           updateCreditsBadge(r.user.email);
           // 上限 = 剩余 + 已用（服务端额度可调，不写死）
           updateDailyCredits(r.user.dailyRemaining, (r.user.dailyRemaining || 0) + (r.user.dailyUsed || 0));
+          // 顶栏数字徽章（对齐 TrieCode ①）：显示真实今日剩余
+          setPill(r.user.dailyRemaining != null ? r.user.dailyRemaining : '–');
         } else {
           updateCreditsBadge(null);
           updateDailyCredits(null);
+          setPill(null);
         }
       }
     } catch (e) { console.warn('[账号徽标] 刷新失败:', e); }
