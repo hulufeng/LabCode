@@ -142,7 +142,7 @@
   --text: #2b2f36;
   --text-primary: #2b2f36;
   --text-secondary: #5b6470;
-  --text-tertiary: #6e7681;
+  --text-tertiary: #9aa2ad;
   --text-quaternary: #9aa2ad;
   --text-inverse: #ffffff;
 
@@ -159,6 +159,7 @@
   --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.06);
   --shadow-md: 0 4px 14px rgba(16, 24, 40, 0.10);
   --shadow-lg: 0 12px 32px rgba(16, 24, 40, 0.16);
+  --modal-backdrop: rgba(244, 246, 250, 0.72);
 }
 
 /* 全局重置 */
@@ -5307,7 +5308,6 @@ body.logged-out .editor-container, body.logged-out .editor-wrapper { background:
    ================================================================ */
 
 /* ---------- ① 双主题设计令牌精修 ---------- */
-:root,
 [data-theme="dark"] {
   /* 更现代的高级暗色：偏冷蓝黑，层级更细腻 */
   --surface-0: #0b0f14;
@@ -5334,33 +5334,6 @@ body.logged-out .editor-container, body.logged-out .editor-wrapper { background:
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.25);
   --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.32);
   --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.45);
-}
-
-[data-theme="light"] {
-  /* 更干净通透的现代亮色 */
-  --surface-0: #f3f5f9;
-  --surface-1: #ffffff;
-  --surface-2: #f6f7fa;
-  --surface-3: #eef1f6;
-  --surface-hover: rgba(30, 41, 59, 0.05);
-  --surface-active: rgba(30, 41, 59, 0.085);
-  --border: #e3e7ee;
-  --border-light: #eef1f5;
-  --border-medium: #e3e7ee;
-  --border-dark: #d2d8e2;
-  --text: #1f2937;
-  --text-primary: #1f2937;
-  --text-secondary: #5a6474;
-  --text-tertiary: #8791a0;
-  --primary: #2563eb;
-  --primary-hover: #1d4ed8;
-  --primary-active: #1e40af;
-  --primary-light: rgba(37, 99, 235, 0.10);
-  --primary-lighter: rgba(37, 99, 235, 0.05);
-  --modal-backdrop: rgba(244, 246, 250, 0.72);
-  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.06);
-  --shadow-md: 0 4px 14px rgba(16, 24, 40, 0.10);
-  --shadow-lg: 0 12px 32px rgba(16, 24, 40, 0.16);
 }
 
 /* ---------- ② 全局质感与动效 ---------- */

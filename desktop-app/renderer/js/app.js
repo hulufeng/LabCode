@@ -12277,10 +12277,10 @@ function bindEvents() {
       const aiInput = document.getElementById('ai-input');
       if (aiInput) {
         const actionMap = {
-          'python-project': '帮我创建一个Python项目，画个太阳系',
-          'debug-help': '教我怎么调试一个编译错误',
           'web-game': '帮我写一个网页小游戏',
-          'data-analysis': '帮我做一个数据分析脚本'
+          'ide-intro': '介绍一下这个 IDE 能帮我做什么',
+          'todo-tool': '帮我写一个待办清单小工具',
+          'python-project': '帮我创建一个 Python 项目，画个太阳系'
         };
         aiInput.value = actionMap[action] || btn.textContent.trim();
         aiInput.focus();
