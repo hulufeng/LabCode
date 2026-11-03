@@ -92,6 +92,12 @@
   --radius-lg: 8px;
   --radius-xl: 12px;
   --radius-full: 50%;
+  /* 字号阶梯（对齐 TrieCode --text-xs/sm/md/lg/xl） */
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-md: 13px;
+  --text-lg: 15px;
+  --text-xl: 18px;
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.15);
   --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.2);
@@ -1424,7 +1430,7 @@ input, textarea {
   border: 1px solid var(--border-light);
   border-radius: 10px;
   color: var(--text-secondary);
-  font-size: 12.5px;
+  font-size: 14px;
   cursor: pointer;
   text-align: left;
   min-width: 0;
@@ -5621,7 +5627,7 @@ select:focus,
 .settings-nav-group-title { font-size: 11px; color: var(--text-tertiary); margin: 0 0 6px 8px; letter-spacing: .06em; text-transform: uppercase; }
 .settings-nav-item { padding: 7px 10px; border-radius: 6px; font-size: 13px; color: var(--text-secondary); cursor: pointer; margin-bottom: 2px; user-select: none; }
 .settings-nav-item:hover { background: rgba(128,128,128,0.12); color: var(--text-color); }
-.settings-nav-item.active { background: var(--accent); color: #fff; }
+.settings-nav-item.active { background: var(--primary-light); color: var(--primary); font-weight: 600; }
 .settings-panels { flex: 1; padding: 18px 22px; overflow-y: auto; max-height: 62vh; }
 .settings-panel { display: none; }
 .settings-panel.active { display: block; }

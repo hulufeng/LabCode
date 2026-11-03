@@ -9749,6 +9749,9 @@ function bindEvents() {
       const mcpPanel = document.getElementById('mcp-panel');
       stopDeviceRefresh();
       if (mcpPanel) mcpPanel.style.display = 'none';
+      // 面板互斥：wokwi 面板此前只在自身分支被管理，其余分支切走时漏关，导致 Wokwi 与设备面板叠加显示
+      const wokwiPanelSync = document.getElementById('wokwi-panel');
+      if (wokwiPanelSync && panel !== 'wokwi') wokwiPanelSync.style.display = 'none';
       const sidebar = document.getElementById('sidebar');
       const fileTree = document.getElementById('file-tree');
       const welcomePanel = document.getElementById('welcome-panel');
@@ -15506,22 +15509,40 @@ function bindEvents() {
     }
   });
 
-  // 账户权益渲染（对齐 TrieCode getProfile：套餐/积分/额度/邀请码；字段缺失即不显示该行）
+  // 账户权益渲染（对齐 TrieCode 账户页：头像+账号名+邮箱+套餐徽章+积分进度+其他积分+升级按钮）
   function renderGwEntitlement(u) {
-    const el = document.getElementById('gw-entitlement');
-    if (!el) return;
-    const items = [];
-    if (u.plan) items.push(['套餐', u.plan]);
-    if (typeof u.totalCredits === 'number') items.push(['总积分', Math.round(u.totalCredits * 1000) / 1000]);
-    if (typeof u.planCredits === 'number') items.push(['套餐积分', u.planCredits]);
-    if (typeof u.rechargeCredits === 'number') items.push(['充值积分', u.rechargeCredits]);
-    if (typeof u.dailyRemaining === 'number') items.push(['今日剩余', u.dailyRemaining]);
-    if (typeof u.dailyUsed === 'number') items.push(['今日已用', u.dailyUsed]);
-    if (u.inviteCode) items.push(['邀请码', u.inviteCode]);
-    if (!items.length) { el.style.display = 'none'; return; }
-    el.innerHTML = items.map(([k, v]) => '<span><b style="color:var(--text-color);">' + k + '</b> ' + v + '</span>').join('');
-    el.style.display = 'flex';
+    const set = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+    const email = u.email || '';
+    set('gw-email-show', email);
+    set('gw-name-show', u.name || (email ? email.split('@')[0] : '用户'));
+    const planRaw = String(u.plan || 'free');
+    set('gw-plan-badge', (planRaw === 'free' || planRaw === '免费版') ? '免费版' : planRaw);
+    const planCredits = typeof u.planCredits === 'number' ? u.planCredits : null;
+    const recharge = typeof u.rechargeCredits === 'number' ? u.rechargeCredits : null;
+    const total = typeof u.totalCredits === 'number' ? Math.round(u.totalCredits * 1000) / 1000 : null;
+    const daily = typeof u.dailyRemaining === 'number' ? u.dailyRemaining : null;
+    const dailyUsed = typeof u.dailyUsed === 'number' ? u.dailyUsed : null;
+    set('gw-plan-credits', planCredits != null ? planCredits : '—');
+    set('gw-recharge-credits', recharge != null ? recharge : '—');
+    set('gw-total-credits', total != null ? total : '—');
+    const bar = document.getElementById('gw-plan-bar');
+    const cap = document.getElementById('gw-daily-cap');
+    if (bar && daily != null && dailyUsed != null && (daily + dailyUsed) > 0) {
+      bar.style.width = Math.round(daily / (daily + dailyUsed) * 100) + '%';
+      if (cap) cap.textContent = dailyUsed + ' / ' + (daily + dailyUsed);
+    } else if (bar) { bar.style.width = '100%'; if (cap) cap.textContent = ''; }
+    const legacy = document.getElementById('gw-entitlement');
+    if (legacy) legacy.style.display = 'none';
   }
+
+  // 升级套餐 / 账户中心（对齐 TrieCode 账户页按钮组）
+  (function bindGwAccountActions() {
+    const open = (u) => { try { if (window.LabCode && window.LabCode.shell) window.LabCode.shell.openExternal(u); } catch (e) {} };
+    const ub = document.getElementById('gw-upgrade-btn');
+    if (ub) ub.addEventListener('click', () => open('https://bluebubai.work/pricing'));
+    const ab = document.getElementById('gw-account-center');
+    if (ab) ab.addEventListener('click', () => open('https://bluebubai.work'));
+  })();
 
   async function refreshGatewayUI() {
     try {
