@@ -700,6 +700,24 @@ function setupIPC() {
       });
     });
   }
+  // 初始化仓库（对齐 TrieCode 源代码管理空态「在此初始化仓库」）
+  ipcMain.handle('git:init', async (_, cwd) => {
+    const r = await runGit(cwd, ['init']);
+    return { success: r.ok, error: r.stderr };
+  });
+  // 远程关联（对齐 TrieCode 源代码管理：面板内直接粘贴 URL 关联 origin；已存在则 set-url 覆盖）
+  ipcMain.handle('git:remote-url', async (_, cwd) => {
+    const r = await runGit(cwd, ['remote', 'get-url', 'origin']);
+    if (!r.ok) return { success: true, url: null };
+    return { success: true, url: (r.stdout || '').trim() || null };
+  });
+  ipcMain.handle('git:remote-add', async (_, cwd, url) => {
+    const u = String(url || '').trim();
+    if (!u) return { success: false, error: '请输入远程仓库地址' };
+    const has = await runGit(cwd, ['remote', 'get-url', 'origin']);
+    const r = has.ok ? await runGit(cwd, ['remote', 'set-url', 'origin', u]) : await runGit(cwd, ['remote', 'add', 'origin', u]);
+    return { success: r.ok, error: r.stderr };
+  });
   ipcMain.handle('git:status', async (_, cwd) => {
     const r = await runGit(cwd, ['status', '--porcelain', '-b']);
     if (!r.ok) return { success: false, error: r.stderr };

@@ -14273,46 +14273,81 @@ function bindEvents() {
     const filesEl = document.getElementById('git-files');
     if (!cwd || !window.LabCode.git) { if (statusEl) statusEl.textContent = '未选择项目'; return; }
     const r = await window.LabCode.git.status(cwd);
-    if (!r.success) { if (statusEl) statusEl.textContent = '不是 git 仓库'; if (filesEl) filesEl.innerHTML = ''; return; }
+    if (!r.success) {
+      // TrieCode 式空态：不是仓库时给「在此初始化仓库」真实入口
+      if (statusEl) statusEl.textContent = '不是 git 仓库';
+      if (filesEl) {
+        filesEl.innerHTML = '<div style="padding:10px 8px;"><button id="git-init-btn" class="btn btn-secondary btn-sm" style="width:100%;">在此初始化仓库</button></div>';
+        setTimeout(() => {
+          const ib = document.getElementById('git-init-btn');
+          if (ib) ib.onclick = async () => {
+            const ir = await window.LabCode.git.init(cwd);
+            if (ir && ir.success) { showToast('已初始化 git 仓库', 'success'); refreshGitStatus(); }
+            else showToast('初始化失败: ' + ((ir && ir.error) || ''), 'error');
+          };
+        }, 50);
+      }
+      return;
+    }
+
+    // 远程关联状态（对齐 TrieCode：无 origin 时面板内显示关联引导区）
+    let remoteUrl = null;
+    try { const rr = await window.LabCode.git.remoteUrl(cwd); if (rr && rr.success) remoteUrl = rr.url; } catch (e) {}
 
     // 分支选择器
     let branchHtml = '';
     try {
       const br = await window.LabCode.git.branches(cwd);
       if (br.success) {
-        branchHtml = '<div style="padding:4px 8px;margin:4px 0;background:#2d2d2d;border-radius:4px;">' +
-          '<select id="git-branch-select" style="width:100%;background:#1e1e1e;border:1px solid #3c3c3c;color:#ccc;padding:4px;border-radius:3px;font-size: 11.5px;">' +
+        branchHtml = '<div style="padding:4px 8px;margin:4px 0;background:var(--surface-2);border-radius:6px;">' +
+          '<select id="git-branch-select" style="width:100%;background:var(--surface-1);border:1px solid var(--border-color);color:var(--text);padding:4px;border-radius:4px;font-size: 11.5px;">' +
           br.branches.map(b => '<option value="' + b.name + '"' + (b.name === br.current ? ' selected' : '') + '>' + (b.name === br.current ? '● ' : '') + b.name + '</option>').join('') +
           '</select></div>';
       }
     } catch (e) {}
 
-    if (statusEl) statusEl.innerHTML = '分支: <b>' + escapeHtml(r.branch) + '</b>' + (r.ahead ? ' <span style="color:#4caf50;">↑' + r.ahead + '</span>' : '') + (r.behind ? ' <span style="color:#ff9800;">↓' + r.behind + '</span>' : '');
+    // TrieCode 式分支行：⎇ master + 未提交计数徽章 + 领先/落后
+    if (statusEl) statusEl.innerHTML = '<span style="font-size:12px;">⎇ <b>' + escapeHtml(r.branch) + '</b></span>' +
+      (r.files.length ? ' <span style="background:var(--primary);color:#fff;border-radius:999px;font-size:10px;padding:0 6px;font-weight:700;">' + r.files.length + '</span>' : '') +
+      (r.ahead ? ' <span style="color:#22c55e;font-size:11px;">↑' + r.ahead + '</span>' : '') +
+      (r.behind ? ' <span style="color:#f59e0b;font-size:11px;">↓' + r.behind + '</span>' : '');
     if (filesEl) {
+      // TrieCode 式远程关联引导区：无 origin 时显示（说明+URL 输入+关联+令牌小字）
+      const remoteGuide = (remoteUrl === null) ? '<div style="margin:6px 8px;padding:8px 10px;border:1px solid var(--border-color);border-radius:8px;background:var(--surface-2);">' +
+        '<div style="font-size:11px;color:var(--text-secondary);line-height:1.7;">还没有关联远程仓库，推送、建 PR 需要先关联一个——在 GitHub / Gitee 上新建一个空的仓库，把它的地址粘贴下面即可（本地提交不受影响）。</div>' +
+        '<div style="display:flex;gap:6px;margin-top:6px;">' +
+        '<input id="git-remote-url-input" placeholder="https://github.com/用户名/仓库.git" style="flex:1;min-width:0;background:var(--surface-1);border:1px solid var(--border-color);color:var(--text);padding:5px 8px;border-radius:6px;font-size:11px;">' +
+        '<button id="git-remote-add-btn" class="btn btn-secondary btn-sm" style="font-size:11px;flex:0 0 auto;">关联</button></div>' +
+        '<div style="font-size:10px;color:var(--text-tertiary);margin-top:5px;line-height:1.5;">令牌不需要存在这里——只会走 git 命令存进 .git/config，令牌走上层的「登录」引导按钮。</div></div>'
+        : (remoteUrl ? '<div style="padding:2px 8px 6px;font-size:10.5px;color:var(--text-tertiary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="' + escapeHtml(remoteUrl) + '">origin → ' + escapeHtml(remoteUrl) + '</div>' : '');
       if (!r.files.length) {
-        filesEl.innerHTML = branchHtml + '<p style="color:#4caf50;font-size: 11.5px;padding:8px;">无变更</p>';
+        filesEl.innerHTML = branchHtml + remoteGuide + '<p style="color:#22c55e;font-size: 11.5px;padding:8px;">无变更</p>';
       } else {
         const staged = r.files.filter(f => f.status[0] !== ' ' && f.status[0] !== '?');
         const unstaged = r.files.filter(f => f.status[0] === ' ' || f.status[0] === '?');
-        let html = branchHtml;
+        let html = branchHtml + remoteGuide;
         if (staged.length) {
-          html += '<div style="padding:4px 8px;font-size: 10.5px;color:#888;">已暂存</div>';
+          html += '<div style="padding:4px 8px;font-size: 10.5px;color:var(--text-tertiary);">已暂存</div>';
           html += staged.map(f => {
-            const color = f.status[0] === 'M' ? '#ff9800' : f.status[0] === 'A' ? '#4caf50' : f.status[0] === 'D' ? '#f44' : '#ccc';
-            return '<div style="padding:3px 8px;font-size: 11.5px;display:flex;justify-content:space-between;cursor:pointer;" onmouseover="this.style.background=\'#3c3c3c\'" onmouseout="this.style.background=\'transparent\'">' +
+            const color = f.status[0] === 'M' ? '#f59e0b' : f.status[0] === 'A' ? '#22c55e' : f.status[0] === 'D' ? '#ef4444' : 'var(--text-secondary)';
+            return '<div style="padding:3px 8px;font-size: 11.5px;display:flex;justify-content:space-between;cursor:pointer;" onmouseover="this.style.background=\'var(--bg-hover)\'" onmouseout="this.style.background=\'transparent\'">' +
               '<span><span style="color:' + color + ';font-weight:bold;">' + f.status[0] + '</span> ' + f.path + '</span>' +
-              '<span style="color:#666;" onclick="event.stopPropagation();gitUnstageFile(\'' + f.path.replace(/\\/g, '\\\\').replace(/'/g, "\\'") + '\')" title="取消暂存">↩</span></div>';
+              '<span style="color:var(--text-tertiary);" onclick="event.stopPropagation();gitUnstageFile(\'' + f.path.replace(/\\/g, '\\\\').replace(/'/g, "\\'") + '\')" title="取消暂存">↩</span></div>';
           }).join('');
         }
         if (unstaged.length) {
-          html += '<div style="padding:4px 8px;font-size: 10.5px;color:#888;">未暂存</div>';
+          // TrieCode 式组头：未跟踪/未暂存 + 右侧全部暂存
+          const allUntracked = unstaged.every(f => f.status[1] === '?' || f.status[0] === '?');
+          html += '<div style="padding:4px 8px;display:flex;justify-content:space-between;align-items:center;"><span style="font-size: 10.5px;color:var(--text-tertiary);">' + (allUntracked ? '未跟踪 ' + unstaged.length : '未暂存 ' + unstaged.length) + '</span><span style="font-size:10.5px;color:var(--primary);cursor:pointer;" onclick="gitStageAllVisible()" title="全部暂存">全部暂存</span></div>';
           html += unstaged.map(f => {
-            const color = f.status[1] === 'M' ? '#ff9800' : f.status[1] === 'A' ? '#4caf50' : f.status[1] === 'D' ? '#f44' : '#ccc';
+            const isU = f.status[1] === '?' || f.status[0] === '?';
+            const badge = isU ? (f.status[1] !== ' ' ? f.status[1] : (f.status[0] !== ' ' ? f.status[0] : '?')) : f.status[1];
+            const color = isU ? '#22c55e' : badge === 'M' ? '#f59e0b' : badge === 'A' ? '#22c55e' : badge === 'D' ? '#ef4444' : 'var(--text-secondary)';
             const ep = f.path.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-            const discardBtn = f.status[1] !== '?' ? '<span style="color:#f44;margin-left:8px;" onclick="event.stopPropagation();gitDiscardFile(\'' + ep + '\')" title="丢弃修改">✕</span>' : '';
-            return '<div style="padding:3px 8px;font-size: 11.5px;display:flex;justify-content:space-between;cursor:pointer;" onclick="gitShowDiff(\'' + ep + '\')" onmouseover="this.style.background=\'#3c3c3c\'" onmouseout="this.style.background=\'transparent\'" title="点击查看 diff">' +
-              '<span><span style="color:' + color + ';font-weight:bold;">' + f.status[1] + '</span> ' + f.path + '</span>' +
-              '<span style="color:#666;"><span onclick="event.stopPropagation();gitStageFile(\'' + ep + '\')" title="暂存">+</span>' + discardBtn + '</span></div>';
+            const discardBtn = !isU ? '<span style="color:#ef4444;margin-left:8px;" onclick="event.stopPropagation();gitDiscardFile(\'' + ep + '\')" title="丢弃修改">✕</span>' : '';
+            return '<div style="padding:3px 8px;font-size: 11.5px;display:flex;justify-content:space-between;cursor:pointer;" onclick="gitShowDiff(\'' + ep + '\')" onmouseover="this.style.background=\'var(--bg-hover)\'" onmouseout="this.style.background=\'transparent\'" title="点击查看 diff">' +
+              '<span><span style="color:' + color + ';font-weight:bold;">' + (isU ? 'U' : badge) + '</span> ' + f.path + '</span>' +
+              '<span style="color:var(--text-tertiary);"><span onclick="event.stopPropagation();gitStageFile(\'' + ep + '\')" title="暂存">+</span>' + discardBtn + '</span></div>';
           }).join('');
         }
         filesEl.innerHTML = html;
@@ -14325,11 +14360,26 @@ function bindEvents() {
         if (r2.success) { showToast('切换到 ' + sel.value, 'success'); refreshGitStatus(); }
         else showToast('切换失败: ' + (r2.error || ''), 'error');
       };
+      // 远程关联按钮（TrieCode 式：面板内粘贴 URL 即关联 origin）
+      const ra = document.getElementById('git-remote-add-btn');
+      if (ra) ra.onclick = async () => {
+        const inp = document.getElementById('git-remote-url-input');
+        const u = inp ? inp.value.trim() : '';
+        if (!u) { showToast('请输入远程仓库地址', 'warn'); return; }
+        const r3 = await window.LabCode.git.remoteAdd(cwd, u);
+        if (r3 && r3.success) { showToast('已关联 origin → ' + u, 'success'); refreshGitStatus(); }
+        else showToast('关联失败: ' + ((r3 && r3.error) || ''), 'error');
+      };
     }, 50);
   }
   window.gitStageFile = async (path) => {
     await window.LabCode.git.add(state.projectPath, [path]);
     refreshGitStatus();
+  };
+  // 未跟踪组头「全部暂存」行内入口（复用主按钮逻辑，TrieCode 式）
+  window.gitStageAllVisible = async () => {
+    const b = document.getElementById('git-stage-all-btn');
+    if (b) b.click();
   };
   window.gitUnstageFile = async (path) => {
     await window.LabCode.git.unstage(state.projectPath, [path]);
