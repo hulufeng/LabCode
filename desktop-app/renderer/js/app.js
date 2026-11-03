@@ -11018,8 +11018,7 @@ function bindEvents() {
         else window.open(u, '_blank');
       });
     });
-    // 插件自定义面板（manifest.views）—— 仅「已安装」tab 提供入口，官方市场保持 TrieCode 式纯列表
-    if (currentPluginsTab === 'installed') renderPluginViews(listEl);
+    // 插件自定义面板入口已上移到活动栏动态按钮（对齐 TrieCode：列表保持纯卡片，无「插件面板(N)」块）
     // TrieCode 式：已安装插件直接在活动栏显示入口（装了就显示，卸载即消失）
     refreshPluginActivityButtons();
     // 绑定启用/禁用按钮（禁用后插件工具不再注入给 AI）

@@ -4905,23 +4905,23 @@ body.no-open-file .ai-panel {
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.10);
 }
 /* 插件管理（对齐 TrieCode 卡片式：白底圆角卡、品牌图标、齿轮/toggle/垃圾桶、绿色运行点） */
-.plg-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; margin-bottom: 10px; background: var(--surface-1); border: 1px solid var(--border-color); border-radius: 12px; box-shadow: 0 1px 2px rgba(16,24,40,.04); transition: box-shadow .15s, border-color .15s; }
+.plg-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; margin-bottom: 8px; background: var(--surface-1); border: 1px solid var(--border-color); border-radius: 10px; box-shadow: 0 1px 2px rgba(16,24,40,.04); transition: box-shadow .15s, border-color .15s; }
 .plg-row:hover { border-color: var(--border-dark); box-shadow: 0 3px 10px rgba(16,24,40,.08); }
-.plg-row-ic { width: 34px; height: 34px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 22px; background: transparent; border-radius: 8px; }
-.plg-row-ic .brand-ic { width: 32px; height: 32px; }
-.plg-row-body { flex: 1 1 200px; min-width: 0; }
-.plg-row-top { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.plg-row-act { flex-shrink: 0; display: flex; align-items: center; gap: 4px; }
-.plg-ic-btn { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; border: none; background: transparent; border-radius: 8px; cursor: pointer; color: var(--text-secondary); transition: background .15s, color .15s; }
+.plg-row-ic { width: 22px; height: 22px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 18px; background: transparent; border-radius: 6px; }
+.plg-row-ic .brand-ic { width: 22px; height: 22px; }
+.plg-row-body { flex: 1 1 160px; min-width: 0; }
+.plg-row-top { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.plg-row-act { flex-shrink: 0; display: flex; align-items: center; gap: 3px; }
+.plg-ic-btn { width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; border: none; background: transparent; border-radius: 6px; cursor: pointer; color: var(--text-secondary); transition: background .15s, color .15s; }
 .plg-ic-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
 .plg-ic-btn.danger:hover { background: var(--error-bg); color: var(--error); }
-.plg-ic-btn .icon { width: 17px; height: 17px; }
-.plg-toggle { position: relative; width: 42px; height: 24px; flex-shrink: 0; border: none; border-radius: 999px; cursor: pointer; background: var(--border-dark); transition: background .18s; padding: 0; }
-.plg-toggle::after { content: ''; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.25); transition: left .18s; }
+.plg-ic-btn .icon { width: 15px; height: 15px; }
+.plg-toggle { position: relative; width: 34px; height: 19px; flex-shrink: 0; border: none; border-radius: 999px; cursor: pointer; background: var(--border-dark); transition: background .18s; padding: 0; }
+.plg-toggle::after { content: ''; position: absolute; top: 2.5px; left: 2.5px; width: 14px; height: 14px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.25); transition: left .18s; }
 .plg-toggle.on { background: var(--primary); }
-.plg-toggle.on::after { left: 21px; }
-.plg-dot { width: 8px; height: 8px; flex-shrink: 0; border-radius: 50%; background: #22c55e; box-shadow: 0 0 0 3px rgba(34,197,94,.15); }
-.plg-installed { font-size: 12.5px; color: #22c55e; padding-right: 4px; }
+.plg-toggle.on::after { left: 17.5px; }
+.plg-dot { width: 7px; height: 7px; flex-shrink: 0; border-radius: 50%; background: #22c55e; box-shadow: 0 0 0 3px rgba(34,197,94,.15); }
+.plg-installed { font-size: 12px; color: #22c55e; padding-right: 4px; }
 .plg-src { font-size: 11px; color: var(--text-secondary); text-decoration: none; cursor: pointer; white-space: nowrap; }
 .plg-src:hover { color: var(--accent, #007acc); text-decoration: underline; }
 /* tab 下方本地安装按钮行（对齐 TrieCode：文件夹=次级 / ZIP=主级，各占一半） */
@@ -4943,9 +4943,9 @@ body.no-open-file .ai-panel {
 .pem-title { font-size: 13.5px; font-weight: 600; color: var(--text-primary); margin-bottom: 8px; }
 .pem-body { font-size: 12px; color: var(--text-secondary); line-height: 1.7; margin-bottom: 18px; }
 .pem-actions { display: flex; justify-content: flex-end; gap: 10px; }
-.plg-name { font-size: 13px; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.plg-ver { font-size: 11px; font-weight: 400; color: var(--text-tertiary); flex-shrink: 0; }
-.plg-desc { font-size: 12px; color: var(--text-secondary); line-height: 1.4; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.plg-name { font-size: 12.5px; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.plg-ver { font-size: 10px; font-weight: 400; color: var(--text-tertiary); flex-shrink: 0; }
+.plg-desc { font-size: 11px; color: var(--text-secondary); line-height: 1.35; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .plg-badge { font-size: 9.5px; padding: 1px 6px; border-radius: 5px; flex-shrink: 0; }
 .plg-tags { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
 .plg-tags span { font-size: 10px; color: var(--text-tertiary); }
