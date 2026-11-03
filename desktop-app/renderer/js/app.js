@@ -14781,7 +14781,8 @@ function bindEvents() {
     { id: 'toggle-theme', title: '切换深浅色主题', group: '视图', keywords: 'theme 主题 深色 浅色 切换', run: () => { const cur = document.documentElement.getAttribute('data-theme') || 'dark'; applyTheme(cur === 'dark' ? 'light' : 'dark', true); } },
     { id: 'panel-device', title: '打开设备面板', group: '视图', keywords: 'device 设备 开发板', run: () => { const b = document.querySelector('.activity-btn[data-panel="device"]'); if (b) b.click(); } },
     { id: 'panel-git', title: '打开 Git 面板', group: '视图', keywords: 'git vcs 版本控制', run: () => { const b = document.getElementById('open-vcs-panel'); if (b) b.click(); else { const a = document.querySelector('.activity-btn[data-panel="git"]'); if (a) a.click(); } } },
-    { id: 'panel-terminal', title: '打开终端', group: '视图', keywords: 'terminal 终端', run: () => { const b = document.getElementById('open-terminal-panel'); if (b) b.click(); else { const t = document.getElementById('terminal-toggle-btn'); if (t) t.click(); } } },
+    { id: 'panel-terminal', title: '打开终端', group: '视图', keywords: 'terminal 终端', run: () => switchPanel('terminal', 'bottom') },
+    { id: 'panel-mcp', title: '打开 MCP 服务器', group: '视图', keywords: 'mcp server 服务器', run: () => { try { window.openMcpModal(); } catch (e) { showToast('MCP 模块未就绪', 'warn'); } } },
     { id: 'panel-plugins', title: '打开插件市场', group: '视图', keywords: 'plugins 插件 扩展', run: () => { const b = document.getElementById('open-plugins-panel'); if (b) b.click(); else { const a = document.querySelector('.activity-btn[data-panel="plugins"]'); if (a) a.click(); } } },
     { id: 'panel-models', title: '打开模型管理', group: '视图', keywords: 'models 模型 ai', run: () => { const a = document.querySelector('.activity-btn[data-panel="models"]'); if (a) a.click(); } },
     { id: 'panel-mcp', title: '打开 MCP 服务', group: '视图', keywords: 'mcp', run: () => { const a = document.querySelector('.activity-btn[data-panel="mcp"]'); if (a) a.click(); } },
@@ -15251,6 +15252,15 @@ function bindEvents() {
       } else {
         showToast('撤销', 'info');
       }
+    });
+  }
+
+  // 顶栏撤销（对齐 TrieCode 顶栏按钮组）
+  const topUndoBtn = document.getElementById('undo-btn');
+  if (topUndoBtn) {
+    topUndoBtn.addEventListener('click', () => {
+      if (state.editor) state.editor.trigger('keyboard', 'undo', null);
+      else showToast('请先打开文件', 'info');
     });
   }
 
