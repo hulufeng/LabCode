@@ -2820,6 +2820,8 @@ body.no-open-file .ai-panel {
   border-bottom: 1px solid var(--border-light);
   flex-shrink: 0;
 }
+/* 对齐 TrieCode：无打开文件时隐藏编辑器工具栏（欢迎/未开文件态中央仅品牌空态卡，避免 TrieCode 没有的编译/烧录/AI修复 工具栏堆叠） */
+body.no-open-file .editor-toolbar { display: none !important; }
 
 .editor-toolbar-left,
 .editor-toolbar-right {
