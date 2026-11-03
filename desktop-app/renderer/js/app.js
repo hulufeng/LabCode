@@ -9749,9 +9749,12 @@ function bindEvents() {
       const mcpPanel = document.getElementById('mcp-panel');
       stopDeviceRefresh();
       if (mcpPanel) mcpPanel.style.display = 'none';
-      // 面板互斥：wokwi 面板此前只在自身分支被管理，其余分支切走时漏关，导致 Wokwi 与设备面板叠加显示
-      const wokwiPanelSync = document.getElementById('wokwi-panel');
-      if (wokwiPanelSync && panel !== 'wokwi') wokwiPanelSync.style.display = 'none';
+      // 面板互斥（根治）：先统一隐藏所有侧栏面板，目标分支只负责显示自己——
+      // 此前逐分支手动列「要关谁」多次漏关（wokwi 叠设备、git 叠插件），统一隐藏后不会再漏
+      ['plugins-panel', 'device-panel', 'git-panel', 'wokwi-panel', 'mcp-panel'].forEach(pid => {
+        const el = document.getElementById(pid);
+        if (el && pid !== (panel === 'models' ? 'plugins-panel' : panel + '-panel')) el.style.display = 'none';
+      });
       const sidebar = document.getElementById('sidebar');
       const fileTree = document.getElementById('file-tree');
       const welcomePanel = document.getElementById('welcome-panel');
