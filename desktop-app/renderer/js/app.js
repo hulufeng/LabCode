@@ -14403,7 +14403,11 @@ function bindEvents() {
         if (r && r.exitCode === 0) {
           wrap.remove();
           showToast('克隆完成: ' + dest, 'success');
-          try { await loadProjectFromDisk(dest); } catch (e) { showToast('克隆成功但打开失败: ' + ((e && e.message) || e), 'warn'); }
+          try {
+            await loadProjectFromDisk(dest);
+            const ws = document.getElementById('welcome-screen'); if (ws) ws.style.display = 'none';
+            const me = document.getElementById('monaco-editor'); if (me) me.style.display = 'flex';
+          } catch (e) { showToast('克隆成功但打开失败: ' + ((e && e.message) || e), 'warn'); }
         } else {
           const err = ((r && (r.stderr || r.stdout)) || '').trim().split('\n').filter(Boolean).slice(-3).join(' | ') || '未知错误';
           hint.textContent = '克隆失败：' + err;
@@ -16667,23 +16671,10 @@ function bindEvents() {
   // 欢迎面板：克隆项目（对齐 TrieCode 的「克隆项目」入口）
   const welcomeCloneProject = document.getElementById('welcome-clone-project');
   if (welcomeCloneProject) {
-    welcomeCloneProject.addEventListener('click', async () => {
-      const url = window.prompt('请输入 Git 仓库地址（https 或 ssh）：');
-      if (!url) return;
-      showToast('正在克隆仓库...', 'info');
-      try {
-        const r = await window.LabCode.git.clone(url);
-        if (r && r.success) {
-          await loadProjectFromDisk(r.path);
-          const ws = document.getElementById('welcome-screen'); if (ws) ws.style.display = 'none';
-          const me = document.getElementById('monaco-editor'); if (me) me.style.display = 'flex';
-          showToast('已克隆并打开: ' + r.path, 'success');
-        } else {
-          showToast('克隆失败: ' + (r && r.error || ''), 'error');
-        }
-      } catch (e) {
-        showToast('克隆失败: ' + e.message, 'error');
-      }
+    // 复用 Git 面板头部的完善克隆模态（Electron 下 window.prompt 不可靠，自制模态支持选位置/URL 校验/真实 clone/自动打开）
+    welcomeCloneProject.addEventListener('click', () => {
+      if (typeof showGitCloneModal === 'function') showGitCloneModal();
+      else showToast('克隆模块未就绪', 'error');
     });
   }
 
