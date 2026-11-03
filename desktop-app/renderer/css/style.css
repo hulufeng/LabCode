@@ -103,6 +103,7 @@
   --bg-color: var(--surface-1);
   --bg-elevated: var(--surface-2);
   --text-color: var(--text-primary);
+  --radius: 8px;
   --text-strong: var(--text-primary);
   --accent-color: var(--accent);
   --text-2: var(--text-secondary);

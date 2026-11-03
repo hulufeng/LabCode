@@ -11018,7 +11018,10 @@ function bindEvents() {
   async function showPluginSettingsModal(pluginId) {
     const ps = window.PluginSystem;
     if (!ps) { showToast('插件系统未就绪', 'error'); return; }
-    const manifest = (ps.listPlugins() || []).find(p => p.id === pluginId);
+    // 多源取 manifest：已注册插件优先；内置工具链 arduino/esp-idf/stm32 通常只进 installedPlugins、未注册到 PluginSystem（registry 里无 key），但仍应从官方清单/安装记录拿到 name/描述/能力，避免「设置」按钮假报错
+    const manifest = (ps.listPlugins() || []).find(p => p.id === pluginId)
+      || (typeof OFFICIAL_PLUGINS !== 'undefined' && OFFICIAL_PLUGINS.find(p => p.id === pluginId))
+      || (typeof installedPlugins !== 'undefined' && installedPlugins.find(p => p.id === pluginId));
     if (!manifest) { showToast('插件不存在: ' + pluginId, 'error'); return; }
     const old = document.getElementById('plugin-settings-modal');
     if (old) old.remove();
