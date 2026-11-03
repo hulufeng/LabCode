@@ -997,14 +997,14 @@ function setupTerminal() {
     padding: 4px 8px;
     background: #252526;
     border-bottom: 1px solid #333;
-    font-size: 12px;
+    font-size: 11.5px;
     color: #ccc;
   `;
   toolbar.innerHTML = `
     <span style="margin-right: 8px;">终端</span>
     <button id="terminal-new-btn" style="background:none;border:none;color:#ccc;cursor:pointer;padding:2px 6px;border-radius:3px;" title="新建终端">+</button>
     <button id="terminal-clear-btn" style="background:none;border:none;color:#ccc;cursor:pointer;padding:2px 6px;border-radius:3px;" title="清屏">🗑</button>
-    <span id="terminal-status" style="margin-left:auto;font-size:11px;color:#888;">准备就绪</span>
+    <span id="terminal-status" style="margin-left:auto;font-size: 10.5px;color:#888;">准备就绪</span>
   `;
   container.appendChild(toolbar);
 
@@ -1591,9 +1591,9 @@ const TOOL_DEFS = [
               html += renderResourceRings(sBytes, sPct, sTotal, mBytes, mPct, mTotal);
             }
             if (failedFlag) {
-              html += `<div style="padding:10px 14px;background:rgba(234,102,104,0.08);border-radius:8px;font-size:12px;color:var(--error);margin-bottom:10px;">编译失败（退出码 ${exitCode}），详见上方 AI 面板的失败分类与修复建议。</div>`;
+              html += `<div style="padding:10px 14px;background:rgba(234,102,104,0.08);border-radius:8px;font-size: 11.5px;color:var(--error);margin-bottom:10px;">编译失败（退出码 ${exitCode}），详见上方 AI 面板的失败分类与修复建议。</div>`;
             }
-            html += `<details style="font-size:12px;margin-top:10px;"><summary style="cursor:pointer;color:var(--text-secondary);padding:4px 0;">▸ 详细输出</summary><pre style="white-space:pre-wrap;word-break:break-all;font-size:11px;color:var(--text-tertiary);margin-top:8px;max-height:220px;overflow:auto;background:var(--bg-secondary);padding:10px;border-radius:6px;">${escapeHtml(output.slice(0, 8000))}</pre></details>`;
+            html += `<details style="font-size: 11.5px;margin-top:10px;"><summary style="cursor:pointer;color:var(--text-secondary);padding:4px 0;">▸ 详细输出</summary><pre style="white-space:pre-wrap;word-break:break-all;font-size: 10.5px;color:var(--text-tertiary);margin-top:8px;max-height:220px;overflow:auto;background:var(--bg-secondary);padding:10px;border-radius:6px;">${escapeHtml(output.slice(0, 8000))}</pre></details>`;
             oc.innerHTML = html;
           }
         } catch (e) { addOutputLog('底部输出面板渲染失败: ' + e.message, 'warn'); }
@@ -2563,7 +2563,7 @@ async function initMcpPanel() {
     const servers = await window.LabCode.mcp.listServers();
     listEl.innerHTML = '';
     if (!servers || servers.length === 0) {
-      listEl.innerHTML = '<div style="color:var(--text-muted);font-size:12px;line-height:1.6;">暂无 MCP 服务器。<br>在下方添加，例如：<br>名称 <code>filesystem</code> · 命令 <code>npx</code> · 参数 <code>-y @modelcontextprotocol/server-filesystem C:\\</code></div>';
+      listEl.innerHTML = '<div style="color:var(--text-muted);font-size: 11.5px;line-height:1.6;">暂无 MCP 服务器。<br>在下方添加，例如：<br>名称 <code>filesystem</code> · 命令 <code>npx</code> · 参数 <code>-y @modelcontextprotocol/server-filesystem C:\\</code></div>';
     } else {
       for (const s of servers) {
         const card = document.createElement('div');
@@ -2575,24 +2575,24 @@ async function initMcpPanel() {
         card.innerHTML =
           '<div style="display:flex;align-items:center;gap:6px;">' +
             '<span>' + dot + '</span>' +
-            '<strong style="flex:1;font-size:13px;">' + mcpEscapeHtml(s.name) + '</strong>' +
-            '<span style="font-size:11px;color:var(--text-muted);">' + mcpEscapeHtml(s.status) + '</span>' +
+            '<strong style="flex:1;font-size: 12.5px;">' + mcpEscapeHtml(s.name) + '</strong>' +
+            '<span style="font-size: 10.5px;color:var(--text-muted);">' + mcpEscapeHtml(s.status) + '</span>' +
           '</div>' +
-          '<div style="font-size:11px;color:var(--text-muted);margin:4px 0;word-break:break-all;">' + mcpEscapeHtml(sDetail) + '</div>' +
-          '<div style="font-size:11px;color:var(--text-muted);">工具数: ' + toolsN + '</div>' +
+          '<div style="font-size: 10.5px;color:var(--text-muted);margin:4px 0;word-break:break-all;">' + mcpEscapeHtml(sDetail) + '</div>' +
+          '<div style="font-size: 10.5px;color:var(--text-muted);">工具数: ' + toolsN + '</div>' +
           '<div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;">' +
             '<button class="btn btn-secondary btn-sm" data-mcp-act="tools" data-name="' + mcpEscapeAttr(s.name) + '">查看工具</button>' +
             '<button class="btn btn-secondary btn-sm" data-mcp-act="toggle" data-name="' + mcpEscapeAttr(s.name) + '" data-status="' + mcpEscapeAttr(s.status) + '">' + (isRun ? '停止' : '启动') + '</button>' +
             '<button class="btn btn-secondary btn-sm" data-mcp-act="test" data-name="' + mcpEscapeAttr(s.name) + '">测试连接</button>' +
             '<button class="btn btn-secondary btn-sm" data-mcp-act="remove" data-name="' + mcpEscapeAttr(s.name) + '">删除</button>' +
           '</div>' +
-          '<div data-mcp-tools="' + mcpEscapeAttr(s.name) + '" style="margin-top:6px;font-size:11px;color:var(--text-muted);white-space:pre-wrap;"></div>' +
-          (s.stderr ? '<div style="margin-top:6px;font-size:10px;color:var(--danger);white-space:pre-wrap;">' + mcpEscapeHtml(s.stderr.slice(-300)) + '</div>' : '');
+          '<div data-mcp-tools="' + mcpEscapeAttr(s.name) + '" style="margin-top:6px;font-size: 10.5px;color:var(--text-muted);white-space:pre-wrap;"></div>' +
+          (s.stderr ? '<div style="margin-top:6px;font-size: 9.5px;color:var(--danger);white-space:pre-wrap;">' + mcpEscapeHtml(s.stderr.slice(-300)) + '</div>' : '');
         listEl.appendChild(card);
       }
     }
   } catch (e) {
-    listEl.innerHTML = '<div style="color:var(--danger);font-size:12px;">加载失败: ' + mcpEscapeHtml(e.message) + '</div>';
+    listEl.innerHTML = '<div style="color:var(--danger);font-size: 11.5px;">加载失败: ' + mcpEscapeHtml(e.message) + '</div>';
   }
 }
 
@@ -3728,13 +3728,13 @@ function cmdPaletteRender() {
   _cmdPaletteFiltered = q ? all.filter(c => (c.label + ' ' + (c.group || '')).toLowerCase().includes(q)) : all;
   if (_cmdPaletteIdx >= _cmdPaletteFiltered.length) _cmdPaletteIdx = 0;
   if (!_cmdPaletteFiltered.length) {
-    list.innerHTML = '<div style="padding:14px;color:var(--text-tertiary);text-align:center;font-size:13px;">无匹配命令</div>';
+    list.innerHTML = '<div style="padding:14px;color:var(--text-tertiary);text-align:center;font-size: 12.5px;">无匹配命令</div>';
     return;
   }
   let html = '';
   _cmdPaletteFiltered.forEach((c, i) => {
-    html += `<div class="cmd-palette-item${i === _cmdPaletteIdx ? ' active' : ''}" data-idx="${i}" style="padding:7px 10px;border-radius:6px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;font-size:13px;${i === _cmdPaletteIdx ? 'background:var(--primary-light);color:var(--primary);' : 'color:var(--text-primary);'}">` +
-      `<span>${cmdPaletteEsc(c.label)}</span><span style="font-size:11px;color:var(--text-tertiary);">${cmdPaletteEsc(c.group || '')}</span></div>`;
+    html += `<div class="cmd-palette-item${i === _cmdPaletteIdx ? ' active' : ''}" data-idx="${i}" style="padding:7px 10px;border-radius:6px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;font-size: 12.5px;${i === _cmdPaletteIdx ? 'background:var(--primary-light);color:var(--primary);' : 'color:var(--text-primary);'}">` +
+      `<span>${cmdPaletteEsc(c.label)}</span><span style="font-size: 10.5px;color:var(--text-tertiary);">${cmdPaletteEsc(c.group || '')}</span></div>`;
   });
   list.innerHTML = html;
   list.querySelectorAll('.cmd-palette-item').forEach(el => {
@@ -7522,7 +7522,7 @@ function addToolStep(tool, status, summary) {
   step.className = 'chat-message ai';
   const statusColors = { running: '#f9e2af', done: '#a6e3a1', error: '#f38ba8', rejected: '#f38ba8', waiting: '#89b4fa', interrupted: '#f9c74f' };
   const statusIcons = { running: '⏳', done: '✓', error: '✕', rejected: '✕', waiting: '⏸', interrupted: '⏹' };
-  step.innerHTML = `<div class="chat-avatar">🔧</div><div class="chat-bubble" style="font-size:12px;color:${statusColors[status]||'#cdd6f4'}">${statusIcons[status]||''} <strong>${tool}</strong>: ${summary}</div>`;
+  step.innerHTML = `<div class="chat-avatar">🔧</div><div class="chat-bubble" style="font-size: 11.5px;color:${statusColors[status]||'#cdd6f4'}">${statusIcons[status]||''} <strong>${tool}</strong>: ${summary}</div>`;
   area.appendChild(step); area.scrollTop = area.scrollHeight;
 }
 
@@ -7607,12 +7607,12 @@ function renderResourceRings(sketchBytes, sketchPct, sketchTotal, memBytes, memP
         <text x="50" y="64" text-anchor="middle" font-size="9" fill="var(--text-tertiary)">${fmt(bytes)}</text>
       </svg>
       <div style="display:flex;flex-direction:column;gap:2px;min-width:0;">
-        <div style="font-size:12px;color:var(--text-secondary);display:flex;align-items:center;gap:4px;">
+        <div style="font-size: 11.5px;color:var(--text-secondary);display:flex;align-items:center;gap:4px;">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 7h-9M14 17H5M17 17a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM7 7a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/></svg>
           ${label}
         </div>
-        <div style="font-size:13px;font-weight:600;color:var(--text-primary);">${fmt(bytes)} <span style="font-size:11px;color:var(--text-tertiary);font-weight:400;">/ ${fmt(total)} bytes</span></div>
-        <div style="font-size:11px;color:var(--text-tertiary);">${fmt(total)} bytes</div>
+        <div style="font-size: 12.5px;font-weight:600;color:var(--text-primary);">${fmt(bytes)} <span style="font-size: 10.5px;color:var(--text-tertiary);font-weight:400;">/ ${fmt(total)} bytes</span></div>
+        <div style="font-size: 10.5px;color:var(--text-tertiary);">${fmt(total)} bytes</div>
       </div>
     </div>`;
   }
@@ -7926,13 +7926,13 @@ function updateToolFlowPanel({ tool, status, args, result }) {
           if (sm) {
             const passedN = parseInt(sm[1]), failedN = parseInt(sm[2]), code = parseInt(sm[3]);
             inner += `<div class="tool-flow-test-badges">` +
-              `<span style="display:inline-block;padding:1px 8px;border-radius:10px;font-size:11px;margin-right:6px;background:${code === 0 ? 'rgba(82,196,26,0.15)' : 'rgba(234,102,104,0.15)'};color:${code === 0 ? '#389e0d' : '#cf1322'};">通过 ${passedN}</span>` +
-              `<span style="display:inline-block;padding:1px 8px;border-radius:10px;font-size:11px;margin-right:6px;background:${failedN > 0 ? 'rgba(234,102,104,0.15)' : 'rgba(0,0,0,0.05)'};color:${failedN > 0 ? '#cf1322' : '#999'};">失败 ${failedN}</span>` +
-              `<span style="display:inline-block;padding:1px 8px;border-radius:10px;font-size:11px;background:rgba(0,0,0,0.05);color:#666;">退出码 ${code}</span></div>`;
+              `<span style="display:inline-block;padding:1px 8px;border-radius:10px;font-size: 10.5px;margin-right:6px;background:${code === 0 ? 'rgba(82,196,26,0.15)' : 'rgba(234,102,104,0.15)'};color:${code === 0 ? '#389e0d' : '#cf1322'};">通过 ${passedN}</span>` +
+              `<span style="display:inline-block;padding:1px 8px;border-radius:10px;font-size: 10.5px;margin-right:6px;background:${failedN > 0 ? 'rgba(234,102,104,0.15)' : 'rgba(0,0,0,0.05)'};color:${failedN > 0 ? '#cf1322' : '#999'};">失败 ${failedN}</span>` +
+              `<span style="display:inline-block;padding:1px 8px;border-radius:10px;font-size: 10.5px;background:rgba(0,0,0,0.05);color:#666;">退出码 ${code}</span></div>`;
             // 错误类别徽标
             const cm = String(result).match(/\[测试失败类别\]\s*([^\n]+)/);
             if (cm) {
-              inner += `<div class="tool-flow-test-cats" style="margin-top:4px;font-size:11px;color:#888;">${cm[1].split(/，|,/).map(c => {
+              inner += `<div class="tool-flow-test-cats" style="margin-top:4px;font-size: 10.5px;color:#888;">${cm[1].split(/，|,/).map(c => {
                 const kv = c.trim().split(':');
                 const cat = (kv[0] || '').trim();
                 const n = (kv[1] || '').trim();
@@ -7979,8 +7979,8 @@ function addDiffSummaryCard({ files, totalAdd, totalDel }) {
           <span class="diff-summary-title"><svg class="icon icon-xs"><use href="#icon-check"></use></svg> 变更验收</span>
           <span class="diff-summary-meta">${files.length} 个文件 · <span class="diff-add">+${totalAdd}</span> <span class="diff-del">-${totalDel}</span> 行</span>
           <span class="diff-undo-btns">
-            <button onclick="undoLastAgentTurn()" title="撤销最近一轮 AI 文件变更" style="background:none;border:1px solid #333;border-radius:4px;color:#ccc;cursor:pointer;font-size:11px;padding:1px 8px;margin-left:6px;">↶ 撤销</button>
-            <button onclick="redoLastAgentTurn()" title="重做" style="background:none;border:1px solid #333;border-radius:4px;color:#ccc;cursor:pointer;font-size:11px;padding:1px 8px;margin-left:4px;">↷ 重做</button>
+            <button onclick="undoLastAgentTurn()" title="撤销最近一轮 AI 文件变更" style="background:none;border:1px solid #333;border-radius:4px;color:#ccc;cursor:pointer;font-size: 10.5px;padding:1px 8px;margin-left:6px;">↶ 撤销</button>
+            <button onclick="redoLastAgentTurn()" title="重做" style="background:none;border:1px solid #333;border-radius:4px;color:#ccc;cursor:pointer;font-size: 10.5px;padding:1px 8px;margin-left:4px;">↷ 重做</button>
           </span>
         </div>
         ${rows}
@@ -9255,8 +9255,8 @@ function bindEvents() {
       const st = n.data.status || 'idle';
       const stColor = WF_STATUS_COLOR[st] || 'var(--text-tertiary)';
       const stText = WF_STATUS_TEXT[st] || st;
-      const agentTag = (n.type === 'ai' && n.data.agent) ? '<span style="font-size:10px;color:var(--text-tertiary);">' + wfEsc(n.data.agent) + (n.data.approval ? ' · 审批门' : '') + '</span>' : '';
-      el.innerHTML = '<div class="wf-node-header">' + WF_TYPE[n.type] + (n.data.label ? '：' + wfEsc(n.data.label) : '') + '<span style="float:right;font-size:10px;color:' + stColor + ';">' + stText + '</span></div><div class="wf-node-body">' + agentTag + '<div>' + (n.data.result ? wfEsc(String(n.data.result).slice(0, 100)) : '双击编辑 / 拖拽移动') + '</div></div>';
+      const agentTag = (n.type === 'ai' && n.data.agent) ? '<span style="font-size: 9.5px;color:var(--text-tertiary);">' + wfEsc(n.data.agent) + (n.data.approval ? ' · 审批门' : '') + '</span>' : '';
+      el.innerHTML = '<div class="wf-node-header">' + WF_TYPE[n.type] + (n.data.label ? '：' + wfEsc(n.data.label) : '') + '<span style="float:right;font-size: 9.5px;color:' + stColor + ';">' + stText + '</span></div><div class="wf-node-body">' + agentTag + '<div>' + (n.data.result ? wfEsc(String(n.data.result).slice(0, 100)) : '双击编辑 / 拖拽移动') + '</div></div>';
       const pin = document.createElement('div'); pin.className = 'wf-port in'; el.appendChild(pin);
       const pout = document.createElement('div'); pout.className = 'wf-port out'; el.appendChild(pout);
       el.querySelector('.wf-node-header').addEventListener('mousedown', e => { e.preventDefault(); wfDrag = { id: n.id, dx: e.clientX - n.x, dy: e.clientY - n.y }; });
@@ -9388,8 +9388,8 @@ function bindEvents() {
                 box.className = 'wf-approval-box';
                 box.style.cssText = 'position:fixed;top:45%;left:50%;transform:translate(-50%,-50%);z-index:2000;background:var(--surface-2,#1e1e2e);border:1px solid var(--border);border-radius:12px;padding:18px 22px;max-width:520px;box-shadow:0 12px 40px rgba(0,0,0,.35);';
                 box.innerHTML = '<div style="font-weight:600;margin-bottom:6px;">审批门 · ' + wfEsc(n.data.label || n.data.agent || 'AI 节点') + '</div>' +
-                  '<div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;max-height:120px;overflow:auto;white-space:pre-wrap;">' + wfEsc((n.data.prompt || '').slice(0, 500)) + '</div>' +
-                  '<div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;">执行 Agent：' + wfEsc(n.data.agent || 'LabCode（内置）') + '</div>' +
+                  '<div style="font-size: 11.5px;color:var(--text-secondary);margin-bottom:12px;max-height:120px;overflow:auto;white-space:pre-wrap;">' + wfEsc((n.data.prompt || '').slice(0, 500)) + '</div>' +
+                  '<div style="font-size: 11.5px;color:var(--text-secondary);margin-bottom:12px;">执行 Agent：' + wfEsc(n.data.agent || 'LabCode（内置）') + '</div>' +
                   '<div style="display:flex;gap:8px;justify-content:flex-end;"><button class="btn btn-sm" id="wf-ap-reject" style="background:#ef4444;color:#fff;border:none;border-radius:6px;padding:5px 14px;cursor:pointer;">拒绝</button>' +
                   '<button class="btn btn-sm btn-primary" id="wf-ap-approve" style="background:var(--primary);color:#fff;border:none;border-radius:6px;padding:5px 14px;cursor:pointer;">批准执行</button></div>';
                 document.body.appendChild(box);
@@ -9524,28 +9524,28 @@ function bindEvents() {
 
   async function wfAgentsShowCli(p) {
     if (!window.LabCode.codingAgents) {
-      p.innerHTML += '<div style="font-size:12px;color:var(--text-tertiary);margin-top:8px;">主进程未暴露 codingAgents API</div>';
+      p.innerHTML += '<div style="font-size: 11.5px;color:var(--text-tertiary);margin-top:8px;">主进程未暴露 codingAgents API</div>';
       return;
     }
-    p.innerHTML += '<div style="font-size:11px;color:var(--text-secondary);margin-bottom:8px;">安装 / 检测 / 更新真实的 coding-agent CLI（npm 全局安装，对齐 Ekko Agent Manager）。装好后即可接入工作流与群聊作为 Agent 使用。</div>' +
+    p.innerHTML += '<div style="font-size: 10.5px;color:var(--text-secondary);margin-bottom:8px;">安装 / 检测 / 更新真实的 coding-agent CLI（npm 全局安装，对齐 Ekko Agent Manager）。装好后即可接入工作流与群聊作为 Agent 使用。</div>' +
       '<div style="margin-bottom:8px;display:flex;gap:6px;"><button class="btn btn-sm" id="wf-cli-refresh">刷新状态</button>' +
-      '<span style="font-size:10px;color:var(--text-tertiary);align-self:center;">安装需本机 npm（Node.js 自带）</span></div>';
+      '<span style="font-size: 9.5px;color:var(--text-tertiary);align-self:center;">安装需本机 npm（Node.js 自带）</span></div>';
     const listBox = document.createElement('div');
     listBox.id = 'wf-cli-list';
     p.appendChild(listBox);
     const render = async () => {
-      listBox.innerHTML = '<div style="color:var(--text-tertiary);font-size:12px;">检测中…</div>';
+      listBox.innerHTML = '<div style="color:var(--text-tertiary);font-size: 11.5px;">检测中…</div>';
       let r;
-      try { r = await window.LabCode.codingAgents.list(); } catch (e) { listBox.innerHTML = '<div style="font-size:12px;color:#ef4444;">检测失败：' + wfEsc(e.message) + '</div>'; return; }
-      if (!r || !r.success || !r.agents) { listBox.innerHTML = '<div style="font-size:12px;">无数据</div>'; return; }
+      try { r = await window.LabCode.codingAgents.list(); } catch (e) { listBox.innerHTML = '<div style="font-size: 11.5px;color:#ef4444;">检测失败：' + wfEsc(e.message) + '</div>'; return; }
+      if (!r || !r.success || !r.agents) { listBox.innerHTML = '<div style="font-size: 11.5px;">无数据</div>'; return; }
       listBox.innerHTML = r.agents.map(a => {
         const st = a.installed
-          ? '<span style="font-size:11px;color:var(--success,#22c55e);">✅ ' + wfEsc(a.version || '') + '</span>'
-          : (a.manual ? '<span style="font-size:11px;color:var(--text-tertiary);">📄 手动安装</span>' : '<span style="font-size:11px;color:#ef4444;">❌ 未安装</span>');
-        const err = (!a.installed && !a.manual && a.error) ? '<div style="font-size:10px;color:var(--text-tertiary);margin-top:2px;">' + wfEsc(a.error) + '</div>' : '';
-        const path = a.installed && a.path ? '<div style="font-size:10px;color:var(--text-tertiary);word-break:break-all;">' + wfEsc(a.path) + '</div>' : '';
+          ? '<span style="font-size: 10.5px;color:var(--success,#22c55e);">✅ ' + wfEsc(a.version || '') + '</span>'
+          : (a.manual ? '<span style="font-size: 10.5px;color:var(--text-tertiary);">📄 手动安装</span>' : '<span style="font-size: 10.5px;color:#ef4444;">❌ 未安装</span>');
+        const err = (!a.installed && !a.manual && a.error) ? '<div style="font-size: 9.5px;color:var(--text-tertiary);margin-top:2px;">' + wfEsc(a.error) + '</div>' : '';
+        const path = a.installed && a.path ? '<div style="font-size: 9.5px;color:var(--text-tertiary);word-break:break-all;">' + wfEsc(a.path) + '</div>' : '';
         return '<div data-wf-card="1" style="border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:6px;background:var(--surface-0);">' +
-          '<div style="display:flex;justify-content:space-between;align-items:center;"><span style="font-weight:600;font-size:12px;">' + wfEsc(a.name) + '</span>' + st + '</div>' +
+          '<div style="display:flex;justify-content:space-between;align-items:center;"><span style="font-weight:600;font-size: 11.5px;">' + wfEsc(a.name) + '</span>' + st + '</div>' +
           err + path +
           '<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;">' +
           (a.manual
@@ -9555,7 +9555,7 @@ function bindEvents() {
                 '<button class="btn btn-sm" data-cli-op="remove" data-cli-id="' + wfEsc(a.id) + '" style="border-color:#ef4444;color:#ef4444;">卸载</button>'
               : '<button class="btn btn-sm btn-primary" data-cli-op="install" data-cli-id="' + wfEsc(a.id) + '">安装</button>')) +
           '</div>' +
-          '<div data-cli-progress="' + wfEsc(a.id) + '" style="display:none;font-size:11px;color:var(--primary);margin-top:4px;word-break:break-all;"></div></div>';
+          '<div data-cli-progress="' + wfEsc(a.id) + '" style="display:none;font-size: 10.5px;color:var(--primary);margin-top:4px;word-break:break-all;"></div></div>';
       }).join('');
     };
     await render();
@@ -9604,22 +9604,22 @@ function bindEvents() {
     const names = Object.keys(AGENT_PRESETS);
     const builtins = names.filter(n => isBuiltinAgent(n)).length;
     const customs = names.length - builtins;
-    let html = '<div style="font-weight:600;margin-bottom:6px;">Agent Manager <span style="font-size:11px;color:var(--text-tertiary);">(' + names.length + ' 个运行时 · ' + builtins + ' 内置 / ' + customs + ' 自定义）</span></div>';
-    html += '<div style="font-size:11px;color:var(--text-secondary);margin-bottom:10px;">目录供工作流 / 群聊 / 调度共享；可安装新 Agent 并测试连通性，自定义项支持编辑与卸载。</div>';
+    let html = '<div style="font-weight:600;margin-bottom:6px;">Agent Manager <span style="font-size: 10.5px;color:var(--text-tertiary);">(' + names.length + ' 个运行时 · ' + builtins + ' 内置 / ' + customs + ' 自定义）</span></div>';
+    html += '<div style="font-size: 10.5px;color:var(--text-secondary);margin-bottom:10px;">目录供工作流 / 群聊 / 调度共享；可安装新 Agent 并测试连通性，自定义项支持编辑与卸载。</div>';
     // ===== 安装 / 编辑 Agent 表单（同一表单两种模式）=====
     const isEdit = !!editingAgentName;
     const editCfg = isEdit ? AGENT_PRESETS[editingAgentName] : null;
     html += '<div style="border:1px solid ' + (isEdit ? 'var(--primary)' : 'var(--border)') + ';border-radius:8px;padding:10px;margin-bottom:10px;background:var(--surface-1);">' +
-      '<div style="font-weight:600;font-size:12px;color:var(--primary);margin-bottom:8px;">' + (isEdit ? '✏️ 编辑 Agent：' + wfEsc(editingAgentName) : '+ 安装新 Agent') + '</div>' +
+      '<div style="font-weight:600;font-size: 11.5px;color:var(--primary);margin-bottom:8px;">' + (isEdit ? '✏️ 编辑 Agent：' + wfEsc(editingAgentName) : '+ 安装新 Agent') + '</div>' +
       '<div style="display:flex;flex-direction:column;gap:6px;">' +
-      '<input id="wf-install-name" placeholder="Agent 名称（如 本地Qwen）" value="' + (isEdit ? wfEsc(editingAgentName) : '') + '" style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-primary);font-size:12px;" />' +
-      '<select id="wf-install-template" style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-primary);font-size:12px;">' +
+      '<input id="wf-install-name" placeholder="Agent 名称（如 本地Qwen）" value="' + (isEdit ? wfEsc(editingAgentName) : '') + '" style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-primary);font-size: 11.5px;" />' +
+      '<select id="wf-install-template" style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-primary);font-size: 11.5px;">' +
       '<option value="openai">OpenAI（云端 API）</option><option value="anthropic">Anthropic / Claude</option>' +
       '<option value="ollama">本地 Ollama</option><option value="deepseek">DeepSeek</option><option value="custom">自定义（OpenAI 兼容）</option></select>' +
-      '<input id="wf-install-model" placeholder="模型名（留空用默认）" value="' + (isEdit && editCfg ? wfEsc(editCfg.model || '') : '') + '" style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-primary);font-size:12px;" />' +
-      '<input id="wf-install-key" type="password" placeholder="API Key（本地/自定义可不填）" value="' + (isEdit && editCfg ? wfEsc(editCfg.apiKey || '') : '') + '" style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-primary);font-size:12px;" />' +
-      '<input id="wf-install-url" placeholder="Base URL（留空用模板默认）" value="' + (isEdit && editCfg ? wfEsc(editCfg.baseURL || '') : '') + '" style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-primary);font-size:12px;" />' +
-      '<select id="wf-install-thinking" style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-primary);font-size:12px;">' +
+      '<input id="wf-install-model" placeholder="模型名（留空用默认）" value="' + (isEdit && editCfg ? wfEsc(editCfg.model || '') : '') + '" style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-primary);font-size: 11.5px;" />' +
+      '<input id="wf-install-key" type="password" placeholder="API Key（本地/自定义可不填）" value="' + (isEdit && editCfg ? wfEsc(editCfg.apiKey || '') : '') + '" style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-primary);font-size: 11.5px;" />' +
+      '<input id="wf-install-url" placeholder="Base URL（留空用模板默认）" value="' + (isEdit && editCfg ? wfEsc(editCfg.baseURL || '') : '') + '" style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-primary);font-size: 11.5px;" />' +
+      '<select id="wf-install-thinking" style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-primary);font-size: 11.5px;">' +
       '<option value="standard">思考档位：standard</option><option value="fast">fast</option><option value="light">light</option><option value="deep">deep</option></select>' +
       '<div style="display:flex;gap:6px;"><button class="btn btn-sm btn-primary" id="wf-install-btn" style="flex:1;">' + (isEdit ? '保存更改' : '安装') + '</button>' +
       (isEdit ? '<button class="btn btn-sm btn-secondary" id="wf-edit-cancel" style="flex:1;">取消</button>' : '') +
@@ -9632,15 +9632,15 @@ function bindEvents() {
       const tr = agentTestResults[name];
       const statusHtml = tr
         ? (tr.ok
-          ? '<div style="font-size:11px;color:var(--success,#22c55e);margin-top:4px;">✅ 连通正常（' + wfEsc(tr.time || '') + '）</div>'
-          : '<div style="font-size:11px;color:#ef4444;margin-top:4px;word-break:break-all;">❌ ' + wfEsc(tr.message || '连接失败') + '</div>')
+          ? '<div style="font-size: 10.5px;color:var(--success,#22c55e);margin-top:4px;">✅ 连通正常（' + wfEsc(tr.time || '') + '）</div>'
+          : '<div style="font-size: 10.5px;color:#ef4444;margin-top:4px;word-break:break-all;">❌ ' + wfEsc(tr.message || '连接失败') + '</div>')
         : '';
       html += '<div data-wf-card="1" style="border:1px solid var(--border);border-radius:8px;padding:8px 10px;background:var(--surface-0);">' +
         '<div style="display:flex;justify-content:space-between;align-items:center;">' +
-        '<span style="font-weight:600;font-size:13px;">' + wfEsc(name) + '</span>' +
-        '<span style="font-size:10px;color:var(--text-tertiary);">' + (isCustom ? '自定义' : '内置') + '</span></div>' +
-        '<div style="font-size:11px;color:var(--text-secondary);margin-top:3px;">provider: ' + wfEsc(cfg.provider) + ' · model: ' + wfEsc(cfg.model || '（默认）') + '</div>' +
-        '<div style="font-size:10px;color:var(--text-tertiary);margin-top:2px;word-break:break-all;">' + wfEsc(cfg.baseURL || '（使用默认端点）') + '</div>' +
+        '<span style="font-weight:600;font-size: 12.5px;">' + wfEsc(name) + '</span>' +
+        '<span style="font-size: 9.5px;color:var(--text-tertiary);">' + (isCustom ? '自定义' : '内置') + '</span></div>' +
+        '<div style="font-size: 10.5px;color:var(--text-secondary);margin-top:3px;">provider: ' + wfEsc(cfg.provider) + ' · model: ' + wfEsc(cfg.model || '（默认）') + '</div>' +
+        '<div style="font-size: 9.5px;color:var(--text-tertiary);margin-top:2px;word-break:break-all;">' + wfEsc(cfg.baseURL || '（使用默认端点）') + '</div>' +
         statusHtml +
         '<div style="margin-top:6px;display:flex;gap:6px;"><button class="btn btn-sm" data-wf-test="' + wfEsc(name) + '">测试连通</button>' +
         (isCustom ? '<button class="btn btn-sm" data-wf-edit="' + wfEsc(name) + '">编辑</button>' : '') +
@@ -9723,7 +9723,7 @@ function bindEvents() {
             if (!st) {
               st = document.createElement('div');
               st.setAttribute('data-wf-status', '1');
-              st.style.cssText = 'font-size:11px;color:#ef4444;margin-top:4px;word-break:break-all;';
+              st.style.cssText = 'font-size: 10.5px;color:#ef4444;margin-top:4px;word-break:break-all;';
               const meta = card.querySelector('div:nth-child(3)');
               if (meta && meta.parentNode) meta.parentNode.insertBefore(st, meta.nextSibling);
             }
@@ -9958,7 +9958,7 @@ function bindEvents() {
       ov.id = 'gc-agent-pick';
       ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:99999;display:none;align-items:center;justify-content:center;';
       ov.innerHTML = '<div id="gc-agent-pick-panel" style="border-radius:12px;max-width:540px;width:92%;max-height:80vh;overflow:auto;padding:16px 18px;box-shadow:0 12px 40px rgba(0,0,0,.25)">' +
-        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><b id="gc-agent-pick-title" style="font-size:15px">添加 Agent 到房间</b><button id="gc-agent-pick-x" style="border:none;background:none;font-size:18px;cursor:pointer">✕</button></div>' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><b id="gc-agent-pick-title" style="font-size: 14px">添加 Agent 到房间</b><button id="gc-agent-pick-x" style="border:none;background:none;font-size: 16px;cursor:pointer">✕</button></div>' +
         '<div id="gc-agent-pick-list"></div></div>';
       document.body.appendChild(ov);
       ov.addEventListener('click', e => { if (e.target === ov) ov.style.display = 'none'; });
@@ -9969,12 +9969,12 @@ function bindEvents() {
     const list = ov.querySelector('#gc-agent-pick-list');
     let html = '';
     for (const g of groups) {
-      html += '<div style="font-size:12px;color:' + C.sub + ';margin:12px 0 4px">' + g.label + '</div>';
+      html += '<div style="font-size: 11.5px;color:' + C.sub + ';margin:12px 0 4px">' + g.label + '</div>';
       for (const n of g.keys) {
         const added = (room.members || []).indexOf(n) >= 0;
         html += '<div data-agent="' + n.replace(/"/g, '&quot;') + '" style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border:1px solid ' + C.border + ';border-radius:8px;margin:4px 0;cursor:pointer;background:' + C.item + ';opacity:' + (added ? 0.5 : 1) + '">' +
-          '<span style="font-size:13px">' + gcEsc(n) + (added ? ' <span style="color:#22c55e">(已在房间)</span>' : '') + '</span>' +
-          '<span style="font-size:11px;color:' + C.sub + '">' + (added ? '已添加' : '点击添加') + '</span></div>';
+          '<span style="font-size: 12.5px">' + gcEsc(n) + (added ? ' <span style="color:#22c55e">(已在房间)</span>' : '') + '</span>' +
+          '<span style="font-size: 10.5px;color:' + C.sub + '">' + (added ? '已添加' : '点击添加') + '</span></div>';
       }
     }
     list.innerHTML = html;
@@ -10833,7 +10833,7 @@ function bindEvents() {
     let html = '';
     // 远程市场状态条：仅未连接时显示告警（TrieCode 式干净列表，连上时不占位）
     if (currentPluginsTab !== 'models' && !remoteMarketOnline) {
-      html += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;font-size:11px;color:var(--text-secondary);">';
+      html += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;font-size: 10.5px;color:var(--text-secondary);">';
       html += '<span style="width:8px;height:8px;border-radius:50%;background:#f59e0b;display:inline-block;"></span><span>官方市场未连接，展示内置目录（可点击右上角刷新重试）</span>';
       html += '</div>';
     }
@@ -10844,15 +10844,15 @@ function bindEvents() {
     if (currentPluginsTab === 'models') {
       html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">';
       html += '<div style="padding:10px 12px;background:var(--surface-2);border:1px solid var(--border-color);border-radius:8px;">';
-      html += '<div style="font-size:12px;font-weight:600;color:var(--text-primary);">☁️ LabCode 内置云端</div>';
-      html += '<div id="gw-hub-state" style="font-size:11px;color:var(--text-secondary);margin-top:4px;line-height:1.6;">检测中…</div>';
+      html += '<div style="font-size: 11.5px;font-weight:600;color:var(--text-primary);">☁️ LabCode 内置云端</div>';
+      html += '<div id="gw-hub-state" style="font-size: 10.5px;color:var(--text-secondary);margin-top:4px;line-height:1.6;">检测中…</div>';
       html += '<div style="display:flex;gap:6px;margin-top:8px;">';
-      html += '<button id="gw-hub-login" type="button" style="font-size:11px;padding:4px 10px;">登录 / 注册领额度</button>';
+      html += '<button id="gw-hub-login" type="button" style="font-size: 10.5px;padding:4px 10px;">登录 / 注册领额度</button>';
       html += '</div></div>';
       html += '<div style="padding:10px 12px;background:var(--surface-2);border:1px solid var(--border-color);border-radius:8px;">';
-      html += '<div style="font-size:12px;font-weight:600;color:var(--text-primary);">🔑 自带 API Key</div>';
-      html += '<div style="font-size:11px;color:var(--text-secondary);margin-top:4px;line-height:1.6;">用自己的 Key 接任意服务商（智谱 / 硅基流动 / DeepSeek / 百炼 / Kimi…）</div>';
-      html += '<div style="margin-top:8px;"><button id="byok-hub-btn" type="button" style="font-size:11px;padding:4px 10px;">添加 API Key</button></div>';
+      html += '<div style="font-size: 11.5px;font-weight:600;color:var(--text-primary);">🔑 自带 API Key</div>';
+      html += '<div style="font-size: 10.5px;color:var(--text-secondary);margin-top:4px;line-height:1.6;">用自己的 Key 接任意服务商（智谱 / 硅基流动 / DeepSeek / 百炼 / Kimi…）</div>';
+      html += '<div style="margin-top:8px;"><button id="byok-hub-btn" type="button" style="font-size: 10.5px;padding:4px 10px;">添加 API Key</button></div>';
       html += '</div></div>';
     }
 
@@ -10860,29 +10860,29 @@ function bindEvents() {
     if (currentPluginsTab === 'models') {
       const rec = getModelRecommendation();
       html += '<div style="padding:10px 12px;margin-bottom:10px;background:linear-gradient(135deg,rgba(59,130,246,0.08),rgba(16,185,129,0.08));border:1px solid rgba(59,130,246,0.2);border-radius:8px;">';
-      html += '<div style="font-size:12px;font-weight:600;color:var(--text-primary);margin-bottom:4px;">🖥️ 硬件配置检测</div>';
+      html += '<div style="font-size: 11.5px;font-weight:600;color:var(--text-primary);margin-bottom:4px;">🖥️ 硬件配置检测</div>';
       if (systemInfo) {
-        html += '<div style="font-size:11px;color:var(--text-secondary);line-height:1.6;">';
+        html += '<div style="font-size: 10.5px;color:var(--text-secondary);line-height:1.6;">';
         html += 'CPU: ' + systemInfo.cpu.model.substring(0, 40) + ' (' + systemInfo.cpu.cores + '核) | ';
         html += '内存: ' + systemInfo.memory.totalGB + 'GB | ';
         html += '显存: ' + (systemInfo.maxVramGB > 0 ? systemInfo.maxVramGB + 'GB' : '无独立GPU') + ' | ';
         html += '磁盘: ' + systemInfo.disk.freeGB + 'GB 可用';
         html += '</div>';
-        html += '<div style="font-size:11px;color:#3b82f6;margin-top:4px;">💡 ' + rec.text + '</div>';
+        html += '<div style="font-size: 10.5px;color:#3b82f6;margin-top:4px;">💡 ' + rec.text + '</div>';
         if (llmRuntimeInfo && (llmRuntimeInfo.engine || llmRuntimeInfo.ollama)) {
           if (llmRuntimeInfo.engine) {
             const modelList = llmRuntimeInfo.models && llmRuntimeInfo.models.length > 0
               ? '，已安装 ' + llmRuntimeInfo.models.length + ' 个模型（' + llmRuntimeInfo.models.map(m => m.name).slice(0, 2).join('、') + '…）'
               : '，尚未安装模型（请安装大模型插件）';
-            html += '<div style="font-size:11px;color:#10b981;margin-top:2px;">✅ AI 引擎已就绪' + (llmRuntimeInfo.engineRunning ? '，正在运行' : '（未启动）') + modelList + '</div>';
+            html += '<div style="font-size: 10.5px;color:#10b981;margin-top:2px;">✅ AI 引擎已就绪' + (llmRuntimeInfo.engineRunning ? '，正在运行' : '（未启动）') + modelList + '</div>';
           } else if (llmRuntimeInfo.ollama) {
-            html += '<div style="font-size:11px;color:#10b981;margin-top:2px;">✅ 检测到 Ollama ' + llmRuntimeInfo.ollamaVersion + (llmRuntimeInfo.ollamaRunning ? '，运行中，已安装 ' + llmRuntimeInfo.models.length + ' 个模型' : '，未启动') + '</div>';
+            html += '<div style="font-size: 10.5px;color:#10b981;margin-top:2px;">✅ 检测到 Ollama ' + llmRuntimeInfo.ollamaVersion + (llmRuntimeInfo.ollamaRunning ? '，运行中，已安装 ' + llmRuntimeInfo.models.length + ' 个模型' : '，未启动') + '</div>';
           }
         } else {
-          html += '<div style="font-size:11px;color:#f59e0b;margin-top:2px;">⚠️ 未检测到 AI 引擎，请先安装内置引擎并下载模型</div>';
+          html += '<div style="font-size: 10.5px;color:#f59e0b;margin-top:2px;">⚠️ 未检测到 AI 引擎，请先安装内置引擎并下载模型</div>';
         }
       } else {
-        html += '<div style="font-size:11px;color:var(--text-secondary);">正在检测硬件配置...</div>';
+        html += '<div style="font-size: 10.5px;color:var(--text-secondary);">正在检测硬件配置...</div>';
       }
       html += '</div>';
     }
@@ -10957,7 +10957,7 @@ function bindEvents() {
     }).join('');
     if (currentPluginsTab === 'market') {
       // TrieCode 式：社区插件入口收进官方市场底部（不再单占一个 tab）
-      html += '<div class="plg-row" data-action="open-community" style="cursor:pointer;opacity:.75;"><div class="plg-row-icon">🌐</div><div style="flex:1;min-width:0;"><div class="plg-row-top"><span class="plg-row-name">社区插件</span><span class="plg-row-ver">GitHub</span></div><div class="plg-row-desc">浏览社区开发者发布的插件（labcode-plugin topic）</div></div><div class="plg-row-act"><span style="font-size:11px;color:var(--text-secondary);">浏览 →</span></div></div>';
+      html += '<div class="plg-row" data-action="open-community" style="cursor:pointer;opacity:.75;"><div class="plg-row-icon">🌐</div><div style="flex:1;min-width:0;"><div class="plg-row-top"><span class="plg-row-name">社区插件</span><span class="plg-row-ver">GitHub</span></div><div class="plg-row-desc">浏览社区开发者发布的插件（labcode-plugin topic）</div></div><div class="plg-row-act"><span style="font-size: 10.5px;color:var(--text-secondary);">浏览 →</span></div></div>';
     }
     listEl.innerHTML = html;
     if (currentPluginsTab === 'market') {
@@ -10976,7 +10976,7 @@ function bindEvents() {
 
     // 模型视图：本地上传为主入口（用户上传 .gguf → 复制进模型目录）
     if (currentPluginsTab === 'models') {
-      html = '<div style="display:flex;gap:8px;align-items:center;padding:0 0 10px;flex-wrap:wrap;"><button class="btn btn-primary btn-sm" id="model-import-btn">📥 导入本地模型（.gguf）</button><span style="font-size:11px;color:var(--text-secondary);">导入后即可被引擎扫描并直接使用</span></div>' + html;
+      html = '<div style="display:flex;gap:8px;align-items:center;padding:0 0 10px;flex-wrap:wrap;"><button class="btn btn-primary btn-sm" id="model-import-btn">📥 导入本地模型（.gguf）</button><span style="font-size: 10.5px;color:var(--text-secondary);">导入后即可被引擎扫描并直接使用</span></div>' + html;
     }
     listEl.innerHTML = html;
     if (currentPluginsTab === 'models') {
@@ -11034,7 +11034,7 @@ function bindEvents() {
     });
     } catch (e) {
       console.error('renderPluginsList error:', e);
-      listEl.innerHTML = '<div style="padding:16px;color:#ef4444;font-size:12px;font-family:monospace;white-space:pre-wrap;">插件列表渲染错误:\n' + e.message + '\n' + e.stack + '</div>';
+      listEl.innerHTML = '<div style="padding:16px;color:#ef4444;font-size: 11.5px;font-family:monospace;white-space:pre-wrap;">插件列表渲染错误:\n' + e.message + '\n' + e.stack + '</div>';
     }
   }
 
@@ -11056,7 +11056,7 @@ function bindEvents() {
     const defs = ps.getSettings(pluginId) || [];
     let formHtml = '';
     if (!defs.length) {
-      formHtml = '<div style="font-size:12.5px;color:var(--text-secondary);line-height:1.7;">该插件未声明可配置项（manifest.settings）。能力与状态如下。</div>';
+      formHtml = '<div style="font-size: 12px;color:var(--text-secondary);line-height:1.7;">该插件未声明可配置项（manifest.settings）。能力与状态如下。</div>';
     } else {
       formHtml = defs.map((s, idx) => {
         const key = s.key || s.id || ('opt' + idx);
@@ -11067,17 +11067,17 @@ function bindEvents() {
         if (type === 'bool') {
           field = '<input type="checkbox" id="' + fieldId + '" data-key="' + key + '" data-type="bool">';
         } else if (type === 'select' && Array.isArray(s.options) && s.options.length) {
-          field = '<select id="' + fieldId + '" data-key="' + key + '" data-type="select" style="background:var(--card-color);border:1px solid var(--border-color);color:var(--text-color);padding:5px 8px;border-radius:5px;font-size:12px;">' +
+          field = '<select id="' + fieldId + '" data-key="' + key + '" data-type="select" style="background:var(--card-color);border:1px solid var(--border-color);color:var(--text-color);padding:5px 8px;border-radius:5px;font-size: 11.5px;">' +
             s.options.map(o => { const v = (o && typeof o === 'object') ? (o.value ?? o.key ?? o.id) : o; const t = (o && typeof o === 'object') ? (o.label ?? o.name ?? v) : o; return '<option value="' + escapeHtml(String(v)) + '">' + escapeHtml(String(t)) + '</option>'; }).join('') +
             '</select>';
         } else if (type === 'number') {
-          field = '<input type="number" id="' + fieldId + '" data-key="' + key + '" data-type="number" style="width:200px;background:var(--card-color);border:1px solid var(--border-color);color:var(--text-color);padding:5px 8px;border-radius:5px;font-size:12px;">';
+          field = '<input type="number" id="' + fieldId + '" data-key="' + key + '" data-type="number" style="width:200px;background:var(--card-color);border:1px solid var(--border-color);color:var(--text-color);padding:5px 8px;border-radius:5px;font-size: 11.5px;">';
         } else {
-          field = '<input type="text" id="' + fieldId + '" data-key="' + key + '" data-type="text" spellcheck="false" style="width:260px;background:var(--card-color);border:1px solid var(--border-color);color:var(--text-color);padding:5px 8px;border-radius:5px;font-size:12px;font-family:Consolas,monospace;">';
+          field = '<input type="text" id="' + fieldId + '" data-key="' + key + '" data-type="text" spellcheck="false" style="width:260px;background:var(--card-color);border:1px solid var(--border-color);color:var(--text-color);padding:5px 8px;border-radius:5px;font-size: 11.5px;font-family:Consolas,monospace;">';
         }
         return '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">' +
-          '<div style="flex:1;min-width:0;"><div style="font-size:12.5px;color:var(--text-color);">' + escapeHtml(label) + '</div>' +
-          (s.description ? '<div style="font-size:11px;color:var(--text-tertiary);margin-top:2px;">' + escapeHtml(s.description) + '</div>' : '') + '</div>' +
+          '<div style="flex:1;min-width:0;"><div style="font-size: 12px;color:var(--text-color);">' + escapeHtml(label) + '</div>' +
+          (s.description ? '<div style="font-size: 10.5px;color:var(--text-tertiary);margin-top:2px;">' + escapeHtml(s.description) + '</div>' : '') + '</div>' +
           field + '</div>';
       }).join('');
     }
@@ -11085,14 +11085,14 @@ function bindEvents() {
     wrap.innerHTML =
       '<div style="width:560px;max-height:80vh;overflow-y:auto;background:var(--bg-color);border:1px solid var(--border-color);border-radius:10px;padding:18px;box-shadow:0 12px 40px rgba(0,0,0,.4);">' +
         '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">' +
-          '<div style="font-size:14px;font-weight:600;color:var(--text-color);">' + escapeHtml(manifest.name || pluginId) + '<span style="font-size:11px;color:var(--text-tertiary);font-weight:400;margin-left:6px;">v' + escapeHtml(manifest.version || '') + '</span></div>' +
-          '<button id="plgset-close" style="border:none;background:transparent;color:var(--text-secondary);cursor:pointer;font-size:16px;">✕</button>' +
+          '<div style="font-size: 13px;font-weight:600;color:var(--text-color);">' + escapeHtml(manifest.name || pluginId) + '<span style="font-size: 10.5px;color:var(--text-tertiary);font-weight:400;margin-left:6px;">v' + escapeHtml(manifest.version || '') + '</span></div>' +
+          '<button id="plgset-close" style="border:none;background:transparent;color:var(--text-secondary);cursor:pointer;font-size: 15px;">✕</button>' +
         '</div>' +
-        (manifest.description ? '<div style="font-size:12px;color:var(--text-secondary);margin-bottom:10px;line-height:1.6;">' + escapeHtml(manifest.description) + '</div>' : '') +
-        (caps.length ? '<div style="font-size:11.5px;color:var(--text-tertiary);margin-bottom:12px;">能力：' + caps.map(c => '<span style="display:inline-block;padding:1px 7px;margin-right:4px;background:rgba(37,99,235,.12);color:var(--primary);border-radius:4px;">' + escapeHtml(String(c)) + '</span>').join('') + '</div>' : '') +
+        (manifest.description ? '<div style="font-size: 11.5px;color:var(--text-secondary);margin-bottom:10px;line-height:1.6;">' + escapeHtml(manifest.description) + '</div>' : '') +
+        (caps.length ? '<div style="font-size: 11px;color:var(--text-tertiary);margin-bottom:12px;">能力：' + caps.map(c => '<span style="display:inline-block;padding:1px 7px;margin-right:4px;background:rgba(37,99,235,.12);color:var(--primary);border-radius:4px;">' + escapeHtml(String(c)) + '</span>').join('') + '</div>' : '') +
         '<div style="border-top:1px solid var(--border-color);padding-top:12px;">' + formHtml + '</div>' +
         '<div style="display:flex;align-items:center;justify-content:space-between;margin-top:14px;border-top:1px solid var(--border-color);padding-top:12px;">' +
-          '<span id="plgset-active" style="font-size:12px;color:var(--text-secondary);"></span>' +
+          '<span id="plgset-active" style="font-size: 11.5px;color:var(--text-secondary);"></span>' +
           '<button id="plgset-toggle" class="btn btn-secondary btn-sm"></button>' +
         '</div>' +
       '</div>';
@@ -11144,42 +11144,42 @@ function bindEvents() {
   // ============ 社区插件渲染（GitHub 仓库卡片，去中心化生态）============
   function renderCommunityPlugins(listEl) {
     let html = '';
-    html += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;font-size:11px;color:var(--text-secondary);">';
+    html += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;font-size: 10.5px;color:var(--text-secondary);">';
     html += communityOnline
       ? '<span style="width:8px;height:8px;border-radius:50%;background:#10b981;display:inline-block;"></span><span>已连接社区（GitHub topic: labcode-plugin，' + communityPlugins.length + ' 个仓库）</span>'
       : '<span style="width:8px;height:8px;border-radius:50%;background:#f59e0b;display:inline-block;"></span><span>社区服务未连接，可点击右上角刷新重试</span>';
     html += '</div>';
-    html += '<div style="padding:10px 12px;margin-bottom:10px;background:linear-gradient(135deg,rgba(139,92,246,0.08),rgba(59,130,246,0.08));border:1px solid rgba(139,92,246,0.2);border-radius:8px;font-size:11px;color:var(--text-secondary);line-height:1.7;">';
-    html += '<div style="font-size:12px;font-weight:600;color:var(--text-color);margin-bottom:4px;">🌍 社区插件（去中心化生态）</div>';
+    html += '<div style="padding:10px 12px;margin-bottom:10px;background:linear-gradient(135deg,rgba(139,92,246,0.08),rgba(59,130,246,0.08));border:1px solid rgba(139,92,246,0.2);border-radius:8px;font-size: 10.5px;color:var(--text-secondary);line-height:1.7;">';
+    html += '<div style="font-size: 11.5px;font-weight:600;color:var(--text-color);margin-bottom:4px;">🌍 社区插件（去中心化生态）</div>';
     html += '任何工具链或能力都能封装为插件。开发者将仓库打上 <b>labcode-plugin</b> 标签（GitHub topic）即可被社区发现；安装后 AI 智能体自动获得对应技能与工具。';
     html += '</div>';
     if (communityPlugins.length === 0) {
-      html += '<div style="padding:32px 16px;text-align:center;color:var(--text-secondary);font-size:13px;line-height:1.8;">';
-      html += '暂无社区插件仓库<br/><span style="font-size:11px;">社区机制已就绪——第一个打上 <b>labcode-plugin</b> topic 的仓库将在这里出现</span>';
+      html += '<div style="padding:32px 16px;text-align:center;color:var(--text-secondary);font-size: 12.5px;line-height:1.8;">';
+      html += '暂无社区插件仓库<br/><span style="font-size: 10.5px;">社区机制已就绪——第一个打上 <b>labcode-plugin</b> topic 的仓库将在这里出现</span>';
       html += '</div>';
-      html += '<div style="padding:10px 12px;background:var(--card-color);border:1px solid var(--border-color);border-radius:8px;font-size:11px;color:var(--text-secondary);line-height:1.8;">';
+      html += '<div style="padding:10px 12px;background:var(--card-color);border:1px solid var(--border-color);border-radius:8px;font-size: 10.5px;color:var(--text-secondary);line-height:1.8;">';
       html += '<b>📦 安装社区插件：</b><br/>1. 开发者将仓库打上 <b>labcode-plugin</b> topic，列表即出现该插件卡片（每个卡片带「安装」一键安装）<br/>2. 或手动：打开 GitHub 仓库下载 ZIP → 点右上角「从文件夹 / ZIP 安装」加载<br/>3. 安装后输入框输入 <b>/</b> 查看新增技能';
       html += '</div>';
       listEl.innerHTML = html;
       return;
     }
     html += communityPlugins.map(p => {
-      const stars = p.stars ? '<span style="font-size:10px;padding:1px 6px;background:rgba(250,173,20,0.12);color:#b45309;border-radius:4px;">★ ' + p.stars + '</span>' : '';
+      const stars = p.stars ? '<span style="font-size: 9.5px;padding:1px 6px;background:rgba(250,173,20,0.12);color:#b45309;border-radius:4px;">★ ' + p.stars + '</span>' : '';
       return '<div class="plugin-card" style="padding:12px;margin-bottom:8px;background:var(--card-color);border:1px solid var(--border-color);border-radius:8px;">' +
         '<div style="display:flex;align-items:flex-start;gap:10px;">' +
-          '<div style="font-size:24px;flex-shrink:0;">🌍</div>' +
+          '<div style="font-size: 22px;flex-shrink:0;">🌍</div>' +
           '<div style="flex:1;min-width:0;">' +
             '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">' +
-              '<span style="font-size:13px;font-weight:600;color:var(--text-color);">' + p.name + '</span>' +
-              '<span style="font-size:10px;padding:1px 5px;background:rgba(139,92,246,0.12);color:#7c3aed;border-radius:4px;">社区</span>' + stars +
+              '<span style="font-size: 12.5px;font-weight:600;color:var(--text-color);">' + p.name + '</span>' +
+              '<span style="font-size: 9.5px;padding:1px 5px;background:rgba(139,92,246,0.12);color:#7c3aed;border-radius:4px;">社区</span>' + stars +
             '</div>' +
-            '<div style="font-size:12px;color:var(--text-secondary);margin-top:4px;line-height:1.4;">' + (p.description || '（暂无描述）') + '</div>' +
-            '<div style="font-size:11px;color:var(--text-secondary);margin-top:4px;">👤 ' + p.developer + (p.updatedAt ? ' · 更新于 ' + p.updatedAt : '') + '</div>' +
+            '<div style="font-size: 11.5px;color:var(--text-secondary);margin-top:4px;line-height:1.4;">' + (p.description || '（暂无描述）') + '</div>' +
+            '<div style="font-size: 10.5px;color:var(--text-secondary);margin-top:4px;">👤 ' + p.developer + (p.updatedAt ? ' · 更新于 ' + p.updatedAt : '') + '</div>' +
           '</div>' +
         '</div>' +
         '<div style="display:flex;justify-content:flex-end;margin-top:8px;gap:6px;">' +
-          '<button class="btn btn-secondary btn-sm" data-action="community-open" data-url="' + escapeHtml(p.githubUrl) + '" style="padding:4px 10px;font-size:11px;">GitHub 仓库</button>' +
-          '<button class="btn btn-primary btn-sm" data-action="community-install" data-url="' + escapeHtml(p.githubUrl) + '" data-name="' + escapeHtml(p.name) + '" data-desc="' + escapeHtml(p.description || '') + '" style="padding:4px 10px;font-size:11px;">安装</button>' +
+          '<button class="btn btn-secondary btn-sm" data-action="community-open" data-url="' + escapeHtml(p.githubUrl) + '" style="padding:4px 10px;font-size: 10.5px;">GitHub 仓库</button>' +
+          '<button class="btn btn-primary btn-sm" data-action="community-install" data-url="' + escapeHtml(p.githubUrl) + '" data-name="' + escapeHtml(p.name) + '" data-desc="' + escapeHtml(p.description || '') + '" style="padding:4px 10px;font-size: 10.5px;">安装</button>' +
         '</div>' +
       '</div>';
     }).join('');
@@ -11200,21 +11200,21 @@ function bindEvents() {
 
   // ============ MCP 服务器面板（Model Context Protocol stdio 接入）============
   async function renderMcpPanel(listEl) {
-    listEl.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-secondary);font-size:12px;">正在加载 MCP 服务器...</div>';
+    listEl.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-secondary);font-size: 11.5px;">正在加载 MCP 服务器...</div>';
     try {
       const servers = await window.LabCode.mcp.listServers();
       let html = '';
-      html += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;font-size:11px;color:var(--text-secondary);">';
+      html += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;font-size: 10.5px;color:var(--text-secondary);">';
       html += '<span style="width:8px;height:8px;border-radius:50%;background:#10b981;display:inline-block;"></span><span>MCP（Model Context Protocol）——连接外部工具服务器，AI 智能体自动获得其工具</span>';
       html += '</div>';
-      html += '<div style="padding:10px 12px;margin-bottom:10px;background:linear-gradient(135deg,rgba(16,185,129,0.08),rgba(59,130,246,0.08));border:1px solid rgba(16,185,129,0.2);border-radius:8px;font-size:11px;color:var(--text-secondary);line-height:1.7;">';
-      html += '<div style="font-size:12px;font-weight:600;color:var(--text-color);margin-bottom:4px;">🔌 MCP 服务器</div>';
+      html += '<div style="padding:10px 12px;margin-bottom:10px;background:linear-gradient(135deg,rgba(16,185,129,0.08),rgba(59,130,246,0.08));border:1px solid rgba(16,185,129,0.2);border-radius:8px;font-size: 10.5px;color:var(--text-secondary);line-height:1.7;">';
+      html += '<div style="font-size: 11.5px;font-weight:600;color:var(--text-color);margin-bottom:4px;">🔌 MCP 服务器</div>';
       html += 'MCP 服务器通过 stdio 启动（如 npx / node / python 命令）。服务器进程与工具均在本地运行，服务器二进制托管在 GitHub/外部源，不占云端存储。';
       html += '</div>';
 
       // 服务器卡片列表
       if (servers.length === 0) {
-        html += '<div style="padding:24px 16px;text-align:center;color:var(--text-secondary);font-size:13px;line-height:1.8;">尚未配置 MCP 服务器<br/><span style="font-size:11px;">在下方添加一个 MCP 服务器（如官方 filesystem 服务器）即可让 AI 获得外部工具能力</span></div>';
+        html += '<div style="padding:24px 16px;text-align:center;color:var(--text-secondary);font-size: 12.5px;line-height:1.8;">尚未配置 MCP 服务器<br/><span style="font-size: 10.5px;">在下方添加一个 MCP 服务器（如官方 filesystem 服务器）即可让 AI 获得外部工具能力</span></div>';
       } else {
         html += servers.map(s => {
           const statusColor = s.status === 'running' ? '#10b981' : (s.status === 'error' ? '#ef4444' : '#f59e0b');
@@ -11222,27 +11222,27 @@ function bindEvents() {
           return '<div class="mcp-server-card" data-name="' + s.name + '" style="padding:12px;margin-bottom:8px;background:var(--card-color);border:1px solid var(--border-color);border-radius:8px;cursor:pointer;">' +
             '<div style="display:flex;align-items:center;gap:8px;">' +
               '<span style="width:8px;height:8px;border-radius:50%;background:' + statusColor + ';display:inline-block;flex-shrink:0;"></span>' +
-              '<span style="font-size:13px;font-weight:600;color:var(--text-color);flex-shrink:0;">' + s.name + '</span>' +
-              '<span style="font-size:10px;padding:1px 6px;background:rgba(0,0,0,0.05);border-radius:4px;color:var(--text-secondary);">' + statusText + '</span>' +
-              '<span style="font-size:10px;color:var(--text-secondary);">' + s.tools + ' 个工具</span>' +
+              '<span style="font-size: 12.5px;font-weight:600;color:var(--text-color);flex-shrink:0;">' + s.name + '</span>' +
+              '<span style="font-size: 9.5px;padding:1px 6px;background:rgba(0,0,0,0.05);border-radius:4px;color:var(--text-secondary);">' + statusText + '</span>' +
+              '<span style="font-size: 9.5px;color:var(--text-secondary);">' + s.tools + ' 个工具</span>' +
               '<span style="flex:1;"></span>' +
-              '<button class="btn btn-danger btn-sm" data-action="mcp-remove" data-name="' + s.name + '" style="padding:3px 8px;font-size:10px;">移除</button>' +
+              '<button class="btn btn-danger btn-sm" data-action="mcp-remove" data-name="' + s.name + '" style="padding:3px 8px;font-size: 9.5px;">移除</button>' +
             '</div>' +
-            '<div style="font-size:11px;color:var(--text-secondary);margin-top:4px;font-family:monospace;">' + s.command + ' ' + (s.args || []).join(' ') + '</div>' +
-            '<div class="mcp-tools" style="display:none;margin-top:6px;border-top:1px solid var(--border-color);padding-top:6px;font-size:11px;color:var(--text-secondary);">加载工具列表...</div>' +
+            '<div style="font-size: 10.5px;color:var(--text-secondary);margin-top:4px;font-family:monospace;">' + s.command + ' ' + (s.args || []).join(' ') + '</div>' +
+            '<div class="mcp-tools" style="display:none;margin-top:6px;border-top:1px solid var(--border-color);padding-top:6px;font-size: 10.5px;color:var(--text-secondary);">加载工具列表...</div>' +
           '</div>';
         }).join('');
       }
 
       // 添加表单
       html += '<div style="margin-top:12px;padding:12px;background:var(--card-color);border:1px solid var(--border-color);border-radius:8px;">';
-      html += '<div style="font-size:12px;font-weight:600;color:var(--text-color);margin-bottom:8px;">➕ 添加 MCP 服务器</div>';
+      html += '<div style="font-size: 11.5px;font-weight:600;color:var(--text-color);margin-bottom:8px;">➕ 添加 MCP 服务器</div>';
       html += '<div style="display:flex;flex-direction:column;gap:6px;">';
-      html += '<input id="mcp-name" placeholder="名称（如 filesystem）" style="padding:6px 8px;font-size:12px;border:1px solid var(--border-color);border-radius:6px;background:transparent;color:var(--text-color);">';
-      html += '<input id="mcp-command" placeholder="命令（如 npx）" style="padding:6px 8px;font-size:12px;border:1px solid var(--border-color);border-radius:6px;background:transparent;color:var(--text-color);">';
-      html += '<input id="mcp-args" placeholder="参数 JSON 数组（如 ["-y","@modelcontextprotocol/server-filesystem","C:/tmp"]）" style="padding:6px 8px;font-size:11px;border:1px solid var(--border-color);border-radius:6px;background:transparent;color:var(--text-color);">';
+      html += '<input id="mcp-name" placeholder="名称（如 filesystem）" style="padding:6px 8px;font-size: 11.5px;border:1px solid var(--border-color);border-radius:6px;background:transparent;color:var(--text-color);">';
+      html += '<input id="mcp-command" placeholder="命令（如 npx）" style="padding:6px 8px;font-size: 11.5px;border:1px solid var(--border-color);border-radius:6px;background:transparent;color:var(--text-color);">';
+      html += '<input id="mcp-args" placeholder="参数 JSON 数组（如 ["-y","@modelcontextprotocol/server-filesystem","C:/tmp"]）" style="padding:6px 8px;font-size: 10.5px;border:1px solid var(--border-color);border-radius:6px;background:transparent;color:var(--text-color);">';
       html += '<div style="display:flex;gap:6px;justify-content:flex-end;">';
-      html += '<button class="btn btn-primary btn-sm" id="mcp-add" style="padding:5px 14px;font-size:11px;">添加并启动</button>';
+      html += '<button class="btn btn-primary btn-sm" id="mcp-add" style="padding:5px 14px;font-size: 10.5px;">添加并启动</button>';
       html += '</div></div></div></div>';
       listEl.innerHTML = html;
 
@@ -11299,7 +11299,7 @@ function bindEvents() {
         });
       }
     } catch (e) {
-      listEl.innerHTML = '<div style="padding:16px;color:#ef4444;font-size:12px;font-family:monospace;white-space:pre-wrap;">MCP 面板错误:\n' + e.message + '</div>';
+      listEl.innerHTML = '<div style="padding:16px;color:#ef4444;font-size: 11.5px;font-family:monospace;white-space:pre-wrap;">MCP 面板错误:\n' + e.message + '</div>';
     }
   }
 
@@ -11808,10 +11808,10 @@ function bindEvents() {
     const views = window.PluginSystem.getViews();
     if (!views || !views.length) return;
     let html = '<div style="padding:8px 10px;margin-bottom:10px;background:var(--card-color);border:1px solid var(--border-color);border-radius:8px;">';
-    html += '<div style="font-size:11px;color:var(--text-secondary);margin-bottom:6px;">插件面板（' + views.length + '）</div>';
+    html += '<div style="font-size: 10.5px;color:var(--text-secondary);margin-bottom:6px;">插件面板（' + views.length + '）</div>';
     html += '<div style="display:flex;flex-wrap:wrap;gap:6px;">';
     views.forEach(v => {
-      html += '<button class="btn btn-secondary btn-sm" data-view="' + encodeURIComponent(v.pluginId + '|' + v.id) + '" style="padding:4px 8px;font-size:11px;">' + (v.title || v.id) + '</button>';
+      html += '<button class="btn btn-secondary btn-sm" data-view="' + encodeURIComponent(v.pluginId + '|' + v.id) + '" style="padding:4px 8px;font-size: 10.5px;">' + (v.title || v.id) + '</button>';
     });
     html += '</div></div>';
     listEl.insertAdjacentHTML('afterbegin', html);
@@ -11834,22 +11834,22 @@ function bindEvents() {
     wrap.innerHTML =
       '<div style="width:80%;height:80%;background:var(--bg-color);border:1px solid var(--border-color);border-radius:10px;display:flex;flex-direction:column;overflow:hidden;">' +
         '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-bottom:1px solid var(--border-color);">' +
-          '<span style="font-size:13px;font-weight:600;color:var(--text-color);">立创EDA</span>' +
-          '<button id="lceda-close" style="border:none;background:transparent;color:var(--text-secondary);cursor:pointer;font-size:16px;">✕</button>' +
+          '<span style="font-size: 12.5px;font-weight:600;color:var(--text-color);">立创EDA</span>' +
+          '<button id="lceda-close" style="border:none;background:transparent;color:var(--text-secondary);cursor:pointer;font-size: 15px;">✕</button>' +
         '</div>' +
         '<div style="display:flex;border-bottom:1px solid var(--border-color);padding:0 12px;">' +
-          '<button class="lceda-tab active" data-lt="status" style="border:none;background:transparent;color:var(--primary);cursor:pointer;font-size:13px;padding:8px 10px;border-bottom:2px solid var(--primary);">状态</button>' +
-          '<button class="lceda-tab" data-lt="wizard" style="border:none;background:transparent;color:var(--text-secondary);cursor:pointer;font-size:13px;padding:8px 10px;">扩展导入向导</button>' +
+          '<button class="lceda-tab active" data-lt="status" style="border:none;background:transparent;color:var(--primary);cursor:pointer;font-size: 12.5px;padding:8px 10px;border-bottom:2px solid var(--primary);">状态</button>' +
+          '<button class="lceda-tab" data-lt="wizard" style="border:none;background:transparent;color:var(--text-secondary);cursor:pointer;font-size: 12.5px;padding:8px 10px;">扩展导入向导</button>' +
         '</div>' +
         '<div class="lceda-page" data-lp="status" style="flex:1;overflow-y:auto;padding:16px;">' +
           '<div style="padding:14px;background:var(--bg-elevated);border:1px solid var(--border-color);border-radius:8px;margin-bottom:14px;">' +
             '<div style="font-weight:600;margin-bottom:8px;">编辑器说明</div>' +
-            '<div style="font-size:12.5px;color:var(--text-secondary);line-height:1.7;">立创EDA 在线编辑器无法在应用内嵌（其自带反嵌入限制），点击下方按钮在系统浏览器中打开编辑器。</div>' +
+            '<div style="font-size: 12px;color:var(--text-secondary);line-height:1.7;">立创EDA 在线编辑器无法在应用内嵌（其自带反嵌入限制），点击下方按钮在系统浏览器中打开编辑器。</div>' +
             '<button id="lceda-open" class="btn btn-primary btn-sm" style="margin-top:10px;">打开立创EDA 编辑器</button>' +
           '</div>' +
           '<div style="padding:14px;background:var(--bg-elevated);border:1px solid var(--border-color);border-radius:8px;">' +
             '<div style="font-weight:600;margin-bottom:6px;">使用流程</div>' +
-            '<ol style="margin:0;padding-left:18px;font-size:12.5px;color:var(--text-secondary);line-height:1.8;">' +
+            '<ol style="margin:0;padding-left:18px;font-size: 12px;color:var(--text-secondary);line-height:1.8;">' +
               '<li>在浏览器中登录立创EDA，完成电路设计与原理图</li>' +
               '<li>导出 Gerber / BOM / 坐标文件，或导出工程包</li>' +
               '<li>回到 LabCode，在「设备」面板选择对应板卡与端口，编译烧录你的固件</li>' +
@@ -11859,8 +11859,8 @@ function bindEvents() {
         '<div class="lceda-page" data-lp="wizard" style="display:none;flex:1;overflow-y:auto;padding:16px;">' +
           '<div style="padding:14px;background:var(--bg-elevated);border:1px solid var(--border-color);border-radius:8px;">' +
             '<div style="font-weight:600;margin-bottom:6px;">扩展导入向导</div>' +
-            '<div style="font-size:12.5px;color:var(--text-secondary);line-height:1.7;">想把立创EDA 的「扩展」（器件库、面板、工程模板）导入到本地工作区？步骤如下：</div>' +
-            '<ol style="margin:0;padding-left:18px;font-size:12.5px;color:var(--text-secondary);line-height:1.8;">' +
+            '<div style="font-size: 12px;color:var(--text-secondary);line-height:1.7;">想把立创EDA 的「扩展」（器件库、面板、工程模板）导入到本地工作区？步骤如下：</div>' +
+            '<ol style="margin:0;padding-left:18px;font-size: 12px;color:var(--text-secondary);line-height:1.8;">' +
               '<li>在立创EDA 中导出扩展文件（.json 工程包 / 器件库）</li>' +
               '<li>点击下方「打开立创EDA 扩展市场」获取可导入的扩展</li>' +
               '<li>导入后在 LabCode 文件树中可见，可直接参与编译</li>' +
@@ -11896,14 +11896,14 @@ function bindEvents() {
     wrap.innerHTML =
       '<div style="width:80%;height:80%;background:var(--bg-color);border:1px solid var(--border-color);border-radius:10px;display:flex;flex-direction:column;overflow:hidden;">' +
         '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-bottom:1px solid var(--border-color);">' +
-          '<span style="font-size:13px;font-weight:600;color:var(--text-color);">' + (title || '插件面板') + '</span>' +
+          '<span style="font-size: 12.5px;font-weight:600;color:var(--text-color);">' + (title || '插件面板') + '</span>' +
           '<span style="display:flex;align-items:center;gap:8px;">' +
-            '<button id="plugin-view-openext" title="部分站点（如立创EDA 编辑器）自带反内嵌逻辑，内嵌白屏时用新窗口打开" style="border:1px solid var(--border-color);background:transparent;color:var(--text-color);cursor:pointer;font-size:12px;padding:3px 10px;border-radius:6px;">↗ 新窗口打开</button>' +
-            '<button id="plugin-view-close" style="border:none;background:transparent;color:var(--text-secondary);cursor:pointer;font-size:16px;">✕</button>' +
+            '<button id="plugin-view-openext" title="部分站点（如立创EDA 编辑器）自带反内嵌逻辑，内嵌白屏时用新窗口打开" style="border:1px solid var(--border-color);background:transparent;color:var(--text-color);cursor:pointer;font-size: 11.5px;padding:3px 10px;border-radius:6px;">↗ 新窗口打开</button>' +
+            '<button id="plugin-view-close" style="border:none;background:transparent;color:var(--text-secondary);cursor:pointer;font-size: 15px;">✕</button>' +
           '</span>' +
         '</div>' +
         '<div style="flex:1;display:flex;flex-direction:column;min-height:0;">' +
-          '<div id="plugin-view-fallback" style="display:none;padding:10px 14px;background:rgba(255,180,0,.12);color:var(--text-color);font-size:12.5px;border-bottom:1px solid var(--border-color);">该站点拒绝了内嵌显示（面板空白时会出现此提示）——点击右上角「↗ 新窗口打开」在独立窗口中使用。</div>' +
+          '<div id="plugin-view-fallback" style="display:none;padding:10px 14px;background:rgba(255,180,0,.12);color:var(--text-color);font-size: 12px;border-bottom:1px solid var(--border-color);">该站点拒绝了内嵌显示（面板空白时会出现此提示）——点击右上角「↗ 新窗口打开」在独立窗口中使用。</div>' +
           '<iframe src="' + url + '" style="flex:1;border:none;background:#fff;"></iframe>' +
         '</div>' +
       '</div>';
@@ -12861,7 +12861,7 @@ function bindEvents() {
         tinfo.className = 'model-info-btn';
         tinfo.dataset.info = 'local';
         tinfo.title = '这是什么？';
-        tinfo.setAttribute('style', 'display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:var(--surface-3);color:var(--text-secondary);font-size:11px;margin-left:6px;cursor:help;');
+        tinfo.setAttribute('style', 'display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:var(--surface-3);color:var(--text-secondary);font-size: 10.5px;margin-left:6px;cursor:help;');
         tinfo.textContent = 'ⓘ';
         const ttag = document.createElement('span');
         ttag.className = 'model-local-tag pending';
@@ -12899,7 +12899,7 @@ function bindEvents() {
         hinfo.className = 'model-info-btn';
         hinfo.dataset.info = 'local';
         hinfo.title = '这是什么？';
-        hinfo.setAttribute('style', 'display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:var(--surface-3);color:var(--text-secondary);font-size:11px;margin-left:6px;cursor:help;');
+        hinfo.setAttribute('style', 'display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:var(--surface-3);color:var(--text-secondary);font-size: 10.5px;margin-left:6px;cursor:help;');
         hinfo.textContent = 'ⓘ';
         const htag = document.createElement('span');
         htag.className = 'model-local-tag bad';
@@ -13245,7 +13245,7 @@ function bindEvents() {
       }
       el.innerHTML = '';
       if (cores.length === 0) {
-        el.innerHTML = '<div style="padding:12px;color:#999;font-size:12px;">未安装任何平台</div>';
+        el.innerHTML = '<div style="padding:12px;color:#999;font-size: 11.5px;">未安装任何平台</div>';
       }
       cores.forEach(c => {
         const item = document.createElement('div');
@@ -13279,20 +13279,20 @@ function bindEvents() {
     el.innerHTML = '';
     if (_availableCoresNote) {
       const note = document.createElement('div');
-      note.style.cssText = 'padding:8px 12px;color:#E8A33D;font-size:11px;background:rgba(232,163,61,0.08);border-radius:6px;margin-bottom:8px;';
+      note.style.cssText = 'padding:8px 12px;color:#E8A33D;font-size: 10.5px;background:rgba(232,163,61,0.08);border-radius:6px;margin-bottom:8px;';
       note.textContent = _availableCoresNote;
       el.appendChild(note);
     }
     if (!filtered.length) {
       const d = document.createElement('div');
-      d.style.cssText = 'padding:12px;color:#999;font-size:12px;';
+      d.style.cssText = 'padding:12px;color:#999;font-size: 11.5px;';
       d.textContent = kw ? '没有匹配的平台' : '未检索到可安装平台（可先执行 arduino-cli core update-index 更新索引）';
       el.appendChild(d);
       return;
     }
     if (total && total > list.length) {
       const tip = document.createElement('div');
-      tip.style.cssText = 'padding:8px 12px;color:#999;font-size:11px;';
+      tip.style.cssText = 'padding:8px 12px;color:#999;font-size: 10.5px;';
       tip.textContent = '索引共 ' + total + ' 个平台，当前显示前 ' + list.length + ' 个，可用搜索框过滤';
       el.appendChild(tip);
     }
@@ -13318,7 +13318,7 @@ function bindEvents() {
   async function refreshAvailableCores() {
     const el = document.getElementById('available-platforms');
     if (!el) return;
-    const hint = (msg) => { el.innerHTML = '<div style="padding:12px;color:#999;font-size:12px;">' + msg + '</div>'; };
+    const hint = (msg) => { el.innerHTML = '<div style="padding:12px;color:#999;font-size: 11.5px;">' + msg + '</div>'; };
     if (typeof runArduinoCli !== 'function') { hint('arduino-cli 不可用'); return; }
     hint('正在检索可安装平台…');
     try {
@@ -13365,7 +13365,7 @@ function bindEvents() {
       const out = await t.execute({});
       const lines = String(out).split('\n').filter(l => l.trim() && !l.startsWith('#'));
       el.innerHTML = '';
-      if (lines.length < 2) { el.innerHTML = '<div style="padding:12px;color:#999;font-size:12px;">未安装任何库</div>'; return; }
+      if (lines.length < 2) { el.innerHTML = '<div style="padding:12px;color:#999;font-size: 11.5px;">未安装任何库</div>'; return; }
       for (const line of lines.slice(1)) {
         const parts = line.split(/\s{2,}/).map(s => s.trim()).filter(Boolean);
         if (parts.length < 2) continue;
@@ -14125,18 +14125,18 @@ function bindEvents() {
     if (!el) return;
     try {
       const servers = await window.LabCode.mcp.listServers();
-      if (!servers || !servers.length) { el.innerHTML = '<p style="color:#888;font-size:12px;">暂无 MCP 服务器</p>'; return; }
+      if (!servers || !servers.length) { el.innerHTML = '<p style="color:#888;font-size: 11.5px;">暂无 MCP 服务器</p>'; return; }
       el.innerHTML = servers.map(s => `
         <div style="display:flex;align-items:center;justify-content:space-between;padding:8px;border:1px solid #3c3c3c;border-radius:4px;margin-bottom:6px;">
           <div>
-            <div style="color:#ccc;font-size:13px;font-weight:600;">${s.name} <span style="color:${s.status==='running'?'#4caf50':'#ff9800'};font-size:11px;">● ${s.status||'unknown'}</span></div>
-            <div style="color:#888;font-size:11px;">${s.command||''} ${(s.args||[]).join(' ')} · ${(s.tools||[]).length} 工具</div>
+            <div style="color:#ccc;font-size: 12.5px;font-weight:600;">${s.name} <span style="color:${s.status==='running'?'#4caf50':'#ff9800'};font-size: 10.5px;">● ${s.status||'unknown'}</span></div>
+            <div style="color:#888;font-size: 10.5px;">${s.command||''} ${(s.args||[]).join(' ')} · ${(s.tools||[]).length} 工具</div>
           </div>
           <div style="display:flex;gap:4px;">
-            <button onclick="removeMcpServer('${s.name}')" style="background:#c62828;color:#fff;border:none;padding:4px 10px;border-radius:3px;cursor:pointer;font-size:12px;">删除</button>
+            <button onclick="removeMcpServer('${s.name}')" style="background:#c62828;color:#fff;border:none;padding:4px 10px;border-radius:3px;cursor:pointer;font-size: 11.5px;">删除</button>
           </div>
         </div>`).join('');
-    } catch (e) { el.innerHTML = '<p style="color:#f44;font-size:12px;">错误: ' + e.message + '</p>'; }
+    } catch (e) { el.innerHTML = '<p style="color:#f44;font-size: 11.5px;">错误: ' + e.message + '</p>'; }
   }
   window.removeMcpServer = async (name) => {
     await window.LabCode.mcp.removeServer(name);
@@ -14267,7 +14267,7 @@ function bindEvents() {
       const br = await window.LabCode.git.branches(cwd);
       if (br.success) {
         branchHtml = '<div style="padding:4px 8px;margin:4px 0;background:#2d2d2d;border-radius:4px;">' +
-          '<select id="git-branch-select" style="width:100%;background:#1e1e1e;border:1px solid #3c3c3c;color:#ccc;padding:4px;border-radius:3px;font-size:12px;">' +
+          '<select id="git-branch-select" style="width:100%;background:#1e1e1e;border:1px solid #3c3c3c;color:#ccc;padding:4px;border-radius:3px;font-size: 11.5px;">' +
           br.branches.map(b => '<option value="' + b.name + '"' + (b.name === br.current ? ' selected' : '') + '>' + (b.name === br.current ? '● ' : '') + b.name + '</option>').join('') +
           '</select></div>';
       }
@@ -14276,27 +14276,27 @@ function bindEvents() {
     if (statusEl) statusEl.innerHTML = '分支: <b>' + escapeHtml(r.branch) + '</b>' + (r.ahead ? ' <span style="color:#4caf50;">↑' + r.ahead + '</span>' : '') + (r.behind ? ' <span style="color:#ff9800;">↓' + r.behind + '</span>' : '');
     if (filesEl) {
       if (!r.files.length) {
-        filesEl.innerHTML = branchHtml + '<p style="color:#4caf50;font-size:12px;padding:8px;">无变更</p>';
+        filesEl.innerHTML = branchHtml + '<p style="color:#4caf50;font-size: 11.5px;padding:8px;">无变更</p>';
       } else {
         const staged = r.files.filter(f => f.status[0] !== ' ' && f.status[0] !== '?');
         const unstaged = r.files.filter(f => f.status[0] === ' ' || f.status[0] === '?');
         let html = branchHtml;
         if (staged.length) {
-          html += '<div style="padding:4px 8px;font-size:11px;color:#888;">已暂存</div>';
+          html += '<div style="padding:4px 8px;font-size: 10.5px;color:#888;">已暂存</div>';
           html += staged.map(f => {
             const color = f.status[0] === 'M' ? '#ff9800' : f.status[0] === 'A' ? '#4caf50' : f.status[0] === 'D' ? '#f44' : '#ccc';
-            return '<div style="padding:3px 8px;font-size:12px;display:flex;justify-content:space-between;cursor:pointer;" onmouseover="this.style.background=\'#3c3c3c\'" onmouseout="this.style.background=\'transparent\'">' +
+            return '<div style="padding:3px 8px;font-size: 11.5px;display:flex;justify-content:space-between;cursor:pointer;" onmouseover="this.style.background=\'#3c3c3c\'" onmouseout="this.style.background=\'transparent\'">' +
               '<span><span style="color:' + color + ';font-weight:bold;">' + f.status[0] + '</span> ' + f.path + '</span>' +
               '<span style="color:#666;" onclick="event.stopPropagation();gitUnstageFile(\'' + f.path.replace(/\\/g, '\\\\').replace(/'/g, "\\'") + '\')" title="取消暂存">↩</span></div>';
           }).join('');
         }
         if (unstaged.length) {
-          html += '<div style="padding:4px 8px;font-size:11px;color:#888;">未暂存</div>';
+          html += '<div style="padding:4px 8px;font-size: 10.5px;color:#888;">未暂存</div>';
           html += unstaged.map(f => {
             const color = f.status[1] === 'M' ? '#ff9800' : f.status[1] === 'A' ? '#4caf50' : f.status[1] === 'D' ? '#f44' : '#ccc';
             const ep = f.path.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
             const discardBtn = f.status[1] !== '?' ? '<span style="color:#f44;margin-left:8px;" onclick="event.stopPropagation();gitDiscardFile(\'' + ep + '\')" title="丢弃修改">✕</span>' : '';
-            return '<div style="padding:3px 8px;font-size:12px;display:flex;justify-content:space-between;cursor:pointer;" onclick="gitShowDiff(\'' + ep + '\')" onmouseover="this.style.background=\'#3c3c3c\'" onmouseout="this.style.background=\'transparent\'" title="点击查看 diff">' +
+            return '<div style="padding:3px 8px;font-size: 11.5px;display:flex;justify-content:space-between;cursor:pointer;" onclick="gitShowDiff(\'' + ep + '\')" onmouseover="this.style.background=\'#3c3c3c\'" onmouseout="this.style.background=\'transparent\'" title="点击查看 diff">' +
               '<span><span style="color:' + color + ';font-weight:bold;">' + f.status[1] + '</span> ' + f.path + '</span>' +
               '<span style="color:#666;"><span onclick="event.stopPropagation();gitStageFile(\'' + ep + '\')" title="暂存">+</span>' + discardBtn + '</span></div>';
           }).join('');
@@ -14338,7 +14338,7 @@ function bindEvents() {
         if (l.startsWith('@@')) return '<div style="color:#888;">' + escapeHtml(l) + '</div>';
         return '<div>' + escapeHtml(l) + '</div>';
       }).join('');
-      out.innerHTML = '<div style="font-family:monospace;font-size:11px;line-height:1.4;">' + html + '</div>';
+      out.innerHTML = '<div style="font-family:monospace;font-size: 10.5px;line-height:1.4;">' + html + '</div>';
     }
     showToast('已显示 ' + path + ' 的 diff', 'info');
   };
@@ -14381,15 +14381,15 @@ function bindEvents() {
     wrap.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:10000;';
     wrap.innerHTML =
       '<div style="width:520px;background:var(--bg-color);border:1px solid var(--border-color);border-radius:10px;padding:18px;box-shadow:0 12px 40px rgba(0,0,0,.4);">' +
-        '<div style="font-size:14px;font-weight:600;color:var(--text-color);margin-bottom:12px;">从 Git 克隆项目</div>' +
-        '<div style="font-size:12px;color:var(--text-secondary);margin-bottom:6px;">仓库地址（HTTPS / SSH）</div>' +
-        '<input id="git-clone-url" placeholder="https://github.com/user/repo.git" spellcheck="false" style="width:100%;background:var(--card-color);border:1px solid var(--border-color);color:var(--text-color);padding:8px 10px;border-radius:6px;font-size:12.5px;font-family:Consolas,monospace;margin-bottom:12px;">' +
-        '<div style="font-size:12px;color:var(--text-secondary);margin-bottom:6px;">克隆到（选择父目录）</div>' +
+        '<div style="font-size: 13px;font-weight:600;color:var(--text-color);margin-bottom:12px;">从 Git 克隆项目</div>' +
+        '<div style="font-size: 11.5px;color:var(--text-secondary);margin-bottom:6px;">仓库地址（HTTPS / SSH）</div>' +
+        '<input id="git-clone-url" placeholder="https://github.com/user/repo.git" spellcheck="false" style="width:100%;background:var(--card-color);border:1px solid var(--border-color);color:var(--text-color);padding:8px 10px;border-radius:6px;font-size: 12px;font-family:Consolas,monospace;margin-bottom:12px;">' +
+        '<div style="font-size: 11.5px;color:var(--text-secondary);margin-bottom:6px;">克隆到（选择父目录）</div>' +
         '<div style="display:flex;gap:8px;align-items:center;margin-bottom:4px;">' +
           '<button id="git-clone-pick" class="btn btn-secondary btn-sm">选择位置…</button>' +
-          '<span id="git-clone-dir" style="font-size:11.5px;color:var(--text-tertiary);font-family:Consolas,monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;">未选择（默认为当前项目同级目录）</span>' +
+          '<span id="git-clone-dir" style="font-size: 11px;color:var(--text-tertiary);font-family:Consolas,monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;">未选择（默认为当前项目同级目录）</span>' +
         '</div>' +
-        '<div id="git-clone-hint" style="font-size:11.5px;color:var(--text-tertiary);margin:10px 0 0;line-height:1.6;">私有仓库请确保本机 git 已配置凭据（SSH key 或凭据管理器）。克隆完成后自动打开项目。</div>' +
+        '<div id="git-clone-hint" style="font-size: 11px;color:var(--text-tertiary);margin:10px 0 0;line-height:1.6;">私有仓库请确保本机 git 已配置凭据（SSH key 或凭据管理器）。克隆完成后自动打开项目。</div>' +
         '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px;">' +
           '<button id="git-clone-cancel" class="btn btn-secondary btn-sm">取消</button>' +
           '<button id="git-clone-go" class="btn btn-primary btn-sm">克隆</button>' +
@@ -14723,17 +14723,17 @@ function bindEvents() {
     wrap.innerHTML =
       '<div style="width:680px;max-width:94vw;background:#faf7f0;border:1px solid #e8e0cd;border-radius:14px;box-shadow:0 18px 60px rgba(0,0,0,.28);overflow:hidden;margin-bottom:6vh;">' +
         '<div style="background:#1d2b3a;padding:16px 20px;display:flex;align-items:center;gap:10px;">' +
-          '<span style="font-size:20px;">🤖</span><b style="color:#fff;font-size:17px;">AI 硬件拆解工坊</b>' +
-          '<span style="color:#c9b98a;font-size:12px;margin-left:auto;cursor:pointer;" id="hwlab-close">✕ 关闭</span>' +
+          '<span style="font-size: 18px;">🤖</span><b style="color:#fff;font-size: 15.5px;">AI 硬件拆解工坊</b>' +
+          '<span style="color:#c9b98a;font-size: 11.5px;margin-left:auto;cursor:pointer;" id="hwlab-close">✕ 关闭</span>' +
         '</div>' +
         '<div style="padding:18px 20px 26px;">' +
-          '<p style="margin:0 0 10px;font-size:13px;color:#7a6f55;">正在把你的想法拆成可落地的手搓方案</p>' +
-          '<input id="hwlab-idea" placeholder="一句话描述你想做的设备：如 做一辆能沿黑线自动行驶的循迹小车，速度可调" style="width:100%;box-sizing:border-box;padding:11px 12px;border:1px solid #e0d6bd;border-left:3px solid #f0c445;border-radius:8px;background:#fff;font-size:14px;outline:none;">' +
+          '<p style="margin:0 0 10px;font-size: 12.5px;color:#7a6f55;">正在把你的想法拆成可落地的手搓方案</p>' +
+          '<input id="hwlab-idea" placeholder="一句话描述你想做的设备：如 做一辆能沿黑线自动行驶的循迹小车，速度可调" style="width:100%;box-sizing:border-box;padding:11px 12px;border:1px solid #e0d6bd;border-left:3px solid #f0c445;border-radius:8px;background:#fff;font-size: 13px;outline:none;">' +
           '<div style="display:flex;gap:8px;margin:10px 0 14px;flex-wrap:wrap;">' +
             ['桌面天气站','自动浇花器','循迹小车','桌面小机器人','空气质量监测','追光小台灯'].map(s =>
-              '<button class="hwlab-eg" style="padding:6px 12px;border:1px solid #d8cdb0;border-radius:8px;background:#fff;font-size:12px;color:#4a4331;cursor:pointer;">' + s + '</button>').join('') +
+              '<button class="hwlab-eg" style="padding:6px 12px;border:1px solid #d8cdb0;border-radius:8px;background:#fff;font-size: 11.5px;color:#4a4331;cursor:pointer;">' + s + '</button>').join('') +
           '</div>' +
-          '<button id="hwlab-go" style="width:100%;padding:13px;border:none;border-radius:10px;background:linear-gradient(135deg,#f5c842,#e8a614);color:#3a2f10;font-size:15px;font-weight:700;cursor:pointer;">开始拆解需求 →</button>' +
+          '<button id="hwlab-go" style="width:100%;padding:13px;border:none;border-radius:10px;background:linear-gradient(135deg,#f5c842,#e8a614);color:#3a2f10;font-size: 14px;font-weight:700;cursor:pointer;">开始拆解需求 →</button>' +
           '<div id="hwlab-progress" style="display:none;margin-top:16px;"></div>' +
           '<div id="hwlab-out" style="margin-top:14px;font-size:13.5px;color:#3a3425;line-height:1.75;"></div>' +
         '</div>' +
@@ -14751,8 +14751,8 @@ function bindEvents() {
       const goBtn = wrap.querySelector('#hwlab-go'); goBtn.disabled = true;
       const prog = wrap.querySelector('#hwlab-progress'); prog.style.display = 'block';
       const out = wrap.querySelector('#hwlab-out'); out.innerHTML = '';
-      prog.innerHTML = '<div style="font-size:13px;color:#7a6f55;margin-bottom:8px;">🔊 AI 正在生成你的方案</div>' +
-        SECTIONS.map(s => '<div class="hwlab-dot" data-s="' + s + '" style="display:flex;gap:8px;align-items:center;margin:5px 0;font-size:13px;color:#b3a98c;"><span style="width:12px;height:12px;border-radius:50%;background:#d8cdb0;display:inline-block;"></span>' + s + '</div>').join('');
+      prog.innerHTML = '<div style="font-size: 12.5px;color:#7a6f55;margin-bottom:8px;">🔊 AI 正在生成你的方案</div>' +
+        SECTIONS.map(s => '<div class="hwlab-dot" data-s="' + s + '" style="display:flex;gap:8px;align-items:center;margin:5px 0;font-size: 12.5px;color:#b3a98c;"><span style="width:12px;height:12px;border-radius:50%;background:#d8cdb0;display:inline-block;"></span>' + s + '</div>').join('');
       let lit = 0;
       const timer = setInterval(() => { const dots = prog.querySelectorAll('.hwlab-dot'); if (lit < dots.length) { const d = dots[lit]; d.style.color = '#3a3425'; d.querySelector('span').style.background = '#f0c445'; lit++; } }, 900);
       try {
@@ -14764,8 +14764,8 @@ function bindEvents() {
         const esc = md.replace(/&/g, '&amp;').replace(/</g, '&lt;');
         out.innerHTML = esc.split(/^## /m).filter(Boolean).map(seg => {
           const nl = seg.indexOf('\n'); const title = seg.slice(0, nl).trim(); const body = seg.slice(nl + 1);
-          const bodyHtml = body.replace(/```([\s\S]*?)```/g, (m, c) => '<pre style="background:#2d2d2d;color:#dcdcdc;padding:12px;border-radius:8px;overflow-x:auto;font-size:12px;white-space:pre-wrap;">' + c.trim() + '</pre>').replace(/\n/g, '<br>');
-          return '<div style="margin:14px 0;padding:12px 14px;background:#fff;border:1px solid #ece4cf;border-radius:10px;"><b style="color:#8a6d1a;font-size:14px;">' + title + '</b><div style="margin-top:6px;">' + bodyHtml + '</div></div>';
+          const bodyHtml = body.replace(/```([\s\S]*?)```/g, (m, c) => '<pre style="background:#2d2d2d;color:#dcdcdc;padding:12px;border-radius:8px;overflow-x:auto;font-size: 11.5px;white-space:pre-wrap;">' + c.trim() + '</pre>').replace(/\n/g, '<br>');
+          return '<div style="margin:14px 0;padding:12px 14px;background:#fff;border:1px solid #ece4cf;border-radius:10px;"><b style="color:#8a6d1a;font-size: 13px;">' + title + '</b><div style="margin-top:6px;">' + bodyHtml + '</div></div>';
         }).join('');
       } catch (e) {
         clearInterval(timer);
@@ -15002,10 +15002,10 @@ function bindEvents() {
     const st = document.createElement('style');
     st.id = 'notification-panel-style';
     st.textContent = `
-.notification-panel{position:fixed;width:320px;background:var(--bg-secondary,#2a2a2a);border:1px solid var(--border-color,#3c3c3c);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.35);overflow:hidden;font-size:13px;color:var(--text,#e0e0e0);}
+.notification-panel{position:fixed;width:320px;background:var(--bg-secondary,#2a2a2a);border:1px solid var(--border-color,#3c3c3c);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.35);overflow:hidden;font-size: 12.5px;color:var(--text,#e0e0e0);}
 .notification-panel-header{padding:10px 14px;font-weight:600;border-bottom:1px solid var(--border-color,#3c3c3c);}
 .notification-panel-body{max-height:360px;overflow-y:auto;padding:6px 0;}
-.notification-empty{padding:28px 14px;text-align:center;color:var(--text-secondary,#999);font-size:13px;}`;
+.notification-empty{padding:28px 14px;text-align:center;color:var(--text-secondary,#999);font-size: 12.5px;}`;
     document.head.appendChild(st);
   }
   let notifPanel = null;
@@ -15054,8 +15054,8 @@ function bindEvents() {
     st.id = 'user-popover-style';
     st.textContent = `
 .user-popover{position:fixed;width:250px;background:var(--bg-secondary,#2a2a2a);border:1px solid var(--border-color,#3c3c3c);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.35);padding:14px;}
-.user-popover-tip{font-size:13px;color:var(--text,#e0e0e0);text-align:center;margin-bottom:12px;}
-.user-popover-btn{width:100%;background:var(--accent,#3b82f6);color:#fff;border:none;border-radius:8px;padding:9px 0;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;}
+.user-popover-tip{font-size: 12.5px;color:var(--text,#e0e0e0);text-align:center;margin-bottom:12px;}
+.user-popover-btn{width:100%;background:var(--accent,#3b82f6);color:#fff;border:none;border-radius:8px;padding:9px 0;font-size: 12.5px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;}
 .user-popover-btn:hover{filter:brightness(1.12);}`;
     document.head.appendChild(st);
   }
@@ -15118,10 +15118,10 @@ function bindEvents() {
     const ast = document.createElement('style');
     ast.id = 'account-popover-style';
     ast.textContent = `
-.account-popover{position:fixed;width:280px;background:var(--bg-secondary,#2a2a2a);border:1px solid var(--border-color,#3c3c3c);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.35);padding:14px;color:var(--text,#e0e0e0);font-size:13px;}
+.account-popover{position:fixed;width:280px;background:var(--bg-secondary,#2a2a2a);border:1px solid var(--border-color,#3c3c3c);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.35);padding:14px;color:var(--text,#e0e0e0);font-size: 12.5px;}
 .account-popover-head{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
 .account-popover-email{font-weight:600;word-break:break-all;}
-.account-popover-sub{font-size:11px;color:var(--text-secondary,#999);margin-top:2px;line-height:1.5;}
+.account-popover-sub{font-size: 10.5px;color:var(--text-secondary,#999);margin-top:2px;line-height:1.5;}
 .account-popover-row{display:flex;align-items:center;gap:8px;background:rgba(128,128,128,0.12);border-radius:8px;padding:8px 10px;margin-bottom:6px;cursor:pointer;}
 .account-popover-row:hover{background:rgba(128,128,128,0.22);}
 .account-popover-row.danger{color:#e5484d;}
@@ -15432,11 +15432,11 @@ function bindEvents() {
       if (mlist) {
         mlist.innerHTML = '';
         if (!mem.length) {
-          mlist.innerHTML = '<div style="font-size:12px;color:var(--text-tertiary);">暂无记忆</div>';
+          mlist.innerHTML = '<div style="font-size: 11.5px;color:var(--text-tertiary);">暂无记忆</div>';
         } else {
           mem.slice(0, 50).forEach((m) => {
             const d = document.createElement('div');
-            d.style.cssText = 'padding:8px 10px;background:rgba(128,128,128,0.08);border-radius:6px;font-size:12px;color:var(--text-secondary);white-space:pre-wrap;word-break:break-all;';
+            d.style.cssText = 'padding:8px 10px;background:rgba(128,128,128,0.08);border-radius:6px;font-size: 11.5px;color:var(--text-secondary);white-space:pre-wrap;word-break:break-all;';
             d.textContent = (m.content || m.text || JSON.stringify(m)).slice(0, 200);
             mlist.appendChild(d);
           });
@@ -15819,7 +15819,7 @@ function bindEvents() {
         if (!(await loadMemoriesFromDisk()).length) { showToast('记忆已为空', 'info'); return; }
         await saveMemoriesToDisk([]);
         const mlist = document.getElementById('memory-list');
-        if (mlist) mlist.innerHTML = '<div style="font-size:12px;color:var(--text-tertiary);">暂无记忆</div>';
+        if (mlist) mlist.innerHTML = '<div style="font-size: 11.5px;color:var(--text-tertiary);">暂无记忆</div>';
         const mcount = document.getElementById('memory-count');
         if (mcount) mcount.textContent = '共 0 条';
         showToast('记忆已清空', 'success');
@@ -15840,13 +15840,13 @@ function bindEvents() {
       const skList = document.getElementById('skills-list');
       if (!skList) return;
       skList.innerHTML = '';
-      if (!skillsData.length) { skList.innerHTML = '<div style="font-size:12px;color:var(--text-tertiary);">暂无技能，可在下方添加</div>'; return; }
+      if (!skillsData.length) { skList.innerHTML = '<div style="font-size: 11.5px;color:var(--text-tertiary);">暂无技能，可在下方添加</div>'; return; }
       skillsData.forEach((s, i) => {
         const d = document.createElement('div');
-        d.style.cssText = 'display:flex;justify-content:space-between;gap:8px;padding:8px 10px;background:rgba(128,128,128,0.08);border-radius:6px;font-size:12px;';
+        d.style.cssText = 'display:flex;justify-content:space-between;gap:8px;padding:8px 10px;background:rgba(128,128,128,0.08);border-radius:6px;font-size: 11.5px;';
         const t = document.createElement('span'); t.style.cssText = 'color:var(--text-secondary);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
         t.textContent = (s.name || ('技能' + i)) + (s.prompt ? '：' + s.prompt.slice(0, 40) : '');
-        const x = document.createElement('button'); x.className = 'btn btn-secondary'; x.style.cssText = 'flex:none;padding:2px 8px;font-size:11px;';
+        const x = document.createElement('button'); x.className = 'btn btn-secondary'; x.style.cssText = 'flex:none;padding:2px 8px;font-size: 10.5px;';
         x.textContent = '删除';
         x.addEventListener('click', () => { skillsData.splice(i, 1); window.LabCode.config.set('skills.list', skillsData); renderSkills(); });
         d.appendChild(t); d.appendChild(x); skList.appendChild(d);
@@ -16136,7 +16136,7 @@ function bindEvents() {
         if (a.tier !== lastTier) {
           lastTier = a.tier;
           const h = document.createElement('div');
-          h.style.cssText = 'grid-column:1/-1;font-size:11px;font-weight:600;color:var(--text-secondary);margin:4px 0 2px;';
+          h.style.cssText = 'grid-column:1/-1;font-size: 10.5px;font-weight:600;color:var(--text-secondary);margin:4px 0 2px;';
           h.textContent = tierTitle[a.tier] || a.tier;
           list.appendChild(h);
         }
@@ -16145,34 +16145,34 @@ function bindEvents() {
         const top = document.createElement('div');
         top.style.cssText = 'display:flex;justify-content:space-between;align-items:center;gap:6px;';
         const nm = document.createElement('span');
-        nm.style.cssText = 'font-size:13px;font-weight:600;color:var(--text-color);';
+        nm.style.cssText = 'font-size: 12.5px;font-weight:600;color:var(--text-color);';
         nm.textContent = a.name;
         const badge = document.createElement('span');
-        badge.style.cssText = 'font-size:10px;padding:1px 6px;border-radius:10px;background:var(--accent);color:#fff;white-space:nowrap;';
+        badge.style.cssText = 'font-size: 9.5px;padding:1px 6px;border-radius:10px;background:var(--accent);color:#fff;white-space:nowrap;';
         badge.textContent = a.typeLabel;
         top.appendChild(nm); top.appendChild(badge);
         const dsc = document.createElement('div');
-        dsc.style.cssText = 'font-size:11px;color:var(--text-secondary);line-height:1.4;flex:1;';
+        dsc.style.cssText = 'font-size: 10.5px;color:var(--text-secondary);line-height:1.4;flex:1;';
         dsc.textContent = a.desc;
         const actions = document.createElement('div');
         actions.style.cssText = 'display:flex;gap:6px;align-items:center;margin-top:2px;';
         if (a.selectable) {
           const btn = document.createElement('button');
           btn.className = 'btn btn-primary';
-          btn.style.cssText = 'flex:1;padding:5px;font-size:12px;';
+          btn.style.cssText = 'flex:1;padding:5px;font-size: 11.5px;';
           btn.textContent = '选用';
           btn.addEventListener('click', () => applyMarketAgent(a));
           actions.appendChild(btn);
         } else {
           const info = document.createElement('span');
-          info.style.cssText = 'font-size:11px;color:var(--text-secondary);';
+          info.style.cssText = 'font-size: 10.5px;color:var(--text-secondary);';
           info.textContent = '开源参考实现';
           actions.appendChild(info);
         }
         if (a.link) {
           const link = document.createElement('a');
           link.href = a.link; link.target = '_blank'; link.rel = 'noopener';
-          link.style.cssText = 'font-size:12px;color:var(--accent);white-space:nowrap;';
+          link.style.cssText = 'font-size: 11.5px;color:var(--accent);white-space:nowrap;';
           link.textContent = '源码 ↗';
           actions.appendChild(link);
         }
@@ -16180,12 +16180,12 @@ function bindEvents() {
         const cliMeta = CLI_PKG_MAP[a.name];
         if (cliMeta && cliMeta[1]) {
           const st = document.createElement('span');
-          st.style.cssText = 'font-size:11px;color:var(--text-secondary);white-space:nowrap;';
+          st.style.cssText = 'font-size: 10.5px;color:var(--text-secondary);white-space:nowrap;';
           st.textContent = '检测中…';
           actions.appendChild(st);
           const ib = document.createElement('button');
           ib.className = 'btn';
-          ib.style.cssText = 'padding:3px 8px;font-size:11px;white-space:nowrap;';
+          ib.style.cssText = 'padding:3px 8px;font-size: 10.5px;white-space:nowrap;';
           ib.textContent = '一键安装';
           ib.disabled = true;
           actions.appendChild(ib);
@@ -16200,7 +16200,7 @@ function bindEvents() {
                 // dsh 特例：DeepSeek Harness 已装仍需用户自己的 DEEPSEEK_API_KEY（"谁安装算谁的"：软件只装不配）
                 if (cliMeta[0] === 'dsh') {
                   const hint = document.createElement('div');
-                  hint.style.cssText = 'font-size:10px;color:#f59e0b;line-height:1.4;';
+                  hint.style.cssText = 'font-size: 9.5px;color:#f59e0b;line-height:1.4;';
                   hint.textContent = '⚠️ 已装但需配置 DeepSeek API Key 才能调用（环境变量 DEEPSEEK_API_KEY，或 dsh web 的 Models 页写入）';
                   card.appendChild(hint);
                 }
@@ -16595,7 +16595,7 @@ function bindEvents() {
     const listEl = document.getElementById('ai-skill-list');
     if (!listEl) return;
     const skills = (typeof skillManager !== 'undefined' && skillManager.listSkills) ? skillManager.listSkills() : [];
-    if (!skills.length) { listEl.innerHTML = '<div style="font-size:12px;color:var(--text-tertiary);padding:8px;">暂无可用技能</div>'; return; }
+    if (!skills.length) { listEl.innerHTML = '<div style="font-size: 11.5px;color:var(--text-tertiary);padding:8px;">暂无可用技能</div>'; return; }
     listEl.innerHTML = skills.map(s => `
       <div class="ai-skill-item" data-skill-id="${s.id}">
         <span class="ai-skill-item-icon"><svg class="icon"><use href="#icon-bolt"></use></svg></span>
@@ -17682,29 +17682,29 @@ async function renderProviderManager() {
   try { ai = (await window.LabCode.config.get()).ai || {}; } catch (e) {}
   const keys = ai.providerKeys || {}, enabled = ai.providerEnabled || {}, baseUrls = ai.providerBaseUrls || {};
   let html = '<div class="device-section-title" style="margin-top:0;">模型供应商（统一管理）</div>';
-  html += '<div style="font-size:11px;color:#888;margin-bottom:8px;">启用/停用、设置各家 API Key 与地址；新增自定义 OpenAI 兼容端点会出现在顶栏模型选择里。</div>';
+  html += '<div style="font-size: 10.5px;color:#888;margin-bottom:8px;">启用/停用、设置各家 API Key 与地址；新增自定义 OpenAI 兼容端点会出现在顶栏模型选择里。</div>';
   for (const p of list) {
     const isCustom = !!p.custom;
     html += '<div style="background:#181818;border:1px solid #3c3c3c;border-radius:6px;padding:10px;margin-bottom:8px;">';
     html += '<div style="display:flex;align-items:center;gap:8px;">';
     html += '<input type="checkbox" data-pid="' + pmEsc(p.id) + '" ' + (p.enabled ? 'checked' : '') + ' class="pm-enable">';
-    html += '<div style="flex:1;"><div style="font-size:13px;font-weight:600;color:#e0e0e0;">' + pmEsc(p.name) + ' <span style="font-size:10px;color:#888;">[' + pmEsc(p.type) + ']</span></div>';
-    if (p.description) html += '<div style="font-size:11px;color:#888;margin-top:2px;">' + pmEsc(p.description) + '</div>';
+    html += '<div style="flex:1;"><div style="font-size: 12.5px;font-weight:600;color:#e0e0e0;">' + pmEsc(p.name) + ' <span style="font-size: 9.5px;color:#888;">[' + pmEsc(p.type) + ']</span></div>';
+    if (p.description) html += '<div style="font-size: 10.5px;color:#888;margin-top:2px;">' + pmEsc(p.description) + '</div>';
     html += '</div>';
-    if (!p.builtin) html += '<button data-pid="' + pmEsc(p.id) + '" class="pm-remove" style="background:#3a3a3a;color:#ef4444;border:1px solid #555;border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer;">删除</button>';
+    if (!p.builtin) html += '<button data-pid="' + pmEsc(p.id) + '" class="pm-remove" style="background:#3a3a3a;color:#ef4444;border:1px solid #555;border-radius:4px;padding:3px 8px;font-size: 10.5px;cursor:pointer;">删除</button>';
     html += '</div>';
-    if (p.needsApiKey) html += '<div style="margin-top:6px;"><label style="font-size:11px;color:#888;">API Key</label><input class="device-input pm-key" data-pid="' + pmEsc(p.id) + '" type="password" placeholder="sk-..." value="' + pmEsc(keys[p.id] || '') + '" style="width:100%;background:#111;border:1px solid #3c3c3c;color:#e0e0e0;border-radius:4px;padding:5px 8px;font-size:11px;"></div>';
-    if (isCustom) html += '<div style="margin-top:6px;display:flex;gap:6px;"><input class="device-input pm-url" data-pid="' + pmEsc(p.id) + '" placeholder="Base URL" value="' + pmEsc(baseUrls[p.id] || p.baseURL || '') + '" style="flex:1;background:#111;border:1px solid #3c3c3c;color:#e0e0e0;border-radius:4px;padding:5px 8px;font-size:11px;"><input class="device-input pm-model" data-pid="' + pmEsc(p.id) + '" placeholder="默认模型" value="' + pmEsc(p.defaultModel || '') + '" style="flex:1;background:#111;border:1px solid #3c3c3c;color:#e0e0e0;border-radius:4px;padding:5px 8px;font-size:11px;"></div>';
+    if (p.needsApiKey) html += '<div style="margin-top:6px;"><label style="font-size: 10.5px;color:#888;">API Key</label><input class="device-input pm-key" data-pid="' + pmEsc(p.id) + '" type="password" placeholder="sk-..." value="' + pmEsc(keys[p.id] || '') + '" style="width:100%;background:#111;border:1px solid #3c3c3c;color:#e0e0e0;border-radius:4px;padding:5px 8px;font-size: 10.5px;"></div>';
+    if (isCustom) html += '<div style="margin-top:6px;display:flex;gap:6px;"><input class="device-input pm-url" data-pid="' + pmEsc(p.id) + '" placeholder="Base URL" value="' + pmEsc(baseUrls[p.id] || p.baseURL || '') + '" style="flex:1;background:#111;border:1px solid #3c3c3c;color:#e0e0e0;border-radius:4px;padding:5px 8px;font-size: 10.5px;"><input class="device-input pm-model" data-pid="' + pmEsc(p.id) + '" placeholder="默认模型" value="' + pmEsc(p.defaultModel || '') + '" style="flex:1;background:#111;border:1px solid #3c3c3c;color:#e0e0e0;border-radius:4px;padding:5px 8px;font-size: 10.5px;"></div>';
     html += '</div>';
   }
   html += '<div style="background:#181818;border:1px dashed #3c3c3c;border-radius:6px;padding:10px;margin-bottom:8px;">';
-  html += '<div style="font-size:12px;color:#e0e0e0;margin-bottom:6px;">添加自定义供应商</div>';
-  html += '<div style="display:flex;gap:6px;flex-wrap:wrap;"><input id="pm-add-id" placeholder="id (如 groq)" style="flex:1;min-width:90px;background:#111;border:1px solid #3c3c3c;color:#e0e0e0;border-radius:4px;padding:5px 8px;font-size:11px;"><input id="pm-add-name" placeholder="名称" style="flex:1;min-width:90px;background:#111;border:1px solid #3c3c3c;color:#e0e0e0;border-radius:4px;padding:5px 8px;font-size:11px;"><select id="pm-add-type" style="background:#111;border:1px solid #3c3c3c;color:#e0e0e0;border-radius:4px;padding:5px 8px;font-size:11px;"><option value="openai">openai</option><option value="local">local</option><option value="ollama">ollama</option><option value="gateway">gateway</option></select></div>';
-  html += '<div style="display:flex;gap:6px;margin-top:6px;"><input id="pm-add-url" placeholder="Base URL (openai 必填)" style="flex:1;background:#111;border:1px solid #3c3c3c;color:#e0e0e0;border-radius:4px;padding:5px 8px;font-size:11px;"><input id="pm-add-model" placeholder="默认模型" style="flex:1;background:#111;border:1px solid #3c3c3c;color:#e0e0e0;border-radius:4px;padding:5px 8px;font-size:11px;"></div>';
-  html += '<button id="pm-add-btn" style="margin-top:6px;background:#2d5a27;color:#fff;border:1px solid #3f7a36;border-radius:4px;padding:5px 12px;font-size:11px;cursor:pointer;">添加</button>';
+  html += '<div style="font-size: 11.5px;color:#e0e0e0;margin-bottom:6px;">添加自定义供应商</div>';
+  html += '<div style="display:flex;gap:6px;flex-wrap:wrap;"><input id="pm-add-id" placeholder="id (如 groq)" style="flex:1;min-width:90px;background:#111;border:1px solid #3c3c3c;color:#e0e0e0;border-radius:4px;padding:5px 8px;font-size: 10.5px;"><input id="pm-add-name" placeholder="名称" style="flex:1;min-width:90px;background:#111;border:1px solid #3c3c3c;color:#e0e0e0;border-radius:4px;padding:5px 8px;font-size: 10.5px;"><select id="pm-add-type" style="background:#111;border:1px solid #3c3c3c;color:#e0e0e0;border-radius:4px;padding:5px 8px;font-size: 10.5px;"><option value="openai">openai</option><option value="local">local</option><option value="ollama">ollama</option><option value="gateway">gateway</option></select></div>';
+  html += '<div style="display:flex;gap:6px;margin-top:6px;"><input id="pm-add-url" placeholder="Base URL (openai 必填)" style="flex:1;background:#111;border:1px solid #3c3c3c;color:#e0e0e0;border-radius:4px;padding:5px 8px;font-size: 10.5px;"><input id="pm-add-model" placeholder="默认模型" style="flex:1;background:#111;border:1px solid #3c3c3c;color:#e0e0e0;border-radius:4px;padding:5px 8px;font-size: 10.5px;"></div>';
+  html += '<button id="pm-add-btn" style="margin-top:6px;background:#2d5a27;color:#fff;border:1px solid #3f7a36;border-radius:4px;padding:5px 12px;font-size: 10.5px;cursor:pointer;">添加</button>';
   html += '</div>';
-  html += '<button id="pm-save-btn" style="margin-top:10px;background:#3a6ea5;color:#fff;border:none;border-radius:4px;padding:6px 14px;font-size:12px;cursor:pointer;">保存供应商配置</button>';
-  html += '<span id="pm-save-hint" style="font-size:11px;margin-left:8px;"></span>';
+  html += '<button id="pm-save-btn" style="margin-top:10px;background:#3a6ea5;color:#fff;border:none;border-radius:4px;padding:6px 14px;font-size: 11.5px;cursor:pointer;">保存供应商配置</button>';
+  html += '<span id="pm-save-hint" style="font-size: 10.5px;margin-left:8px;"></span>';
   el.innerHTML = html;
   const saveBtn = document.getElementById('pm-save-btn');
   if (saveBtn) saveBtn.addEventListener('click', saveProviderManager);
@@ -17772,24 +17772,24 @@ async function renderGuardrailSettings() {
   const loopTimeoutMin = Number(g.loopTimeoutMsMin) || 0;
   const strictPlanGate = g.strictPlanGate !== false;
   let html = '<div class="device-section-title" style="margin-top:0;">Agent 护栏（TrieCode 式）</div>';
-  html += '<div style="font-size:11px;color:#888;margin-bottom:8px;">控制 agent 循环的健壮性护栏；改动在「下一次任务」生效。B2 默认开启。</div>';
+  html += '<div style="font-size: 10.5px;color:#888;margin-bottom:8px;">控制 agent 循环的健壮性护栏；改动在「下一次任务」生效。B2 默认开启。</div>';
   const row = (id, label, checked, type, extra) => {
     if (type === 'checkbox') {
-      return '<label style="display:flex;align-items:flex-start;gap:8px;margin-bottom:8px;font-size:12px;color:#e0e0e0;cursor:pointer;">'
+      return '<label style="display:flex;align-items:flex-start;gap:8px;margin-bottom:8px;font-size: 11.5px;color:#e0e0e0;cursor:pointer;">'
         + '<input type="checkbox" id="' + id + '" ' + (checked ? 'checked' : '') + ' style="margin-top:2px;">'
         + '<span>' + label + '</span></label>';
     }
-    return '<label style="display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:12px;color:#e0e0e0;">'
+    return '<label style="display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size: 11.5px;color:#e0e0e0;">'
       + '<span style="flex:1;">' + label + '</span>'
-      + '<input type="number" id="' + id + '" min="0" step="1" value="' + extra + '" style="width:80px;background:#111;border:1px solid #3c3c3c;color:#e0e0e0;border-radius:4px;padding:4px 6px;font-size:11px;">'
+      + '<input type="number" id="' + id + '" min="0" step="1" value="' + extra + '" style="width:80px;background:#111;border:1px solid #3c3c3c;color:#e0e0e0;border-radius:4px;padding:4px 6px;font-size: 10.5px;">'
       + '</label>';
   };
   html += row('gr-b1', '<b>B1</b> 上下文 LLM 摘要压缩：token 超阈值时把旧轮次折叠成 LLM 生成的「历史背景摘要」（区别于原仅删旧工具结果）。', summaryCompression, 'checkbox');
   html += row('gr-b3', '<b>B3</b> 常驻验证代理：每轮收尾前强制真实验证，未通过则不停要求验证（默认仅在检测到未验证修改时触发一次）。', alwaysVerify, 'checkbox');
   html += row('gr-b4', '<b>B4</b> 整体循环超时（分钟，0 = 关闭）：超过则强制终止任务。', false, 'number', loopTimeoutMin);
   html += row('gr-b2', '<b>B2</b> 严格 plan 门控：PLAN 模式下未批准则拒执行/写类工具（默认开启；关闭即退化为确认窗）。', strictPlanGate, 'checkbox');
-  html += '<button id="gr-save-btn" style="background:#3a6ea5;color:#fff;border:none;border-radius:4px;padding:6px 14px;font-size:12px;cursor:pointer;">保存护栏设置</button>';
-  html += '<span id="gr-save-hint" style="font-size:11px;margin-left:8px;"></span>';
+  html += '<button id="gr-save-btn" style="background:#3a6ea5;color:#fff;border:none;border-radius:4px;padding:6px 14px;font-size: 11.5px;cursor:pointer;">保存护栏设置</button>';
+  html += '<span id="gr-save-hint" style="font-size: 10.5px;margin-left:8px;"></span>';
   el.innerHTML = html;
   const saveBtn = document.getElementById('gr-save-btn');
   if (saveBtn) saveBtn.addEventListener('click', async () => {
@@ -17912,7 +17912,7 @@ async function renderGuardrailSettings() {
     const mkBtn = (label, bg, fn) => {
       const b = document.createElement('button');
       b.textContent = label;
-      b.style.cssText = 'background:' + bg + ';color:#fff;border:1px solid rgba(255,255,255,.2);border-radius:4px;padding:5px 10px;font-size:11px;cursor:pointer;';
+      b.style.cssText = 'background:' + bg + ';color:#fff;border:1px solid rgba(255,255,255,.2);border-radius:4px;padding:5px 10px;font-size: 10.5px;cursor:pointer;';
       b.addEventListener('click', fn);
       actions.appendChild(b);
       return b;
@@ -18300,7 +18300,7 @@ function updateProblemsPanel() {
     const ICON = { 8: '❌', 4: '⚠️', 2: 'ℹ️' }; // monaco MarkerSeverity: Error/Warning/Info
     markers.forEach((m) => {
       const row = document.createElement('div');
-      row.style.cssText = 'display:flex;gap:8px;padding:4px 10px;font-size:12px;cursor:pointer;align-items:flex-start;';
+      row.style.cssText = 'display:flex;gap:8px;padding:4px 10px;font-size: 11.5px;cursor:pointer;align-items:flex-start;';
       row.title = '点击跳转到该问题';
       const sev = document.createElement('span');
       sev.textContent = ICON[m.severity] || '•';
@@ -18372,12 +18372,12 @@ function appendByokCard(title) {
   card.innerHTML =
     '<div class="chat-avatar" style="background:linear-gradient(135deg,#059669,#10b981);">🔑</div>' +
     '<div class="chat-bubble" style="max-width:420px;">' +
-      '<div style="font-size:13px;font-weight:600;margin-bottom:6px;">' + (title || '用自己的 API Key 继续') + '</div>' +
-      '<div style="font-size:12px;opacity:.85;line-height:1.7;margin-bottom:10px;">' +
+      '<div style="font-size: 12.5px;font-weight:600;margin-bottom:6px;">' + (title || '用自己的 API Key 继续') + '</div>' +
+      '<div style="font-size: 11.5px;opacity:.85;line-height:1.7;margin-bottom:10px;">' +
         '填一个你自己的模型 API Key 就能直接用，密钥只存本机，不经过 LabCode 服务器。' +
         '智谱 GLM、硅基流动都有免费模型。' +
       '</div>' +
-      '<button id="byok-cta-btn" style="padding:7px 14px;background:#059669;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">填写我的 API Key</button>' +
+      '<button id="byok-cta-btn" style="padding:7px 14px;background:#059669;color:#fff;border:none;border-radius:6px;font-size: 11.5px;font-weight:600;cursor:pointer;">填写我的 API Key</button>' +
     '</div>';
   area.appendChild(card);
   area.scrollTop = area.scrollHeight;
@@ -18395,14 +18395,14 @@ function appendByokCard(title) {
     try {
       const s = await window.LabCode.ollama.status();
       if (!s.installed) {
-        el.innerHTML = '<span style="color:#ef4444;">● 未安装</span> <button id="ollama-install-btn" style="font-size:11px;padding:2px 8px;background:#4caf50;color:#fff;border:none;border-radius:3px;cursor:pointer;margin-left:4px;">一键下载 Ollama</button>';
+        el.innerHTML = '<span style="color:#ef4444;">● 未安装</span> <button id="ollama-install-btn" style="font-size: 10.5px;padding:2px 8px;background:#4caf50;color:#fff;border:none;border-radius:3px;cursor:pointer;margin-left:4px;">一键下载 Ollama</button>';
         if (actions) actions.style.display = 'none';
         document.getElementById('ollama-install-btn').addEventListener('click', () => {
           window.LabCode.ollama.openDownload();
           el.innerHTML = '<span style="color:#ff9800;">○ 请在浏览器下载安装后，重新打开本页面</span>';
         });
       } else if (!s.running) {
-        el.innerHTML = '<span style="color:#ff9800;">○ 已安装但未运行</span> <button id="ollama-start-btn" style="font-size:11px;padding:2px 8px;background:#4caf50;color:#fff;border:none;border-radius:3px;cursor:pointer;margin-left:4px;">启动 Ollama</button>';
+        el.innerHTML = '<span style="color:#ff9800;">○ 已安装但未运行</span> <button id="ollama-start-btn" style="font-size: 10.5px;padding:2px 8px;background:#4caf50;color:#fff;border:none;border-radius:3px;cursor:pointer;margin-left:4px;">启动 Ollama</button>';
         if (actions) actions.style.display = 'none';
         document.getElementById('ollama-start-btn').addEventListener('click', async () => {
           await window.LabCode.ollama.startServer();

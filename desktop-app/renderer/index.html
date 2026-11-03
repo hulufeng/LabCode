@@ -342,23 +342,23 @@
       .gc-room-item{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-radius:6px;cursor:pointer;color:var(--text-secondary);}
       .gc-room-item:hover{background:var(--surface-hover);}
       .gc-room-item.active{background:var(--bg-selected);color:var(--text);}
-      .gc-room-name{font-size:13px;}
-      .gc-room-members{font-size:11px;color:var(--text-tertiary);}
-      .gc-empty{padding:16px;color:var(--text-tertiary);font-size:12px;text-align:center;}
+      .gc-room-name{font-size: 12.5px;}
+      .gc-room-members{font-size: 10.5px;color:var(--text-tertiary);}
+      .gc-empty{padding:16px;color:var(--text-tertiary);font-size: 11.5px;text-align:center;}
       .gc-main{flex:1;display:flex;flex-direction:column;min-width:0;}
       .gc-room-header{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:8px;}
-      .gc-room-title{font-size:15px;font-weight:600;color:var(--text);}
+      .gc-room-title{font-size: 14px;font-weight:600;color:var(--text);}
       .gc-member-chips{display:flex;flex-wrap:wrap;gap:6px;}
-      .gc-chip{font-size:12px;padding:2px 8px;border-radius:10px;background:var(--primary-light);color:var(--primary);}
-      .gc-hint{color:var(--text-tertiary);font-size:13px;}
+      .gc-chip{font-size: 11.5px;padding:2px 8px;border-radius:10px;background:var(--primary-light);color:var(--primary);}
+      .gc-hint{color:var(--text-tertiary);font-size: 12.5px;}
       .gc-messages{flex:1;overflow:auto;padding:16px;display:flex;flex-direction:column;gap:12px;}
       .gc-msg{max-width:80%;padding:10px 12px;border-radius:10px;}
       .gc-msg-user{align-self:flex-end;background:var(--primary);color:#fff;}
       .gc-msg-agent{align-self:flex-start;background:var(--surface-3);color:var(--text);}
-      .gc-msg-name{font-size:11px;color:var(--text-secondary);margin-bottom:4px;}
-      .gc-msg-body{font-size:13px;white-space:pre-wrap;word-break:break-word;}
+      .gc-msg-name{font-size: 10.5px;color:var(--text-secondary);margin-bottom:4px;}
+      .gc-msg-body{font-size: 12.5px;white-space:pre-wrap;word-break:break-word;}
       .gc-msg-actions{margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;}
-      .gc-act-btn{font-size:12px;padding:4px 14px;border-radius:6px;cursor:pointer;transition:opacity .15s;}
+      .gc-act-btn{font-size: 11.5px;padding:4px 14px;border-radius:6px;cursor:pointer;transition:opacity .15s;}
       .gc-act-btn:hover{opacity:.85;}
       .gc-input-bar{display:flex;gap:8px;padding:12px 16px;border-top:1px solid var(--border);}
       .gc-input-bar input{flex:1;background:var(--surface-0);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;outline:none;}
@@ -385,25 +385,25 @@
       .wf-sidebar{width:220px;background:var(--surface-2);border-right:1px solid var(--border);display:flex;flex-direction:column;}
       .wf-sidebar-header{padding:10px 12px;font-weight:600;color:var(--text);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;}
       .wf-palette{padding:10px;display:flex;flex-direction:column;gap:8px;}
-      .wf-palette-item{padding:8px 10px;border:1px solid var(--border);border-radius:6px;cursor:pointer;color:var(--text);font-size:13px;background:var(--surface-3);}
+      .wf-palette-item{padding:8px 10px;border:1px solid var(--border);border-radius:6px;cursor:pointer;color:var(--text);font-size: 12.5px;background:var(--surface-3);}
       .wf-palette-item:hover{border-color:var(--primary);}
       .wf-sidebar-actions{padding:10px;display:flex;gap:8px;margin-top:auto;}
       .wf-canvas-wrap{flex:1;position:relative;overflow:auto;background:var(--surface-0);}
       .wf-edges{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:1;}
       .wf-edges line{pointer-events:stroke;cursor:pointer;}
       .wf-nodes{position:absolute;top:0;left:0;width:100%;height:100%;z-index:2;}
-      .wf-node{position:absolute;width:180px;background:var(--surface-3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;box-shadow:0 2px 8px rgba(0,0,0,.2);}
+      .wf-node{position:absolute;width:180px;background:var(--surface-3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size: 11.5px;box-shadow:0 2px 8px rgba(0,0,0,.2);}
       .wf-node.selected{border-color:var(--primary);box-shadow:0 0 0 2px var(--primary-light);}
       .wf-node.wf-running{border-color:#f59e0b;box-shadow:0 0 0 2px rgba(245,158,11,.55);}
       .wf-node.wf-done{border-color:#22c55e;}
       .wf-node.wf-error{border-color:#ef4444;box-shadow:0 0 0 2px rgba(239,68,68,.45);}
       .wf-node.wf-skipped{opacity:.4;}
-      .wf-state{font-size:11px;}
+      .wf-state{font-size: 10.5px;}
       .wf-state.running{color:#f59e0b;}
       .wf-state.done{color:#22c55e;}
       .wf-state.error{color:#ef4444;}
       .wf-state.skipped{color:var(--text-tertiary);}
-      .wf-cond-hint{font-size:10px;line-height:1.5;color:var(--text-tertiary);margin-top:6px;background:var(--surface-0);padding:6px 8px;border-radius:6px;}
+      .wf-cond-hint{font-size: 9.5px;line-height:1.5;color:var(--text-tertiary);margin-top:6px;background:var(--surface-0);padding:6px 8px;border-radius:6px;}
       .wf-cond-hint b{color:var(--text-secondary);}
       .wf-node-header{display:flex;justify-content:space-between;align-items:center;padding:6px 8px;border-bottom:1px solid var(--border);font-weight:600;cursor:move;}
       .wf-node-body{padding:6px 8px;}
@@ -411,8 +411,8 @@
       .wf-port.in{top:-6px;left:50%;transform:translateX(-50%);background:var(--text-secondary);}
       .wf-port.out{bottom:-6px;left:50%;transform:translateX(-50%);}
       .wf-props{width:240px;background:var(--surface-2);border-left:1px solid var(--border);padding:12px;color:var(--text);}
-      .wf-props textarea,.wf-props input{width:100%;background:var(--surface-0);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:6px;outline:none;margin-top:4px;font-size:12px;}
-      .wf-props label{font-size:11px;color:var(--text-secondary);}
+      .wf-props textarea,.wf-props input{width:100%;background:var(--surface-0);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:6px;outline:none;margin-top:4px;font-size: 11.5px;}
+      .wf-props label{font-size: 10.5px;color:var(--text-secondary);}
     </style>
     <div id="workflow-view" class="workflow-view" style="display:none;">
       <div class="wf-sidebar">
@@ -447,28 +447,28 @@
     <style>
       .dashboard-view{position:fixed;top:40px;left:48px;right:0;bottom:0;z-index:500;display:flex;flex-direction:column;background:var(--surface-1);}
       .dash-toolbar{display:flex;align-items:center;gap:10px;padding:10px 16px;background:var(--surface-2);border-bottom:1px solid var(--border);}
-      .dash-toolbar h2{font-size:15px;margin:0;color:var(--text);flex:1;display:flex;align-items:center;gap:8px;}
-      .dash-toolbar .dash-action{padding:6px 14px;border:1px solid var(--border);border-radius:6px;background:var(--surface-3);color:var(--text);cursor:pointer;font-size:12px;}
+      .dash-toolbar h2{font-size: 14px;margin:0;color:var(--text);flex:1;display:flex;align-items:center;gap:8px;}
+      .dash-toolbar .dash-action{padding:6px 14px;border:1px solid var(--border);border-radius:6px;background:var(--surface-3);color:var(--text);cursor:pointer;font-size: 11.5px;}
       .dash-toolbar .dash-action:hover{border-color:var(--primary);color:var(--primary);}
       .dash-body{flex:1;overflow:auto;padding:16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px;align-content:start;}
       .dash-card{background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:14px;min-height:120px;}
-      .dash-card h3{font-size:12px;color:var(--text-secondary);margin:0 0 10px;display:flex;align-items:center;gap:6px;letter-spacing:.5px;}
+      .dash-card h3{font-size: 11.5px;color:var(--text-secondary);margin:0 0 10px;display:flex;align-items:center;gap:6px;letter-spacing:.5px;}
       .dash-metrics{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
       .dash-metric{background:var(--surface-3);border-radius:8px;padding:10px;}
-      .dash-metric .v{font-size:18px;font-weight:700;color:var(--primary);line-height:1.2;}
-      .dash-metric .k{font-size:11px;color:var(--text-tertiary);margin-top:3px;}
-      .dash-ext-bar{display:flex;align-items:center;gap:8px;margin:4px 0;font-size:11px;}
+      .dash-metric .v{font-size: 16px;font-weight:700;color:var(--primary);line-height:1.2;}
+      .dash-metric .k{font-size: 10.5px;color:var(--text-tertiary);margin-top:3px;}
+      .dash-ext-bar{display:flex;align-items:center;gap:8px;margin:4px 0;font-size: 10.5px;}
       .dash-ext-bar .lab{width:110px;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
       .dash-ext-bar .track{flex:1;height:6px;background:var(--surface-3);border-radius:3px;overflow:hidden;}
       .dash-ext-bar .fill{height:100%;background:linear-gradient(90deg,#4f8cff,#7fb0ff);border-radius:3px;}
       .dash-ext-bar .cnt{width:40px;text-align:right;color:var(--text-tertiary);}
-      .dash-file{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px dashed var(--border);font-size:12px;color:var(--text-secondary);}
+      .dash-file{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px dashed var(--border);font-size: 11.5px;color:var(--text-secondary);}
       .dash-file .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text);}
-      .dash-file .tm{font-size:11px;color:var(--text-tertiary);white-space:nowrap;}
-      .dash-kv{display:flex;justify-content:space-between;padding:6px 0;font-size:12px;border-bottom:1px dashed var(--border);}
+      .dash-file .tm{font-size: 10.5px;color:var(--text-tertiary);white-space:nowrap;}
+      .dash-kv{display:flex;justify-content:space-between;padding:6px 0;font-size: 11.5px;border-bottom:1px dashed var(--border);}
       .dash-kv .k{color:var(--text-secondary);}
       .dash-kv .v{color:var(--text);font-weight:600;}
-      .dash-empty{display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-tertiary);font-size:13px;}
+      .dash-empty{display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-tertiary);font-size: 12.5px;}
     </style>
     <div id="dashboard-view" class="dashboard-view" style="display:none;">
       <div class="dash-toolbar">
@@ -553,11 +553,11 @@
         <div class="wokwi-page" data-wpage="status" style="flex:1;overflow-y:auto;padding:16px;">
           <div class="dev-card" style="padding:14px;background:var(--bg-elevated);border:1px solid var(--border-color);border-radius:8px;margin-bottom:14px;">
             <div style="font-weight:600;margin-bottom:8px;">检测状态</div>
-            <div id="wokwi-det-status" style="font-size:12.5px;color:var(--text-secondary);">检测中…</div>
+            <div id="wokwi-det-status" style="font-size: 12px;color:var(--text-secondary);">检测中…</div>
           </div>
           <div class="dev-card" id="wokwi-guide" style="display:none;padding:14px;background:var(--bg-elevated);border:1px solid var(--border-color);border-radius:8px;margin-bottom:14px;">
             <div style="font-weight:600;margin-bottom:6px;">安装指引</div>
-            <div style="font-size:12.5px;color:var(--text-secondary);line-height:1.7;">
+            <div style="font-size: 12px;color:var(--text-secondary);line-height:1.7;">
               未检测到 wokwi-cli。任选其一安装：<br>
               ① npm 全局：<code style="background:rgba(127,127,127,.15);padding:1px 5px;border-radius:3px;">npm i -g wokwi-cli</code><br>
               ② 从 GitHub Release 下载可执行文件放入 PATH
@@ -566,7 +566,7 @@
           </div>
           <div class="dev-card" style="padding:14px;background:var(--bg-elevated);border:1px solid var(--border-color);border-radius:8px;">
             <div style="font-weight:600;margin-bottom:6px;">使用流程</div>
-            <ol style="margin:0;padding-left:18px;font-size:12.5px;color:var(--text-secondary);line-height:1.8;">
+            <ol style="margin:0;padding-left:18px;font-size: 12px;color:var(--text-secondary);line-height:1.8;">
               <li>新建 Wokwi 项目（含 diagram.json 电路 + sketch.ino 代码）</li>
               <li>在 Wokwi 在线模拟器中打开 diagram.json 仿真电路与代码</li>
               <li>或用「Wokwi 仿真运行」把本地工程交给 wokwi-cli 仿真</li>
@@ -576,7 +576,7 @@
         <div class="wokwi-page" data-wpage="settings" style="display:none;flex:1;overflow-y:auto;padding:16px;">
           <div class="dev-card" style="padding:14px;background:var(--bg-elevated);border:1px solid var(--border-color);border-radius:8px;">
             <div style="font-weight:600;margin-bottom:6px;">仿真说明</div>
-            <div style="font-size:12.5px;color:var(--text-secondary);line-height:1.7;">
+            <div style="font-size: 12px;color:var(--text-secondary);line-height:1.7;">
               Wokwi 仿真通过 wokwi-cli 运行，无需本地 Arduino/ESP-IDF 编译器。Wokwi 在线版免费可用；本机运行需自行安装 wokwi-cli。
             </div>
           </div>
@@ -592,35 +592,35 @@
         <div class="sidebar-header">
           <span>Git</span>
           <div class="sidebar-actions">
-            <button class="icon-btn" id="git-clone-btn" title="从 Git 克隆项目…" style="font-size:11px;width:auto;padding:0 6px;">克隆</button>
+            <button class="icon-btn" id="git-clone-btn" title="从 Git 克隆项目…" style="font-size: 10.5px;width:auto;padding:0 6px;">克隆</button>
             <button class="icon-btn" id="git-refresh" title="刷新"><svg class="icon"><use href="#icon-refresh"></use></svg></button>
           </div>
         </div>
-        <div id="git-status" style="padding:8px;font-size:12px;color:var(--text-tertiary);">未选择仓库</div>
+        <div id="git-status" style="padding:8px;font-size: 11.5px;color:var(--text-tertiary);">未选择仓库</div>
         <div id="git-files" style="flex:1;overflow:auto;padding:4px 8px;"></div>
         <!-- Git 操作区（对齐 TrieCode 源代码管理：主流程一行一个动作，AI 功能收进折叠，PR 框按需显示） -->
         <div style="padding:10px;border-top:1px solid var(--border-color);display:flex;flex-direction:column;gap:8px;">
-          <button class="btn btn-secondary btn-sm" id="git-stage-all-btn" style="width:100%;font-size:12px;">全部暂存</button>
-          <textarea id="git-commit-msg" rows="2" placeholder="先在改动列表里暂存要提交的内容…" style="width:100%;box-sizing:border-box;background:var(--bg-secondary);border:1px solid var(--border-color);color:var(--text);padding:7px 9px;border-radius:6px;font-size:12px;resize:vertical;font-family:inherit;"></textarea>
+          <button class="btn btn-secondary btn-sm" id="git-stage-all-btn" style="width:100%;font-size: 11.5px;">全部暂存</button>
+          <textarea id="git-commit-msg" rows="2" placeholder="先在改动列表里暂存要提交的内容…" style="width:100%;box-sizing:border-box;background:var(--bg-secondary);border:1px solid var(--border-color);color:var(--text);padding:7px 9px;border-radius:6px;font-size: 11.5px;resize:vertical;font-family:inherit;"></textarea>
           <div style="display:flex;gap:6px;">
-            <button class="btn btn-secondary btn-sm git-ai-btn" id="git-ai-commit-msg-btn" title="根据已暂存的改动生成一条提交信息（可自行修改）" style="flex:1;font-size:12px;">✨ 生成提交信息</button>
-            <button class="btn btn-primary" id="git-commit-btn" title="把「已暂存」的改动记录到本机历史" style="flex:1;font-size:12px;">提交</button>
+            <button class="btn btn-secondary btn-sm git-ai-btn" id="git-ai-commit-msg-btn" title="根据已暂存的改动生成一条提交信息（可自行修改）" style="flex:1;font-size: 11.5px;">✨ 生成提交信息</button>
+            <button class="btn btn-primary" id="git-commit-btn" title="把「已暂存」的改动记录到本机历史" style="flex:1;font-size: 11.5px;">提交</button>
           </div>
           <div style="display:flex;gap:6px;">
-            <button class="btn btn-secondary btn-sm" id="git-push-btn" title="推送到远程" style="flex:1;font-size:12px;">推送</button>
-            <button class="btn btn-secondary btn-sm" id="git-pull-btn" title="从远程拉取" style="flex:1;font-size:12px;">拉取</button>
-            <input id="git-newbranch-name" placeholder="新分支名" style="flex:1.3;min-width:0;background:var(--bg-secondary);border:1px solid var(--border-color);color:var(--text);padding:6px 8px;border-radius:6px;font-size:12px;">
-            <button class="btn btn-secondary btn-sm" id="git-newbranch-btn" style="font-size:12px;">新建</button>
+            <button class="btn btn-secondary btn-sm" id="git-push-btn" title="推送到远程" style="flex:1;font-size: 11.5px;">推送</button>
+            <button class="btn btn-secondary btn-sm" id="git-pull-btn" title="从远程拉取" style="flex:1;font-size: 11.5px;">拉取</button>
+            <input id="git-newbranch-name" placeholder="新分支名" style="flex:1.3;min-width:0;background:var(--bg-secondary);border:1px solid var(--border-color);color:var(--text);padding:6px 8px;border-radius:6px;font-size: 11.5px;">
+            <button class="btn btn-secondary btn-sm" id="git-newbranch-btn" style="font-size: 11.5px;">新建</button>
           </div>
           <details id="git-ai-more">
-            <summary style="cursor:pointer;font-size:12px;color:var(--text-secondary);user-select:none;list-style:none;">✨ AI 增强 ▾</summary>
+            <summary style="cursor:pointer;font-size: 11.5px;color:var(--text-secondary);user-select:none;list-style:none;">✨ AI 增强 ▾</summary>
             <div style="display:flex;flex-direction:column;gap:6px;margin-top:8px;">
-              <button class="btn btn-secondary btn-sm git-ai-btn" id="git-ai-commit-btn" title="AI 生成提交信息并直接提交" style="font-size:12px;">AI 提交（生成并提交）</button>
-              <button class="btn btn-secondary btn-sm git-ai-btn" id="git-ai-resolve-btn" title="用 AI 自动解决合并冲突" style="font-size:12px;">AI 解决冲突</button>
-              <button class="btn btn-secondary btn-sm git-ai-btn" id="git-ai-pr-btn" title="根据提交历史生成 PR 标题与描述" style="font-size:12px;">AI 生成 PR 描述</button>
+              <button class="btn btn-secondary btn-sm git-ai-btn" id="git-ai-commit-btn" title="AI 生成提交信息并直接提交" style="font-size: 11.5px;">AI 提交（生成并提交）</button>
+              <button class="btn btn-secondary btn-sm git-ai-btn" id="git-ai-resolve-btn" title="用 AI 自动解决合并冲突" style="font-size: 11.5px;">AI 解决冲突</button>
+              <button class="btn btn-secondary btn-sm git-ai-btn" id="git-ai-pr-btn" title="根据提交历史生成 PR 标题与描述" style="font-size: 11.5px;">AI 生成 PR 描述</button>
             </div>
           </details>
-          <textarea id="git-pr-desc" placeholder="AI 生成的 PR 标题与描述将显示在这里…" style="display:none;width:100%;height:90px;box-sizing:border-box;background:var(--bg-secondary);border:1px solid var(--border-color);color:var(--text);padding:7px 9px;border-radius:6px;font-size:12px;resize:vertical;font-family:inherit;"></textarea>
+          <textarea id="git-pr-desc" placeholder="AI 生成的 PR 标题与描述将显示在这里…" style="display:none;width:100%;height:90px;box-sizing:border-box;background:var(--bg-secondary);border:1px solid var(--border-color);color:var(--text);padding:7px 9px;border-radius:6px;font-size: 11.5px;resize:vertical;font-family:inherit;"></textarea>
         </div>
       </div>
 
@@ -635,22 +635,22 @@
         <div style="flex:1;overflow:auto;padding:8px;">
           <div id="mcp-server-list" style="display:flex;flex-direction:column;gap:8px;"></div>
           <div style="margin-top:14px;border-top:1px solid var(--border-color);padding-top:10px;">
-            <div style="font-weight:600;margin-bottom:8px;font-size:13px;">添加 MCP 服务器</div>
+            <div style="font-weight:600;margin-bottom:8px;font-size: 12.5px;">添加 MCP 服务器</div>
             <div style="display:flex;flex-direction:column;gap:6px;">
-              <input id="mcp-add-name" placeholder="名称 (如 filesystem)" style="background:var(--bg-secondary);border:1px solid var(--border-color);color:var(--text);padding:6px 8px;border-radius:4px;font-size:12px;">
-              <select id="mcp-add-type" style="background:var(--bg-secondary);border:1px solid var(--border-color);color:var(--text);padding:6px 8px;border-radius:4px;font-size:12px;">
+              <input id="mcp-add-name" placeholder="名称 (如 filesystem)" style="background:var(--bg-secondary);border:1px solid var(--border-color);color:var(--text);padding:6px 8px;border-radius:4px;font-size: 11.5px;">
+              <select id="mcp-add-type" style="background:var(--bg-secondary);border:1px solid var(--border-color);color:var(--text);padding:6px 8px;border-radius:4px;font-size: 11.5px;">
                 <option value="stdio">本地进程 (stdio)</option>
                 <option value="http">远程 HTTP (StreamableHTTP)</option>
                 <option value="sse">远程 SSE</option>
               </select>
-              <input id="mcp-add-command" placeholder="命令 (如 npx) — stdio 必填" style="background:var(--bg-secondary);border:1px solid var(--border-color);color:var(--text);padding:6px 8px;border-radius:4px;font-size:12px;">
-              <input id="mcp-add-args" placeholder="参数 (空格分隔, 如 -y @modelcontextprotocol/server-filesystem C:\\)" style="background:var(--bg-secondary);border:1px solid var(--border-color);color:var(--text);padding:6px 8px;border-radius:4px;font-size:12px;">
-              <input id="mcp-add-url" placeholder="服务器 URL (https://...) — http/sse 必填" style="background:var(--bg-secondary);border:1px solid var(--border-color);color:var(--text);padding:6px 8px;border-radius:4px;font-size:12px;display:none;">
-              <input id="mcp-add-cwd" placeholder="工作目录 (可选, stdio)" style="background:var(--bg-secondary);border:1px solid var(--border-color);color:var(--text);padding:6px 8px;border-radius:4px;font-size:12px;">
-              <input id="mcp-add-extra" placeholder='高级 JSON（可选）: {"headers":{},"auth":{"clientId":""},"toolRules":{}}' style="background:var(--bg-secondary);border:1px solid var(--border-color);color:var(--text);padding:6px 8px;border-radius:4px;font-size:12px;">
+              <input id="mcp-add-command" placeholder="命令 (如 npx) — stdio 必填" style="background:var(--bg-secondary);border:1px solid var(--border-color);color:var(--text);padding:6px 8px;border-radius:4px;font-size: 11.5px;">
+              <input id="mcp-add-args" placeholder="参数 (空格分隔, 如 -y @modelcontextprotocol/server-filesystem C:\\)" style="background:var(--bg-secondary);border:1px solid var(--border-color);color:var(--text);padding:6px 8px;border-radius:4px;font-size: 11.5px;">
+              <input id="mcp-add-url" placeholder="服务器 URL (https://...) — http/sse 必填" style="background:var(--bg-secondary);border:1px solid var(--border-color);color:var(--text);padding:6px 8px;border-radius:4px;font-size: 11.5px;display:none;">
+              <input id="mcp-add-cwd" placeholder="工作目录 (可选, stdio)" style="background:var(--bg-secondary);border:1px solid var(--border-color);color:var(--text);padding:6px 8px;border-radius:4px;font-size: 11.5px;">
+              <input id="mcp-add-extra" placeholder='高级 JSON（可选）: {"headers":{},"auth":{"clientId":""},"toolRules":{}}' style="background:var(--bg-secondary);border:1px solid var(--border-color);color:var(--text);padding:6px 8px;border-radius:4px;font-size: 11.5px;">
               <button class="btn btn-primary btn-sm" id="mcp-add-btn">添加并启动</button>
             </div>
-            <div id="mcp-add-msg" style="margin-top:6px;font-size:12px;color:var(--text-muted);"></div>
+            <div id="mcp-add-msg" style="margin-top:6px;font-size: 11.5px;color:var(--text-muted);"></div>
           </div>
         </div>
       </div>
@@ -673,10 +673,10 @@
           <!-- arduino-cli 安装引导条（未安装时显示） -->
           <div class="dev-cli-banner" id="dev-cli-banner" style="display:none;margin-bottom:12px;padding:10px 12px;background:var(--warning-bg);border:1px solid var(--warning);border-radius:8px;">
             <div style="display:flex;align-items:center;gap:8px;">
-              <span style="font-size:12px;color:var(--text-primary);">⚠️ 未检测到 arduino-cli，编译/烧录不可用</span>
-              <button class="btn btn-sm btn-primary" id="dev-cli-install" style="margin-left:auto;font-size:11px;">一键安装</button>
+              <span style="font-size: 11.5px;color:var(--text-primary);">⚠️ 未检测到 arduino-cli，编译/烧录不可用</span>
+              <button class="btn btn-sm btn-primary" id="dev-cli-install" style="margin-left:auto;font-size: 10.5px;">一键安装</button>
             </div>
-            <div id="dev-cli-progress" style="display:none;margin-top:8px;font-size:11px;color:var(--text-secondary);"></div>
+            <div id="dev-cli-progress" style="display:none;margin-top:8px;font-size: 10.5px;color:var(--text-secondary);"></div>
           </div>
           <div class="device-section">
             <div class="device-section-title">设备</div>
@@ -715,19 +715,19 @@
                 <option value="esp32s3">ESP32-S3</option>
                 <option value="esp32c3">ESP32-C3</option>
               </select>
-              <div style="font-size:11px;color:var(--text-tertiary);margin-top:4px;">切换目标后需重新 fullconfig/build；写入项目编译配置。</div>
+              <div style="font-size: 10.5px;color:var(--text-tertiary);margin-top:4px;">切换目标后需重新 fullconfig/build；写入项目编译配置。</div>
             </div>
           </div>
           <div class="device-section" style="margin-top:16px;">
             <div class="device-section-title">工具链状态</div>
             <div class="dev-card" style="padding:14px;background:var(--bg-elevated);border:1px solid var(--border-color);border-radius:8px;margin-bottom:12px;">
               <div style="font-weight:600;margin-bottom:8px;">检测状态</div>
-              <div id="espidf-det-status" style="font-size:12.5px;color:var(--text-secondary);">检测中…</div>
+              <div id="espidf-det-status" style="font-size: 12px;color:var(--text-secondary);">检测中…</div>
               <button id="espidf-redetect" class="btn btn-secondary btn-sm" style="margin-top:10px;">重新检测</button>
             </div>
             <div class="dev-card" id="espidf-guide" style="display:none;padding:14px;background:var(--bg-elevated);border:1px solid var(--border-color);border-radius:8px;margin-bottom:12px;">
               <div style="font-weight:600;margin-bottom:6px;">安装指引</div>
-              <div style="font-size:12.5px;color:var(--text-secondary);line-height:1.7;">
+              <div style="font-size: 12px;color:var(--text-secondary);line-height:1.7;">
                 未检测到 ESP-IDF（idf.py 不在 PATH）。任选其一安装：<br>
                 ① Windows 离线安装器（推荐，自动配好环境）<br>
                 ② 手动安装后运行 export.ps1 将工具链加入 PATH
@@ -757,11 +757,11 @@
                 <option value="921600" selected>921600</option>
               </select>
             </div>
-            <div style="font-size:11px;color:var(--text-tertiary);margin-top:4px;">配置保存在本机，编译/烧录时自动套用（idf.py -b &lt;波特率&gt; flash）。</div>
+            <div style="font-size: 10.5px;color:var(--text-tertiary);margin-top:4px;">配置保存在本机，编译/烧录时自动套用（idf.py -b &lt;波特率&gt; flash）。</div>
           </div>
           <div class="device-section" style="margin-top:16px;">
             <div class="device-section-title">使用流程</div>
-            <ol style="margin:0;padding-left:18px;font-size:12.5px;color:var(--text-secondary);line-height:1.8;">
+            <ol style="margin:0;padding-left:18px;font-size: 12px;color:var(--text-secondary);line-height:1.8;">
               <li>「设备」页选好端口，点「编译」（idf.py build）</li>
               <li>编译通过后点「烧录」（idf.py flash）写入芯片</li>
               <li>点「串口监视」查看运行输出（idf.py monitor）</li>
@@ -775,7 +775,7 @@
             <div class="device-section-title">已安装平台</div>
             <!-- 真实数据由 refreshCores() 填充；此处不再写死假平台（失败时会残留误导） -->
             <div class="platform-list" id="installed-platforms">
-              <div style="padding:12px;color:#999;font-size:12px;">加载中…</div>
+              <div style="padding:12px;color:#999;font-size: 11.5px;">加载中…</div>
             </div>
           </div>
           <div class="device-section" style="margin-top:16px;">
@@ -785,7 +785,7 @@
               <input type="text" class="device-select" id="platform-search" placeholder="搜索可安装平台..." style="margin-bottom:12px;">
             </div>
             <div class="platform-list" id="available-platforms">
-              <div style="padding:12px;color:#999;font-size:12px;">加载中…</div>
+              <div style="padding:12px;color:#999;font-size: 11.5px;">加载中…</div>
             </div>
           </div>
         </div>
@@ -799,7 +799,7 @@
             </div>
             <!-- 真实数据由 refreshLibraries() 填充；此处不再写死假库条目 -->
             <div class="library-list" id="library-list">
-              <div style="padding:12px;color:#999;font-size:12px;">加载中…</div>
+              <div style="padding:12px;color:#999;font-size: 11.5px;">加载中…</div>
             </div>
           </div>
         </div>
@@ -814,7 +814,7 @@
                 <option value="dark">深色（现代）</option>
                 <option value="light">浅色（通透）</option>
               </select>
-              <div style="font-size:11px;color:var(--text-tertiary);margin-top:4px;">选择后立即生效，编辑器配色同步切换。</div>
+              <div style="font-size: 10.5px;color:var(--text-tertiary);margin-top:4px;">选择后立即生效，编辑器配色同步切换。</div>
             </div>
           </div>
           <div class="device-section">
@@ -876,8 +876,8 @@
               <div style="display:flex;align-items:flex-start;gap:8px;">
                 <input type="radio" name="ai-provider" value="gateway" id="ai-prov-gateway" checked>
                 <div>
-                  <div style="font-size:13px;font-weight:600;color:#e0e0e0;">LabCode 云端（推荐）</div>
-                  <div style="font-size:11px;color:#888;margin-top:2px;">开箱即用，无需安装任何东西。使用云端算力，响应快。</div>
+                  <div style="font-size: 12.5px;font-weight:600;color:#e0e0e0;">LabCode 云端（推荐）</div>
+                  <div style="font-size: 10.5px;color:#888;margin-top:2px;">开箱即用，无需安装任何东西。使用云端算力，响应快。</div>
                 </div>
               </div>
             </div>
@@ -885,17 +885,17 @@
               <div style="display:flex;align-items:flex-start;gap:8px;">
                 <input type="radio" name="ai-provider" value="ollama" id="ai-prov-ollama">
                 <div style="flex:1;">
-                  <div style="font-size:13px;font-weight:600;color:#e0e0e0;">本地 Ollama（推荐本地方案）</div>
-                  <div style="font-size:11px;color:#888;margin-top:2px;">一键安装，数据不出本机。首次需下载模型（约 4-5GB）。</div>
-                  <div id="ollama-status" style="font-size:11px;margin-top:6px;"></div>
+                  <div style="font-size: 12.5px;font-weight:600;color:#e0e0e0;">本地 Ollama（推荐本地方案）</div>
+                  <div style="font-size: 10.5px;color:#888;margin-top:2px;">一键安装，数据不出本机。首次需下载模型（约 4-5GB）。</div>
+                  <div id="ollama-status" style="font-size: 10.5px;margin-top:6px;"></div>
                   <div id="ollama-actions" style="margin-top:6px;display:none;">
-                    <div style="font-size:11px;color:#888;margin-bottom:4px;">推荐模型（点击自动下载）：</div>
+                    <div style="font-size: 10.5px;color:#888;margin-bottom:4px;">推荐模型（点击自动下载）：</div>
                     <div style="display:flex;gap:6px;flex-wrap:wrap;">
-                      <button class="ollama-model-btn" data-model="qwen2.5-coder:7b" style="font-size:11px;padding:3px 10px;background:#2d2d2d;border:1px solid #4caf50;color:#4caf50;border-radius:4px;cursor:pointer;">Qwen2.5 Coder 7B</button>
-                      <button class="ollama-model-btn" data-model="deepseek-coder:6.7b" style="font-size:11px;padding:3px 10px;background:#2d2d2d;border:1px solid #4caf50;color:#4caf50;border-radius:4px;cursor:pointer;">DeepSeek Coder 6.7B</button>
-                      <button class="ollama-model-btn" data-model="qwen2.5:7b" style="font-size:11px;padding:3px 10px;background:#2d2d2d;border:1px solid #4caf50;color:#4caf50;border-radius:4px;cursor:pointer;">Qwen2.5 7B</button>
+                      <button class="ollama-model-btn" data-model="qwen2.5-coder:7b" style="font-size: 10.5px;padding:3px 10px;background:#2d2d2d;border:1px solid #4caf50;color:#4caf50;border-radius:4px;cursor:pointer;">Qwen2.5 Coder 7B</button>
+                      <button class="ollama-model-btn" data-model="deepseek-coder:6.7b" style="font-size: 10.5px;padding:3px 10px;background:#2d2d2d;border:1px solid #4caf50;color:#4caf50;border-radius:4px;cursor:pointer;">DeepSeek Coder 6.7B</button>
+                      <button class="ollama-model-btn" data-model="qwen2.5:7b" style="font-size: 10.5px;padding:3px 10px;background:#2d2d2d;border:1px solid #4caf50;color:#4caf50;border-radius:4px;cursor:pointer;">Qwen2.5 7B</button>
                     </div>
-                    <div id="ollama-pull-progress" style="font-size:11px;color:#888;margin-top:4px;display:none;"></div>
+                    <div id="ollama-pull-progress" style="font-size: 10.5px;color:#888;margin-top:4px;display:none;"></div>
                   </div>
                 </div>
               </div>
@@ -904,37 +904,37 @@
               <div style="display:flex;align-items:flex-start;gap:8px;">
                 <input type="radio" name="ai-provider" value="local" id="ai-prov-local">
                 <div>
-                  <div style="font-size:13px;font-weight:600;color:#e0e0e0;">本地 AI 引擎（内置）</div>
-                  <div style="font-size:11px;color:#888;margin-top:2px;">LabCode 自带引擎，不用另装任何软件；模型在「插件市场」下载（2~6GB 一个）。</div>
-                  <div id="local-engine-status" style="font-size:11px;margin-top:6px;"></div>
-                  <div style="font-size:11px;color:#888;margin-top:8px;">模型存放位置</div>
-                  <div id="local-models-dir-info" style="font-size:11px;margin-top:4px;line-height:1.6;"></div>
+                  <div style="font-size: 12.5px;font-weight:600;color:#e0e0e0;">本地 AI 引擎（内置）</div>
+                  <div style="font-size: 10.5px;color:#888;margin-top:2px;">LabCode 自带引擎，不用另装任何软件；模型在「插件市场」下载（2~6GB 一个）。</div>
+                  <div id="local-engine-status" style="font-size: 10.5px;margin-top:6px;"></div>
+                  <div style="font-size: 10.5px;color:#888;margin-top:8px;">模型存放位置</div>
+                  <div id="local-models-dir-info" style="font-size: 10.5px;margin-top:4px;line-height:1.6;"></div>
                   <div id="local-models-dir-actions" style="display:flex;gap:6px;align-items:center;margin-top:6px;flex-wrap:wrap;"></div>
-                  <div style="font-size:11px;color:#888;margin-top:10px;">自定义位置（高级）</div>
+                  <div style="font-size: 10.5px;color:#888;margin-top:10px;">自定义位置（高级）</div>
                   <div style="display:flex;gap:6px;align-items:center;margin-top:4px;">
                     <input id="local-models-dir-input" type="text" spellcheck="false"
                            placeholder="自动选择"
-                           style="flex:1;min-width:0;background:#111;border:1px solid #3c3c3c;color:#e0e0e0;border-radius:4px;padding:5px 8px;font-size:11px;font-family:Consolas,monospace;">
-                    <button id="local-models-dir-save" style="background:#2d5a27;color:#fff;border:1px solid #3f7a36;border-radius:4px;padding:5px 10px;font-size:11px;cursor:pointer;white-space:nowrap;">保存</button>
+                           style="flex:1;min-width:0;background:#111;border:1px solid #3c3c3c;color:#e0e0e0;border-radius:4px;padding:5px 8px;font-size: 10.5px;font-family:Consolas,monospace;">
+                    <button id="local-models-dir-save" style="background:#2d5a27;color:#fff;border:1px solid #3f7a36;border-radius:4px;padding:5px 10px;font-size: 10.5px;cursor:pointer;white-space:nowrap;">保存</button>
                   </div>
-                  <div id="local-models-dir-hint" style="font-size:11px;margin-top:5px;"></div>
+                  <div id="local-models-dir-hint" style="font-size: 10.5px;margin-top:5px;"></div>
                 </div>
               </div>
             </div>
             <div style="background:#1e1e1e;border:1px solid #3c3c3c;border-radius:6px;padding:12px;margin-bottom:8px;">
-              <div style="font-size:13px;font-weight:600;color:#e0e0e0;">云端后端（管理员配置）</div>
-              <div style="font-size:11px;color:#888;margin-top:2px;">留空则各用户用自己的账号登录；填写后所有用户共用此 Key 调用云端模型，无需重新打包。</div>
+              <div style="font-size: 12.5px;font-weight:600;color:#e0e0e0;">云端后端（管理员配置）</div>
+              <div style="font-size: 10.5px;color:#888;margin-top:2px;">留空则各用户用自己的账号登录；填写后所有用户共用此 Key 调用云端模型，无需重新打包。</div>
               <div style="display:flex;gap:6px;align-items:center;margin-top:8px;">
                 <input id="backend-api-key-input" type="text" spellcheck="false" placeholder="云端后端 API Key"
-                       style="flex:1;min-width:0;background:#111;border:1px solid #3c3c3c;color:#e0e0e0;border-radius:4px;padding:5px 8px;font-size:11px;font-family:Consolas,monospace;">
+                       style="flex:1;min-width:0;background:#111;border:1px solid #3c3c3c;color:#e0e0e0;border-radius:4px;padding:5px 8px;font-size: 10.5px;font-family:Consolas,monospace;">
               </div>
               <div style="display:flex;gap:6px;align-items:center;margin-top:6px;">
                 <input id="backend-gateway-url-input" type="text" spellcheck="false" placeholder="网关地址（默认 bluebubai.work）"
-                       style="flex:1;min-width:0;background:#111;border:1px solid #3c3c3c;color:#e0e0e0;border-radius:4px;padding:5px 8px;font-size:11px;font-family:Consolas,monospace;">
-                <button id="backend-api-key-save" style="background:#2d5a27;color:#fff;border:1px solid #3f7a36;border-radius:4px;padding:5px 10px;font-size:11px;cursor:pointer;white-space:nowrap;">保存</button>
-                <button id="backend-api-key-test" style="background:#3a3a3a;color:#fff;border:1px solid #555;border-radius:4px;padding:5px 10px;font-size:11px;cursor:pointer;white-space:nowrap;">测试连接</button>
+                       style="flex:1;min-width:0;background:#111;border:1px solid #3c3c3c;color:#e0e0e0;border-radius:4px;padding:5px 8px;font-size: 10.5px;font-family:Consolas,monospace;">
+                <button id="backend-api-key-save" style="background:#2d5a27;color:#fff;border:1px solid #3f7a36;border-radius:4px;padding:5px 10px;font-size: 10.5px;cursor:pointer;white-space:nowrap;">保存</button>
+                <button id="backend-api-key-test" style="background:#3a3a3a;color:#fff;border:1px solid #555;border-radius:4px;padding:5px 10px;font-size: 10.5px;cursor:pointer;white-space:nowrap;">测试连接</button>
               </div>
-              <div id="backend-api-key-hint" style="font-size:11px;margin-top:5px;"></div>
+              <div id="backend-api-key-hint" style="font-size: 10.5px;margin-top:5px;"></div>
             </div>
             <div style="background:#1e1e1e;border:1px solid #3c3c3c;border-radius:6px;padding:12px;margin-bottom:8px;">
               <div id="ai-provider-manager"></div>
@@ -946,38 +946,38 @@
               <div style="display:flex;align-items:flex-start;gap:8px;">
                 <input type="radio" name="ai-provider" value="custom" id="ai-prov-custom">
                 <div>
-                  <div style="font-size:13px;font-weight:600;color:#e0e0e0;">自定义 API</div>
-                  <div style="font-size:11px;color:#888;margin-top:2px;">兼容 OpenAI 格式的 API（DeepSeek 等）。</div>
+                  <div style="font-size: 12.5px;font-weight:600;color:#e0e0e0;">自定义 API</div>
+                  <div style="font-size: 10.5px;color:#888;margin-top:2px;">兼容 OpenAI 格式的 API（DeepSeek 等）。</div>
                 </div>
               </div>
               <div id="custom-api-fields" style="display:none;margin-top:8px;padding-left:24px;">
                 <div class="device-form-group">
                   <label class="device-label">API 地址</label>
-                  <input class="device-input" id="custom-baseurl" placeholder="https://api.deepseek.com/v1" style="width:100%;background:#2d2d2d;border:1px solid #3c3c3c;color:#ccc;padding:6px 8px;border-radius:4px;font-size:12px;">
+                  <input class="device-input" id="custom-baseurl" placeholder="https://api.deepseek.com/v1" style="width:100%;background:#2d2d2d;border:1px solid #3c3c3c;color:#ccc;padding:6px 8px;border-radius:4px;font-size: 11.5px;">
                 </div>
                 <div class="device-form-group">
                   <label class="device-label">API Key</label>
-                  <input class="device-input" id="custom-apikey" type="password" placeholder="sk-..." style="width:100%;background:#2d2d2d;border:1px solid #3c3c3c;color:#ccc;padding:6px 8px;border-radius:4px;font-size:12px;">
+                  <input class="device-input" id="custom-apikey" type="password" placeholder="sk-..." style="width:100%;background:#2d2d2d;border:1px solid #3c3c3c;color:#ccc;padding:6px 8px;border-radius:4px;font-size: 11.5px;">
                 </div>
                 <div class="device-form-group">
                   <label class="device-label">模型名</label>
-                  <input class="device-input" id="custom-model" placeholder="deepseek-chat" style="width:100%;background:#2d2d2d;border:1px solid #3c3c3c;color:#ccc;padding:6px 8px;border-radius:4px;font-size:12px;">
+                  <input class="device-input" id="custom-model" placeholder="deepseek-chat" style="width:100%;background:#2d2d2d;border:1px solid #3c3c3c;color:#ccc;padding:6px 8px;border-radius:4px;font-size: 11.5px;">
                 </div>
                 <div style="margin-top:8px;">
-                  <div style="font-size:11px;color:#888;margin-bottom:5px;">快捷填充（点一下自动填好地址和模型，你只填 Key）：</div>
+                  <div style="font-size: 10.5px;color:#888;margin-bottom:5px;">快捷填充（点一下自动填好地址和模型，你只填 Key）：</div>
                   <div style="display:flex;gap:6px;flex-wrap:wrap;">
-                    <button class="byok-preset" data-base="https://api.deepseek.com/v1" data-model="deepseek-chat" data-home="https://platform.deepseek.com/api_keys" style="font-size:11px;padding:3px 9px;background:#2d2d2d;border:1px solid #4caf50;color:#4caf50;border-radius:4px;cursor:pointer;">DeepSeek</button>
-                    <button class="byok-preset" data-base="https://open.bigmodel.cn/api/paas/v4" data-model="glm-4.7-flash" data-home="https://open.bigmodel.cn/usercenter/apikeys" style="font-size:11px;padding:3px 9px;background:#2d2d2d;border:1px solid #4caf50;color:#4caf50;border-radius:4px;cursor:pointer;">智谱 GLM（有免费模型）</button>
-                    <button class="byok-preset" data-base="https://api.siliconflow.cn/v1" data-model="Qwen/Qwen3-8B" data-home="https://cloud.siliconflow.cn/account/ak" style="font-size:11px;padding:3px 9px;background:#2d2d2d;border:1px solid #4caf50;color:#4caf50;border-radius:4px;cursor:pointer;">硅基流动（有免费模型）</button>
-                    <button class="byok-preset" data-base="https://dashscope.aliyuncs.com/compatible-mode/v1" data-model="qwen-plus" data-home="https://bailian.console.aliyun.com/?tab=model#/api-key" style="font-size:11px;padding:3px 9px;background:#2d2d2d;border:1px solid #4caf50;color:#4caf50;border-radius:4px;cursor:pointer;">阿里百炼</button>
-                    <button class="byok-preset" data-base="https://api.moonshot.cn/v1" data-model="kimi-k2-0905" data-home="https://platform.moonshot.cn/console/api-keys" style="font-size:11px;padding:3px 9px;background:#2d2d2d;border:1px solid #4caf50;color:#4caf50;border-radius:4px;cursor:pointer;">月之暗面 Kimi</button>
+                    <button class="byok-preset" data-base="https://api.deepseek.com/v1" data-model="deepseek-chat" data-home="https://platform.deepseek.com/api_keys" style="font-size: 10.5px;padding:3px 9px;background:#2d2d2d;border:1px solid #4caf50;color:#4caf50;border-radius:4px;cursor:pointer;">DeepSeek</button>
+                    <button class="byok-preset" data-base="https://open.bigmodel.cn/api/paas/v4" data-model="glm-4.7-flash" data-home="https://open.bigmodel.cn/usercenter/apikeys" style="font-size: 10.5px;padding:3px 9px;background:#2d2d2d;border:1px solid #4caf50;color:#4caf50;border-radius:4px;cursor:pointer;">智谱 GLM（有免费模型）</button>
+                    <button class="byok-preset" data-base="https://api.siliconflow.cn/v1" data-model="Qwen/Qwen3-8B" data-home="https://cloud.siliconflow.cn/account/ak" style="font-size: 10.5px;padding:3px 9px;background:#2d2d2d;border:1px solid #4caf50;color:#4caf50;border-radius:4px;cursor:pointer;">硅基流动（有免费模型）</button>
+                    <button class="byok-preset" data-base="https://dashscope.aliyuncs.com/compatible-mode/v1" data-model="qwen-plus" data-home="https://bailian.console.aliyun.com/?tab=model#/api-key" style="font-size: 10.5px;padding:3px 9px;background:#2d2d2d;border:1px solid #4caf50;color:#4caf50;border-radius:4px;cursor:pointer;">阿里百炼</button>
+                    <button class="byok-preset" data-base="https://api.moonshot.cn/v1" data-model="kimi-k2-0905" data-home="https://platform.moonshot.cn/console/api-keys" style="font-size: 10.5px;padding:3px 9px;background:#2d2d2d;border:1px solid #4caf50;color:#4caf50;border-radius:4px;cursor:pointer;">月之暗面 Kimi</button>
                   </div>
-                  <div id="byok-home-link" style="font-size:11px;color:#888;margin-top:6px;line-height:1.6;">密钥由你自己在服务商官网申请，只保存在本机，LabCode 服务器不经手。</div>
+                  <div id="byok-home-link" style="font-size: 10.5px;color:#888;margin-top:6px;line-height:1.6;">密钥由你自己在服务商官网申请，只保存在本机，LabCode 服务器不经手。</div>
                 </div>
               </div>
             </div>
-            <button id="save-ai-config" class="btn btn-primary" style="width:100%;margin-top:8px;font-size:12px;padding:6px;">保存设置</button>
-            <div style="margin-top:10px;font-size:11px;color:#777;line-height:1.7;">
+            <button id="save-ai-config" class="btn btn-primary" style="width:100%;margin-top:8px;font-size: 11.5px;padding:6px;">保存设置</button>
+            <div style="margin-top:10px;font-size: 10.5px;color:#777;line-height:1.7;">
               <a href="#" id="privacy-link" style="color:#4caf50;text-decoration:none;">隐私政策</a>
               · 使用「LabCode 云端」时，你的提问与相关代码会经 LabCode 服务器转发给模型服务商；选择本地模型或自定义 API 则不经过 LabCode 服务器。
             </div>
@@ -996,8 +996,8 @@
           <span class="ai-top-icon"><svg class="icon"><use href="#icon-sparkles"></use></svg></span>
         </div>
         <div class="ai-top-right">
-          <span id="gw-credits-badge" title="LabCode 账号（登录后可用云端模型；本地模型无需登录）" style="display:none;align-items:center;gap:4px;font-size:11px;color:var(--text-secondary);background:rgba(155,187,244,0.12);border:1px solid rgba(155,187,244,0.35);border-radius:20px;padding:3px 10px;cursor:pointer;"></span>
-          <span id="gw-daily-badge" title="今日剩余云端免费积分（每日 0 点自动重置；用完后可填自己的 API Key 继续）" style="display:none;align-items:center;font-size:11px;color:#059669;background:rgba(5,150,105,0.12);border:1px solid rgba(5,150,105,0.35);border-radius:20px;padding:3px 10px;"></span>
+          <span id="gw-credits-badge" title="LabCode 账号（登录后可用云端模型；本地模型无需登录）" style="display:none;align-items:center;gap:4px;font-size: 10.5px;color:var(--text-secondary);background:rgba(155,187,244,0.12);border:1px solid rgba(155,187,244,0.35);border-radius:20px;padding:3px 10px;cursor:pointer;"></span>
+          <span id="gw-daily-badge" title="今日剩余云端免费积分（每日 0 点自动重置；用完后可填自己的 API Key 继续）" style="display:none;align-items:center;font-size: 10.5px;color:#059669;background:rgba(5,150,105,0.12);border:1px solid rgba(5,150,105,0.35);border-radius:20px;padding:3px 10px;"></span>
           <div class="safety-mode-group" id="safety-mode-group" title="安全模式：控制 AI 对写操作/命令的自动执行范围">
             <button class="safety-mode-btn active" data-mode="auto" title="自动模式：低风险操作自动执行">⚡<span class="safety-mode-label">自动</span></button>
             <button class="safety-mode-btn" data-mode="default" title="默认模式：写操作需确认">🛡️<span class="safety-mode-label">默认</span></button>
@@ -1066,9 +1066,9 @@
                       <svg class="icon icon-xs"><use href="#icon-chevron-down"></use></svg>
                     </button>
                     <div class="model-dropdown" id="model-dropdown" style="display:none;">
-                      <div class="model-group-title" id="gw-model-title" style="padding:6px 10px 2px;font-size:11px;color:var(--text-secondary);">云端模型 · LabCode 免费额度</div>
+                      <div class="model-group-title" id="gw-model-title" style="padding:6px 10px 2px;font-size: 10.5px;color:var(--text-secondary);">云端模型 · LabCode 免费额度</div>
                       <div id="gw-model-list"></div>
-                      <div class="model-option" data-model="ollama"><span class="model-opt-label">Ollama 本地模型</span><span class="model-info-btn" data-info="ollama" title="这是什么？" style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:var(--surface-3);color:var(--text-secondary);font-size:11px;margin-left:6px;cursor:help;">ⓘ</span><span class="model-local-tag pending" data-local-tag="ollama">检测中</span></div>
+                      <div class="model-option" data-model="ollama"><span class="model-opt-label">Ollama 本地模型</span><span class="model-info-btn" data-info="ollama" title="这是什么？" style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:var(--surface-3);color:var(--text-secondary);font-size: 10.5px;margin-left:6px;cursor:help;">ⓘ</span><span class="model-local-tag pending" data-local-tag="ollama">检测中</span></div>
                       <div class="model-option" data-model="siliconflow"><span class="model-opt-label">🔑 硅基流动 Qwen3-8B（自带 Key 直连）</span></div>
                       <div class="model-option model-add-entry" id="model-ai-hub-entry" data-model="__ai_hub__" style="border-top:1px solid var(--border-color);margin-top:4px;">⚙️ 安装 / 配置 AI…</div>
                       <div class="model-option model-add-entry" id="model-add-entry" data-model="__add_model__" style="color:#059669;font-weight:600;">＋ 添加模型（填 API Key）</div>
@@ -1241,19 +1241,19 @@
       <div class="bottom-panel-content" id="debug-panel">
         <div style="display:flex;flex-direction:column;height:100%;">
           <div style="display:flex;gap:4px;padding:6px 10px;border-bottom:1px solid var(--border-color);align-items:center;flex-wrap:wrap;">
-            <button id="dbg-start" class="btn btn-primary" style="font-size:11px;padding:3px 10px;" title="启动调试 (F5)">▶ 调试</button>
-            <button id="dbg-stop" class="btn btn-secondary" style="font-size:11px;padding:3px 10px;" title="停止">■ 停止</button>
-            <button id="dbg-continue" class="btn btn-secondary" style="font-size:11px;padding:3px 10px;" title="继续">▶| 继续</button>
-            <button id="dbg-next" class="btn btn-secondary" style="font-size:11px;padding:3px 10px;" title="单步跳过">↷ 跳过</button>
-            <button id="dbg-step-in" class="btn btn-secondary" style="font-size:11px;padding:3px 10px;" title="单步进入">↓ 进入</button>
-            <button id="dbg-step-out" class="btn btn-secondary" style="font-size:11px;padding:3px 10px;" title="单步跳出">↑ 跳出</button>
+            <button id="dbg-start" class="btn btn-primary" style="font-size: 10.5px;padding:3px 10px;" title="启动调试 (F5)">▶ 调试</button>
+            <button id="dbg-stop" class="btn btn-secondary" style="font-size: 10.5px;padding:3px 10px;" title="停止">■ 停止</button>
+            <button id="dbg-continue" class="btn btn-secondary" style="font-size: 10.5px;padding:3px 10px;" title="继续">▶| 继续</button>
+            <button id="dbg-next" class="btn btn-secondary" style="font-size: 10.5px;padding:3px 10px;" title="单步跳过">↷ 跳过</button>
+            <button id="dbg-step-in" class="btn btn-secondary" style="font-size: 10.5px;padding:3px 10px;" title="单步进入">↓ 进入</button>
+            <button id="dbg-step-out" class="btn btn-secondary" style="font-size: 10.5px;padding:3px 10px;" title="单步跳出">↑ 跳出</button>
             <span style="flex:1;"></span>
-            <select id="dbg-config" style="background:#1e1e1e;border:1px solid #3c3c3c;color:#ccc;padding:3px 6px;font-size:11px;">
+            <select id="dbg-config" style="background:#1e1e1e;border:1px solid #3c3c3c;color:#ccc;padding:3px 6px;font-size: 10.5px;">
               <option value="python">Python (debugpy)</option>
               <option value="cpp">C/C++ (GDB+OpenOCD)</option>
             </select>
           </div>
-          <div id="dbg-breakpoints" style="border-bottom:1px solid var(--border-color);padding:4px 8px;font-size:11px;">
+          <div id="dbg-breakpoints" style="border-bottom:1px solid var(--border-color);padding:4px 8px;font-size: 10.5px;">
             <div style="color:var(--text-secondary);margin-bottom:2px;display:flex;justify-content:space-between;align-items:center;">
               <span>断点</span><span id="dbg-clear-bp" style="cursor:pointer;color:#f44;">清除全部</span>
             </div>
@@ -1261,49 +1261,49 @@
           </div>
           <div style="display:flex;flex:1;overflow:hidden;">
             <div style="flex:1;overflow:auto;border-right:1px solid var(--border-color);padding:4px 8px;">
-              <div style="font-size:11px;color:var(--text-secondary);margin-bottom:4px;">变量</div>
-              <div id="dbg-vars-list" style="font-size:12px;font-family:monospace;"></div>
+              <div style="font-size: 10.5px;color:var(--text-secondary);margin-bottom:4px;">变量</div>
+              <div id="dbg-vars-list" style="font-size: 11.5px;font-family:monospace;"></div>
             </div>
             <div style="flex:1;overflow:auto;padding:4px 8px;">
-              <div style="font-size:11px;color:var(--text-secondary);margin-bottom:4px;">调用栈</div>
-              <div id="dbg-stack-list" style="font-size:12px;font-family:monospace;"></div>
+              <div style="font-size: 10.5px;color:var(--text-secondary);margin-bottom:4px;">调用栈</div>
+              <div id="dbg-stack-list" style="font-size: 11.5px;font-family:monospace;"></div>
             </div>
           </div>
           <div style="height:120px;border-top:1px solid var(--border-color);overflow:auto;padding:4px 8px;">
-            <div style="font-size:11px;color:var(--text-secondary);">调试控制台</div>
-            <div id="dbg-output" style="font-size:12px;font-family:monospace;white-space:pre-wrap;"></div>
+            <div style="font-size: 10.5px;color:var(--text-secondary);">调试控制台</div>
+            <div id="dbg-output" style="font-size: 11.5px;font-family:monospace;white-space:pre-wrap;"></div>
           </div>
         </div>
       </div>
       <style>
-        .labcode-bp::before { content:'●'; color:#f44; font-size:12px; line-height:16px; }
+        .labcode-bp::before { content:'●'; color:#f44; font-size: 11.5px; line-height:16px; }
         .monaco-editor .glyph-margin { cursor:pointer; }
       </style>
       <!-- 串口监视器面板 -->
       <div class="bottom-panel-content" id="serial-panel">
         <div class="serial-panel" style="display:flex;flex-direction:column;height:100%;">
           <div class="serial-toolbar" style="display:flex;gap:8px;padding:6px 10px;border-bottom:1px solid var(--border-color);align-items:center;flex-wrap:wrap;">
-            <label style="font-size:12px;color:var(--text-secondary);">端口:</label>
-            <select id="serial-port" style="font-size:12px;padding:3px 6px;background:var(--card-color);border:1px solid var(--border-color);border-radius:4px;color:var(--text-color);min-width:100px;">
+            <label style="font-size: 11.5px;color:var(--text-secondary);">端口:</label>
+            <select id="serial-port" style="font-size: 11.5px;padding:3px 6px;background:var(--card-color);border:1px solid var(--border-color);border-radius:4px;color:var(--text-color);min-width:100px;">
               <option value="">未检测到串口</option>
             </select>
-            <label style="font-size:12px;color:var(--text-secondary);">波特率:</label>
-            <select id="serial-baud" style="font-size:12px;padding:3px 6px;background:var(--card-color);border:1px solid var(--border-color);border-radius:4px;color:var(--text-color);">
+            <label style="font-size: 11.5px;color:var(--text-secondary);">波特率:</label>
+            <select id="serial-baud" style="font-size: 11.5px;padding:3px 6px;background:var(--card-color);border:1px solid var(--border-color);border-radius:4px;color:var(--text-color);">
               <option>9600</option><option>19200</option><option>38400</option><option selected>115200</option><option>230400</option><option>460800</option><option>921600</option>
             </select>
-            <button class="btn btn-primary btn-sm" id="serial-open-btn" style="padding:4px 12px;font-size:11px;">打开串口</button>
-            <button class="btn btn-secondary btn-sm" id="serial-clear-btn" style="padding:4px 12px;font-size:11px;">清空</button>
-            <label style="font-size:12px;color:var(--text-secondary);margin-left:auto;display:flex;align-items:center;gap:4px;">
+            <button class="btn btn-primary btn-sm" id="serial-open-btn" style="padding:4px 12px;font-size: 10.5px;">打开串口</button>
+            <button class="btn btn-secondary btn-sm" id="serial-clear-btn" style="padding:4px 12px;font-size: 10.5px;">清空</button>
+            <label style="font-size: 11.5px;color:var(--text-secondary);margin-left:auto;display:flex;align-items:center;gap:4px;">
               <input type="checkbox" id="serial-timestamp" style="accent-color:var(--accent, #007acc);"> 时间戳
             </label>
-            <label style="font-size:12px;color:var(--text-secondary);display:flex;align-items:center;gap:4px;">
+            <label style="font-size: 11.5px;color:var(--text-secondary);display:flex;align-items:center;gap:4px;">
               <input type="checkbox" id="serial-autoscroll" checked style="accent-color:var(--accent, #007acc);"> 自动滚动
             </label>
           </div>
-          <div id="serial-output" style="flex:1;overflow-y:auto;padding:8px 12px;font-family:'Cascadia Code','Consolas',monospace;font-size:12px;line-height:1.5;white-space:pre-wrap;word-break:break-all;background:var(--card-color);"></div>
+          <div id="serial-output" style="flex:1;overflow-y:auto;padding:8px 12px;font-family:'Cascadia Code','Consolas',monospace;font-size: 11.5px;line-height:1.5;white-space:pre-wrap;word-break:break-all;background:var(--card-color);"></div>
           <div class="serial-input-row" style="display:flex;gap:6px;padding:6px 10px;border-top:1px solid var(--border-color);">
-            <input type="text" id="serial-send-input" placeholder="发送到串口 (Enter 发送)" style="flex:1;font-size:12px;padding:4px 8px;background:var(--card-color);border:1px solid var(--border-color);border-radius:4px;color:var(--text-color);">
-            <button class="btn btn-secondary btn-sm" id="serial-send-btn" style="padding:4px 12px;font-size:11px;">发送</button>
+            <input type="text" id="serial-send-input" placeholder="发送到串口 (Enter 发送)" style="flex:1;font-size: 11.5px;padding:4px 8px;background:var(--card-color);border:1px solid var(--border-color);border-radius:4px;color:var(--text-color);">
+            <button class="btn btn-secondary btn-sm" id="serial-send-btn" style="padding:4px 12px;font-size: 10.5px;">发送</button>
           </div>
         </div>
       </div>
@@ -1311,21 +1311,21 @@
       <div class="bottom-panel-content" id="plotter-panel">
         <div class="plotter-panel" style="display:flex;flex-direction:column;height:100%;">
           <div class="plotter-toolbar" style="display:flex;gap:8px;padding:6px 10px;border-bottom:1px solid var(--border-color);align-items:center;flex-wrap:wrap;">
-            <label style="font-size:12px;color:var(--text-secondary);">绘图模式:</label>
-            <select id="plotter-mode" style="font-size:12px;padding:3px 6px;background:var(--card-color);border:1px solid var(--border-color);border-radius:4px;color:var(--text-color);">
+            <label style="font-size: 11.5px;color:var(--text-secondary);">绘图模式:</label>
+            <select id="plotter-mode" style="font-size: 11.5px;padding:3px 6px;background:var(--card-color);border:1px solid var(--border-color);border-radius:4px;color:var(--text-color);">
               <option value="auto" selected>自动 (CSV/逗号分隔)</option>
               <option value="single">单通道</option>
             </select>
-            <label style="font-size:12px;color:var(--text-secondary);">窗口:</label>
-            <select id="plotter-window" style="font-size:12px;padding:3px 6px;background:var(--card-color);border:1px solid var(--border-color);border-radius:4px;color:var(--text-color);">
+            <label style="font-size: 11.5px;color:var(--text-secondary);">窗口:</label>
+            <select id="plotter-window" style="font-size: 11.5px;padding:3px 6px;background:var(--card-color);border:1px solid var(--border-color);border-radius:4px;color:var(--text-color);">
               <option value="50">50 点</option><option value="100" selected>100 点</option><option value="200">200 点</option><option value="500">500 点</option>
             </select>
-            <button class="btn btn-secondary btn-sm" id="plotter-clear-btn" style="padding:4px 12px;font-size:11px;">清空</button>
-            <button class="btn btn-secondary btn-sm" id="plotter-export-btn" style="padding:4px 12px;font-size:11px;">导出 CSV</button>
+            <button class="btn btn-secondary btn-sm" id="plotter-clear-btn" style="padding:4px 12px;font-size: 10.5px;">清空</button>
+            <button class="btn btn-secondary btn-sm" id="plotter-export-btn" style="padding:4px 12px;font-size: 10.5px;">导出 CSV</button>
           </div>
           <div id="plotter-canvas" style="flex:1;position:relative;background:var(--card-color);overflow:hidden;">
             <canvas id="plotter-cv" style="position:absolute;inset:0;width:100%;height:100%;"></canvas>
-            <div id="plotter-placeholder" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--text-secondary);font-size:13px;">等待串口数据…</div>
+            <div id="plotter-placeholder" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--text-secondary);font-size: 12.5px;">等待串口数据…</div>
           </div>
         </div>
       </div>
@@ -1356,9 +1356,9 @@
         <button class="modal-close" id="cmd-palette-close"><svg class="icon icon-xs"><use href="#icon-x"></use></svg></button>
       </div>
       <div class="modal-body" style="padding:12px 16px;">
-        <input type="text" id="cmd-palette-input" placeholder="输入命令名称进行过滤…" style="width:100%;box-sizing:border-box;padding:8px 12px;border:1px solid var(--border-light);border-radius:var(--radius-sm);background:var(--bg-secondary);color:var(--text-primary);font-size:13px;outline:none;"/>
+        <input type="text" id="cmd-palette-input" placeholder="输入命令名称进行过滤…" style="width:100%;box-sizing:border-box;padding:8px 12px;border:1px solid var(--border-light);border-radius:var(--radius-sm);background:var(--bg-secondary);color:var(--text-primary);font-size: 12.5px;outline:none;"/>
         <div id="cmd-palette-list" style="margin-top:10px;max-height:320px;overflow-y:auto;"></div>
-        <div style="margin-top:8px;font-size:11px;color:var(--text-tertiary);">↑↓ 选择 · Enter 执行 · Esc 关闭</div>
+        <div style="margin-top:8px;font-size: 10.5px;color:var(--text-tertiary);">↑↓ 选择 · Enter 执行 · Esc 关闭</div>
       </div>
     </div>
   </div>
@@ -1372,7 +1372,7 @@
       </div>
       <div class="modal-body">
         <p>AI 智能体提交了以下执行计划：</p>
-        <div class="plan-text" id="plan-text" style="font-size:13px;color:var(--text-secondary);margin-bottom:12px;"></div>
+        <div class="plan-text" id="plan-text" style="font-size: 12.5px;color:var(--text-secondary);margin-bottom:12px;"></div>
         <div class="plan-steps" id="plan-steps" style="margin-bottom:12px;"></div>
         <!-- 已移除从未被写入的 plan-content 空容器（真实内容写在 plan-text / plan-steps） -->
         <textarea class="plan-feedback-input" id="plan-feedback-input" rows="2" placeholder="如需修改计划，在此填写修改意见后点击「拒绝」…"></textarea>
@@ -1462,32 +1462,32 @@
           <div class="settings-panels">
             <div class="settings-panel active" id="panel-account">
               <div style="margin-bottom:20px;padding:14px;border:1px solid var(--border-color);border-radius:10px;background:rgba(155,187,244,0.06);">
-                <h4 style="margin:0 0 10px 0;font-size:14px;color:var(--text-color);">账号</h4>
+                <h4 style="margin:0 0 10px 0;font-size: 13px;color:var(--text-color);">账号</h4>
                 <div id="gw-login-form" style="display:flex;flex-direction:column;gap:10px;">
             <div style="display:flex;gap:6px;">
               <button class="btn btn-secondary gw-tab" id="gw-tab-login" style="flex:1;background:var(--accent);color:#fff;">登录</button>
               <button class="btn btn-secondary gw-tab" id="gw-tab-register" style="flex:1;">注册</button>
             </div>
-            <div id="gw-msg" style="font-size:12px;color:var(--text-secondary);min-height:16px;"></div>
+            <div id="gw-msg" style="font-size: 11.5px;color:var(--text-secondary);min-height:16px;"></div>
             <div id="gw-login-panel" style="display:flex;flex-direction:column;gap:8px;">
-              <input type="text" id="gw-login-account" placeholder="邮箱" style="width:100%;padding:8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size:13px;box-sizing:border-box;">
-              <input type="password" id="gw-login-password" placeholder="密码" style="width:100%;padding:8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size:13px;box-sizing:border-box;">
+              <input type="text" id="gw-login-account" placeholder="邮箱" style="width:100%;padding:8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size: 12.5px;box-sizing:border-box;">
+              <input type="password" id="gw-login-password" placeholder="密码" style="width:100%;padding:8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size: 12.5px;box-sizing:border-box;">
               <div style="display:flex;justify-content:space-between;align-items:center;">
                 <button class="btn btn-primary" id="gw-login-btn" style="flex:0 0 auto;">登录</button>
-                <span id="gw-forgot" style="font-size:12px;color:var(--accent);cursor:pointer;">忘记密码？</span>
+                <span id="gw-forgot" style="font-size: 11.5px;color:var(--accent);cursor:pointer;">忘记密码？</span>
               </div>
             </div>
             <div id="gw-register-panel" style="display:none;flex-direction:column;gap:8px;">
-              <input type="text" id="gw-register-email" placeholder="邮箱" style="width:100%;padding:8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size:13px;box-sizing:border-box;">
+              <input type="text" id="gw-register-email" placeholder="邮箱" style="width:100%;padding:8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size: 12.5px;box-sizing:border-box;">
               <div style="display:flex;gap:6px;">
-                <input type="text" id="gw-register-code" placeholder="邮箱验证码" style="flex:1;padding:8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size:13px;box-sizing:border-box;">
+                <input type="text" id="gw-register-code" placeholder="邮箱验证码" style="flex:1;padding:8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size: 12.5px;box-sizing:border-box;">
                 <button class="btn btn-secondary" id="gw-register-send-btn" style="flex:0 0 auto;white-space:nowrap;">获取验证码</button>
               </div>
-              <input type="password" id="gw-register-password" placeholder="密码（至少 6 位）" style="width:100%;padding:8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size:13px;box-sizing:border-box;">
-              <input type="text" id="gw-register-invite" placeholder="邀请码（选填）" style="width:100%;padding:8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size:13px;box-sizing:border-box;">
+              <input type="password" id="gw-register-password" placeholder="密码（至少 6 位）" style="width:100%;padding:8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size: 12.5px;box-sizing:border-box;">
+              <input type="text" id="gw-register-invite" placeholder="邀请码（选填）" style="width:100%;padding:8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size: 12.5px;box-sizing:border-box;">
               <button class="btn btn-primary" id="gw-register-btn" style="flex:0 0 auto;align-self:flex-start;">注册</button>
             </div>
-            <div style="font-size:11px;color:var(--text-secondary);line-height:1.5;">登录后可使用云端模型（硅基流动 Qwen3-8B，免费）；本地模型无需登录，数据不出本机。</div>
+            <div style="font-size: 10.5px;color:var(--text-secondary);line-height:1.5;">登录后可使用云端模型（硅基流动 Qwen3-8B，免费）；本地模型无需登录，数据不出本机。</div>
           </div>
           <div id="gw-user-info" style="display:none;">
             <!-- TrieCode 式账户页：居中头像 + 账号名 + 邮箱 + 套餐徽章 + 积分进度 + 升级按钮 + 按钮组 -->
@@ -1495,22 +1495,22 @@
               <div style="width:64px;height:64px;border-radius:50%;background:var(--primary-light);display:flex;align-items:center;justify-content:center;margin-bottom:10px;">
                 <svg class="icon" style="width:30px;height:30px;color:var(--primary);"><use href="#icon-user"></use></svg>
               </div>
-              <div id="gw-name-show" style="font-size:20px;font-weight:700;color:var(--text-color);line-height:1.3;"></div>
-              <div id="gw-email-show" style="font-size:12.5px;color:var(--text-secondary);margin-top:2px;"></div>
-              <span id="gw-plan-badge" style="margin-top:8px;padding:2px 12px;border-radius:999px;background:rgba(128,128,128,.12);font-size:11px;color:var(--text-secondary);">免费版</span>
+              <div id="gw-name-show" style="font-size: 18px;font-weight:700;color:var(--text-color);line-height:1.3;"></div>
+              <div id="gw-email-show" style="font-size: 12px;color:var(--text-secondary);margin-top:2px;"></div>
+              <span id="gw-plan-badge" style="margin-top:8px;padding:2px 12px;border-radius:999px;background:rgba(128,128,128,.12);font-size: 10.5px;color:var(--text-secondary);">免费版</span>
             </div>
             <div style="margin-top:16px;">
-              <div style="display:flex;justify-content:space-between;align-items:baseline;font-size:12.5px;color:var(--text-color);">
+              <div style="display:flex;justify-content:space-between;align-items:baseline;font-size: 12px;color:var(--text-color);">
                 <span><b id="gw-plan-credits">—</b> <span style="color:var(--text-secondary);font-weight:400;">（剩余）</span></span>
-                <span style="font-size:11.5px;color:var(--text-secondary);"><span id="gw-daily-cap"></span></span>
+                <span style="font-size: 11px;color:var(--text-secondary);"><span id="gw-daily-cap"></span></span>
               </div>
               <div style="height:6px;border-radius:999px;background:rgba(128,128,128,.14);margin-top:6px;overflow:hidden;">
                 <div id="gw-plan-bar" style="height:100%;width:100%;border-radius:999px;background:#22c55e;transition:width .3s;"></div>
               </div>
-              <div style="display:flex;justify-content:space-between;align-items:baseline;font-size:12.5px;color:var(--text-color);margin-top:12px;">
+              <div style="display:flex;justify-content:space-between;align-items:baseline;font-size: 12px;color:var(--text-color);margin-top:12px;">
                 <span>其他积分（不清零）</span><b id="gw-recharge-credits" style="color:var(--primary);">—</b>
               </div>
-              <div style="font-size:11px;color:var(--text-tertiary);text-align:center;margin-top:8px;">套餐积分 30 天周期清零，其他积分永久有效，总额 <span id="gw-total-credits">—</span></div>
+              <div style="font-size: 10.5px;color:var(--text-tertiary);text-align:center;margin-top:8px;">套餐积分 30 天周期清零，其他积分永久有效，总额 <span id="gw-total-credits">—</span></div>
               <button id="gw-upgrade-btn" style="width:100%;margin-top:14px;padding:10px;border:none;border-radius:8px;background:var(--primary);color:#fff;font-size:13.5px;font-weight:600;cursor:pointer;">升级套餐</button>
               <div style="display:flex;justify-content:center;gap:10px;margin-top:12px;">
                 <button class="btn btn-secondary" id="gw-refresh-btn" style="flex:0 0 auto;">刷新</button>
@@ -1523,14 +1523,14 @@
         </div>
               </div>
               <div class="settings-panel" id="panel-general">
-                <h4 style="margin:0 0 14px 0;font-size:14px;color:var(--text-color);">常规</h4>
+                <h4 style="margin:0 0 14px 0;font-size: 13px;color:var(--text-color);">常规</h4>
 
                 <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;padding:12px 0;border-bottom:1px solid var(--border-color);">
                   <div style="flex:1;">
-                    <div style="font-size:13px;font-weight:600;color:var(--text-color);margin-bottom:4px;">关闭窗口时</div>
-                    <div style="font-size:12px;color:var(--text-secondary);line-height:1.6;">点右上角 × 时把窗口收进托盘，软件继续在后台运行（定时任务需常驻执行）。要完全退出，用托盘菜单的「退出 LabCode」。</div>
+                    <div style="font-size: 12.5px;font-weight:600;color:var(--text-color);margin-bottom:4px;">关闭窗口时</div>
+                    <div style="font-size: 11.5px;color:var(--text-secondary);line-height:1.6;">点右上角 × 时把窗口收进托盘，软件继续在后台运行（定时任务需常驻执行）。要完全退出，用托盘菜单的「退出 LabCode」。</div>
                   </div>
-                  <select id="general-close-action" style="width:170px;flex:none;padding:7px 8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size:13px;">
+                  <select id="general-close-action" style="width:170px;flex:none;padding:7px 8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size: 12.5px;">
                     <option value="tray">最小化到托盘</option>
                     <option value="exit">直接退出</option>
                   </select>
@@ -1538,50 +1538,50 @@
 
                 <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;padding:12px 0;border-bottom:1px solid var(--border-color);">
                   <div style="flex:1;">
-                    <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:6px;">工作区 / WORKSPACE</div>
-                    <div style="font-size:13px;font-weight:600;color:var(--text-color);margin-bottom:4px;">默认工作空间</div>
-                    <div style="font-size:12px;color:var(--text-secondary);line-height:1.6;">未打开项目时的浏览器位置（新建项目、编译产物存放处）。修改后立即生效。</div>
+                    <div style="font-size: 10.5px;color:var(--text-tertiary);margin-bottom:6px;">工作区 / WORKSPACE</div>
+                    <div style="font-size: 12.5px;font-weight:600;color:var(--text-color);margin-bottom:4px;">默认工作空间</div>
+                    <div style="font-size: 11.5px;color:var(--text-secondary);line-height:1.6;">未打开项目时的浏览器位置（新建项目、编译产物存放处）。修改后立即生效。</div>
                   </div>
                   <div style="display:flex;gap:6px;flex:none;align-items:center;">
-                    <input type="text" id="general-workspace" placeholder="默认目录" style="width:240px;padding:7px 8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size:12px;">
+                    <input type="text" id="general-workspace" placeholder="默认目录" style="width:240px;padding:7px 8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size: 11.5px;">
                     <button class="btn btn-secondary" id="general-workspace-browse" style="flex:none;">浏览…</button>
                   </div>
                 </div>
 
                 <div style="padding:12px 0 0 0;">
-                  <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:6px;">网络 / NETWORK</div>
+                  <div style="font-size: 10.5px;color:var(--text-tertiary);margin-bottom:6px;">网络 / NETWORK</div>
                   <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:10px;">
                     <div style="flex:1;">
-                      <div style="font-size:13px;font-weight:600;color:var(--text-color);margin-bottom:4px;">代理模式</div>
-                      <div style="font-size:12px;color:var(--text-secondary);line-height:1.6;">代理仅作用于公网的模型 API 与模型/工具链下载，本地服务（串口/LSP/编译）不走代理。</div>
+                      <div style="font-size: 12.5px;font-weight:600;color:var(--text-color);margin-bottom:4px;">代理模式</div>
+                      <div style="font-size: 11.5px;color:var(--text-secondary);line-height:1.6;">代理仅作用于公网的模型 API 与模型/工具链下载，本地服务（串口/LSP/编译）不走代理。</div>
                     </div>
-                    <select id="general-proxy-mode" style="width:190px;flex:none;padding:7px 8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size:13px;">
+                    <select id="general-proxy-mode" style="width:190px;flex:none;padding:7px 8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size: 12.5px;">
                       <option value="system">系统代理（自动检测）</option>
                       <option value="manual">手动配置</option>
                       <option value="direct">不使用代理</option>
                     </select>
                   </div>
                   <div id="general-proxy-manual" style="display:none;gap:8px;align-items:center;margin-bottom:10px;">
-                    <input type="text" id="general-proxy-host" placeholder="代理地址，如 127.0.0.1" style="flex:1;padding:7px 8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size:12px;">
-                    <input type="text" id="general-proxy-port" placeholder="端口" style="width:90px;flex:none;padding:7px 8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size:12px;">
+                    <input type="text" id="general-proxy-host" placeholder="代理地址，如 127.0.0.1" style="flex:1;padding:7px 8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size: 11.5px;">
+                    <input type="text" id="general-proxy-port" placeholder="端口" style="width:90px;flex:none;padding:7px 8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size: 11.5px;">
                   </div>
                   <div style="display:flex;justify-content:space-between;align-items:center;">
-                    <div style="font-size:13px;font-weight:600;color:var(--text-color);">检测到的系统代理</div>
+                    <div style="font-size: 12.5px;font-weight:600;color:var(--text-color);">检测到的系统代理</div>
                     <div style="display:flex;gap:8px;align-items:center;">
-                      <span id="general-proxy-detected" style="font-size:12px;color:var(--text-secondary);">—</span>
-                      <button class="btn btn-secondary" id="general-proxy-refresh" style="flex:none;padding:4px 10px;font-size:12px;">刷新</button>
+                      <span id="general-proxy-detected" style="font-size: 11.5px;color:var(--text-secondary);">—</span>
+                      <button class="btn btn-secondary" id="general-proxy-refresh" style="flex:none;padding:4px 10px;font-size: 11.5px;">刷新</button>
                     </div>
                   </div>
                 </div>
               </div>
               <div class="settings-panel" id="panel-model">
                 <div style="margin-bottom:20px;">
-                  <h4 style="margin:0 0 12px 0;font-size:14px;color:var(--text-color);">AI 模型配置</h4>
-                  <div style="font-size:12px;color:var(--text-secondary);margin:2px 0 10px;">— 或手动配置 —</div>
+                  <h4 style="margin:0 0 12px 0;font-size: 13px;color:var(--text-color);">AI 模型配置</h4>
+                  <div style="font-size: 11.5px;color:var(--text-secondary);margin:2px 0 10px;">— 或手动配置 —</div>
                   <div style="display:flex;flex-direction:column;gap:12px;">
             <div>
-              <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">AI 提供商</label>
-              <select id="ai-provider" style="width:100%;padding:8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size:13px;">
+              <label style="display:block;font-size: 11.5px;color:var(--text-secondary);margin-bottom:4px;">AI 提供商</label>
+              <select id="ai-provider" style="width:100%;padding:8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size: 12.5px;">
                 <option value="deepseek">DeepSeek（云端 API）</option>
                 <option value="local">本地 AI 引擎（内置，无需安装）</option>
                 <option value="ollama">本地模型（兼容模式）</option>
@@ -1589,24 +1589,24 @@
                 <option value="custom">自定义（OpenAI 兼容）</option>
               </select>
             </div>
-            <div id="ai-key-warning" style="display:none;padding:8px 10px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.35);border-radius:6px;font-size:12px;color:#ef4444;line-height:1.5;">
+            <div id="ai-key-warning" style="display:none;padding:8px 10px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.35);border-radius:6px;font-size: 11.5px;color:#ef4444;line-height:1.5;">
               ⚠️ <strong>未配置 API Key 且未登录账号</strong>：当前选择的是云端模型，无法发送消息。请填写下方 API Key、登录 LabCode 账号使用内置模型池，或切换到「本地 AI 引擎 / 本地模型（兼容模式）」离线使用。
             </div>
             <div id="ai-apikey-row">
-              <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">API Key</label>
-              <input type="password" id="ai-apikey" placeholder="sk-..." style="width:100%;padding:8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size:13px;box-sizing:border-box;">
+              <label style="display:block;font-size: 11.5px;color:var(--text-secondary);margin-bottom:4px;">API Key</label>
+              <input type="password" id="ai-apikey" placeholder="sk-..." style="width:100%;padding:8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size: 12.5px;box-sizing:border-box;">
             </div>
             <div id="ai-baseurl-row" style="display:none;">
-              <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">API Base URL</label>
-              <input type="text" id="ai-baseurl" placeholder="https://api.example.com/v1" style="width:100%;padding:8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size:13px;box-sizing:border-box;">
+              <label style="display:block;font-size: 11.5px;color:var(--text-secondary);margin-bottom:4px;">API Base URL</label>
+              <input type="text" id="ai-baseurl" placeholder="https://api.example.com/v1" style="width:100%;padding:8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size: 12.5px;box-sizing:border-box;">
             </div>
             <div>
-              <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">模型名称</label>
-              <input type="text" id="ai-model" placeholder="deepseek-chat" style="width:100%;padding:8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size:13px;box-sizing:border-box;">
+              <label style="display:block;font-size: 11.5px;color:var(--text-secondary);margin-bottom:4px;">模型名称</label>
+              <input type="text" id="ai-model" placeholder="deepseek-chat" style="width:100%;padding:8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size: 12.5px;box-sizing:border-box;">
             </div>
             <div>
-              <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">思考档位（云推理模型推理强度）</label>
-              <select id="ai-thinking" style="width:100%;padding:8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size:13px;box-sizing:border-box;">
+              <label style="display:block;font-size: 11.5px;color:var(--text-secondary);margin-bottom:4px;">思考档位（云推理模型推理强度）</label>
+              <select id="ai-thinking" style="width:100%;padding:8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size: 12.5px;box-sizing:border-box;">
                 <option value="fast">快速（极窄思考，仅纯事实检索）</option>
                 <option value="light">轻度（简单任务）</option>
                 <option value="standard">标准（一般任务）</option>
@@ -1614,29 +1614,29 @@
               </select>
             </div>
             <div>
-              <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">本地模型工具调用约束（实验性）</label>
-              <select id="ai-local-tool-grammar" style="width:100%;padding:8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size:13px;box-sizing:border-box;">
+              <label style="display:block;font-size: 11.5px;color:var(--text-secondary);margin-bottom:4px;">本地模型工具调用约束（实验性）</label>
+              <select id="ai-local-tool-grammar" style="width:100%;padding:8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size: 12.5px;box-sizing:border-box;">
                 <option value="auto">自动（7B/9B 开启，3B 及更小关闭）</option>
                 <option value="on">始终开启</option>
                 <option value="off">始终关闭</option>
               </select>
-              <div style="font-size:11px;color:var(--text-tertiary);margin-top:4px;line-height:1.5;">开启后本地模型通过语法约束可靠输出工具调用（读文件/写文件/编译等），不再依赖格式猜测。仅对本地模型生效，云端模型不受影响。</div>
+              <div style="font-size: 10.5px;color:var(--text-tertiary);margin-top:4px;line-height:1.5;">开启后本地模型通过语法约束可靠输出工具调用（读文件/写文件/编译等），不再依赖格式猜测。仅对本地模型生效，云端模型不受影响。</div>
             </div>
             <div>
-              <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">本地模型工具决策增强（LoRA）</label>
-              <select id="ai-local-lora" style="width:100%;padding:8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size:13px;box-sizing:border-box;">
+              <label style="display:block;font-size: 11.5px;color:var(--text-secondary);margin-bottom:4px;">本地模型工具决策增强（LoRA）</label>
+              <select id="ai-local-lora" style="width:100%;padding:8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size: 12.5px;box-sizing:border-box;">
                 <option value="auto">自动（3B 基座加载增强适配器）</option>
                 <option value="off">关闭</option>
               </select>
-              <div style="font-size:11px;color:var(--text-tertiary);margin-top:4px;line-height:1.5;">挂载内置的“工具决策”微调适配器，让本地模型更会选工具（实测 3B 准确率 23.8% → 78.6%）。仅对配套的 3B 本地模型生效，切换模型后需重启本地引擎。</div>
+              <div style="font-size: 10.5px;color:var(--text-tertiary);margin-top:4px;line-height:1.5;">挂载内置的“工具决策”微调适配器，让本地模型更会选工具（实测 3B 准确率 23.8% → 78.6%）。仅对配套的 3B 本地模型生效，切换模型后需重启本地引擎。</div>
             </div>
             <div style="display:flex;gap:8px;align-items:center;">
               <button class="btn btn-secondary" id="ai-test-btn" style="flex:0 0 auto;">测试连接</button>
-              <span id="ai-test-result" style="font-size:12px;color:var(--text-secondary);"></span>
+              <span id="ai-test-result" style="font-size: 11.5px;color:var(--text-secondary);"></span>
             </div>
           </div>
         </div>
-        <div style="padding:12px;background:rgba(0,0,0,0.03);border-radius:8px;font-size:12px;color:var(--text-secondary);line-height:1.6;">
+        <div style="padding:12px;background:rgba(0,0,0,0.03);border-radius:8px;font-size: 11.5px;color:var(--text-secondary);line-height:1.6;">
           <strong>说明：</strong><br>
           • DeepSeek：在 <a href="https://platform.deepseek.com/" style="color:var(--accent);">platform.deepseek.com</a> 申请 API Key<br>
           • 本地 AI 引擎：LabCode 内置 llama.cpp 引擎，到插件市场安装大模型（国内直链下载）即可使用，无需安装任何外部软件<br>
@@ -1645,20 +1645,20 @@
               </div>
               <div class="settings-panel" id="panel-agent">
                 <div>
-                  <h4 style="margin:0 0 12px 0;font-size:14px;color:var(--text-color);">从市场选择 AI 智能体</h4>
+                  <h4 style="margin:0 0 12px 0;font-size: 13px;color:var(--text-color);">从市场选择 AI 智能体</h4>
                   <div id="agent-market-list" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;"></div>
                 </div>
               </div>
 
               <!-- 个人 · 外观 -->
               <div class="settings-panel" id="panel-appearance">
-                <h4 style="margin:0 0 14px 0;font-size:14px;color:var(--text-color);">外观</h4>
+                <h4 style="margin:0 0 14px 0;font-size: 13px;color:var(--text-color);">外观</h4>
                 <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;padding:12px 0;border-bottom:1px solid var(--border-color);">
                   <div style="flex:1;">
-                    <div style="font-size:13px;font-weight:600;color:var(--text-color);margin-bottom:4px;">主题</div>
-                    <div style="font-size:12px;color:var(--text-secondary);line-height:1.6;">切换浅色 / 深色界面，立即生效。</div>
+                    <div style="font-size: 12.5px;font-weight:600;color:var(--text-color);margin-bottom:4px;">主题</div>
+                    <div style="font-size: 11.5px;color:var(--text-secondary);line-height:1.6;">切换浅色 / 深色界面，立即生效。</div>
                   </div>
-                  <select id="appearance-theme" style="width:170px;flex:none;padding:7px 8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size:13px;">
+                  <select id="appearance-theme" style="width:170px;flex:none;padding:7px 8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size: 12.5px;">
                     <option value="light">浅色</option>
                     <option value="dark">深色</option>
                   </select>
@@ -1667,15 +1667,15 @@
 
               <!-- 个人 · 语音 -->
               <div class="settings-panel" id="panel-voice">
-                <h4 style="margin:0 0 14px 0;font-size:14px;color:var(--text-color);">语音</h4>
+                <h4 style="margin:0 0 14px 0;font-size: 13px;color:var(--text-color);">语音</h4>
                 <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;padding:12px 0;border-bottom:1px solid var(--border-color);">
                   <div style="flex:1;">
-                    <div style="font-size:13px;font-weight:600;color:var(--text-color);margin-bottom:4px;">朗读语速</div>
-                    <div style="font-size:12px;color:var(--text-secondary);line-height:1.6;">AI 回复与选中内容朗读的语速（0.5–2.0 倍）。</div>
+                    <div style="font-size: 12.5px;font-weight:600;color:var(--text-color);margin-bottom:4px;">朗读语速</div>
+                    <div style="font-size: 11.5px;color:var(--text-secondary);line-height:1.6;">AI 回复与选中内容朗读的语速（0.5–2.0 倍）。</div>
                   </div>
                   <div style="display:flex;gap:8px;align-items:center;flex:none;">
                     <input type="range" id="voice-rate" min="0.5" max="2" step="0.1" value="1" style="width:140px;">
-                    <span id="voice-rate-val" style="font-size:12px;color:var(--text-secondary);width:34px;text-align:right;">1.0x</span>
+                    <span id="voice-rate-val" style="font-size: 11.5px;color:var(--text-secondary);width:34px;text-align:right;">1.0x</span>
                   </div>
                 </div>
                 <div style="display:flex;justify-content:flex-end;gap:8px;padding-top:12px;">
@@ -1685,86 +1685,86 @@
 
               <!-- AI · 补全 -->
               <div class="settings-panel" id="panel-completion">
-                <h4 style="margin:0 0 14px 0;font-size:14px;color:var(--text-color);">补全</h4>
+                <h4 style="margin:0 0 14px 0;font-size: 13px;color:var(--text-color);">补全</h4>
                 <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;padding:12px 0;border-bottom:1px solid var(--border-color);">
                   <div style="flex:1;">
-                    <div style="font-size:13px;font-weight:600;color:var(--text-color);margin-bottom:4px;">启用代码内联补全</div>
-                    <div style="font-size:12px;color:var(--text-secondary);line-height:1.6;">在编辑器中用 AI 实时续写代码（灰色虚影，Tab 采纳）。</div>
+                    <div style="font-size: 12.5px;font-weight:600;color:var(--text-color);margin-bottom:4px;">启用代码内联补全</div>
+                    <div style="font-size: 11.5px;color:var(--text-secondary);line-height:1.6;">在编辑器中用 AI 实时续写代码（灰色虚影，Tab 采纳）。</div>
                   </div>
                   <label class="switch"><input type="checkbox" id="completion-enabled"><span class="slider"></span></label>
                 </div>
                 <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;padding:12px 0;">
                   <div style="flex:1;">
-                    <div style="font-size:13px;font-weight:600;color:var(--text-color);margin-bottom:4px;">触发延迟</div>
-                    <div style="font-size:12px;color:var(--text-secondary);line-height:1.6;">停止输入后多久发起补全请求（毫秒）。</div>
+                    <div style="font-size: 12.5px;font-weight:600;color:var(--text-color);margin-bottom:4px;">触发延迟</div>
+                    <div style="font-size: 11.5px;color:var(--text-secondary);line-height:1.6;">停止输入后多久发起补全请求（毫秒）。</div>
                   </div>
-                  <input type="number" id="completion-delay" min="100" max="2000" step="50" value="350" style="width:120px;flex:none;padding:7px 8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size:13px;">
+                  <input type="number" id="completion-delay" min="100" max="2000" step="50" value="350" style="width:120px;flex:none;padding:7px 8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size: 12.5px;">
                 </div>
               </div>
 
               <!-- AI · 记忆 -->
               <div class="settings-panel" id="panel-memory">
-                <h4 style="margin:0 0 12px 0;font-size:14px;color:var(--text-color);">记忆</h4>
-                <div style="font-size:12px;color:var(--text-secondary);margin-bottom:10px;line-height:1.6;">AI 长期记忆存储在本机（memory/memories.json），用于跨会话保持偏好与上下文。</div>
+                <h4 style="margin:0 0 12px 0;font-size: 13px;color:var(--text-color);">记忆</h4>
+                <div style="font-size: 11.5px;color:var(--text-secondary);margin-bottom:10px;line-height:1.6;">AI 长期记忆存储在本机（memory/memories.json），用于跨会话保持偏好与上下文。</div>
                 <div id="memory-list" style="display:flex;flex-direction:column;gap:6px;max-height:200px;overflow:auto;margin-bottom:10px;"></div>
                 <div style="display:flex;justify-content:flex-end;gap:8px;">
-                  <span id="memory-count" style="font-size:12px;color:var(--text-tertiary);margin-right:auto;align-self:center;"></span>
+                  <span id="memory-count" style="font-size: 11.5px;color:var(--text-tertiary);margin-right:auto;align-self:center;"></span>
                   <button class="btn btn-secondary" id="memory-clear" style="flex:none;">清空记忆</button>
                 </div>
               </div>
 
               <!-- AI · 技能 / 搜索（敬请期待） -->
               <div class="settings-panel" id="panel-skills">
-                <h4 style="margin:0 0 10px 0;font-size:14px;color:var(--text-color);">技能</h4>
-                <div style="font-size:12px;color:var(--text-secondary);margin-bottom:10px;line-height:1.6;">将常用工作流沉淀为可复用技能，AI 执行任务时可自动调用。</div>
+                <h4 style="margin:0 0 10px 0;font-size: 13px;color:var(--text-color);">技能</h4>
+                <div style="font-size: 11.5px;color:var(--text-secondary);margin-bottom:10px;line-height:1.6;">将常用工作流沉淀为可复用技能，AI 执行任务时可自动调用。</div>
                 <div id="skills-list" style="display:flex;flex-direction:column;gap:6px;max-height:190px;overflow:auto;margin-bottom:10px;"></div>
                 <div style="display:flex;gap:8px;align-items:flex-end;">
-                  <input id="skill-name" placeholder="技能名称" style="flex:1;padding:7px 8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size:13px;">
-                  <input id="skill-prompt" placeholder="技能提示词 / 指令" style="flex:2;padding:7px 8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size:13px;">
+                  <input id="skill-name" placeholder="技能名称" style="flex:1;padding:7px 8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size: 12.5px;">
+                  <input id="skill-prompt" placeholder="技能提示词 / 指令" style="flex:2;padding:7px 8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size: 12.5px;">
                   <button class="btn btn-primary" id="skill-add" style="flex:none;">添加</button>
                 </div>
               </div>
               <div class="settings-panel" id="panel-search">
-                <h4 style="margin:0 0 10px 0;font-size:14px;color:var(--text-color);">搜索</h4>
+                <h4 style="margin:0 0 10px 0;font-size: 13px;color:var(--text-color);">搜索</h4>
                 <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;padding:12px 0;border-bottom:1px solid var(--border-color);">
                   <div style="flex:1;">
-                    <div style="font-size:13px;font-weight:600;color:var(--text-color);margin-bottom:4px;">允许 AI 联网搜索</div>
-                    <div style="font-size:12px;color:var(--text-secondary);line-height:1.6;">AI 回答时可实时检索网页并抓取正文（SSRF 防护 + 15min 缓存）。</div>
+                    <div style="font-size: 12.5px;font-weight:600;color:var(--text-color);margin-bottom:4px;">允许 AI 联网搜索</div>
+                    <div style="font-size: 11.5px;color:var(--text-secondary);line-height:1.6;">AI 回答时可实时检索网页并抓取正文（SSRF 防护 + 15min 缓存）。</div>
                   </div>
                   <label class="switch"><input type="checkbox" id="search-enabled"><span class="slider"></span></label>
                 </div>
                 <div style="display:flex;gap:8px;align-items:center;padding:12px 0;">
                   <button class="btn btn-secondary" id="search-test" style="flex:none;">测试搜索</button>
                   <button class="btn btn-secondary" id="search-clear" style="flex:none;">清空缓存</button>
-                  <span id="search-stats" style="font-size:12px;color:var(--text-tertiary);margin-left:auto;"></span>
+                  <span id="search-stats" style="font-size: 11.5px;color:var(--text-tertiary);margin-left:auto;"></span>
                 </div>
-                <div id="search-result" style="font-size:12px;color:var(--text-secondary);white-space:pre-wrap;max-height:120px;overflow:auto;"></div>
+                <div id="search-result" style="font-size: 11.5px;color:var(--text-secondary);white-space:pre-wrap;max-height:120px;overflow:auto;"></div>
               </div>
 
               <!-- 集成 · MCP 服务器 -->
               <div class="settings-panel" id="panel-mcp">
-                <h4 style="margin:0 0 12px 0;font-size:14px;color:var(--text-color);">MCP 服务器</h4>
-                <div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;line-height:1.6;">管理 Model Context Protocol 服务器，为 AI 提供额外工具与数据源。点击下方按钮在独立面板中增删、启停服务器。</div>
+                <h4 style="margin:0 0 12px 0;font-size: 13px;color:var(--text-color);">MCP 服务器</h4>
+                <div style="font-size: 11.5px;color:var(--text-secondary);margin-bottom:12px;line-height:1.6;">管理 Model Context Protocol 服务器，为 AI 提供额外工具与数据源。点击下方按钮在独立面板中增删、启停服务器。</div>
                 <button class="btn btn-primary" id="open-mcp-panel" style="flex:none;">打开 MCP 服务面板</button>
               </div>
               <div class="settings-panel" id="panel-plugins">
-                <h4 style="margin:0 0 12px 0;font-size:14px;color:var(--text-color);">插件</h4>
-                <div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;line-height:1.6;">浏览并安装本地模型、工具链与扩展。点击下方按钮打开插件市场。</div>
+                <h4 style="margin:0 0 12px 0;font-size: 13px;color:var(--text-color);">插件</h4>
+                <div style="font-size: 11.5px;color:var(--text-secondary);margin-bottom:12px;line-height:1.6;">浏览并安装本地模型、工具链与扩展。点击下方按钮打开插件市场。</div>
                 <button class="btn btn-primary" id="open-plugins-panel" style="flex:none;">打开插件市场</button>
               </div>
 
               <!-- 开发 · 编辑器 -->
               <div class="settings-panel" id="panel-editor">
-                <h4 style="margin:0 0 14px 0;font-size:14px;color:var(--text-color);">编辑器</h4>
+                <h4 style="margin:0 0 14px 0;font-size: 13px;color:var(--text-color);">编辑器</h4>
                 <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;padding:12px 0;border-bottom:1px solid var(--border-color);">
-                  <div style="flex:1;"><div style="font-size:13px;font-weight:600;color:var(--text-color);margin-bottom:4px;">字号</div></div>
-                  <select id="editor-font-size" style="width:120px;flex:none;padding:7px 8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size:13px;">
+                  <div style="flex:1;"><div style="font-size: 12.5px;font-weight:600;color:var(--text-color);margin-bottom:4px;">字号</div></div>
+                  <select id="editor-font-size" style="width:120px;flex:none;padding:7px 8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size: 12.5px;">
                     <option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option><option value="16">16</option>
                   </select>
                 </div>
                 <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;padding:12px 0;">
-                  <div style="flex:1;"><div style="font-size:13px;font-weight:600;color:var(--text-color);margin-bottom:4px;">自动换行</div></div>
-                  <select id="editor-word-wrap" style="width:170px;flex:none;padding:7px 8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size:13px;">
+                  <div style="flex:1;"><div style="font-size: 12.5px;font-weight:600;color:var(--text-color);margin-bottom:4px;">自动换行</div></div>
+                  <select id="editor-word-wrap" style="width:170px;flex:none;padding:7px 8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size: 12.5px;">
                     <option value="off">关闭</option><option value="on">开启</option><option value="wordWrapColumn">按列宽</option><option value="bounded">受限</option>
                   </select>
                 </div>
@@ -1772,54 +1772,54 @@
 
               <!-- 开发 · 版本控制 / 终端 / 解释器 / 钩子 / 定时任务 -->
               <div class="settings-panel" id="panel-vcs">
-                <h4 style="margin:0 0 12px 0;font-size:14px;color:var(--text-color);">版本控制</h4>
-                <div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;line-height:1.6;">查看改动、提交、推送与分支管理。点击下方按钮打开 Git 面板。</div>
+                <h4 style="margin:0 0 12px 0;font-size: 13px;color:var(--text-color);">版本控制</h4>
+                <div style="font-size: 11.5px;color:var(--text-secondary);margin-bottom:12px;line-height:1.6;">查看改动、提交、推送与分支管理。点击下方按钮打开 Git 面板。</div>
                 <button class="btn btn-primary" id="open-vcs-panel" style="flex:none;">打开 Git 面板</button>
               </div>
               <div class="settings-panel" id="panel-terminal">
-                <h4 style="margin:0 0 12px 0;font-size:14px;color:var(--text-color);">终端</h4>
-                <div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;line-height:1.6;">内置终端，用于编译、烧录与运行命令。点击下方按钮打开终端面板。</div>
+                <h4 style="margin:0 0 12px 0;font-size: 13px;color:var(--text-color);">终端</h4>
+                <div style="font-size: 11.5px;color:var(--text-secondary);margin-bottom:12px;line-height:1.6;">内置终端，用于编译、烧录与运行命令。点击下方按钮打开终端面板。</div>
                 <button class="btn btn-primary" id="open-terminal-panel" style="flex:none;">打开终端面板</button>
               </div>
               <div class="settings-panel" id="panel-interpreter">
-                <h4 style="margin:0 0 10px 0;font-size:14px;color:var(--text-color);">解释器</h4>
-                <div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;line-height:1.6;">配置 Python / Node 运行解释器路径，AI 执行脚本时优先使用。</div>
+                <h4 style="margin:0 0 10px 0;font-size: 13px;color:var(--text-color);">解释器</h4>
+                <div style="font-size: 11.5px;color:var(--text-secondary);margin-bottom:12px;line-height:1.6;">配置 Python / Node 运行解释器路径，AI 执行脚本时优先使用。</div>
                 <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;padding:10px 0;border-bottom:1px solid var(--border-color);">
-                  <div style="flex:1;font-size:13px;font-weight:600;color:var(--text-color);">Python 解释器</div>
+                  <div style="flex:1;font-size: 12.5px;font-weight:600;color:var(--text-color);">Python 解释器</div>
                   <div style="display:flex;gap:8px;flex:2;">
-                    <input id="interp-python" style="flex:1;padding:7px 8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size:13px;">
+                    <input id="interp-python" style="flex:1;padding:7px 8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size: 12.5px;">
                     <button class="btn btn-secondary" id="interp-python-browse" style="flex:none;">浏览</button>
                   </div>
                 </div>
                 <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;padding:10px 0;">
-                  <div style="flex:1;font-size:13px;font-weight:600;color:var(--text-color);">Node 解释器</div>
+                  <div style="flex:1;font-size: 12.5px;font-weight:600;color:var(--text-color);">Node 解释器</div>
                   <div style="display:flex;gap:8px;flex:2;">
-                    <input id="interp-node" style="flex:1;padding:7px 8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size:13px;">
+                    <input id="interp-node" style="flex:1;padding:7px 8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size: 12.5px;">
                     <button class="btn btn-secondary" id="interp-node-browse" style="flex:none;">浏览</button>
                   </div>
                 </div>
               </div>
               <div class="settings-panel" id="panel-hooks">
-                <h4 style="margin:0 0 10px 0;font-size:14px;color:var(--text-color);">钩子</h4>
-                <div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;line-height:1.6;">在特定事件前后自动执行脚本（如提交前格式化、工具调用后通知）。填写脚本绝对路径，留空表示关闭。</div>
+                <h4 style="margin:0 0 10px 0;font-size: 13px;color:var(--text-color);">钩子</h4>
+                <div style="font-size: 11.5px;color:var(--text-secondary);margin-bottom:12px;line-height:1.6;">在特定事件前后自动执行脚本（如提交前格式化、工具调用后通知）。填写脚本绝对路径，留空表示关闭。</div>
                 <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;padding:10px 0;border-bottom:1px solid var(--border-color);">
-                  <div style="flex:1;font-size:13px;font-weight:600;color:var(--text-color);">PreToolUse 脚本</div>
+                  <div style="flex:1;font-size: 12.5px;font-weight:600;color:var(--text-color);">PreToolUse 脚本</div>
                   <div style="display:flex;gap:8px;flex:2;">
-                    <input id="hook-pre" style="flex:1;padding:7px 8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size:13px;">
+                    <input id="hook-pre" style="flex:1;padding:7px 8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size: 12.5px;">
                     <button class="btn btn-secondary" id="hook-pre-browse" style="flex:none;">浏览</button>
                   </div>
                 </div>
                 <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;padding:10px 0;">
-                  <div style="flex:1;font-size:13px;font-weight:600;color:var(--text-color);">PostToolUse 脚本</div>
+                  <div style="flex:1;font-size: 12.5px;font-weight:600;color:var(--text-color);">PostToolUse 脚本</div>
                   <div style="display:flex;gap:8px;flex:2;">
-                    <input id="hook-post" style="flex:1;padding:7px 8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size:13px;">
+                    <input id="hook-post" style="flex:1;padding:7px 8px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size: 12.5px;">
                     <button class="btn btn-secondary" id="hook-post-browse" style="flex:none;">浏览</button>
                   </div>
                 </div>
               </div>
               <div class="settings-panel" id="panel-schedule">
-                <h4 style="margin:0 0 12px 0;font-size:14px;color:var(--text-color);">定时任务</h4>
-                <div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;line-height:1.6;">按计划自动执行任务（如每日构建、定时抓取）。点击下方按钮打开调度面板。</div>
+                <h4 style="margin:0 0 12px 0;font-size: 13px;color:var(--text-color);">定时任务</h4>
+                <div style="font-size: 11.5px;color:var(--text-secondary);margin-bottom:12px;line-height:1.6;">按计划自动执行任务（如每日构建、定时抓取）。点击下方按钮打开调度面板。</div>
                 <button class="btn btn-primary" id="open-schedule-panel" style="flex:none;">打开调度面板</button>
               </div>
             </div>
@@ -1881,7 +1881,7 @@
       <div class="modal-body">
         <div class="new-project-layout">
           <!-- 左侧：项目类型列表 -->
-          <input type="text" id="project-type-search" placeholder="搜索项目类型…" style="width:100%;box-sizing:border-box;padding:7px 10px;margin-bottom:10px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size:12px;">
+          <input type="text" id="project-type-search" placeholder="搜索项目类型…" style="width:100%;box-sizing:border-box;padding:7px 10px;margin-bottom:10px;border:1px solid var(--border-color);border-radius:6px;background:var(--card-color);color:var(--text-color);font-size: 11.5px;">
           <div class="project-type-list" id="project-type-list">
             <div class="project-type-item" data-type="plugin">
               <span class="project-type-icon">🧩</span>
@@ -1974,7 +1974,7 @@
               <div id="preview-icon" style="width:36px;height:36px;border-radius:9px;background:rgba(59,130,246,0.15);display:flex;align-items:center;justify-content:center;font-size:19px;flex:none;">⚙️</div>
               <div>
                 <div class="project-preview-title" id="preview-title" style="margin-bottom:2px;">Arduino 项目</div>
-                <div style="font-size:11px;color:var(--text-tertiary);" id="preview-subtitle">Arduino CLI 工具链</div>
+                <div style="font-size: 10.5px;color:var(--text-tertiary);" id="preview-subtitle">Arduino CLI 工具链</div>
               </div>
             </div>
             <div class="project-preview-desc" id="preview-desc">使用 Arduino CLI 工具链，支持 ESP32、Arduino Uno 等开发板的编译与烧录。</div>
@@ -1992,7 +1992,7 @@
           <input type="text" id="new-project-location" value="">
           <button class="btn btn-secondary" id="new-project-browse">浏览</button>
         </div>
-        <div style="margin-top:10px;font-size:12px;color:var(--text-secondary);">项目的唯一名称，将作为文件夹名。<a href="#" id="np-clone-link" style="color:var(--accent);text-decoration:none;">从 Git 克隆一个项目…</a></div>
+        <div style="margin-top:10px;font-size: 11.5px;color:var(--text-secondary);">项目的唯一名称，将作为文件夹名。<a href="#" id="np-clone-link" style="color:var(--accent);text-decoration:none;">从 Git 克隆一个项目…</a></div>
       </div>
       <div class="modal-footer">
         <button class="btn btn-secondary" id="new-project-cancel">取消</button>
@@ -2044,8 +2044,8 @@
   <!-- 插件 webview 视图面板（对齐 TrieCode views 字段） -->
   <div id="plugin-view-panel" style="display:none; position:fixed; top:48px; right:0; bottom:0; width:480px; background:#1e1e1e; border-left:1px solid #3c3c3c; z-index:5000; flex-direction:column;">
     <div style="display:flex; align-items:center; justify-content:space-between; padding:8px 12px; background:#252526; border-bottom:1px solid #3c3c3c;">
-      <span id="plugin-view-title" style="color:#ccc; font-size:13px; font-weight:600;">插件视图</span>
-      <button id="plugin-view-close" style="background:none; border:none; color:#ccc; font-size:18px; cursor:pointer; padding:0 8px;">&times;</button>
+      <span id="plugin-view-title" style="color:#ccc; font-size: 12.5px; font-weight:600;">插件视图</span>
+      <button id="plugin-view-close" style="background:none; border:none; color:#ccc; font-size: 16px; cursor:pointer; padding:0 8px;">&times;</button>
     </div>
     <webview id="plugin-view-webview" style="flex:1; border:none; background:#fff;"></webview>
   </div>
@@ -2060,7 +2060,7 @@
       <div class="modal-body">
         <div id="mcp-server-list" style="margin-bottom:12px;"></div>
         <div style="border-top:1px solid #3c3c3c; padding-top:12px;">
-          <h4 style="margin:0 0 8px; font-size:13px; color:#ccc;">添加服务器</h4>
+          <h4 style="margin:0 0 8px; font-size: 12.5px; color:#ccc;">添加服务器</h4>
           <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:8px;">
             <input id="mcp-name" placeholder="名称，如 playwright" style="background:#2d2d2d; border:1px solid #3c3c3c; color:#ccc; padding:6px 8px; border-radius:4px;">
             <select id="mcp-type" style="background:#2d2d2d; border:1px solid #3c3c3c; color:#ccc; padding:6px 8px; border-radius:4px;">
@@ -2082,12 +2082,12 @@
   <!-- ESP32 工具链自动安装进度弹窗 -->
   <div class="modal-overlay" id="toolchain-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;">
     <div style="background:#1e1e1e;border:1px solid #3c3c3c;border-radius:12px;padding:32px;max-width:480px;width:90%;text-align:center;">
-      <h3 style="margin:0 0 8px;font-size:18px;color:#fff;">准备 ESP32 工具链</h3>
-      <p id="toolchain-msg" style="color:#aaa;font-size:13px;margin-bottom:20px;">正在初始化...</p>
+      <h3 style="margin:0 0 8px;font-size: 16px;color:#fff;">准备 ESP32 工具链</h3>
+      <p id="toolchain-msg" style="color:#aaa;font-size: 12.5px;margin-bottom:20px;">正在初始化...</p>
       <div style="background:#2d2d2d;border-radius:6px;height:8px;overflow:hidden;margin-bottom:12px;">
         <div id="toolchain-bar" style="background:#059669;height:100%;width:0%;transition:width 0.3s;"></div>
       </div>
-      <p id="toolchain-pct" style="color:#059669;font-size:13px;font-weight:600;margin:0;">0%</p>
+      <p id="toolchain-pct" style="color:#059669;font-size: 12.5px;font-weight:600;margin:0;">0%</p>
       <button class="btn btn-secondary" id="toolchain-close" style="margin-top:16px;display:none;">关闭</button>
     </div>
   </div>
@@ -2107,30 +2107,30 @@
     [data-theme="light"] #gw-login-overlay{background:rgba(100,116,139,.32);}
     #gw-login-overlay .gwl-card{width:100%;max-width:340px;animation:gwl-in .18s ease-out;}
     @keyframes gwl-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
-    #gw-login-overlay .gwl-logo{width:52px;height:52px;margin:0 auto 12px;border-radius:14px;background:linear-gradient(135deg,#2563eb,#3b82f6);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:20px;letter-spacing:.5px;box-shadow:0 8px 22px rgba(59,130,246,.38);}
-    #gw-login-overlay .gwl-title{font-size:16px;font-weight:700;color:var(--text-primary);}
-    #gw-login-overlay .gwl-sub{font-size:12px;color:var(--text-tertiary);margin-top:5px;line-height:1.5;}
+    #gw-login-overlay .gwl-logo{width:52px;height:52px;margin:0 auto 12px;border-radius:14px;background:linear-gradient(135deg,#2563eb,#3b82f6);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size: 18px;letter-spacing:.5px;box-shadow:0 8px 22px rgba(59,130,246,.38);}
+    #gw-login-overlay .gwl-title{font-size: 15px;font-weight:700;color:var(--text-primary);}
+    #gw-login-overlay .gwl-sub{font-size: 11.5px;color:var(--text-tertiary);margin-top:5px;line-height:1.5;}
     #gw-login-overlay .gwl-tabs{display:flex;margin-bottom:14px;background:var(--surface-3);border-radius:var(--radius-md);padding:3px;gap:2px;}
-    #gw-login-overlay .gwl-tab{flex:1;padding:8px 0;text-align:center;font-size:13px;font-weight:600;border:none;cursor:pointer;border-radius:var(--radius-sm);background:transparent;color:var(--text-secondary);transition:background .15s,color .15s;}
+    #gw-login-overlay .gwl-tab{flex:1;padding:8px 0;text-align:center;font-size: 12.5px;font-weight:600;border:none;cursor:pointer;border-radius:var(--radius-sm);background:transparent;color:var(--text-secondary);transition:background .15s,color .15s;}
     #gw-login-overlay .gwl-tab:hover:not(.active){color:var(--text-primary);}
     #gw-login-overlay .gwl-tab.active{background:var(--accent);color:#fff;}
     #gw-login-overlay .gwl-panel{display:flex;flex-direction:column;gap:12px;}
     #gw-login-overlay .gwl-field{display:flex;flex-direction:column;gap:6px;}
-    #gw-login-overlay .gwl-label{font-size:12px;color:var(--text-secondary);}
-    #gw-login-overlay .gwl-input{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--bg-primary);color:var(--text-primary);font-size:13px;box-sizing:border-box;outline:none;transition:border-color .15s,box-shadow .15s;}
+    #gw-login-overlay .gwl-label{font-size: 11.5px;color:var(--text-secondary);}
+    #gw-login-overlay .gwl-input{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--bg-primary);color:var(--text-primary);font-size: 12.5px;box-sizing:border-box;outline:none;transition:border-color .15s,box-shadow .15s;}
     #gw-login-overlay .gwl-input::placeholder{color:var(--text-tertiary);}
     #gw-login-overlay .gwl-input:hover{border-color:var(--border-dark);}
     #gw-login-overlay .gwl-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--primary-light);}
     #gw-login-overlay .gwl-row{display:flex;gap:8px;}
     #gw-login-overlay .gwl-send{flex:0 0 auto;white-space:nowrap;padding:0 14px;}
-    #gw-login-overlay .gwl-msg{font-size:12px;min-height:16px;margin-bottom:8px;line-height:1.5;}
+    #gw-login-overlay .gwl-msg{font-size: 11.5px;min-height:16px;margin-bottom:8px;line-height:1.5;}
     #gw-login-overlay .gwl-msg.ok{color:var(--success);background:var(--success-bg);padding:8px 10px;border-radius:var(--radius-sm);}
     #gw-login-overlay .gwl-msg.err{color:var(--error);background:var(--error-bg);padding:8px 10px;border-radius:var(--radius-sm);}
-    #gw-login-overlay .gwl-submit{width:100%;padding:11px;font-size:14px;font-weight:600;margin-top:2px;}
+    #gw-login-overlay .gwl-submit{width:100%;padding:11px;font-size: 13px;font-weight:600;margin-top:2px;}
     #gw-login-overlay .gwl-submit:disabled{opacity:.6;cursor:not-allowed;}
-    #gw-login-overlay .gwl-forgot{text-align:right;margin-top:-4px;font-size:12px;color:var(--accent);font-weight:500;cursor:pointer;}
+    #gw-login-overlay .gwl-forgot{text-align:right;margin-top:-4px;font-size: 11.5px;color:var(--accent);font-weight:500;cursor:pointer;}
     #gw-login-overlay .gwl-forgot:hover{text-decoration:underline;}
-    #gw-login-overlay .gwl-foot{text-align:center;margin-top:16px;font-size:12px;color:var(--text-tertiary);}
+    #gw-login-overlay .gwl-foot{text-align:center;margin-top:16px;font-size: 11.5px;color:var(--text-tertiary);}
   </style>
   <div id="gw-login-overlay" style="display:none">
     <div class="gwl-card">
@@ -2161,7 +2161,7 @@
         <button id="gw-ov-register-btn" class="btn btn-primary gwl-submit" type="button">注册</button>
       </div>
       <div class="gwl-foot">
-        <div style="margin-top:6px;color:#888;font-size:12px;">登录后即可使用云端模型，注册即送 100 次免费调用（每天最多 3 次）</div>
+        <div style="margin-top:6px;color:#888;font-size: 11.5px;">登录后即可使用云端模型，注册即送 100 次免费调用（每天最多 3 次）</div>
       </div>
     </div>
   </div>
@@ -2171,29 +2171,29 @@
     <div style="background:var(--surface-1);border:1px solid var(--border);border-radius:16px;padding:24px 26px 22px;width:460px;max-width:92%;box-shadow:0 20px 60px rgba(0,0,0,.25);">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px;">
         <div>
-          <div style="font-size:17px;font-weight:700;color:var(--text-primary);letter-spacing:.2px;">添加你的模型</div>
-          <div style="font-size:12px;color:var(--text-secondary);margin-top:6px;line-height:1.6;">选择服务商，粘贴你的 API Key 即可用</div>
+          <div style="font-size: 15.5px;font-weight:700;color:var(--text-primary);letter-spacing:.2px;">添加你的模型</div>
+          <div style="font-size: 11.5px;color:var(--text-secondary);margin-top:6px;line-height:1.6;">选择服务商，粘贴你的 API Key 即可用</div>
         </div>
-        <button id="byok-modal-close" style="background:var(--surface-3);border:none;color:var(--text-secondary);width:26px;height:26px;border-radius:50%;cursor:pointer;line-height:1;font-size:16px;">×</button>
+        <button id="byok-modal-close" style="background:var(--surface-3);border:none;color:var(--text-secondary);width:26px;height:26px;border-radius:50%;cursor:pointer;line-height:1;font-size: 15px;">×</button>
       </div>
       <div style="height:1px;background:var(--border);margin:14px 0 16px;"></div>
       <div id="byok-chips" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;"></div>
-      <label for="byok-key" style="display:block;font-size:11px;font-weight:600;color:var(--text-secondary);letter-spacing:.5px;margin-bottom:6px;">API KEY</label>
-      <input id="byok-key" type="password" placeholder="粘贴你的 API Key" autocomplete="off" style="width:100%;background:var(--bg-secondary);border:1px solid var(--border);color:var(--text-primary);padding:11px 12px;border-radius:8px;font-size:13px;box-sizing:border-box;transition:border-color .15s, box-shadow .15s;">
-      <div id="byok-home" style="font-size:11px;color:var(--text-tertiary);margin-top:8px;line-height:1.6;"></div>
+      <label for="byok-key" style="display:block;font-size: 10.5px;font-weight:600;color:var(--text-secondary);letter-spacing:.5px;margin-bottom:6px;">API KEY</label>
+      <input id="byok-key" type="password" placeholder="粘贴你的 API Key" autocomplete="off" style="width:100%;background:var(--bg-secondary);border:1px solid var(--border);color:var(--text-primary);padding:11px 12px;border-radius:8px;font-size: 12.5px;box-sizing:border-box;transition:border-color .15s, box-shadow .15s;">
+      <div id="byok-home" style="font-size: 10.5px;color:var(--text-tertiary);margin-top:8px;line-height:1.6;"></div>
       <div id="byok-custom-fields" style="display:none;margin-top:12px;padding:12px;background:var(--surface-3);border-radius:8px;">
-        <label for="byok-baseurl" style="display:block;font-size:11px;font-weight:600;color:var(--text-secondary);letter-spacing:.5px;margin-bottom:5px;">接口地址 (Base URL)</label>
-        <input id="byok-baseurl" type="text" placeholder="https://你的接口地址/v1" autocomplete="off" style="width:100%;background:var(--bg-secondary);border:1px solid var(--border);color:var(--text-primary);padding:9px 10px;border-radius:7px;font-size:13px;box-sizing:border-box;">
-        <label for="byok-model" style="display:block;font-size:11px;font-weight:600;color:var(--text-secondary);letter-spacing:.5px;margin:10px 0 5px;">模型名称 (Model)</label>
-        <input id="byok-model" type="text" placeholder="例如 gpt-4o / claude-... / 你的模型名" autocomplete="off" style="width:100%;background:var(--bg-secondary);border:1px solid var(--border);color:var(--text-primary);padding:9px 10px;border-radius:7px;font-size:13px;box-sizing:border-box;">
+        <label for="byok-baseurl" style="display:block;font-size: 10.5px;font-weight:600;color:var(--text-secondary);letter-spacing:.5px;margin-bottom:5px;">接口地址 (Base URL)</label>
+        <input id="byok-baseurl" type="text" placeholder="https://你的接口地址/v1" autocomplete="off" style="width:100%;background:var(--bg-secondary);border:1px solid var(--border);color:var(--text-primary);padding:9px 10px;border-radius:7px;font-size: 12.5px;box-sizing:border-box;">
+        <label for="byok-model" style="display:block;font-size: 10.5px;font-weight:600;color:var(--text-secondary);letter-spacing:.5px;margin:10px 0 5px;">模型名称 (Model)</label>
+        <input id="byok-model" type="text" placeholder="例如 gpt-4o / claude-... / 你的模型名" autocomplete="off" style="width:100%;background:var(--bg-secondary);border:1px solid var(--border);color:var(--text-primary);padding:9px 10px;border-radius:7px;font-size: 12.5px;box-sizing:border-box;">
       </div>
       <div style="display:flex;align-items:center;gap:6px;margin-top:12px;padding:8px 10px;background:rgba(5,150,105,0.06);border-radius:8px;">
-        <span style="font-size:12px;">🔒</span>
-        <span style="font-size:11px;color:var(--text-secondary);">密钥只保存在本机，不经过 LabCode 服务器</span>
+        <span style="font-size: 11.5px;">🔒</span>
+        <span style="font-size: 10.5px;color:var(--text-secondary);">密钥只保存在本机，不经过 LabCode 服务器</span>
       </div>
       <div style="display:flex;gap:10px;margin-top:18px;">
-        <button id="byok-save" style="flex:1;padding:10px;background:#059669;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;transition:background .15s;">保存并使用</button>
-        <button id="byok-cancel" style="padding:10px 16px;background:var(--surface-3);color:var(--text-primary);border:1px solid var(--border);border-radius:8px;font-size:13px;cursor:pointer;">取消</button>
+        <button id="byok-save" style="flex:1;padding:10px;background:#059669;color:#fff;border:none;border-radius:8px;font-size: 12.5px;font-weight:600;cursor:pointer;transition:background .15s;">保存并使用</button>
+        <button id="byok-cancel" style="padding:10px 16px;background:var(--surface-3);color:var(--text-primary);border:1px solid var(--border);border-radius:8px;font-size: 12.5px;cursor:pointer;">取消</button>
       </div>
     </div>
   </div>
@@ -2201,11 +2201,11 @@
   <div id="local-engine-help-modal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.5);backdrop-filter:blur(2px);z-index:10002;align-items:center;justify-content:center;">
     <div style="background:var(--surface-1);border:1px solid var(--border);border-radius:16px;padding:22px 24px 20px;width:480px;max-width:92%;max-height:86vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.25);">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px;">
-        <div style="font-size:17px;font-weight:700;color:var(--text-primary);">「本地 AI 引擎」是什么？</div>
-        <button id="local-engine-help-close" style="background:var(--surface-3);border:none;color:var(--text-secondary);width:26px;height:26px;border-radius:50%;cursor:pointer;line-height:1;font-size:16px;">×</button>
+        <div style="font-size: 15.5px;font-weight:700;color:var(--text-primary);">「本地 AI 引擎」是什么？</div>
+        <button id="local-engine-help-close" style="background:var(--surface-3);border:none;color:var(--text-secondary);width:26px;height:26px;border-radius:50%;cursor:pointer;line-height:1;font-size: 15px;">×</button>
       </div>
       <div style="height:1px;background:var(--border);margin:12px 0 14px;"></div>
-      <div style="font-size:13px;color:var(--text-primary);line-height:1.75;">
+      <div style="font-size: 12.5px;color:var(--text-primary);line-height:1.75;">
         <p style="margin:0 0 10px;"><b>一句话：</b>把 AI 装在你<strong>自己的电脑</strong>上跑，不依赖别人的云端服务器。你说话、写代码都在本机处理。</p>
         <p style="margin:0 0 10px;"><b>打个比方：</b>云端 AI 像"打电话问远方厨师"——得联网、对方知道你问了啥；本地 AI 像"家里有本菜谱书自己翻"——<strong>断网也能用、只有你自己知道查了什么</strong>。</p>
         <div style="margin:0 0 10px;"><b>它有什么好：</b>
@@ -2217,10 +2217,10 @@
           </ul>
         </div>
         <p style="margin:0 0 10px;"><b>代价：</b>得先在「插件市场」下载一个模型文件（约 2~6GB，国内直链），而且聪明程度一般略低于顶级云端模型。</p>
-        <p style="margin:0;color:var(--text-secondary);font-size:12px;line-height:1.7;">三个选项一句话：<br>· <b style="color:var(--text-primary);">本地 AI 引擎</b>（你现在看的）：本机跑，LabCode 内置，不用另装软件<br>· <b style="color:var(--text-primary);">Ollama 本地模型</b>：也是本地跑，但用你另装的 Ollama<br>· <b style="color:var(--text-primary);">硅基流动 Qwen3-8B</b>：云端跑，最聪明、开箱即用，但要联网、耗免费积分</p>
+        <p style="margin:0;color:var(--text-secondary);font-size: 11.5px;line-height:1.7;">三个选项一句话：<br>· <b style="color:var(--text-primary);">本地 AI 引擎</b>（你现在看的）：本机跑，LabCode 内置，不用另装软件<br>· <b style="color:var(--text-primary);">Ollama 本地模型</b>：也是本地跑，但用你另装的 Ollama<br>· <b style="color:var(--text-primary);">硅基流动 Qwen3-8B</b>：云端跑，最聪明、开箱即用，但要联网、耗免费积分</p>
       </div>
       <div style="display:flex;justify-content:flex-end;margin-top:16px;">
-        <button id="local-engine-help-ok" style="padding:9px 18px;background:#059669;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">知道了</button>
+        <button id="local-engine-help-ok" style="padding:9px 18px;background:#059669;color:#fff;border:none;border-radius:8px;font-size: 12.5px;font-weight:600;cursor:pointer;">知道了</button>
       </div>
     </div>
   </div>
@@ -2228,11 +2228,11 @@
   <div id="ollama-help-modal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.5);backdrop-filter:blur(2px);z-index:10002;align-items:center;justify-content:center;">
     <div style="background:var(--surface-1);border:1px solid var(--border);border-radius:16px;padding:22px 24px 20px;width:480px;max-width:92%;max-height:86vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.25);">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px;">
-        <div style="font-size:17px;font-weight:700;color:var(--text-primary);">「Ollama 本地模型」是什么？</div>
-        <button id="ollama-help-close" style="background:var(--surface-3);border:none;color:var(--text-secondary);width:26px;height:26px;border-radius:50%;cursor:pointer;line-height:1;font-size:16px;">×</button>
+        <div style="font-size: 15.5px;font-weight:700;color:var(--text-primary);">「Ollama 本地模型」是什么？</div>
+        <button id="ollama-help-close" style="background:var(--surface-3);border:none;color:var(--text-secondary);width:26px;height:26px;border-radius:50%;cursor:pointer;line-height:1;font-size: 15px;">×</button>
       </div>
       <div style="height:1px;background:var(--border);margin:12px 0 14px;"></div>
-      <div style="font-size:13px;color:var(--text-primary);line-height:1.75;">
+      <div style="font-size: 12.5px;color:var(--text-primary);line-height:1.75;">
         <p style="margin:0 0 10px;"><b>一句话：</b>用你自己装的 <strong>Ollama</strong> 软件，在本机跑 AI 模型——同样不联网、不耗积分。</p>
         <div style="margin:0 0 10px;"><b>要用起来，缺一不可三步：</b>
           <ol style="margin:6px 0 0;padding-left:18px;color:var(--text-secondary);">
@@ -2242,10 +2242,10 @@
           </ol>
         </div>
         <p style="margin:0 0 10px;"><b>连不上？</b>默认地址是 <code style="background:var(--surface-3);padding:1px 4px;border-radius:4px;">http://127.0.0.1:8080</code>。地址和模型名都能在「设置 → AI 模型来源」里改。</p>
-        <p style="margin:0;color:var(--text-secondary);font-size:12px;line-height:1.7;"><b style="color:var(--text-primary);">和「本地 AI 引擎」怎么选？</b><br>· <b style="color:var(--text-primary);">本地 AI 引擎</b>：LabCode 自带，不用装软件，去「插件市场」下模型即可<br>· <b style="color:var(--text-primary);">Ollama 本地模型</b>：你已经装了 Ollama 就用这个，能复用你已有的模型<br>· <b style="color:var(--text-primary);">硅基流动 Qwen3-8B</b>：云端跑，最聪明、开箱即用，但要联网<br>下拉里的状态签会告诉你当前这台电脑到底能不能直接聊。</p>
+        <p style="margin:0;color:var(--text-secondary);font-size: 11.5px;line-height:1.7;"><b style="color:var(--text-primary);">和「本地 AI 引擎」怎么选？</b><br>· <b style="color:var(--text-primary);">本地 AI 引擎</b>：LabCode 自带，不用装软件，去「插件市场」下模型即可<br>· <b style="color:var(--text-primary);">Ollama 本地模型</b>：你已经装了 Ollama 就用这个，能复用你已有的模型<br>· <b style="color:var(--text-primary);">硅基流动 Qwen3-8B</b>：云端跑，最聪明、开箱即用，但要联网<br>下拉里的状态签会告诉你当前这台电脑到底能不能直接聊。</p>
       </div>
       <div style="display:flex;justify-content:flex-end;margin-top:16px;">
-        <button id="ollama-help-ok" style="padding:9px 18px;background:#059669;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">知道了</button>
+        <button id="ollama-help-ok" style="padding:9px 18px;background:#059669;color:#fff;border:none;border-radius:8px;font-size: 12.5px;font-weight:600;cursor:pointer;">知道了</button>
       </div>
     </div>
   <!-- 命令面板（对齐 TrieCode command.invoke） -->
