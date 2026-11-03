@@ -10907,9 +10907,9 @@ function bindEvents() {
       if (!installed) {
         actions = '<button class="btn btn-primary btn-sm" data-action="install" data-id="' + p.id + '">安装</button>';
       } else if (currentPluginsTab === 'installed' || currentPluginsTab === 'models') {
-        actions = (pluginRegistered(p.id)
-            ? '<button class="btn btn-secondary btn-sm" data-action="settings" data-id="' + p.id + '" title="打开该插件的设置面板">设置</button>' +
-              '<button class="btn btn-secondary btn-sm" data-action="toggle" data-id="' + p.id + '">' + (pluginActive(p.id) ? '禁用' : '启用') + '</button>'
+        actions = '<button class="btn btn-secondary btn-sm" data-action="settings" data-id="' + p.id + '" title="打开该插件的设置面板">设置</button>' +
+          (pluginRegistered(p.id)
+            ? '<button class="btn btn-secondary btn-sm" data-action="toggle" data-id="' + p.id + '">' + (pluginActive(p.id) ? '禁用' : '启用') + '</button>'
             : '') +
           '<button class="btn btn-danger btn-sm" data-action="uninstall" data-id="' + p.id + '">卸载</button>';
       } else {

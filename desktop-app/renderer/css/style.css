@@ -100,6 +100,8 @@
 
   /* 兼容别名：历史 UI（插件/设备等面板）引用了 TrieCode 风格 token 名但主题从未定义，导致大面积颜色跑偏；此处映射到真实 token（var 动态解析，自动适配深浅色） */
   --card-color: var(--surface-1);
+  --bg-color: var(--surface-1);
+  --bg-elevated: var(--surface-2);
   --text-color: var(--text-primary);
   --text-strong: var(--text-primary);
   --accent-color: var(--accent);
@@ -4895,12 +4897,12 @@ body.no-open-file .ai-panel {
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.10);
 }
 /* 插件管理（精确对齐 TrieCode：纯白无底色行、无边框、大间距、大图标、大按钮） */
-.plg-row { display: flex; align-items: center; gap: 12px; padding: 4px 12px; margin-bottom: 16px; background: transparent; border: none; border-radius: 0; transition: background .15s; }
+.plg-row { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; padding: 4px 12px; margin-bottom: 16px; background: transparent; border: none; border-radius: 0; transition: background .15s; }
 .plg-row:hover { background: rgba(0,0,0,.035); }
 .plg-row-ic { width: 28px; height: 28px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 22px; background: transparent; }
-.plg-row-body { flex: 1; min-width: 0; }
+.plg-row-body { flex: 1 1 220px; min-width: 0; }
 .plg-row-top { display: flex; align-items: baseline; gap: 8px; }
-.plg-row-act { flex-shrink: 0; display: flex; align-items: center; gap: 6px; }
+.plg-row-act { flex-shrink: 0; display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 6px; row-gap: 6px; max-width: 100%; margin-left: auto; }
 .plg-row-act .btn { padding: 6px 18px; border-radius: 8px; font-size: 12.5px; }
 .plg-installed { font-size: 13px; color: #22c55e; padding-right: 4px; }
 .plg-src { font-size: 11.5px; color: var(--text-secondary); text-decoration: none; cursor: pointer; white-space: nowrap; }
