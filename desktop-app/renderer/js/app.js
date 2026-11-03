@@ -10798,6 +10798,22 @@ function bindEvents() {
     return SUPERSEDE_RE.some(re => re.test(hay));
   }
 
+  // 品牌图标映射（参考 TrieCode 已安装卡片：工具链/知名插件用品牌 SVG，其余 emoji）
+  const BRAND_ICONS = [
+    { test: /arduino/i, sym: 'brand-arduino' },
+    { test: /esp-?idf/i, sym: 'brand-espidf' },
+    { test: /stm32/i, sym: 'brand-stm32' },
+    { test: /wokwi/i, sym: 'brand-wokwi' },
+    { test: /立创|easyeda|lceda/i, sym: 'brand-lceda' },
+    { test: /浏览器|browser/i, sym: 'brand-browser' },
+    { test: /插件开发|plugin-dev/i, sym: 'brand-plugdev' }
+  ];
+  function brandIconHtml(p) {
+    const hay = (p.id || '') + ' ' + (p.name || '');
+    for (const b of BRAND_ICONS) if (b.test.test(hay)) return '<svg class="brand-ic"><use href="#' + b.sym + '"></use></svg>';
+    return p.icon || '🧩';
+  }
+
   function renderPluginsList() {
     const listEl = document.getElementById('plugins-list');
     if (!listEl) return;
@@ -10907,23 +10923,25 @@ function bindEvents() {
       if (!installed) {
         actions = '<button class="btn btn-primary btn-sm" data-action="install" data-id="' + p.id + '">安装</button>';
       } else if (currentPluginsTab === 'installed' || currentPluginsTab === 'models') {
-        actions = '<button class="btn btn-secondary btn-sm" data-action="settings" data-id="' + p.id + '" title="打开该插件的设置面板">设置</button>' +
+        // TrieCode 式图标操作区：⚙设置 + toggle 启用开关 + 🗑卸载
+        actions = '<button class="plg-ic-btn" data-action="settings" data-id="' + p.id + '" title="打开该插件的设置面板"><svg class="icon"><use href="#icon-settings"></use></svg></button>' +
           (pluginRegistered(p.id)
-            ? '<button class="btn btn-secondary btn-sm" data-action="toggle" data-id="' + p.id + '">' + (pluginActive(p.id) ? '禁用' : '启用') + '</button>'
+            ? '<button class="plg-toggle' + (pluginActive(p.id) ? ' on' : '') + '" data-action="toggle" data-id="' + p.id + '" title="' + (pluginActive(p.id) ? '已启用，点击禁用' : '已禁用，点击启用') + '" aria-pressed="' + pluginActive(p.id) + '"></button>'
             : '') +
-          '<button class="btn btn-danger btn-sm" data-action="uninstall" data-id="' + p.id + '">卸载</button>';
+          '<button class="plg-ic-btn danger" data-action="uninstall" data-id="' + p.id + '" title="卸载"><svg class="icon"><use href="#icon-trash"></use></svg></button>';
       } else {
         actions = '<span class="plg-installed">已安装</span>';
       }
-      // TrieCode 卡片式「查看源码 →」：有 sourceUrl 指向源码仓库；否则指向其 GitHub 分发源的插件目录（全 GitHub 分发）。模型行不加。
+      // 「查看源码 →」仅官方市场卡显示（对齐 TrieCode 已安装卡：只有 齿轮/toggle/垃圾桶）
       const srcUrl = p.sourceUrl || ('https://github.com/' + (p.githubRepo || OFFICIAL_PLUGIN_REPO) + '/tree/main/' + (GH_PLUGIN_ID_MAP[p.id] || p.id));
-      const srcLink = (currentPluginsTab !== 'models' && p.category !== 'ai-model')
+      const srcLink = (currentPluginsTab === 'market' && p.category !== 'ai-model')
         ? '<a class="plg-src" data-action="source" data-url="' + escapeHtml(srcUrl) + '">查看源码 →</a>'
         : '';
-      // TrieCode 式扁平行：图标(无底色) + 名称 + 小版本号 + 一行截断描述，右侧绿字已安装/蓝安装按钮
-      const topLine = '<span class="plg-name">' + p.name + '</span><span class="plg-ver">v' + p.version + '</span>';
+      // TrieCode 卡片：品牌/emoji 图标 + [绿点(已注册且启用)] + 名称 + 版本号 + 一行截断描述
+      const runDot = (installed && pluginRegistered(p.id) && pluginActive(p.id)) ? '<span class="plg-dot" title="运行中"></span>' : '';
+      const topLine = runDot + '<span class="plg-name">' + p.name + '</span><span class="plg-ver">v' + p.version + '</span>';
       return '<div class="plg-row">' +
-        '<div class="plg-row-ic">' + p.icon + '</div>' +
+        '<div class="plg-row-ic">' + brandIconHtml(p) + '</div>' +
         '<div class="plg-row-body">' +
           '<div class="plg-row-top">' + topLine + '</div>' +
           '<div class="plg-desc">' + (p.description || '') + '</div>' +

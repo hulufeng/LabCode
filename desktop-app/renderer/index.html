@@ -45,6 +45,16 @@
         <symbol id="icon-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></symbol>
         <symbol id="icon-mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></symbol>
         <symbol id="icon-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></symbol>
+        <symbol id="icon-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></symbol>
+        <!-- 品牌插件图标（参考 TrieCode 已安装卡片） -->
+        <symbol id="brand-arduino" viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="4" fill="#00878F"/><circle cx="8.5" cy="12" r="3.2" fill="none" stroke="#fff" stroke-width="1.8"/><circle cx="15.5" cy="12" r="3.2" fill="none" stroke="#fff" stroke-width="1.8"/></symbol>
+        <symbol id="brand-espidf" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="#E7352C"/><path d="M5 14c2.4-4.5 5-4.5 7 0s4.6 4.5 7 0" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"/></symbol>
+        <symbol id="brand-stm32" viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="3" fill="#03234B"/><text x="12" y="15.5" font-size="9" font-weight="700" fill="#fff" text-anchor="middle" font-family="Arial,Helvetica,sans-serif">ST</text></symbol>
+        <symbol id="brand-wokwi" viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="4" fill="#111827"/><text x="12" y="16" font-size="11" font-weight="800" fill="#fff" text-anchor="middle" font-family="Arial,Helvetica,sans-serif">W</text></symbol>
+        <symbol id="brand-lceda" viewBox="0 0 24 24"><path d="M7 17a4.4 4.4 0 0 1 .5-8.78A5.6 5.6 0 0 1 18.2 9.6 4 4 0 0 1 17.6 17z" fill="#2A6CFF"/></symbol>
+        <symbol id="brand-browser" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#1B6EF3"/><ellipse cx="12" cy="12" rx="4.5" ry="10" fill="none" stroke="#fff" stroke-width="1.5"/><line x1="2" y1="12" x2="22" y2="12" stroke="#fff" stroke-width="1.5"/><ellipse cx="12" cy="12" rx="10" ry="4.2" fill="none" stroke="#fff" stroke-width="1.1" opacity=".85"/></symbol>
+        <symbol id="brand-plugdev" viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="4" fill="#16A34A"/><path d="M8 8l8 8M16 8l-8 8" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/></symbol>
+        <symbol id="brand-zipicon" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3" fill="currentColor" opacity=".22"/><text x="12" y="15.5" font-size="8" font-weight="800" fill="currentColor" text-anchor="middle" font-family="Arial,Helvetica,sans-serif">ZIP</text></symbol>
         <symbol id="icon-paperclip" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></symbol>
         <!-- 权限与安全 -->
         <symbol id="icon-shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></symbol>
@@ -518,14 +528,17 @@
         <div class="sidebar-header">
           <span id="plugins-title">插件市场</span>
           <div class="sidebar-actions">
-            <button class="icon-btn" id="plugins-install-dir" title="从文件夹安装插件（目录内需含 plugin.json）" style="font-size:11px;width:auto;padding:0 6px;">文件夹</button>
-            <button class="icon-btn" id="plugins-install-zip" title="从 ZIP 安装包安装插件（包内需含 plugin.json）" style="font-size:11px;width:auto;padding:0 6px;">ZIP</button>
             <button class="icon-btn" id="plugins-refresh" title="刷新"><svg class="icon"><use href="#icon-refresh"></use></svg></button>
           </div>
         </div>
         <div class="plugins-tabs" style="flex-shrink:0;">
           <button class="plugins-tab active" data-tab="market">官方市场</button>
           <button class="plugins-tab" data-tab="installed">已安装</button>
+        </div>
+        <!-- 本地安装入口（对齐 TrieCode：文件夹=次级 / ZIP=主级，各占一半） -->
+        <div class="plg-local-actions" style="flex-shrink:0;">
+          <button class="plg-local-btn" id="plugins-install-dir" title="从文件夹安装插件（目录内需含 plugin.json）"><svg class="icon"><use href="#icon-folder"></use></svg>从文件夹安装</button>
+          <button class="plg-local-btn primary" id="plugins-install-zip" title="从 ZIP 安装包安装插件（包内需含 plugin.json）"><svg class="icon"><use href="#brand-zipicon"></use></svg>从 ZIP 安装</button>
         </div>
         <!-- 安装进度条（TrieCode 式：tab 下方一行"安装 <id> · <名称> XX%" + 蓝色进度条，真实进度） -->
         <div class="plugins-install-progress" id="plugins-install-progress" style="display:none;flex-shrink:0;">
