@@ -254,6 +254,13 @@ async function loadProjectFromDisk(projectPath) {
     // 修复：项目加载后隐藏欢迎页，避免与文件树同时显示
     const wp = document.getElementById('welcome-panel');
     if (wp) wp.style.display = 'none';
+    // 同步欢迎态布局（修复「编辑区丢失」）：必须移除 body.app-welcome——其 CSS 为
+    // #welcome-screen{display:none!important}，不移除则主区始终被 AI 面板占满、编辑器空态卡永不可见
+    document.body.classList.remove('app-welcome');
+    const mainWelcomeAfterLoad = document.getElementById('welcome-screen');
+    const mainEditorAfterLoad = document.getElementById('monaco-editor');
+    if (mainWelcomeAfterLoad) mainWelcomeAfterLoad.style.display = 'flex';
+    if (mainEditorAfterLoad) mainEditorAfterLoad.style.display = 'none';
     updateProjectStatusText(projectPath);
     showToast(`已加载项目: ${projectPath}`, 'success');
     addOutputLog(`项目已加载: ${projectPath}`, 'success');
@@ -9780,6 +9787,14 @@ function bindEvents() {
         if (devicePanel) devicePanel.style.display = 'none';
         if (gitPanel) gitPanel.style.display = 'none';
         if (sidebarHeader) sidebarHeader.style.display = 'flex';
+        // 主区互斥兜底（修复「编辑区丢失」）：有打开的文件→显示编辑器；否则（含有项目但未打开任何文件）→回落欢迎页，避免主区双隐藏全空白
+        const hasOpenFile = !!(state && state.activeTab && state.files && state.files[state.activeTab]);
+        const mainWelcome = document.getElementById('welcome-screen');
+        const mainEditor = document.getElementById('monaco-editor');
+        if (mainWelcome && mainEditor) {
+          if (hasOpenFile) { mainWelcome.style.display = 'none'; mainEditor.style.display = 'flex'; }
+          else { mainEditor.style.display = 'none'; mainWelcome.style.display = 'flex'; }
+        }
       } else if (panel === 'git') {
         sidebar.style.display = 'flex';
         if (fileTree) fileTree.style.display = 'none';
