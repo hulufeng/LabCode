@@ -592,29 +592,32 @@
         <div class="sidebar-header">
           <span>Git</span>
           <div class="sidebar-actions">
-            <button class="icon-btn" id="git-clone-btn" title="从 Git 克隆项目…" style="font-size: 10.5px;width:auto;padding:0 6px;">克隆</button>
             <button class="icon-btn" id="git-refresh" title="刷新"><svg class="icon"><use href="#icon-refresh"></use></svg></button>
           </div>
         </div>
         <div id="git-status" style="padding:8px;font-size: 11.5px;color:var(--text-tertiary);">未选择仓库</div>
         <div id="git-files" style="flex:1;overflow:auto;padding:4px 8px;"></div>
-        <!-- Git 操作区（对齐 TrieCode 源代码管理：主流程一行一个动作，AI 功能收进折叠，PR 框按需显示） -->
+        <!-- Git 操作区（对齐 TrieCode：主流程=全部暂存→commit 框→生成+状态+提交 一行；推送/拉取/分支/克隆/AI 增强全收「更多」折叠） -->
         <div style="padding:10px;border-top:1px solid var(--border-color);display:flex;flex-direction:column;gap:8px;">
           <button class="btn btn-secondary btn-sm" id="git-stage-all-btn" style="width:100%;font-size: 11.5px;">全部暂存</button>
           <textarea id="git-commit-msg" rows="2" placeholder="先在改动列表里暂存要提交的内容…" style="width:100%;box-sizing:border-box;background:var(--bg-secondary);border:1px solid var(--border-color);color:var(--text);padding:7px 9px;border-radius:6px;font-size: 11.5px;resize:vertical;font-family:inherit;"></textarea>
-          <div style="display:flex;gap:6px;">
-            <button class="btn btn-secondary btn-sm git-ai-btn" id="git-ai-commit-msg-btn" title="根据已暂存的改动生成一条提交信息（可自行修改）" style="flex:1;font-size: 11.5px;">✨ 生成提交信息</button>
-            <button class="btn btn-primary" id="git-commit-btn" title="把「已暂存」的改动记录到本机历史" style="flex:1;font-size: 11.5px;">提交</button>
-          </div>
-          <div style="display:flex;gap:6px;">
-            <button class="btn btn-secondary btn-sm" id="git-push-btn" title="推送到远程" style="flex:1;font-size: 11.5px;">推送</button>
-            <button class="btn btn-secondary btn-sm" id="git-pull-btn" title="从远程拉取" style="flex:1;font-size: 11.5px;">拉取</button>
-            <input id="git-newbranch-name" placeholder="新分支名" style="flex:1.3;min-width:0;background:var(--bg-secondary);border:1px solid var(--border-color);color:var(--text);padding:6px 8px;border-radius:6px;font-size: 11.5px;">
-            <button class="btn btn-secondary btn-sm" id="git-newbranch-btn" style="font-size: 11.5px;">新建</button>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <button class="btn btn-secondary btn-sm git-ai-btn" id="git-ai-commit-msg-btn" title="根据已暂存的改动生成一条提交信息（可自行修改）" style="flex:0 0 auto;font-size: 11.5px;">✨ 生成</button>
+            <span id="git-stage-state" style="flex:1;font-size:10.5px;color:var(--text-tertiary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">没有已暂存的内容</span>
+            <button class="btn btn-primary" id="git-commit-btn" title="把「已暂存」的改动记录到本机历史" style="flex:0 0 auto;padding:6px 14px;font-size: 11.5px;">提交</button>
           </div>
           <details id="git-ai-more">
-            <summary style="cursor:pointer;font-size: 11.5px;color:var(--text-secondary);user-select:none;list-style:none;">✨ AI 增强 ▾</summary>
+            <summary style="cursor:pointer;font-size: 11.5px;color:var(--text-secondary);user-select:none;list-style:none;">更多（推送 / 拉取 / 分支 / 克隆 / AI 增强） ▾</summary>
             <div style="display:flex;flex-direction:column;gap:6px;margin-top:8px;">
+              <div style="display:flex;gap:6px;">
+                <button class="btn btn-secondary btn-sm" id="git-push-btn" title="推送到远程" style="flex:1;font-size: 11.5px;">推送</button>
+                <button class="btn btn-secondary btn-sm" id="git-pull-btn" title="从远程拉取" style="flex:1;font-size: 11.5px;">拉取</button>
+              </div>
+              <div style="display:flex;gap:6px;">
+                <input id="git-newbranch-name" placeholder="新分支名" style="flex:1;min-width:0;background:var(--bg-secondary);border:1px solid var(--border-color);color:var(--text);padding:6px 8px;border-radius:6px;font-size: 11.5px;">
+                <button class="btn btn-secondary btn-sm" id="git-newbranch-btn" style="font-size: 11.5px;">新建</button>
+              </div>
+              <button class="btn btn-secondary btn-sm" id="git-clone-btn" title="从 Git 克隆项目…" style="font-size: 11.5px;">克隆仓库</button>
               <button class="btn btn-secondary btn-sm git-ai-btn" id="git-ai-commit-btn" title="AI 生成提交信息并直接提交" style="font-size: 11.5px;">AI 提交（生成并提交）</button>
               <button class="btn btn-secondary btn-sm git-ai-btn" id="git-ai-resolve-btn" title="用 AI 自动解决合并冲突" style="font-size: 11.5px;">AI 解决冲突</button>
               <button class="btn btn-secondary btn-sm git-ai-btn" id="git-ai-pr-btn" title="根据提交历史生成 PR 标题与描述" style="font-size: 11.5px;">AI 生成 PR 描述</button>

@@ -14294,11 +14294,11 @@ function bindEvents() {
     let remoteUrl = null;
     try { const rr = await window.LabCode.git.remoteUrl(cwd); if (rr && rr.success) remoteUrl = rr.url; } catch (e) {}
 
-    // 分支选择器
+    // 分支选择器（分支数≤1 时隐藏——对齐 TrieCode：单分支不显示切换器）
     let branchHtml = '';
     try {
       const br = await window.LabCode.git.branches(cwd);
-      if (br.success) {
+      if (br.success && br.branches && br.branches.length > 1) {
         branchHtml = '<div style="padding:4px 8px;margin:4px 0;background:var(--surface-2);border-radius:6px;">' +
           '<select id="git-branch-select" style="width:100%;background:var(--surface-1);border:1px solid var(--border-color);color:var(--text);padding:4px;border-radius:4px;font-size: 11.5px;">' +
           br.branches.map(b => '<option value="' + b.name + '"' + (b.name === br.current ? ' selected' : '') + '>' + (b.name === br.current ? '● ' : '') + b.name + '</option>').join('') +
@@ -14306,14 +14306,16 @@ function bindEvents() {
       }
     } catch (e) {}
 
-    // TrieCode 式分支行：⎇ master + 未提交计数徽章 + 领先/落后
-    if (statusEl) statusEl.innerHTML = '<span style="font-size:12px;">⎇ <b>' + escapeHtml(r.branch) + '</b></span>' +
+    // TrieCode 式分支行：⎇ master + 未提交计数徽章 + 领先/落后（无提交时去掉 git 原生长前缀）
+    const shortBranch = String(r.branch || '').replace(/^No commits yet on /, '');
+    if (statusEl) statusEl.innerHTML = '<span style="font-size:12px;">⎇ <b>' + escapeHtml(shortBranch) + '</b></span>' +
       (r.files.length ? ' <span style="background:var(--primary);color:#fff;border-radius:999px;font-size:10px;padding:0 6px;font-weight:700;">' + r.files.length + '</span>' : '') +
       (r.ahead ? ' <span style="color:#22c55e;font-size:11px;">↑' + r.ahead + '</span>' : '') +
-      (r.behind ? ' <span style="color:#f59e0b;font-size:11px;">↓' + r.behind + '</span>' : '');
+      (r.behind ? ' <span style="color:#f59e0b;font-size:11px;">↓' + r.behind + '</span>' : '') +
+      (/^No commits yet/.test(r.branch || '') ? ' <span style="font-size:10.5px;color:var(--text-tertiary);">尚无提交</span>' : '');
     if (filesEl) {
       // TrieCode 式远程关联引导区：无 origin 时显示（说明+URL 输入+关联+令牌小字）
-      const remoteGuide = (remoteUrl === null) ? '<div style="margin:6px 8px;padding:8px 10px;border:1px solid var(--border-color);border-radius:8px;background:var(--surface-2);">' +
+      const remoteGuide = (remoteUrl === null) ? '<div style="margin:6px 8px;padding:8px 6px;">' +
         '<div style="font-size:11px;color:var(--text-secondary);line-height:1.7;">还没有关联远程仓库，推送、建 PR 需要先关联一个——在 GitHub / Gitee 上新建一个空的仓库，把它的地址粘贴下面即可（本地提交不受影响）。</div>' +
         '<div style="display:flex;gap:6px;margin-top:6px;">' +
         '<input id="git-remote-url-input" placeholder="https://github.com/用户名/仓库.git" style="flex:1;min-width:0;background:var(--surface-1);border:1px solid var(--border-color);color:var(--text);padding:5px 8px;border-radius:6px;font-size:11px;">' +
@@ -14370,6 +14372,9 @@ function bindEvents() {
         if (r3 && r3.success) { showToast('已关联 origin → ' + u, 'success'); refreshGitStatus(); }
         else showToast('关联失败: ' + ((r3 && r3.error) || ''), 'error');
       };
+      // 暂存状态文字（TrieCode 式：生成按钮旁实时提示）
+      const ss = document.getElementById('git-stage-state');
+      if (ss) ss.textContent = (r.files.filter(f => f.status[0] !== ' ' && f.status[0] !== '?').length ? '已暂存 ' + r.files.filter(f => f.status[0] !== ' ' && f.status[0] !== '?').length + ' 项' : '没有已暂存的内容');
     }, 50);
   }
   window.gitStageFile = async (path) => {
