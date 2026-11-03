@@ -5282,10 +5282,8 @@ button:disabled,
   border-right: none !important;
 }
 body.no-open-file .editor-container { flex: 1 1 auto !important; min-width: 0 !important; }
-/* ===== 欢迎态布局对齐 TrieCode：无项目时隐藏中央卡片，AI 欢迎区占满中央 ===== */
-body.app-welcome #welcome-screen { display: none !important; }
-body.app-welcome .ai-panel { flex: 1 1 auto !important; width: auto !important; max-width: none !important; border-left: none !important; }
-body.app-welcome .editor-container { flex: 0 0 0 !important; width: 0 !important; min-width: 0 !important; overflow: hidden !important; }
+/* 无项目态对齐 TrieCode 实测截图：主区中央显示品牌空态卡(⚡LabCode+打开或新建项目开始编程)，
+   AI 面板保持右侧固定宽——不再让 AI 欢迎区占满中央(旧设计已废弃，app-welcome 类保留仅为兼容、无 CSS 效果) */
 
 /* ===== 全局字体对齐 TrieCode 基准（Segoe UI / 14px）===== */
 body { font-size: 13px; }

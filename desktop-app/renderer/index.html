@@ -1176,14 +1176,14 @@
       </div>
       <!-- 编辑器 -->
       <div class="editor-wrapper" id="editor-wrapper">
-        <!-- 空状态提示（无文件时显示，对齐 TrieCode：提示新建文件或 AI 辅助新建） -->
+        <!-- 空状态提示（对齐 TrieCode 无项目态：品牌 logo + 名称 + 「打开或新建项目开始编程」，按钮保留既有绑定） -->
         <div class="welcome-screen" id="welcome-screen">
           <div class="welcome-content">
-            <div class="welcome-empty-icon">
-              <svg class="icon"><use href="#icon-file"></use></svg>
+            <div class="welcome-empty-icon" style="width:56px;height:56px;border-radius:14px;background:var(--primary-light);display:flex;align-items:center;justify-content:center;">
+              <svg class="icon" style="width:30px;height:30px;color:var(--primary);"><use href="#icon-bolt"></use></svg>
             </div>
-            <h2 class="welcome-empty-title">开始你的开发</h2>
-            <p class="welcome-empty-desc">打开或创建一个项目，AI 智能体将在这里读写代码、执行命令、运行测试。</p>
+            <h2 class="welcome-empty-title" style="font-size:15px;">LabCode</h2>
+            <p class="welcome-empty-desc">打开或新建项目开始编程</p>
             <div class="welcome-actions">
               <button class="welcome-action-btn primary" id="welcome-new-file">
                 <svg class="icon"><use href="#icon-file-plus"></use></svg>
