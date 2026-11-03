@@ -47,6 +47,7 @@ contextBridge.exposeInMainWorld('LabCode', {
   },
   fs: {
     readFile: (filePath, encoding) => ipcRenderer.invoke('fs:readFile', filePath, encoding),
+    readImageDataUrl: (filePath) => ipcRenderer.invoke('fs:read-image-data-url', filePath),
     writeFile: (filePath, content) => ipcRenderer.invoke('fs:writeFile', filePath, content),
     exists: (filePath) => ipcRenderer.invoke('fs:exists', filePath),
     listDir: (dirPath) => ipcRenderer.invoke('fs:listDir', dirPath),

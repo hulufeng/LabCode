@@ -4455,8 +4455,25 @@ void loop() {
       for (const m of messages) {
         if (m.role === 'user') {
           // 跳过重复的当前用户输入（避免与末尾追加重复）
-          if (m.content === userInput && m === messages[messages.length - 1]) continue;
-          chatMessages.push({ role: 'user', content: m.content || '' });
+          if (m.content === userInput && m === messages[messages.length - 1]) {
+            // 带图片附件的末尾消息不能 skip：转多模态 content parts 发送（否则兜底追加纯文本会丢图）
+            const atts = (Array.isArray(m.attachments) ? m.attachments : []).filter(a => a && a.dataUrl).slice(0, 4);
+            if (atts.length) {
+              const parts = [{ type: 'text', text: m.content || '' }];
+              for (const a of atts) parts.push({ type: 'image_url', image_url: { url: a.dataUrl } });
+              chatMessages.push({ role: 'user', content: parts });
+            }
+            continue;
+          }
+          // 历史中带图的用户消息同样转多模态 parts
+          const atts = (Array.isArray(m.attachments) ? m.attachments : []).filter(a => a && a.dataUrl).slice(0, 4);
+          if (atts.length && !Array.isArray(m.content)) {
+            const parts = [{ type: 'text', text: m.content || '' }];
+            for (const a of atts) parts.push({ type: 'image_url', image_url: { url: a.dataUrl } });
+            chatMessages.push({ role: 'user', content: parts });
+          } else {
+            chatMessages.push({ role: 'user', content: m.content || '' });
+          }
         } else if (m.role === 'assistant') {
           // 保留 assistant 消息的 content 和 tool_calls
           const msg = { role: 'assistant', content: m.content || '' };
@@ -8579,7 +8596,10 @@ function ensureAgent() {
 async function handleAISend() {
   const input = document.getElementById('ai-input');
   const text = input.value.trim();
-  if (!text) return;
+  const pendingImages = (window._aiPendingImages || []).slice();
+  // 允许纯图片发送（无文字只发图：AI 直接看图分析）
+  if (!text && !pendingImages.length) return;
+  const finalText = text || '请分析我发送的图片';
 
   // 1:1 对齐 TrieCode：发送消息后隐藏欢迎页，输入框/项目栏移回面板底部
   const welcome = document.getElementById('ai-welcome');
@@ -8594,7 +8614,17 @@ async function handleAISend() {
     welcome.style.display = 'none';
   }
 
-  addChatMessage('user', text);
+  addChatMessage('user', finalText);
+  // 用户气泡里回显所附图片
+  if (pendingImages.length) {
+    const lastUserMsg = document.querySelector('#ai-chat-area .chat-message.user:last-child');
+    if (lastUserMsg) {
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;';
+      wrap.innerHTML = pendingImages.map(a => '<img src="' + a.dataUrl + '" style="max-width:180px;max-height:140px;border-radius:8px;border:1px solid var(--border-color);object-fit:cover;">').join('');
+      lastUserMsg.appendChild(wrap);
+    }
+  }
   input.value = '';
   input.style.height = 'auto';
 
@@ -8624,7 +8654,13 @@ async function handleAISend() {
 
   ensureAgent();
   state.agent.mode = state.mode;
-  await state.agent.run(text);
+  // 把待发图片附件交给 agent（run() 会挂到本次 user 消息上，_buildMessages 转多模态 parts）
+  if (pendingImages.length) {
+    state.agent._pendingAttachments = pendingImages;
+    window._aiPendingImages = [];
+    renderAiAttachPreview();
+  }
+  await state.agent.run(finalText);
   
   // 任务完成后，延迟隐藏计划进度面板
   setTimeout(() => {
@@ -16594,24 +16630,58 @@ function bindEvents() {
     });
   }
 
+  // AI 视觉输入：待发送图片附件（选图/粘贴截图 → 缩略图预览 → 发送时转多模态消息）
+  window._aiPendingImages = window._aiPendingImages || [];
+  function renderAiAttachPreview() {
+    const box = document.getElementById('ai-attach-preview');
+    if (!box) return;
+    box.innerHTML = window._aiPendingImages.map((a, i) =>
+      '<div style="position:relative;display:inline-block;margin:4px 6px 0 0;">' +
+      '<img src="' + a.dataUrl + '" style="width:54px;height:54px;object-fit:cover;border-radius:8px;border:1px solid var(--border-color);display:block;">' +
+      '<span data-rm-img="' + i + '" title="移除" style="position:absolute;top:-6px;right:-6px;width:16px;height:16px;border-radius:50%;background:#ef4444;color:#fff;font-size:10px;line-height:16px;text-align:center;cursor:pointer;">×</span></div>'
+    ).join('');
+    box.style.display = window._aiPendingImages.length ? 'block' : 'none';
+  }
+  document.getElementById('ai-attach-preview')?.addEventListener('click', (e) => {
+    const t = e.target && e.target.getAttribute && e.target.getAttribute('data-rm-img');
+    if (t != null) { window._aiPendingImages.splice(Number(t), 1); renderAiAttachPreview(); }
+  });
+  window.agentAddImage = (dataUrl, name) => {
+    if (!dataUrl) return;
+    if (window._aiPendingImages.length >= 4) { showToast('最多附加 4 张图片', 'warn'); return; }
+    window._aiPendingImages.push({ type: 'image', dataUrl, name: name || ('图片' + (window._aiPendingImages.length + 1)) });
+    renderAiAttachPreview();
+  };
+
   // 添加图片按钮
   const imageBtn = document.getElementById('image-btn');
   if (imageBtn) {
-    imageBtn.addEventListener('click', () => {
-      if (isElectron && window.LabCode && window.LabCode.dialog) {
-        window.LabCode.dialog.openFile({
-          filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'] }],
-          properties: ['openFile']
-        }).then(result => {
-          if (!result.canceled && result.filePaths.length > 0) {
-            showToast('已添加图片: ' + result.filePaths[0].split('\\').pop(), 'success');
-            addOutputLog('添加图片: ' + result.filePaths[0], 'info');
-          }
-        }).catch(e => {
-          showToast('选择图片失败', 'error');
-        });
-      } else {
-        showToast('添加图片', 'info');
+    imageBtn.addEventListener('click', async () => {
+      if (!(isElectron && window.LabCode && window.LabCode.dialog && window.LabCode.fs)) { showToast('仅桌面版支持添加图片', 'warn'); return; }
+      try {
+        const p = await window.LabCode.dialog.openFile();
+        if (!p) return;
+        const r = await window.LabCode.fs.readImageDataUrl(p);
+        if (r && r.success) { window.agentAddImage(r.dataUrl, r.name); addOutputLog('添加图片: ' + (r.name || p), 'info'); }
+        else showToast((r && r.error) || '读取图片失败', 'error');
+      } catch (e) { showToast('选择图片失败: ' + e.message, 'error'); }
+    });
+  }
+
+  // 粘贴截图直接附加（对齐 TrieCode 图片输入习惯）
+  const aiPasteInput = document.getElementById('ai-input');
+  if (aiPasteInput) {
+    aiPasteInput.addEventListener('paste', (e) => {
+      const items = (e.clipboardData && e.clipboardData.items) || [];
+      for (const it of items) {
+        if (it.type && it.type.indexOf('image/') === 0) {
+          const f = it.getAsFile();
+          if (!f) continue;
+          e.preventDefault();
+          const rd = new FileReader();
+          rd.onload = () => window.agentAddImage(String(rd.result), f.name || '剪贴板图片');
+          rd.readAsDataURL(f);
+        }
       }
     });
   }

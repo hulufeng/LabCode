@@ -1968,6 +1968,19 @@ function setupIPC() {
     return result.canceled ? null : result.filePaths[0];
   });
 
+  // 读取图片为 data URL（AI 视觉输入：多模态消息 image_url part）
+  ipcMain.handle('fs:read-image-data-url', (_, filePath) => {
+    try {
+      const ext = String(filePath).split('.').pop().toLowerCase();
+      const mimeMap = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', bmp: 'image/bmp' };
+      const mime = mimeMap[ext];
+      if (!mime) return { success: false, error: '仅支持图片文件（png/jpg/jpeg/gif/webp/bmp）' };
+      const buf = require('fs').readFileSync(filePath);
+      if (buf.length > 8 * 1024 * 1024) return { success: false, error: '图片超过 8MB，请压缩后再试' };
+      return { success: true, dataUrl: 'data:' + mime + ';base64,' + buf.toString('base64'), name: require('path').basename(filePath) };
+    } catch (e) { return { success: false, error: e.message }; }
+  });
+
   ipcMain.handle('dialog:openDirectory', async () => {
     const result = await dialog.showOpenDialog(mainWindow, {
       properties: ['openDirectory']
