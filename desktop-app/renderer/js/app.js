@@ -11786,8 +11786,10 @@ function bindEvents() {
       if (seen.has(v.pluginId)) return; seen.add(v.pluginId);
       const inst = installedPlugins.find(p => p.id === v.pluginId) || {};
       const title = inst.name || v.title || v.pluginId;
-      // 单色 SVG 图标（与活动栏 SF 风格统一；emoji 会渲染成彩色，风格割裂）
-      html += '<button class="activity-btn" data-plugin-view="' + encodeURIComponent(v.pluginId + '|' + v.id) + '" title="' + title + '"><svg class="icon" style="width:19px;height:19px;"><use href="#icon-plugin-view"></use></svg></button>';
+      // 图标：品牌 SVG（立创EDA=蓝云等，对齐 TrieCode 活动栏彩色品牌图标）；无品牌映射的插件用其 emoji
+      let ic = brandIconHtml({ id: v.pluginId, name: title, icon: inst.icon });
+      if (ic.indexOf('<svg') !== 0) ic = '<span style="font-size:19px;line-height:1;">' + ic + '</span>';
+      html += '<button class="activity-btn" data-plugin-view="' + encodeURIComponent(v.pluginId + '|' + v.id) + '" title="' + title + '">' + ic + '</button>';
     });
     host.innerHTML = html;
     host.querySelectorAll('[data-plugin-view]').forEach(btn => {
