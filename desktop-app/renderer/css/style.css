@@ -985,7 +985,7 @@ input, textarea {
   color: var(--text-tertiary);
   line-height: 1.75;
   margin: 0 0 24px;
-  max-width: 240px;
+  max-width: 280px;
 }
 .welcome-panel-actions {
   display: flex;
