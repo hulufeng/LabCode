@@ -14978,7 +14978,12 @@ function bindEvents() {
     { id: 'panel-models', title: '打开模型管理', group: '视图', keywords: 'models 模型 ai', run: () => { const a = document.querySelector('.activity-btn[data-panel="models"]'); if (a) a.click(); } },
     { id: 'panel-mcp', title: '打开 MCP 服务', group: '视图', keywords: 'mcp', run: () => { const a = document.querySelector('.activity-btn[data-panel="mcp"]'); if (a) a.click(); } },
     { id: 'panel-dashboard', title: '打开看板', group: '视图', keywords: 'dashboard 看板 统计', run: () => { const a = document.querySelector('.activity-btn[data-panel="dashboard"]'); if (a) a.click(); } },
-    { id: 'search', title: '搜索', group: '视图', keywords: 'search 搜索', run: () => { const b = document.getElementById('search-btn'); if (b) b.click(); } }
+    { id: 'search', title: '搜索', group: '视图', keywords: 'search 搜索', run: () => { const b = document.getElementById('search-btn'); if (b) b.click(); } },
+    // 对齐 TrieCode 命令面板默认项（顶部常显导航快捷）：显示所有命令 / 转到文件 / 切换终端 / 打开设置 / 开始调试
+    { id: 'show-all-commands', title: '显示所有命令', group: '命令', keywords: 'command 命令 显示所有 all', run: () => {} },
+    { id: 'goto-file', title: '转到文件…', group: '导航', keywords: 'go to file 转到文件 打开文件 Ctrl+P', run: async () => { try { if (window.LabCode && window.LabCode.dialog) { const p = await window.LabCode.dialog.openFile(); if (p) openFile(p); } } catch (e) {} } },
+    { id: 'toggle-terminal', title: '切换终端', group: '导航', keywords: 'terminal 终端 切换 Ctrl+`', run: () => switchPanel('terminal', 'bottom') },
+    { id: 'start-debug', title: '开始调试', group: '运行', keywords: 'debug 调试 F5 start 开始', run: () => { try { startDebug(); } catch (e) { showToast('调试启动失败: ' + e.message, 'error'); } } }
   );
   const cmdPalette = document.getElementById('cmd-palette');
   const cmdInput = document.getElementById('cmd-input');
