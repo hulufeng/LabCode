@@ -10840,14 +10840,31 @@ function bindEvents() {
     } catch (e) { return true; }
   }
 
+  // 双 id 体系合一：市场目录 id（arduino/esp-idf/stm32/plugin-dev）↔ 工具链插件真实 id（*-toolchain）。
+  // 之前两边各查各的，导致「市场显示未安装但活动栏/运行时已存在」的不同步。
+  const PLUGIN_ID_ALIASES = {
+    'arduino': ['arduino-cli-toolchain'],
+    'esp-idf': ['esp-idf-toolchain', 'espressif-idf-toolchain'],
+    'stm32': ['stm32-cube-toolchain', 'stm32-toolchain'],
+    'plugin-dev': ['plugin-dev-toolchain']
+  };
+  function pluginIdCandidates(id) {
+    const extra = PLUGIN_ID_ALIASES[id] || [];
+    // 反向：查询 toolchain id 时也视同对应市场 id 已装
+    for (const [mid, aliases] of Object.entries(PLUGIN_ID_ALIASES)) {
+      if (aliases.includes(id)) extra.push(mid);
+    }
+    return [id].concat(extra);
+  }
   function isPluginInstalled(id) {
     // 双真相源合一：市场徽章以「运行时注册表」为准（bundles 插件从未进 installedPlugins，
     // 曾导致 serial-monitor/openscad/wokwi 等实际已加载却显示「安装」可再装）
+    const candidates = pluginIdCandidates(id);
     try {
       if (window.PluginSystem && typeof window.PluginSystem.listPlugins === 'function'
-          && window.PluginSystem.listPlugins().some(p => p.id === id)) return true;
+          && window.PluginSystem.listPlugins().some(p => candidates.includes(p.id))) return true;
     } catch (e) { /* 注册表未就绪时回退持久化列表 */ }
-    return installedPlugins.some(p => p.id === id);
+    return installedPlugins.some(p => candidates.includes(p.id));
   }
 
   // ============ 硬件配置检测与大模型推荐 ============
@@ -11305,6 +11322,8 @@ function bindEvents() {
     // 插件自定义面板入口已上移到活动栏动态按钮（对齐 TrieCode：列表保持纯卡片，无「插件面板(N)」块）
     // TrieCode 式：已安装插件直接在活动栏显示入口（装了就显示，卸载即消失）
     refreshPluginActivityButtons();
+    // 静态工具链按钮与市场安装状态同步（装了显示/没装隐藏）
+    try { syncToolchainActivityButtons(); } catch (e) { /* 未定义时忽略 */ }
     // 绑定启用/禁用按钮（禁用后插件工具不再注入给 AI）
     listEl.querySelectorAll('[data-action="toggle"]').forEach(btn => {
       btn.addEventListener('click', async () => {
@@ -11902,6 +11921,7 @@ function bindEvents() {
     }
     renderPluginsList();
     updateCompilerPluginStatus();
+    syncToolchainActivityButtons();
     // 大模型安装后刷新模型选择器
     if (plugin.category === 'ai-model') {
       refreshLocalModelsInSelector();
@@ -11911,16 +11931,31 @@ function bindEvents() {
 
   async function uninstallPlugin(id) {
     const plugin = getAllPlugins().find(p => p.id === id);
-    // 真卸载：删插件目录 + 注销运行时工具/skills
+    // 真卸载：删插件目录 + 注销运行时工具/skills（含别名 id，避免卸了市场条目 toolchain 残留）
+    const allIds = pluginIdCandidates(id);
     if (window.PluginSystem && typeof window.PluginSystem.uninstall === 'function') {
-      await window.PluginSystem.uninstall(id);
+      for (const pid of allIds) {
+        try { await window.PluginSystem.uninstall(pid); } catch (e) { /* 别名可能不存在，忽略 */ }
+      }
     }
-    installedPlugins = installedPlugins.filter(p => p.id !== id);
+    installedPlugins = installedPlugins.filter(p => !allIds.includes(p.id));
     saveInstalledPlugins();
+    syncToolchainActivityButtons();
     showToast((plugin ? plugin.name : id) + ' 已卸载', 'info');
     renderPluginsList();
     updateCompilerPluginStatus();
     return { success: true, id };
+  }
+
+  // ============ 活动栏静态工具链按钮与安装状态同步 ============
+  // 之前 Arduino CLI / ESP-IDF 按钮在 index.html 硬编码常驻，与插件市场徽章脱节。
+  // 现在：未安装（含别名判定）即隐藏，安装/卸载/启动时刷新。
+  function syncToolchainActivityButtons() {
+    [['arduino-cli-toolchain', 'arduino'], ['esp-idf-toolchain', 'esp-idf']].forEach(([tc, mid]) => {
+      const btn = document.querySelector('.activity-btn[data-panel="device"][data-toolchain="' + tc + '"]');
+      if (!btn) return;
+      btn.style.display = (isPluginInstalled(tc) || isPluginInstalled(mid)) ? '' : 'none';
+    });
   }
 
   // ============ 暴露插件 API 给 AI 工具（agent 自主插件管理）============
@@ -18208,8 +18243,8 @@ function init() {
 
 // 启动即同步欢迎态布局（对齐 TrieCode：无项目时 AI 欢迎区占满中央）
 __onDCL(() => { try { syncWelcomePanel(); } catch (e) {} });
-// 插件加载完成后刷新活动栏动态入口（TrieCode 式：装了就显示）
-__onDCL(() => { setTimeout(() => { try { refreshPluginActivityButtons(); } catch (e) {} }, 1500); });
+// 插件加载完成后刷新活动栏动态入口（TrieCode 式：装了就显示）+ 静态工具链按钮同步
+__onDCL(() => { setTimeout(() => { try { refreshPluginActivityButtons(); } catch (e) {} try { syncToolchainActivityButtons(); } catch (e) {} }, 1500); });
 
 if (document.readyState === 'loading') {
   __onDCL( init);
