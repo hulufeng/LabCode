@@ -10027,7 +10027,7 @@ function bindEvents() {
       const devicePanel = document.getElementById('device-panel');
       const gitPanel = document.getElementById('git-panel');
       const sidebarHeader = sidebar ? sidebar.querySelector('.sidebar-header') : null;
-      // TrieCode 式宽面板：插件/模型面板需要 ~400px 完整显示（名称不截断），其他面板恢复默认窄栏
+      // 对齐 ChipCode 插件面板宽度：336px（此前 400px 比参照页宽约 60px）；其他面板恢复默认窄栏
       const leftCol = sidebar ? sidebar.closest('.left-column') : null;
       const setLeftColWidth = (w) => {
         if (!leftCol) return;
@@ -10069,7 +10069,7 @@ function bindEvents() {
         if (pluginsPanel) pluginsPanel.style.display = 'flex';
         if (devicePanel) devicePanel.style.display = 'none';
         if (sidebarHeader) sidebarHeader.style.display = 'none';
-        setLeftColWidth('400px');   // TrieCode 式宽面板
+        setLeftColWidth('336px');   // 对齐 ChipCode 插件面板宽度
         // 若此前从「AI 模型」入口停在 models tab，插件按钮回到官方市场，避免两个入口显示相同内容
         if (currentPluginsTab === 'models') {
           currentPluginsTab = 'market';
@@ -10088,7 +10088,7 @@ function bindEvents() {
         if (pluginsPanel) pluginsPanel.style.display = 'flex';
         if (devicePanel) devicePanel.style.display = 'none';
         if (sidebarHeader) sidebarHeader.style.display = 'none';
-        setLeftColWidth('400px');   // TrieCode 式宽面板
+        setLeftColWidth('336px');   // 对齐 ChipCode 插件面板宽度
         currentPluginsTab = 'models';
         // 模型是独立视图：清除插件 tab 高亮，避免残留"官方市场"激活态
         document.querySelectorAll('.plugins-tab').forEach(t => t.classList.remove('active'));
