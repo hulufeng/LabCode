@@ -2161,7 +2161,21 @@ const TOOL_DEFS = [
   {
     name: 'schedule_list', category: 'query', description: '列出定时任务收件箱与运行记录',
     parameters: { type: 'object', properties: {}, required: [] },
-    execute: async () => { try { const inbox = await window.LabCode.schedule.listInbox(); const runs = await window.LabCode.schedule.listRuns(); return JSON.stringify({ inbox, runs }, null, 2); } catch (e) { return 'Error: ' + e.message; } }
+    execute: async (args) => {
+      try {
+        const a = args || {};
+        const action = String(a.action || 'list');
+        const S = window.LabCode.schedule;
+        if (action === 'get') { const r = await S.getPatch({ runId: a.runId }); return JSON.stringify(r, null, 2); }
+        if (action === 'apply') { const r = await S.applyPatch({ runId: a.runId }); return JSON.stringify(r, null, 2); }
+        if (action === 'discard') { const r = await S.discardPatch({ runId: a.runId }); return JSON.stringify(r, null, 2); }
+        const inbox = await S.listInbox();
+        const runs = await S.listRuns();
+        let notifications = [];
+        try { notifications = await S.listNotifications(); } catch (e) { notifications = []; }
+        return JSON.stringify({ inbox, runs, notifications, usage: '对 notifications 里 status=pending 的 runId：action=get 看改动明细 → action=apply 应用 / action=discard 丢弃' }, null, 2);
+      } catch (e) { return 'Error: ' + e.message; }
+    }
   },
   {
     name: 'schedule_run_now', category: 'execute', description: '立即运行某个定时任务。参数：taskId(必填)',
@@ -5709,7 +5723,8 @@ function agentMemoryRecall(mem, errorText, limit = 2) {
 }
 
 class AgentRunner {
-  constructor({ onStream, onToolStep, onPlanRequest, onThinking, onToolFlow, onDiffSummary, onWorkStatus, mode='default' }) {
+  constructor({ onStream, onToolStep, onPlanRequest, onThinking, onToolFlow, onDiffSummary, onWorkStatus, mode='default', trackerSession='default' }) {
+    this.trackerSession = trackerSession; // 文件回滚会话隔离（定时任务桥用独立会话收集补丁）
     this.onStream = onStream;
     this.onToolStep = onToolStep;
     this.onPlanRequest = onPlanRequest;
@@ -6699,7 +6714,7 @@ class AgentRunner {
               }).catch(() => {});
             }
           }
-          fileChangeTracker.beginTurn('default');
+          fileChangeTracker.beginTurn(this.trackerSession || 'default');
         }
         if ((tc.name === 'write_file' || tc.name === 'edit_file') && tc.arguments && tc.arguments.file_path) {
           const fp = tc.arguments.file_path;
@@ -6866,7 +6881,7 @@ class AgentRunner {
               ? null
               : ((state.files[filePath] && state.files[filePath].content) ?? String(toolResult));
             const action = tc.name === 'write_file' ? (state.files[filePath] ? 'modify' : 'create') : tc.name === 'delete_file' ? 'delete' : 'modify';
-            fileChangeTracker.recordChange('default', { path: filePath, before, after, action });
+            fileChangeTracker.recordChange(this.trackerSession || 'default', { path: filePath, before, after, action });
             addOutputLog(`文件回滚记录: ${filePath} (${action})`, 'debug');
           } catch (e) {
             addOutputLog(`文件回滚记录失败: ${e.message}`, 'warn');
@@ -7008,7 +7023,7 @@ class AgentRunner {
       }
 
       // 工具调用轮结束：将工具结果反馈给模型，进入下一轮生成最终总结（对齐用户预期：读文件后要有总结）
-      fileChangeTracker.endTurn('default');
+      fileChangeTracker.endTurn(this.trackerSession || 'default');
       continue;
     }
     // ===== 工作状态条：循环自然结束（达到轮次上限）收尾 =====
@@ -12604,6 +12619,44 @@ function bindEvents() {
   }
   const gitCpBtn = document.getElementById('git-checkpoint-btn');
   if (gitCpBtn) gitCpBtn.addEventListener('click', openCheckpointModal);
+
+  // ===== 定时任务桥：主进程触发 → 复用已配置 agent 静默执行 → 文件级改动收集为待审补丁 =====
+  function buildPatchFromTracker(sessionId) {
+    const turns = (fileChangeTracker.turns.get(sessionId) || []);
+    const byPath = new Map();
+    for (const t of turns) for (const ch of (t.changes || [])) byPath.set(ch.path, ch); // 每文件取最后状态
+    const changes = [...byPath.values()]
+      .filter(ch => ch && ch.path && ch.before !== ch.after)
+      .map(ch => ({ path: ch.path, kind: ch.action || 'modify', before: ch.before == null ? null : String(ch.before), after: ch.after == null ? null : String(ch.after) }));
+    return { workspace: state.projectPath || '', changes };
+  }
+  if (window.LabCode && window.LabCode.scheduleBridge && window.LabCode.scheduleBridge.onExec) {
+    window.LabCode.scheduleBridge.onExec(async (d) => {
+      const token = (d && d.token) || '';
+      try {
+        ensureAgent();
+        const agent = state.agent;
+        const prevSession = agent.trackerSession || 'default';
+        agent.trackerSession = 'sched_' + token; // 隔离收集本次调度的文件改动
+        let summary = '';
+        try {
+          const result = await agent.run(String((d && d.prompt) || ''));
+          summary = (result && (result.content || result.summary)) || (typeof result === 'string' ? result : '') || '调度任务执行完成';
+        } finally {
+          agent.trackerSession = prevSession;
+        }
+        const patch = buildPatchFromTracker('sched_' + token);
+        let patchStr = '';
+        if (patch.changes.length && patch.workspace) {
+          patchStr = JSON.stringify(patch);
+          window.LabCode.scheduleBridge.submitPatch({ runId: d.runId, token, patch: patchStr }).catch(() => {});
+        }
+        window.LabCode.scheduleBridge.sendResult({ token, ok: true, summary: String(summary).slice(0, 2000), patch: patchStr });
+      } catch (e) {
+        window.LabCode.scheduleBridge.sendResult({ token, ok: false, summary: '', error: e.message, patch: '' });
+      }
+    });
+  }
 
   // 新建文件按钮绑定（浅色主题下元素为 quick-new-file；兼容旧 id）
   const newFileBtn = document.getElementById('new-file-btn') || document.getElementById('quick-new-file');

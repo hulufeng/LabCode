@@ -4580,12 +4580,23 @@ function setupIPC() {
     try {
       // 工作流模式：调度触发渲染进程执行可视化工作流，结果回报入库
       if (task.mode === 'workflow') {
-        const execResult = await schedExecWorkflow(task);
+        const execResult = await schedExecWorkflow(task, run);
         run.status = execResult.ok ? 'done' : 'error';
         run.finishedAt = Date.now();
         run.patch = execResult.summary || String(execResult.error || '');
         run.slots = [{ label: 'workflow', size: String(run.patch || '').length }];
         if (!execResult.ok) run.error = execResult.error;
+        // 待审补丁：桥接执行捕获到文件级改动（JSON change-list）→ 进审查流，不直接生效
+        if (execResult.patch) {
+          try {
+            const pp = JSON.parse(execResult.patch);
+            if (pp && Array.isArray(pp.changes) && pp.changes.length) {
+              run.patchData = execResult.patch;
+              run.patchStatus = 'pending';
+              run.patchSummary = pp.changes.length + ' 个文件待审：' + pp.changes.map(c => c.path).slice(0, 5).join('、') + (pp.changes.length > 5 ? ' 等' : '');
+            }
+          } catch (e) { /* 非法补丁按文本输出处理 */ }
+        }
         task.lastRunAt = Date.now();
         saveSchedule();
         return run;
@@ -4608,8 +4619,8 @@ function setupIPC() {
     return run;
   }
 
-  // 调度触发工作流：向渲染进程发送执行请求并等待结果（30s 超时）
-  function schedExecWorkflow(task) {
+  // 调度触发工作流：向渲染进程发送执行请求并等待结果（agent 实跑可达数分钟 → 10 分钟超时）
+  function schedExecWorkflow(task, run) {
     return new Promise((resolve) => {
       if (!mainWindow || mainWindow.isDestroyed()) { resolve({ ok: false, error: '窗口未就绪' }); return; }
       const token = 'wf_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
@@ -4617,15 +4628,15 @@ function setupIPC() {
         if (data && data.token === token) {
           ipcMain.removeListener('schedule:workflow-result', onResult);
           clearTimeout(timer);
-          resolve({ ok: !!data.ok, summary: data.summary || '', error: data.error || '' });
+          resolve({ ok: !!data.ok, summary: data.summary || '', error: data.error || '', patch: typeof data.patch === 'string' ? data.patch : '' });
         }
       };
       ipcMain.on('schedule:workflow-result', onResult);
       const timer = setTimeout(() => {
         ipcMain.removeListener('schedule:workflow-result', onResult);
-        resolve({ ok: false, error: '工作流执行超时（30s）' });
-      }, 30000);
-      mainWindow.webContents.send('schedule:exec-workflow', { token, taskId: task.id, prompt: task.prompt, mode: task.mode });
+        resolve({ ok: false, error: '工作流执行超时（10 分钟）' });
+      }, 600000);
+      mainWindow.webContents.send('schedule:exec-workflow', { token, taskId: task.id, runId: run ? run.id : '', prompt: task.prompt, mode: task.mode });
     });
   }
   loadSchedule();
@@ -4671,8 +4682,34 @@ function setupIPC() {
   }));
   ipcMain.handle('schedule:getPatch', (_, opts) => {
     const r = schedFindRun(opts && opts.runId);
-    return r ? (r.patch || '') : '';
+    if (!r) return { success: false, error: 'run not found' };
+    if (!r.patchData) return { success: true, patch: r.patch || '', files: [], stats: { added: 0, removed: 0 }, appliedAtMs: r.patchAppliedAtMs || null, status: r.patchStatus || 'text' };
+    try {
+      const pp = JSON.parse(r.patchData);
+      const files = (pp.changes || []).map(c => ({ path: c.path, kind: c.kind || (c.before == null ? 'create' : c.after == null ? 'delete' : 'modify'), added: c.before == null, deleted: c.after == null }));
+      const stats = { added: files.filter(f => f.added).length, removed: files.filter(f => f.deleted).length };
+      return { success: true, patch: r.patchData, workspace: pp.workspace || '', files, stats, appliedAtMs: r.patchAppliedAtMs || null, status: r.patchStatus || 'pending' };
+    } catch (e) {
+      return { success: false, error: '补丁解析失败: ' + e.message };
+    }
   });
+  ipcMain.handle('schedule:patch:submit', (_, opts) => {
+    const r = schedFindRun(opts && opts.runId);
+    if (!r) return { success: false, error: 'run not found' };
+    try {
+      const pp = JSON.parse(String(opts.patch || ''));
+      if (!pp || !Array.isArray(pp.changes)) return { success: false, error: '补丁格式非法（需要 changes 数组）' };
+      r.patchData = String(opts.patch);
+      r.patchStatus = 'pending';
+      r.patchSummary = pp.changes.length + ' 个文件待审';
+      saveSchedule();
+      return { success: true, runId: r.id, files: pp.changes.length };
+    } catch (e) { return { success: false, error: e.message }; }
+  });
+  ipcMain.handle('schedule:listNotifications', () => (scheduleStore.runs || []).filter(r => r.patchData).map(r => ({
+    runId: r.id, taskId: r.taskId, prompt: (scheduleStore.tasks.find(t => t.id === r.taskId) || {}).prompt || '',
+    status: r.patchStatus || 'pending', summary: r.patchSummary || '', at: r.patchAppliedAtMs || r.finishedAt || r.startedAt || 0
+  })));
   ipcMain.handle('schedule:previewSlots', (_, opts) => {
     const r = schedFindRun(opts && opts.runId);
     return (r && r.slots) || [];
@@ -4680,17 +4717,50 @@ function setupIPC() {
   ipcMain.handle('schedule:applyPatch', (_, opts) => {
     const r = schedFindRun(opts && opts.runId);
     if (!r) return { success: false, error: 'run not found' };
-    if (!r.patch) return { success: false, error: 'run produced no patch' };
-    r.appliedAt = Date.now();
+    if (!r.patchData) return { success: false, error: '该运行没有待审的文件级改动' };
+    if (r.patchStatus && r.patchStatus !== 'pending') return { success: false, error: '该改动已经处理过了（' + r.patchStatus + '）' };
+    let pp;
+    try { pp = JSON.parse(r.patchData); } catch (e) { return { success: false, error: '补丁解析失败: ' + e.message }; }
+    const workspace = pp.workspace || '';
+    if (!workspace) return { success: false, error: '补丁缺少工作区信息，无法应用' };
+    let applied = 0;
+    const skipped = [];
+    try {
+      for (const c of (pp.changes || [])) {
+        const full = require('path').join(workspace, c.path);
+        let cur = null;
+        try { cur = fs.readFileSync(full, 'utf8'); } catch (e) { cur = null; }
+        if (c.after == null) {
+          // 删除类改动：仅当前内容与快照一致时才删，拒绝盲删
+          if (cur === null) { skipped.push(c.path + '（文件已不存在）'); continue; }
+          if (c.before != null && cur !== c.before) { skipped.push(c.path + '（内容已变化，拒绝删除）'); continue; }
+          try { fs.unlinkSync(full); applied++; } catch (e) { skipped.push(c.path + '（删除失败）'); }
+          continue;
+        }
+        if (cur !== null && c.before != null && cur !== c.before) { skipped.push(c.path + '（当前内容与快照不一致）'); continue; }
+        try {
+          fs.mkdirSync(require('path').dirname(full), { recursive: true });
+          fs.writeFileSync(full, c.after, 'utf8');
+          applied++;
+        } catch (e) { skipped.push(c.path + '（写入失败: ' + e.message + '）'); }
+      }
+    } catch (e) { return { success: false, error: e.message }; }
+    const summary = applied + ' 个文件已应用' + (skipped.length ? '，' + skipped.length + ' 个跳过' : '');
+    if (applied === 0) return { success: true, applied: 0, skipped, summary, keptPending: true };
+    r.patchStatus = 'applied';
+    r.patchAppliedAtMs = Date.now();
     saveSchedule();
-    return { success: true, message: 'marked as applied (' + String(r.patch).length + ' chars of output)' };
+    return { success: true, applied, skipped, summary };
   });
   ipcMain.handle('schedule:discardPatch', (_, opts) => {
     const r = schedFindRun(opts && opts.runId);
     if (!r) return { success: false, error: 'run not found' };
-    r.patch = null; r.slots = null; r.discardedAt = Date.now();
+    if (!r.patchData) return { success: false, error: '该运行没有待审的文件级改动' };
+    if (r.patchStatus && r.patchStatus !== 'pending') return { success: false, error: '该改动已经处理过了（' + r.patchStatus + '）' };
+    r.patchStatus = 'discarded';
+    r.patchAppliedAtMs = Date.now();
     saveSchedule();
-    return { success: true, message: 'patch discarded' };
+    return { success: true, message: '已丢弃改动，未对工作区做任何修改' };
   });
 
   // ESP32 toolchain auto-install on first launch (async, non-blocking).

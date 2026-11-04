@@ -42,6 +42,13 @@ contextBridge.exposeInMainWorld('LabCode', {
     cancel: () => ipcRenderer.invoke('stt:cancel')
   },
 
+  // 定时任务桥：主进程触发 → 渲染端静默执行 agent → 回传结果与待审补丁
+  scheduleBridge: {
+    onExec: (cb) => ipcRenderer.on('schedule:exec-workflow', (_e, d) => cb(d)),
+    sendResult: (data) => ipcRenderer.send('schedule:workflow-result', data),
+    submitPatch: (data) => ipcRenderer.invoke('schedule:patch:submit', data)
+  },
+
   // 文件系统
   // Plugin transports that need OS access (child process / sockets)
   plugin: {
@@ -411,6 +418,8 @@ contextBridge.exposeInMainWorld('LabCode', {
     previewSlots: (opts) => ipcRenderer.invoke('schedule:previewSlots', opts),
     applyPatch: (opts) => ipcRenderer.invoke('schedule:applyPatch', opts),
     discardPatch: (opts) => ipcRenderer.invoke('schedule:discardPatch', opts),
+    submitPatch: (opts) => ipcRenderer.invoke('schedule:patch:submit', opts),
+    listNotifications: () => ipcRenderer.invoke('schedule:listNotifications'),
     // 调度触发工作流（主进程 → 渲染进程执行 → 回报）
     onExecWorkflow: (callback) => {
       const listener = (_event, data) => callback(data);
