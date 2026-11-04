@@ -5060,6 +5060,11 @@ body.no-open-file .editor-toolbar { display: none !important; }
 /* 面板标题与安装进度条文字也统一 12px */
 #plugins-panel #plugins-title,
 #plugins-panel #pip-text { font-size: 12px; }
+/* ChipCode 层次：名称 12px，版本/描述/源码等辅助信息小一号灰字 */
+#plugins-panel #plugins-list .plg-ver { font-size: 10px !important; }
+#plugins-panel #plugins-list .plg-desc,
+#plugins-panel #plugins-list .plg-row-desc,
+#plugins-panel #plugins-list .plg-src { font-size: 11px !important; }
 .plg-row-body { flex: 1 1 160px; min-width: 0; }
 .plg-row-top { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .plg-row-act { flex-shrink: 0; display: flex; align-items: center; gap: 3px; }
