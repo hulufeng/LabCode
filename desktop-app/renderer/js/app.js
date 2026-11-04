@@ -3709,6 +3709,19 @@ async function undoLastAgentTurn() {
   }
   return result;
 }
+async function undoToTurnRange(targetTurn) {
+  let guard = 0;
+  while (guard++ < 200) {
+    const sessionId = _pickLatestTurnSession(fileChangeTracker.turns);
+    if (!sessionId) break;
+    const sessionTurns = fileChangeTracker.turns.get(sessionId);
+    const last = sessionTurns[sessionTurns.length - 1];
+    if (!last || last.turn <= targetTurn) break;
+    const r = await fileChangeTracker.undoLastTurn(sessionId);
+    if (!r.success) break;
+  }
+  addOutputLog('已撤销至指定轮次', 'success');
+}
 async function redoLastAgentTurn() {
   const sessionId = _pickLatestTurnSession(fileChangeTracker.redoStacks);
   if (!sessionId) return { success: false, error: '没有可重做的记录' };
@@ -12500,6 +12513,39 @@ function bindEvents() {
   if (aiUndoBtn) aiUndoBtn.addEventListener('click', () => undoLastAgentTurn());
   const aiRedoBtn = document.getElementById('ai-redo-btn');
   if (aiRedoBtn) aiRedoBtn.addEventListener('click', () => redoLastAgentTurn());
+  const tbToggleSidebar = document.getElementById('tb-toggle-sidebar');
+  if (tbToggleSidebar) tbToggleSidebar.addEventListener('click', () => { const sb = document.querySelector('.sidebar'); if (sb) sb.style.display = (sb.style.display === 'none') ? 'flex' : 'none'; });
+  const tbToggleEditor = document.getElementById('tb-toggle-editor');
+  if (tbToggleEditor) tbToggleEditor.addEventListener('click', () => { const ed = document.querySelector('.editor-container'); if (ed) ed.style.display = (ed.style.display === 'none') ? 'flex' : 'none'; });
+  const aiUndoRangeBtn = document.getElementById('ai-undo-range-btn');
+  if (aiUndoRangeBtn) {
+    aiUndoRangeBtn.addEventListener('click', () => {
+      const histories = []
+        .concat(getTurnHistory('default'))
+        .concat(getTurnHistory('stream'))
+        .filter(h => !h.rolledBack)
+        .sort((a, b) => b.turn - a.turn);
+      let pop = document.getElementById('ai-undo-range-pop');
+      if (pop) { pop.remove(); return; }
+      pop = document.createElement('div');
+      pop.id = 'ai-undo-range-pop';
+      pop.style.cssText = 'position:fixed;z-index:9999;background:var(--surface-1);border:1px solid var(--border-color);border-radius:8px;padding:6px;min-width:180px;max-height:320px;overflow:auto;box-shadow:0 8px 30px rgba(0,0,0,.4);';
+      const rect = aiUndoRangeBtn.getBoundingClientRect();
+      pop.style.top = (rect.bottom + 4) + 'px';
+      pop.style.right = (window.innerWidth - rect.right) + 'px';
+      if (!histories.length) {
+        pop.innerHTML = '<div style="padding:8px;font-size:12px;opacity:.6;">暂无可撤销的轮次</div>';
+      } else {
+        pop.innerHTML = '<div style="padding:4px 8px;font-size:11px;opacity:.6;border-bottom:1px solid var(--border-color);margin-bottom:4px;">撤销到该轮（含）之后所有变更</div>' +
+          histories.map(h => '<div class="ai-undo-range-item" data-turn="' + h.turn + '" style="padding:6px 8px;font-size:12px;cursor:pointer;border-radius:4px;">第 ' + h.turn + ' 轮 · ' + h.changeCount + ' 项变更</div>').join('');
+      }
+      document.body.appendChild(pop);
+      pop.querySelectorAll('.ai-undo-range-item').forEach(el => {
+        el.onclick = async () => { pop.remove(); await undoToTurnRange(parseInt(el.getAttribute('data-turn'), 10)); };
+      });
+      document.addEventListener('click', function closePop(e) { if (!pop.contains(e.target) && e.target !== aiUndoRangeBtn) { pop.remove(); document.removeEventListener('click', closePop); } });
+    });
+  }
   const aiHistoryBtn = document.getElementById('ai-history-btn');
   if (aiHistoryBtn) aiHistoryBtn.addEventListener('click', openHistoryPanel);
 
