@@ -992,6 +992,114 @@ function setupIPC() {
   ipcMain.handle('git:checkpoint:list', (_, cwd) => cpList(cwd));
   ipcMain.handle('git:checkpoint:preview', (_, cwd, id) => cpPreview(cwd, id));
   ipcMain.handle('git:checkpoint:restore', (_, cwd, id) => cpRestore(cwd, id));
+
+  // ===== Git 凭据管理（TrieCode git:credential:*；明文存 userData 配置——与 TrieCode 同样有明文警告；经 insteadOf 注入，免改远端 URL）=====
+  function credPublic(c) { return { host: c.host, username: c.username, secretTail: String(c.secret || '').slice(-4), createdAt: c.createdAt }; }
+  ipcMain.handle('git:credential:list', () => ({ success: true, credentials: (config.gitCredentials || []).map(credPublic) }));
+  ipcMain.handle('git:credential:set', async (_, opts) => {
+    try {
+      const o = opts || {};
+      const host = String(o.host || '').trim().replace(/\/+$/, '');
+      const username = String(o.username || '').trim() || 'oauth2';
+      const secret = String(o.secret || '');
+      const cwd = String(o.cwd || '').trim();
+      if (!host || host.indexOf('.') < 0 || !secret) return { success: false, error: '需要 host（如 github.com）、用户名与 secret' };
+      if (!cwd) return { success: false, error: '需要项目路径（打开项目后保存）' };
+      const authBase = 'https://' + encodeURIComponent(username) + ':' + encodeURIComponent(secret) + '@' + host + '/';
+      const prev = (config.gitCredentials || []).find(c => c.host === host);
+      if (prev) await runGit(cwd, ['config', '--unset-all', 'url.https://' + encodeURIComponent(prev.username || 'oauth2') + ':' + encodeURIComponent(prev.secret) + '@' + host + '/.insteadOf']);
+      const r = await runGit(cwd, ['config', 'url.' + authBase + '.insteadOf', 'https://' + host + '/']);
+      if (!r.ok) return { success: false, error: ((r.stderr || '') || '写入仓库配置失败').slice(0, 200) };
+      config.gitCredentials = (config.gitCredentials || []).filter(c => c.host !== host);
+      config.gitCredentials.push({ host, username, secret, createdAt: Date.now() });
+      saveConfig(config);
+      return { success: true, host };
+    } catch (e) { return { success: false, error: e.message }; }
+  });
+  ipcMain.handle('git:credential:clear', async (_, opts) => {
+    try {
+      const host = String((opts && opts.host) || '').trim().replace(/\/+$/, '');
+      const cwd = String((opts && opts.cwd) || '').trim();
+      const prev = (config.gitCredentials || []).find(c => c.host === host);
+      config.gitCredentials = (config.gitCredentials || []).filter(c => c.host !== host);
+      if (prev && cwd) {
+        const authBase = 'https://' + encodeURIComponent(prev.username || 'oauth2') + ':' + encodeURIComponent(prev.secret) + '@' + host + '/';
+        await runGit(cwd, ['config', '--unset-all', 'url.' + authBase + '/.insteadOf']);
+        await runGit(cwd, ['config', '--unset-all', 'url.' + authBase + '.insteadOf']);
+      }
+      saveConfig(config);
+      return { success: true };
+    } catch (e) { return { success: false, error: e.message }; }
+  });
+
+  // ===== Python 解释器管理（TrieCode interpreters:* 简版：detect/list/setActive/runPython）=====
+  async function probeCmd(cmd, args, timeoutMs) {
+    return new Promise((resolve) => {
+      const { spawn } = require('child_process');
+      let p;
+      try { p = spawn(cmd, args || ['--version'], { shell: true }); } catch (e) { resolve(null); return; }
+      let out = '';
+      p.stdout.on('data', d => out += d);
+      p.stderr.on('data', d => out += d);
+      const to = setTimeout(() => { try { p.kill(); } catch (e) {} resolve(out.trim() || null); }, timeoutMs || 4000);
+      p.on('close', () => { clearTimeout(to); resolve(out.trim() || null); });
+      p.on('error', () => { clearTimeout(to); resolve(null); });
+    });
+  }
+  async function detectInterpreters() {
+    const found = new Map();
+    const py0 = await probeCmd('py -0p', [], 5000);
+    if (py0) {
+      for (const line of py0.split('\n')) {
+        const m = line.match(/([A-Za-z]:\\[^*]*python[^ ]*\.exe)/i) || line.match(/(\/[^\s*]+python3?[^ ]*)/);
+        if (m) { const p = m[1].trim(); if (!found.has(p)) found.set(p, { path: p, version: '' }); }
+      }
+    }
+    const where = await probeCmd('where python', [], 4000);
+    if (where) {
+      for (const line of where.split('\n')) {
+        const p = line.trim();
+        if (p && /python[^ ]*\.exe$/i.test(p) && !found.has(p)) found.set(p, { path: p, version: '' });
+      }
+    }
+    const arr = [...found.values()].slice(0, 12);
+    for (const it of arr) {
+      const v = await probeCmd('"' + it.path + '" --version', [], 5000);
+      it.version = (v || '').split('\n')[0].trim();
+    }
+    return arr;
+  }
+  ipcMain.handle('interpreters:detect', async () => { try { return { success: true, interpreters: await detectInterpreters() }; } catch (e) { return { success: false, error: e.message }; } });
+  ipcMain.handle('interpreters:list', () => ({ success: true, active: (config.interpreters || {}).active || '', list: (config.interpreters || {}).list || [] }));
+  ipcMain.handle('interpreters:setActive', (_, opts) => {
+    try {
+      const p = String((opts && opts.path) || '').trim();
+      if (!p) return { success: false, error: '需要 path' };
+      config.interpreters = Object.assign({}, config.interpreters || {}, { active: p });
+      saveConfig(config);
+      return { success: true, active: p };
+    } catch (e) { return { success: false, error: e.message }; }
+  });
+  ipcMain.handle('interpreters:runPython', async (_, opts) => {
+    const py = String((opts && opts.python) || (config.interpreters || {}).active || 'python');
+    const args = (opts && opts.args) || [];
+    const cwd = (opts && opts.cwd) || '';
+    try {
+      return await new Promise((resolve) => {
+        const { spawn } = require('child_process');
+        // 路径可能含空格（shell:true 不自动加引号）→ 自拼命令行并包裹
+        const cmdline = '"' + py + '" ' + args.map(a => /[\s"^&|<>]/.test(String(a)) ? '"' + String(a).replace(/"/g, '\\"') + '"' : a).join(' ');
+        let p;
+        try { p = spawn(cmdline, { shell: true, cwd: cwd || undefined }); } catch (e) { resolve({ success: false, error: e.message }); return; }
+        let out = '', err = '';
+        p.stdout.on('data', d => out += d);
+        p.stderr.on('data', d => err += d);
+        const to = setTimeout(() => { try { p.kill(); } catch (e) {} resolve({ success: true, output: (out + err).slice(-8000), timedOut: true }); }, 60000);
+        p.on('close', (code) => { clearTimeout(to); resolve({ success: true, code, output: (out + err).slice(-8000) }); });
+        p.on('error', (e) => { clearTimeout(to); resolve({ success: false, error: e.message }); });
+      });
+    } catch (e) { return { success: false, error: e.message }; }
+  });
   ipcMain.handle('git:createBranch', async (_, cwd, branchName) => {
     const r = await runGit(cwd, ['checkout', '-b', branchName]);
     return { success: r.ok, error: r.stderr };

@@ -219,6 +219,11 @@ contextBridge.exposeInMainWorld('LabCode', {
       preview: (cwd, id) => ipcRenderer.invoke('git:checkpoint:preview', cwd, id),
       restore: (cwd, id) => ipcRenderer.invoke('git:checkpoint:restore', cwd, id)
     },
+    credentials: {
+      list: () => ipcRenderer.invoke('git:credential:list'),
+      set: (opts) => ipcRenderer.invoke('git:credential:set', opts),
+      clear: (opts) => ipcRenderer.invoke('git:credential:clear', opts)
+    },
     clone: (url, destDir) => ipcRenderer.invoke('git:clone', url, destDir),
     aiCommitMessage: (cwd) => ipcRenderer.invoke('git:aiCommitMessage', cwd),
     aiCommit: (cwd) => ipcRenderer.invoke('git:aiCommit', cwd),
@@ -427,6 +432,14 @@ contextBridge.exposeInMainWorld('LabCode', {
       return listener;
     },
     sendWorkflowResult: (data) => ipcRenderer.send('schedule:workflow-result', data)
+  },
+
+  // Python 解释器管理
+  interpreters: {
+    detect: () => ipcRenderer.invoke('interpreters:detect'),
+    list: () => ipcRenderer.invoke('interpreters:list'),
+    setActive: (opts) => ipcRenderer.invoke('interpreters:setActive', opts),
+    runPython: (opts) => ipcRenderer.invoke('interpreters:runPython', opts)
   },
   // Coding-Agent CLI 安装/检测（对齐 Ekko Agent Manager）
   codingAgents: {

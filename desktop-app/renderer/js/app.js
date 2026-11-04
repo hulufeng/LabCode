@@ -18315,6 +18315,30 @@ async function renderProviderManager() {
   html += '</div>';
   html += '<div style="display:flex;gap:8px;margin-top:6px;align-items:center;"><button id="stt-save-btn" style="background:#3a6ea5;color:#fff;border:none;border-radius:4px;padding:5px 12px;font-size: 10.5px;cursor:pointer;">保存语音识别配置</button><span style="font-size:10px;color:#888;">录音 16kHz WAV 仅上传至你填写的端点，本机不落盘、不记录内容。</span></div>';
   html += '</div>';
+  // Git 凭据卡（insteadOf 注入；明文存储——与 TrieCode 同策略+同警告）
+  let creds = [];
+  try { const cr = await window.LabCode.git.credentials.list(); if (cr && cr.success) creds = cr.credentials || []; } catch (e) {}
+  html += '<div style="background:#181818;border:1px solid #3c3c3c;border-radius:6px;padding:10px;margin-bottom:8px;">';
+  html += '<div style="font-size: 11.5px;color:#e0e0e0;margin-bottom:6px;">Git 凭据（push/pull 免密；⚠ 明文存于本机配置，仅写入当前项目仓库）</div>';
+  html += '<div id="cred-list">' + (creds.length ? creds.map(c => '<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:11px;color:#ccc;"><span>' + pmEsc(c.host) + ' · ' + pmEsc(c.username) + ' · ***' + pmEsc(c.secretTail) + '</span><button data-cred-del="' + pmEsc(c.host) + '" style="background:#3a3a3a;color:#ef4444;border:1px solid #555;border-radius:4px;padding:2px 8px;font-size:10px;cursor:pointer;">删除</button></div>').join('') : '<div style="font-size:10.5px;color:#888;">暂无凭据</div>') + '</div>';
+  html += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">';
+  html += '<input id="cred-host" placeholder="host（如 github.com）" style="flex:1;min-width:110px;background:#111;border:1px solid #3c3c3c;color:#e0e0e0;border-radius:4px;padding:5px 8px;font-size: 10.5px;">';
+  html += '<input id="cred-user" placeholder="用户名" style="flex:1;min-width:90px;background:#111;border:1px solid #3c3c3c;color:#e0e0e0;border-radius:4px;padding:5px 8px;font-size: 10.5px;">';
+  html += '<input id="cred-secret" type="password" placeholder="Token/密码" style="flex:1;min-width:110px;background:#111;border:1px solid #3c3c3c;color:#e0e0e0;border-radius:4px;padding:5px 8px;font-size: 10.5px;">';
+  html += '<button id="cred-save-btn" style="background:#3a6ea5;color:#fff;border:none;border-radius:4px;padding:5px 12px;font-size: 10.5px;cursor:pointer;">保存凭据</button>';
+  html += '</div></div>';
+  // Python 解释器卡
+  let interp = { active: '', list: [] };
+  try { const ir = await window.LabCode.interpreters.list(); if (ir && ir.success) interp = ir; } catch (e) {}
+  html += '<div style="background:#181818;border:1px solid #3c3c3c;border-radius:6px;padding:10px;margin-bottom:8px;">';
+  html += '<div style="font-size: 11.5px;color:#e0e0e0;margin-bottom:6px;">Python 解释器（当前：' + pmEsc(interp.active || '系统默认 python') + '）</div>';
+  html += '<div id="interp-list" style="font-size:11px;color:#ccc;margin-bottom:6px;">未检测——点击「检测本机解释器」</div>';
+  html += '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">';
+  html += '<button id="interp-detect-btn" style="background:#2d5a27;color:#fff;border:1px solid #3f7a36;border-radius:4px;padding:5px 10px;font-size: 10.5px;cursor:pointer;">检测本机解释器</button>';
+  html += '<input id="interp-custom" placeholder="或填自定义 python 路径" style="flex:1;min-width:150px;background:#111;border:1px solid #3c3c3c;color:#e0e0e0;border-radius:4px;padding:5px 8px;font-size: 10.5px;">';
+  html += '<button id="interp-set-btn" style="background:#3a6ea5;color:#fff;border:none;border-radius:4px;padding:5px 10px;font-size: 10.5px;cursor:pointer;">设为默认</button>';
+  html += '<button id="interp-test-btn" style="background:#333;color:#ccc;border:1px solid #555;border-radius:4px;padding:5px 10px;font-size: 10.5px;cursor:pointer;">测试运行</button>';
+  html += '</div></div>';
   html += '<div style="background:#181818;border:1px dashed #3c3c3c;border-radius:6px;padding:10px;margin-bottom:8px;">';
   html += '<div style="font-size: 11.5px;color:#e0e0e0;margin-bottom:6px;">添加自定义供应商</div>';
   html += '<div style="display:flex;gap:6px;flex-wrap:wrap;"><input id="pm-add-id" placeholder="id (如 groq)" style="flex:1;min-width:90px;background:#111;border:1px solid #3c3c3c;color:#e0e0e0;border-radius:4px;padding:5px 8px;font-size: 10.5px;"><input id="pm-add-name" placeholder="名称" style="flex:1;min-width:90px;background:#111;border:1px solid #3c3c3c;color:#e0e0e0;border-radius:4px;padding:5px 8px;font-size: 10.5px;"><select id="pm-add-type" style="background:#111;border:1px solid #3c3c3c;color:#e0e0e0;border-radius:4px;padding:5px 8px;font-size: 10.5px;"><option value="openai">openai</option><option value="local">local</option><option value="ollama">ollama</option><option value="gateway">gateway</option></select></div>';
@@ -18337,6 +18361,51 @@ async function renderProviderManager() {
       await window.LabCode.config.set(next);
       showToast(sttCfg.apiKey ? '语音识别配置已保存' : '语音识别已清空（未填 Key）', 'success');
     } catch (e) { showToast('保存失败: ' + e.message, 'error'); }
+  });
+  // Git 凭据绑定
+  const credSaveBtn = document.getElementById('cred-save-btn');
+  if (credSaveBtn) credSaveBtn.addEventListener('click', async () => {
+    const cwd = state.projectPath || '';
+    if (!cwd) { showToast('请先打开项目（凭据写入该仓库本地配置）', 'warn'); return; }
+    const host = document.getElementById('cred-host').value.trim();
+    const username = document.getElementById('cred-user').value.trim();
+    const secret = document.getElementById('cred-secret').value;
+    const r = await window.LabCode.git.credentials.set({ host, username, secret, cwd });
+    if (r && r.success) { showToast('凭据已保存并注入 ' + host, 'success'); renderProviderManager(); }
+    else showToast('保存失败: ' + ((r && r.error) || ''), 'error');
+  });
+  el.querySelectorAll('[data-cred-del]').forEach(b => b.addEventListener('click', async () => {
+    const r = await window.LabCode.git.credentials.clear({ host: b.getAttribute('data-cred-del'), cwd: state.projectPath || '' });
+    if (r && r.success) { showToast('已删除凭据', 'success'); renderProviderManager(); }
+  }));
+  // Python 解释器绑定
+  const interpDetectBtn = document.getElementById('interp-detect-btn');
+  if (interpDetectBtn) interpDetectBtn.addEventListener('click', async () => {
+    const listEl = document.getElementById('interp-list');
+    listEl.textContent = '检测中…';
+    const r = await window.LabCode.interpreters.detect();
+    if (r && r.success) {
+      const arr = r.interpreters || [];
+      listEl.innerHTML = arr.length ? arr.map(it => '<label style="display:block;padding:2px 0;cursor:pointer;"><input type="radio" name="interp-pick" value="' + pmEsc(it.path) + '"> ' + pmEsc(it.path) + ' <span style="color:#888;">' + pmEsc(it.version || '') + '</span></label>').join('') : '未检测到 Python';
+    } else listEl.textContent = '检测失败: ' + ((r && r.error) || '');
+  });
+  const interpSetBtn = document.getElementById('interp-set-btn');
+  if (interpSetBtn) interpSetBtn.addEventListener('click', async () => {
+    const custom = document.getElementById('interp-custom').value.trim();
+    const picked = document.querySelector('input[name="interp-pick"]:checked');
+    const p = custom || (picked ? picked.value : '');
+    if (!p) { showToast('请先检测并选择，或填自定义路径', 'warn'); return; }
+    const r = await window.LabCode.interpreters.setActive({ path: p });
+    if (r && r.success) { showToast('默认解释器: ' + p, 'success'); renderProviderManager(); }
+    else showToast('设置失败: ' + ((r && r.error) || ''), 'error');
+  });
+  const interpTestBtn = document.getElementById('interp-test-btn');
+  if (interpTestBtn) interpTestBtn.addEventListener('click', async () => {
+    const custom = document.getElementById('interp-custom').value.trim();
+    const picked = document.querySelector('input[name="interp-pick"]:checked');
+    const r = await window.LabCode.interpreters.runPython({ python: custom || (picked ? picked.value : undefined), args: ['-c', 'import sys;print(sys.executable, sys.version.split()[0])'] });
+    if (r && r.success) showToast('Python 运行正常: ' + (r.output || '').trim().slice(0, 90), 'success');
+    else showToast('运行失败: ' + ((r && r.error) || ''), 'error');
   });
   const saveBtn = document.getElementById('pm-save-btn');
   if (saveBtn) saveBtn.addEventListener('click', saveProviderManager);
