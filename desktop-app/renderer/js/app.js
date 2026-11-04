@@ -15295,6 +15295,10 @@ function bindEvents() {
     { id: 'export-bin', title: '导出固件', group: '开发', keywords: 'export binary 导出 固件', run: () => runExportBinary() },
     { id: 'wokwi-sim', title: 'Wokwi 仿真运行', group: '开发', keywords: 'wokwi simulate 仿真 模拟 运行', run: () => runWokwiSim() },
     { id: 'hw-lab', title: 'AI 硬件拆解工坊', group: 'AI', keywords: '硬件 拆解 选型 接线 手搓 hwlab 工坊', run: () => openHwLab() },
+    { id: 'focus-ai-input', title: '聚焦 AI 输入框', group: '导航', keywords: 'ai input 聚焦 输入框', run: () => { const el = document.getElementById('ai-input'); if (el) el.focus(); } },
+    { id: 'about-labcode', title: '关于 LabCode', group: '帮助', keywords: 'about 关于 版本', run: () => { alert('LabCode'); } },
+    { id: 'check-update', title: '检查更新', group: '帮助', keywords: 'update 更新', run: async () => { try { const r = await window.LabCode.updater.check(); showToast((r && r.version) ? ('最新版本 ' + r.version) : ('检查完成：' + (r && r.error || '当前已是最新')), 'info'); } catch (e) { showToast('检查失败: ' + e.message, 'error'); } } },
+    { id: 'open-website', title: '打开官网', group: '帮助', keywords: 'website 官网 主页', run: () => { if (window.LabCode && window.LabCode.shell) window.LabCode.shell.openExternal('https://chipcode.cn'); } },
   ];
 
   // ===== AI 硬件拆解工坊（黄白手搓风：一句话 → 六段方案，进度点逐亮）=====
