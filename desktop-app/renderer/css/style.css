@@ -5037,6 +5037,26 @@ body.no-open-file .editor-toolbar { display: none !important; }
 .plg-row:hover { border-color: var(--border-dark); box-shadow: 0 3px 10px rgba(16,24,40,.08); }
 .plg-row-ic { width: 22px; height: 22px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 18px; background: transparent; border-radius: 6px; }
 .plg-row-ic .brand-ic { width: 22px; height: 22px; }
+/* ===== 插件市场字体统一 12px（对齐 ChipCode 页面；此前 10~13px 七种混用） ===== */
+#plugins-panel .plugins-tab,
+#plugins-panel .plg-row,
+#plugins-panel .plg-name,
+#plugins-panel .plg-ver,
+#plugins-panel .plg-desc,
+#plugins-panel .plg-row-desc,
+#plugins-panel .plg-src,
+#plugins-panel .plg-installed,
+#plugins-panel .plg-ic-btn,
+#plugins-panel .btn-sm,
+#plugins-panel .plg-empty,
+#plugins-panel .panel-title,
+#plugins-panel .panel-header { font-size: 12px; }
+/* 列表内文字（含内联 style 的提示条）统一 12px；空态图标保留原尺寸 */
+#plugins-panel #plugins-list div,
+#plugins-panel #plugins-list span,
+#plugins-panel #plugins-list a,
+#plugins-panel #plugins-list button { font-size: 12px !important; }
+#plugins-panel #plugins-list .plg-empty > div:first-child { font-size: 26px !important; }
 .plg-row-body { flex: 1 1 160px; min-width: 0; }
 .plg-row-top { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .plg-row-act { flex-shrink: 0; display: flex; align-items: center; gap: 3px; }
