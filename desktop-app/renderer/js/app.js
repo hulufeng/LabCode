@@ -12326,6 +12326,7 @@ function bindEvents() {
       };
       showToast(desc[state.mode], 'info');
       addOutputLog(`切换到 ${state.mode} 模式`, 'info');
+      syncSafetyModeUI();
     });
   });
 
@@ -12339,6 +12340,8 @@ function bindEvents() {
     document.querySelectorAll('.mode-btn').forEach(b => {
       b.classList.toggle('active', b.dataset.mode === activeMode);
     });
+    const mEl = document.getElementById('status-mode');
+    if (mEl) mEl.textContent = '模式：' + ({ auto: '自动', default: '默认', plan: '计划' }[activeMode] || '默认');
   }
   document.querySelectorAll('.safety-mode-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -12358,6 +12361,7 @@ function bindEvents() {
       };
       showToast(desc[state.mode], 'info');
       addOutputLog(`切换到 ${state.mode} 模式（AI 面板）`, 'info');
+      syncSafetyModeUI();
     });
   });
   syncSafetyModeUI();
