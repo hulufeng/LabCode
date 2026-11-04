@@ -3961,6 +3961,147 @@ class ThinkingManager {
 }
 const thinkingManager = new ThinkingManager();
 
+// ---------- 2.4b 模型上下文窗口规格表（对齐 TrieCode core/model-specs.js：单一来源）----------
+// 用途：AI 面板上下文占用环 / （后续）压缩阈值 / 输出上限防越界。
+// 数据纪律同 TrieCode：仅收录有官方口径依据的型号；查不到走保守兜底并告警一次，不编数字。
+const MODEL_SPECS = {
+  // ── OpenAI ──
+  'gpt-4.1': { contextWindow: 1047576, maxOutput: 32768 },
+  'gpt-4.1-mini': { contextWindow: 1047576, maxOutput: 32768 },
+  'gpt-4o': { contextWindow: 128000, maxOutput: 16384 },
+  'gpt-5.6-terra': { contextWindow: 1050000, maxInput: 922000, maxOutput: 128000 },
+  'gpt-5.6-luna': { contextWindow: 1050000, maxInput: 922000, maxOutput: 128000 },
+  // ── Anthropic ──
+  'claude-sonnet-5': { contextWindow: 1000000, maxOutput: 128000 },
+  'claude-opus-5': { contextWindow: 1000000, maxOutput: 128000 },
+  'claude-haiku-4-5': { contextWindow: 200000, maxOutput: 65536 },
+  // ── DeepSeek ──
+  'deepseek-v4-pro': { contextWindow: 1000000, maxOutput: 393216 },
+  'deepseek-v4-flash': { contextWindow: 1000000, maxOutput: 393216 },
+  // ── Qwen（百炼）──
+  'qwen3.7-max': { contextWindow: 1000000, maxInput: 991808, maxOutput: 131072 },
+  'qwen3.7-plus': { contextWindow: 1000000, maxInput: 991808, maxOutput: 131072 },
+  'qwen3.6-flash': { contextWindow: 1000000, maxOutput: 65536 },
+  // ── Moonshot Kimi ──
+  'kimi-k3': { contextWindow: 1048576, maxOutput: 131072 },
+  'kimi-k2.7-code': { contextWindow: 262144, maxOutput: 32768 },
+  'kimi-k2.7-code-highspeed': { contextWindow: 262144, maxOutput: 32768 },
+  'kimi-k2.6': { contextWindow: 262144 },
+  // ── 智谱 GLM ──
+  'glm-5.2': { contextWindow: 1000000, maxOutput: 131072 },
+  'glm-5.1': { contextWindow: 200000, maxOutput: 131072 },
+  'glm-5': { contextWindow: 200000, maxOutput: 131072 },
+  'glm-4.6': { contextWindow: 200000, maxOutput: 131072 },
+  // ── 豆包（火山方舟）──
+  'doubao-seed-2.0-lite': { contextWindow: 262144, maxInput: 224000, maxOutput: 131072 },
+  'doubao-seed-2.0-mini': { contextWindow: 262144, maxInput: 224000, maxOutput: 131072 },
+  // ── MiniMax（窗口=输入+输出总额）──
+  'MiniMax-M3': { contextWindow: 1000000, maxInput: 868928, maxOutput: 131072 },
+  'MiniMax-M2.7': { contextWindow: 204800, maxInput: 139264, maxOutput: 65536 },
+  'MiniMax-M2.5': { contextWindow: 204800, maxInput: 139264, maxOutput: 65536 },
+  // ── LabCode 本地/网关（保守值：本地模型窗口随运行时配置，按常见默认）──
+  'qwen3-8b': { contextWindow: 131072, maxOutput: 32768 },
+  'qwen2.5-coder:7b': { contextWindow: 32768, maxOutput: 8192 },
+  'qwen2.5:7b': { contextWindow: 32768, maxOutput: 8192 },
+  'deepseek-coder:6.7b': { contextWindow: 16384, maxOutput: 8192 },
+  'deepseek-r1:8b': { contextWindow: 32768, maxOutput: 8192 },
+  'llama3.2': { contextWindow: 131072, maxOutput: 8192 },
+  'qwen3': { contextWindow: 40960, maxOutput: 8192 },
+  'codellama': { contextWindow: 16384, maxOutput: 8192 },
+  'mistral': { contextWindow: 32768, maxOutput: 8192 },
+};
+const MODEL_SPEC_PREFIX_RULES = [
+  [/^qwen3\.8-max/, 'qwen3.7-max'],
+  [/^claude-(opus|sonnet)-5/, 'claude-opus-5'],
+  [/^claude-haiku-4-5/, 'claude-haiku-4-5'],
+  [/^gpt-4\.1(?!-mini)/, 'gpt-4.1'],
+  [/^deepseek-v4/, 'deepseek-v4-pro'],
+  [/^kimi-k3/, 'kimi-k3'],
+  [/^kimi-k2\.7/, 'kimi-k2.7-code'],
+  [/^minimax-m3/i, 'MiniMax-M3'],
+  [/^minimax-m2/i, 'MiniMax-M2.7'],
+  [/^doubao-seed-2\.0/, 'doubao-seed-2.0-lite'],
+  [/^glm-5\.2/, 'glm-5.2'],
+  [/^qwen2\.5-coder/, 'qwen2.5-coder:7b'],
+  [/^deepseek-coder/, 'deepseek-coder:6.7b'],
+];
+let _modelSpecWarned = false;
+/** 规格查表：精确 → 同族前缀；都未命中返回 undefined（调用方走保守兜底） */
+function modelSpecOf(model) {
+  const id = String(model || '').trim();
+  if (!id) return undefined;
+  const lower = id.toLowerCase();
+  const exact = MODEL_SPECS[lower] ?? MODEL_SPECS[id];
+  if (exact) return exact;
+  for (const [re, key] of MODEL_SPEC_PREFIX_RULES) {
+    if (re.test(lower)) return MODEL_SPECS[key];
+  }
+  return undefined;
+}
+/** 单次可用输入预算（优先官方 maxInput，否则窗口）；未知模型回落 32k 保守值 */
+function inputBudgetOf(model) {
+  const s = modelSpecOf(model);
+  if (!s) {
+    if (!_modelSpecWarned) { _modelSpecWarned = true; addOutputLog('模型窗口未知（' + model + '），上下文占用按 32k 保守估算', 'warn'); }
+    return 32768;
+  }
+  const b = s.maxInput ?? s.contextWindow;
+  return b > 0 ? b : s.contextWindow;
+}
+/** 单次最大输出；未知返回 undefined（不要写死 32768——正是 TrieCode 注释里 gpt-4o 越界 400 的原因） */
+function maxOutputOf(model) { const s = modelSpecOf(model); return s ? s.maxOutput : undefined; }
+
+// ---------- 2.4c 上下文占用环（对齐 TrieCode 上下文圆环：估算 token/模型窗口）----------
+function estimateTextTokens(text) {
+  const s = String(text || '');
+  let cjk = 0;
+  for (const ch of s) { const c = ch.codePointAt(0); if (c >= 0x2e80) cjk++; }
+  const other = s.length - cjk;
+  return Math.ceil(cjk * 1.0 + other / 3.5);
+}
+function estimateConversationTokens() {
+  const log = window._chatLog || [];
+  let t = 900; // 系统提示 + 工具定义保守底数
+  for (const m of log) t += estimateTextTokens(m.content) + 8;
+  return Math.ceil(t * 1.15); // 工具调用/结果往返经验 overhead
+}
+let _ctxModelCache = { id: '', at: 0 };
+async function resolveCurrentModelId() {
+  const direct = state.modelId || state.model || '';
+  if (direct) return direct;
+  if (Date.now() - _ctxModelCache.at > 5000) {
+    try {
+      const c = await window.LabCode.config.get();
+      _ctxModelCache = { id: (c && c.ai && c.ai.model) || '', at: Date.now() };
+    } catch (e) { /* 配置读取失败按未知模型兜底 */ }
+  }
+  return _ctxModelCache.id;
+}
+let _ctxRingScheduled = false;
+function scheduleCtxRing() {
+  if (_ctxRingScheduled) return;
+  _ctxRingScheduled = true;
+  requestAnimationFrame(() => { _ctxRingScheduled = false; updateContextRing(); });
+}
+async function updateContextRing() {
+  const el = document.getElementById('ctx-ring');
+  if (!el) return;
+  const model = await resolveCurrentModelId();
+  const budget = inputBudgetOf(model);
+  const used = estimateConversationTokens();
+  const pct = Math.max(0, Math.min(1, used / budget));
+  const R = 7, C = 2 * Math.PI * R;
+  const dash = (pct * C).toFixed(1);
+  const color = pct > 0.85 ? '#ef4444' : (pct > 0.6 ? '#f59e0b' : '#22c55e');
+  el.innerHTML = '<svg width="18" height="18" viewBox="0 0 18 18" style="display:block;">' +
+    '<circle cx="9" cy="9" r="7" fill="none" stroke="rgba(128,128,128,.35)" stroke-width="2.5"/>' +
+    '<circle cx="9" cy="9" r="7" fill="none" stroke="' + color + '" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="' + dash + ' ' + C.toFixed(1) + '" transform="rotate(-90 9 9)"/>' +
+    '</svg>';
+  const fmt = n => n >= 1024 ? (n / 1024).toFixed(1) + 'k' : String(n);
+  el.title = '上下文占用（估算）≈ ' + fmt(used) + ' / ' + fmt(budget) + ' tokens（' + Math.round(pct * 100) + '%）' + (model ? ' · ' + model : '') + (modelSpecOf(model) ? '' : ' · 模型窗口未知，按 32k 保守估算');
+  el.style.display = 'inline-flex';
+}
+
 // ---------- 2.5 Skill 系统（SkillManager）----------
 // 参考 Omarchy Skill 标准结构：YAML frontmatter + When MUST Be Used +
 // Critical Safety Rules + Decision Framework + Example Requests
@@ -7287,6 +7428,8 @@ function addChatMessage(role, content) {
   // 会话历史：把每条消息写入日志（新对话/历史面板据此持久化）
   if (!window._chatLog) window._chatLog = [];
   window._chatLog.push({ role: role === 'ai' ? 'assistant' : 'user', content: content || '' });
+  // 上下文占用环随消息更新（对齐 TrieCode 上下文圆环）
+  if (typeof scheduleCtxRing === 'function') scheduleCtxRing();
   return bubble;
 }
 
@@ -12280,6 +12423,7 @@ function bindEvents() {
     }
     state.agent = null;
     window._chatLog = [];
+    if (typeof scheduleCtxRing === 'function') scheduleCtxRing();
     showToast('已开始新对话', 'info');
   }
   // 新对话按钮绑定（对齐 TrieCode：点击后回到欢迎页）
@@ -12293,6 +12437,9 @@ function bindEvents() {
   if (aiRedoBtn) aiRedoBtn.addEventListener('click', () => redoLastAgentTurn());
   const aiHistoryBtn = document.getElementById('ai-history-btn');
   if (aiHistoryBtn) aiHistoryBtn.addEventListener('click', openHistoryPanel);
+
+  // 上下文占用环：初始渲染 + 模型切换跟随（占用环显示当前模型窗口用量）
+  if (typeof scheduleCtxRing === 'function') scheduleCtxRing();
 
   // 新建文件按钮绑定（浅色主题下元素为 quick-new-file；兼容旧 id）
   const newFileBtn = document.getElementById('new-file-btn') || document.getElementById('quick-new-file');
