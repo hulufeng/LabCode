@@ -948,7 +948,7 @@ input, textarea {
 }
 
 /* ============================================
-   欢迎面板（侧栏下方 · 简洁友好版）
+   欢迎面板（1:1 复刻 ChipCode「开始你的开发」）
    ============================================ */
 .welcome-panel {
   flex: 1;
@@ -960,56 +960,64 @@ input, textarea {
   justify-content: center;
   width: 100%;
   box-sizing: border-box;
-  gap: 8px;
+  gap: 0;
 }
-
 .welcome-panel-icon {
-  width: 42px;
-  height: 42px;
-  margin: 0 auto 10px;
+  width: 60px;
+  height: 60px;
+  margin: 0 auto 18px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--bg-hover);
-  border-radius: 12px;
-  color: var(--primary, #3b82f6);
+  background: #e8f0ff;
+  border-radius: 50%;
+  color: #2563eb;
 }
-.welcome-panel-icon .icon { width: 21px; height: 21px; }
-
+.welcome-panel-icon .icon { width: 27px; height: 27px; }
 .welcome-panel-title {
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 17px;
+  font-weight: 700;
   color: var(--text-primary);
-  margin: 0;
+  margin: 0 0 10px;
 }
-
 .welcome-panel-desc {
-  font-size: 12px;
+  font-size: 12.5px;
   color: var(--text-tertiary);
-  line-height: 1.5;
-  margin: 0 0 26px;
+  line-height: 1.75;
+  margin: 0 0 24px;
+  max-width: 240px;
 }
-
 .welcome-panel-actions {
   display: flex;
   flex-direction: column;
   gap: 10px;
   width: 100%;
-  max-width: 320px;
+  max-width: 208px;
 }
 .welcome-panel-actions .btn {
-  height: 42px;
+  height: 40px;
   border-radius: 8px;
   font-size: 12.5px;
 }
-
-/* 最近打开（紧凑） */
+.welcome-panel-actions .btn-primary {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
+  font-weight: 600;
+}
+.welcome-panel-actions .btn-secondary {
+  background: var(--bg-primary, #fff);
+  border: 1px solid var(--border-color, #d8dde6);
+  color: var(--text-primary);
+}
+/* 最近打开：左对齐、无分割线，与截图一致 */
 .recent-panel {
   width: 100%;
-  max-width: 320px;
-  padding: 16px 4px 0;
-  border-top: 1px solid var(--border-light);
-  margin-top: 24px;
+  max-width: 208px;
+  padding: 22px 0 0;
+  border-top: none;
+  margin-top: 8px;
+  text-align: left;
   flex-shrink: 0;
   box-sizing: border-box;
 }
@@ -1019,23 +1027,23 @@ input, textarea {
   gap: 6px;
   font-size: 11px;
   color: var(--text-tertiary);
-  padding: 4px 4px;
+  padding: 2px 4px 8px;
   letter-spacing: .3px;
 }
 .recent-header .icon { width: 13px; height: 13px; opacity: .8; }
-.recent-list { display: flex; flex-direction: column; gap: 1px; }
+.recent-list { display: flex; flex-direction: column; gap: 2px; }
 .recent-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 5px 8px;
-  font-size: 12px;
+  gap: 9px;
+  padding: 6px 6px;
+  font-size: 12.5px;
   color: var(--text-secondary);
   border-radius: 6px;
   cursor: pointer;
 }
 .recent-item:hover { background: var(--bg-hover); color: var(--text-primary); }
-.recent-item .icon { width: 13px; height: 13px; color: var(--text-tertiary); }
+.recent-item .icon { width: 14px; height: 14px; color: var(--text-tertiary); }
 
 /* ============================================
    编辑器容器

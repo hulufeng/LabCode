@@ -10573,7 +10573,8 @@ function bindEvents() {
   // ===== 官方市场 = ChipCode/TrieCode 官网真实插件（https://www.chipcode.cn/api/plugins）=====
   // 9 个功能插件 id / 版本 / 名称与官网清单一致，安装时从官网 /api/plugins/download/<id>.zip 真实下载。
   // 第 10 个「AI 硬件拆解工坊」是本地真插件（有 manifest 工具 + 宿主服务 + 面板）。
-  const CHIPCODE_MARKET_ORIGIN = 'https://www.chipcode.cn';
+  // 自有官网（codelab-site）默认域名；可在 config.json 的 pluginMarketURL 覆盖
+  const OWN_MARKET_ORIGIN = 'https://bluebubai.work';
   const MARKET_CATALOG = {
     'plugin-dev-toolchain': { name: '插件开发工具链', version: '0.1.1', icon: '🧩', category: 'tool', description: '让 AI 帮你创建插件：AI 完全主导插件脚手架、manifest 与工具实现' },
     'arduino-cli-toolchain': { name: 'Arduino CLI 工具链', version: '0.3.11', icon: '♾️', category: 'tool', description: 'Arduino CLI 工具链插件：声明式工具后端（arduino-cli 编译 / 上传 / 板卡管理）' },
@@ -10733,30 +10734,33 @@ function bindEvents() {
     marketFailAt = Date.now();
   }
 
-  // ===== 官网真实插件市场（ChipCode/TrieCode）：9 个插件 + 真实 zip 下载地址 =====
-  async function fetchChipcodePlugins() {
+  // ===== 自有官网插件市场（参考 ChipCode 官网 API 形态，在 codelab-site 部署）=====
+  // 市场源走可配置的 pluginMarketURL（config.json），默认 https://bluebubai.work；
+  // 部署到自己的域名后只需在配置里改 pluginMarketURL，客户端即连自己的官网。
+  async function fetchOwnMarketPlugins() {
     try {
+      const origin = (await getPluginMarketURL()) || OWN_MARKET_ORIGIN;
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 30000);
-      const res = await fetch(CHIPCODE_MARKET_ORIGIN + '/api/plugins', { signal: controller.signal, cache: 'no-store' });
+      const res = await fetch(origin + '/api/plugins', { signal: controller.signal, cache: 'no-store' });
       clearTimeout(timer);
       if (!res.ok) return [];
       const data = await res.json();
       const items = Array.isArray(data) ? data : (data.plugins || data.items || []);
       return items.filter(p => p && p.id && MARKET_IDS.has(p.id)).map(p => ({
         id: p.id, name: p.name, description: p.description || '', version: p.version || '1.0.0',
-        author: p.developer || p.author || 'TrieCode', icon: p.icon || '📦',
+        author: p.developer || p.author || 'LabCode', icon: p.icon || '📦',
         category: p.category || 'tool', channels: ['http'], capabilities: [],
         // 官网 downloadUrl 是相对路径，拼成绝对地址供 installFromZipball 下载
-        downloadUrl: /^https?:/i.test(String(p.downloadUrl || '')) ? p.downloadUrl : CHIPCODE_MARKET_ORIGIN + String(p.downloadUrl || ''),
-        source: 'chipcode'
+        downloadUrl: /^https?:/i.test(String(p.downloadUrl || '')) ? p.downloadUrl : origin + String(p.downloadUrl || ''),
+        source: 'own-site'
       }));
     } catch (e) { return []; }
   }
 
   async function fetchRemotePlugins() {
     if (marketShouldSkip()) { remotePlugins = []; remoteMarketOnline = false; return; }
-    const chipcode = await fetchChipcodePlugins();
+    const chipcode = await fetchOwnMarketPlugins();
     let gateway = [];
     let hidden = [];
     try {
@@ -10833,8 +10837,8 @@ function bindEvents() {
       if (!list.some(p => p.id === id)) {
         list.push({
           id: id, ...MARKET_CATALOG[id], author: 'TrieCode', channels: ['http'], capabilities: [],
-          source: id === 'ai-hardware-lab' ? 'builtin' : 'chipcode',
-          downloadUrl: CHIPCODE_MARKET_ORIGIN + '/api/plugins/download/' + id + '.zip'
+          source: id === 'ai-hardware-lab' ? 'builtin' : 'own-site',
+          downloadUrl: OWN_MARKET_ORIGIN + '/api/plugins/download/' + id + '.zip'
         });
       }
     });
@@ -11929,10 +11933,10 @@ function bindEvents() {
     // 复用共享 installFromZipball 链路（与社区插件同一套下载/校验/解压/进度逻辑）。
     let remoteInstall = null;
     // 官网真实插件：直接下载 ChipCode/TrieCode 官方 zip（完整 plugin.json + ui/），不走 GitHub 试探
-    if (plugin.source === 'chipcode' && plugin.downloadUrl && plugin.category !== 'ai-model') {
+    if (plugin.source === 'own-site' && plugin.downloadUrl && plugin.category !== 'ai-model') {
       try {
         // label 会拼进临时 zip 文件名，必须用 ASCII（中文路径在终端编码下会下载失败）
-        const cc = await installFromZipball(plugin.downloadUrl, null, plugin, 'ChipCode');
+        const cc = await installFromZipball(plugin.downloadUrl, null, plugin, 'LabCodeSite');
         remoteInstall = cc.result;
         addOutputLog('✅ 已从官网安装「' + plugin.name + ' v' + plugin.version + '」（' + cc.sizeKB + ' KB，注册 ' + (cc.result.tools || 0) + ' 个工具、' + (cc.result.skills || 0) + ' 条技能）', 'success');
       } catch (ce) {
