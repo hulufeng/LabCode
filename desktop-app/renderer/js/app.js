@@ -12313,21 +12313,21 @@ function bindEvents() {
   // 启动时拉取远程插件市场与社区插件（失败自动回退内置目录，不阻塞界面）
   fetchRemotePlugins().then(() => { fetchCommunityPlugins().then(() => { renderPluginsList(); }); });
 
-  document.querySelectorAll('.mode-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      state.mode = btn.dataset.mode;
-      if (state.agent) state.agent.mode = state.mode;
-      const desc = {
-        plan: 'Plan 模式：AI 只规划不执行，需提交计划并批准后才能修改/执行',
-        default: 'Default 模式：AI 自动执行，修改/执行类操作需确认',
-        auto: 'Auto 模式：AI 全自动执行，仅高风险操作需确认'
-      };
-      showToast(desc[state.mode], 'info');
-      addOutputLog(`切换到 ${state.mode} 模式`, 'info');
-      syncSafetyModeUI();
-    });
+  // 模式切换统一用 document 事件委托：避免按钮渲染时序早于绑定导致点击失效
+  const MODE_DESC = {
+    plan: { plain: 'Plan 模式：AI 只规划不执行，需提交计划并批准后才能修改/执行', panel: '📋 计划模式：AI 只读探索，先提交计划待批准后执行' },
+    default: { plain: 'Default 模式：AI 自动执行，修改/执行类操作需确认', panel: '🛡️ 默认模式：写文件/执行命令需用户确认' },
+    auto: { plain: 'Auto 模式：AI 全自动执行，仅高风险操作需确认', panel: '⚡ 自动模式：低风险操作自动执行，仅高风险需确认' }
+  };
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('.safety-mode-btn, .mode-btn');
+    if (!btn || !btn.dataset || !btn.dataset.mode) return;
+    state.mode = btn.dataset.mode;
+    if (state.agent) state.agent.mode = state.mode;
+    const isPanel = btn.classList.contains('safety-mode-btn');
+    showToast((MODE_DESC[state.mode] || MODE_DESC.default)[isPanel ? 'panel' : 'plain'], 'info');
+    addOutputLog(`切换到 ${state.mode} 模式${isPanel ? '（AI 面板）' : ''}`, 'info');
+    syncSafetyModeUI();
   });
 
   // ===== 自研本体 P0-2：AI 面板顶部安全模式三按钮（⚡自动/🛡️默认/📋计划）=====
@@ -12343,27 +12343,8 @@ function bindEvents() {
     const mEl = document.getElementById('status-mode');
     if (mEl) mEl.textContent = '模式：' + ({ auto: '自动', default: '默认', plan: '计划' }[activeMode] || '默认');
   }
-  document.querySelectorAll('.safety-mode-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      state.mode = btn.dataset.mode;
-      if (state.agent) state.agent.mode = state.mode;
-      // 更新自身 + 底部模式按钮（如果存在）的 active 状态
-      document.querySelectorAll('.safety-mode-btn').forEach(b => {
-        b.classList.toggle('active', b.dataset.mode === state.mode);
-      });
-      document.querySelectorAll('.mode-btn').forEach(b => {
-        b.classList.toggle('active', b.dataset.mode === state.mode);
-      });
-      const desc = {
-        plan: '📋 计划模式：AI 只读探索，先提交计划待批准后执行',
-        default: '🛡️ 默认模式：写文件/执行命令需用户确认',
-        auto: '⚡ 自动模式：低风险操作自动执行，仅高风险需确认'
-      };
-      showToast(desc[state.mode], 'info');
-      addOutputLog(`切换到 ${state.mode} 模式（AI 面板）`, 'info');
-      syncSafetyModeUI();
-    });
-  });
+  // 注意：.safety-mode-btn 的点击已并入上方 document 事件委托
+
   syncSafetyModeUI();
 
   const aiInput = document.getElementById('ai-input');
