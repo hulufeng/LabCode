@@ -11948,6 +11948,8 @@ function bindEvents() {
     await new Promise(r => setTimeout(r, 800));
     installedPlugins.push({ ...plugin, installedAt: Date.now(), tools: installedTools });
     saveInstalledPlugins();
+    // 安装状态一落盘就刷新活动栏入口（不依赖后面的「是否立即启用」提示，用户不点也能即时生效）
+    try { refreshPluginActivityButtons(); syncToolchainActivityButtons(); } catch (e) {}
     setInstallProgress(100, hasManifest ? '安装完成' : '登记完成');
     await new Promise(r => setTimeout(r, 800));
     hideInstallModal();
