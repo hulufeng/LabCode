@@ -12413,7 +12413,17 @@ function bindEvents() {
       const area = document.getElementById('ai-chat-area');
       Array.from(area.children).forEach(function(c){ if (c.id !== 'ai-welcome') c.remove(); });
       const welcome = document.getElementById('ai-welcome');
-      if (welcome) welcome.style.display = 'none';
+      if (welcome) {
+        // 对齐发送消息逻辑：欢迎页隐藏前把输入框/项目栏移回面板底部（否则输入框随欢迎页一起消失）
+        const panel = document.getElementById('ai-panel');
+        const inputContainer = document.getElementById('ai-input-container');
+        const projectBar = document.getElementById('ai-project-bar');
+        if (panel && inputContainer && inputContainer.parentNode === welcome) {
+          panel.appendChild(inputContainer);
+          panel.appendChild(projectBar);
+        }
+        welcome.style.display = 'none';
+      }
       window._chatLog = [];
       (s.messages || []).forEach(function(m){ addChatMessage(m.role === 'assistant' ? 'ai' : 'user', m.content); });
       // 重建 agent 上下文，使「继续对话」可用
@@ -12498,6 +12508,12 @@ function bindEvents() {
         welcome.appendChild(inputContainer);
         welcome.appendChild(projectBar);
       }
+      // 对齐 ChipCode：快捷建议保持在最末（输入框/项目栏之后）并刷新最近会话列表
+      const quickActions = welcome.querySelector('.ai-quick-actions');
+      if (quickActions) welcome.appendChild(quickActions);
+      if (typeof window.renderWelcomeHistory === 'function') window.renderWelcomeHistory('');
+      const whs = document.getElementById('welcome-history-search');
+      if (whs) whs.value = '';
     }
     state.agent = null;
     window._chatLog = [];
@@ -12548,6 +12564,65 @@ function bindEvents() {
   }
   const aiHistoryBtn = document.getElementById('ai-history-btn');
   if (aiHistoryBtn) aiHistoryBtn.addEventListener('click', openHistoryPanel);
+
+  // ===== 对齐 ChipCode：欢迎页顶部常驻历史搜索 + 最近会话（复用同一存储 labcode.chatSessions）=====
+  function renderWelcomeHistory(q) {
+    try {
+      const listEl = document.getElementById('welcome-history-list');
+      if (!listEl) return;
+      q = (q || '').trim().toLowerCase();
+      let list = JSON.parse(localStorage.getItem('labcode.chatSessions') || '[]');
+      if (q) list = list.filter(function(s){
+        if ((s.title || '').toLowerCase().indexOf(q) >= 0) return true;
+        return (s.messages || []).some(function(m){ return (m.content || '').toLowerCase().indexOf(q) >= 0; });
+      });
+      const top = list.slice(0, 3);
+      if (!top.length) {
+        listEl.innerHTML = '<div class="ai-welcome-hist-empty">' + (q ? '没有匹配的历史会话' : '暂无历史会话') + '</div>';
+        return;
+      }
+      listEl.innerHTML = top.map(function(s){
+        const d = new Date(s.ts || Date.now());
+        const ds = d.getFullYear() + '/' + (d.getMonth() + 1) + '/' + d.getDate();
+        return '<div class="ai-welcome-hist-item" data-sid="' + s.id + '">' +
+          '<div class="ai-welcome-hist-main"><div class="ai-welcome-hist-title">' + (s.title || '对话') + '</div>' +
+          '<div class="ai-welcome-hist-date">' + ds + '</div></div>' +
+          '<button class="ai-welcome-hist-del" data-sid="' + s.id + '" title="删除会话">🗑</button></div>';
+      }).join('');
+      listEl.querySelectorAll('.ai-welcome-hist-item').forEach(function(item){
+        item.addEventListener('click', function(e){
+          if (e.target.classList.contains('ai-welcome-hist-del')) return;
+          loadSession(item.getAttribute('data-sid'));
+        });
+      });
+      listEl.querySelectorAll('.ai-welcome-hist-del').forEach(function(btn){
+        btn.addEventListener('click', function(e){
+          e.stopPropagation();
+          const id = btn.getAttribute('data-sid');
+          let l = JSON.parse(localStorage.getItem('labcode.chatSessions') || '[]');
+          l = l.filter(function(x){ return x.id !== id; });
+          localStorage.setItem('labcode.chatSessions', JSON.stringify(l));
+          renderWelcomeHistory(document.getElementById('welcome-history-search').value);
+        });
+      });
+    } catch (e) { /* 欢迎页历史渲染失败不影响主流程 */ }
+  }
+  window.renderWelcomeHistory = renderWelcomeHistory;
+  const welcomeHistorySearch = document.getElementById('welcome-history-search');
+  if (welcomeHistorySearch) welcomeHistorySearch.addEventListener('input', function(){ renderWelcomeHistory(welcomeHistorySearch.value); });
+  renderWelcomeHistory('');
+  // pill：写代码 → 聚焦输入框；做产品 → 打开产品工厂
+  const welcomePillCode = document.getElementById('welcome-pill-code');
+  if (welcomePillCode) welcomePillCode.addEventListener('click', function(){
+    const input = document.getElementById('ai-input');
+    if (input) { input.focus(); }
+  });
+  const welcomePillProduct = document.getElementById('welcome-pill-product');
+  if (welcomePillProduct) welcomePillProduct.addEventListener('click', function(){
+    const pfBtn = document.querySelector('.activity-btn[data-panel="product-factory"]');
+    if (pfBtn) pfBtn.click();
+    else showToast('产品工厂入口未找到', 'error');
+  });
 
   // 上下文占用环：初始渲染 + 模型切换跟随（占用环显示当前模型窗口用量）
   if (typeof scheduleCtxRing === 'function') scheduleCtxRing();

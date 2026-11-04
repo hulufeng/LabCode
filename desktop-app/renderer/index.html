@@ -1042,31 +1042,31 @@
         <button class="chat-scroll-bottom" id="chat-scroll-bottom" style="display:none;">↓ 回到底部</button>
         <!-- 欢迎页（无消息时显示，1:1 对齐 TrieCode） -->
         <div class="ai-welcome" id="ai-welcome">
+          <!-- 对齐 ChipCode：欢迎页顶部常驻历史搜索 + 最近会话列表 -->
+          <div class="ai-welcome-history" id="ai-welcome-history">
+            <div class="ai-welcome-search">
+              <svg class="icon icon-xs"><use href="#icon-search"></use></svg>
+              <input id="welcome-history-search" placeholder="搜索历史会话内容…" autocomplete="off" />
+            </div>
+            <div class="ai-welcome-history-list" id="welcome-history-list"></div>
+          </div>
           <h1 class="ai-welcome-title">今天想聊些什么？</h1>
-          <p class="ai-welcome-subtitle">提问、创建项目、写代码、编译上传——都可以告诉我</p>
-          <div class="ai-welcome-features">
-            <div class="ai-feature-item"><span class="ai-feature-dot"></span>擅长项目迭代、问题修复与架构重构</div>
-            <div class="ai-feature-item"><span class="ai-feature-dot"></span>智能任务规划，确认后精准推进执行</div>
-            <div class="ai-feature-item"><span class="ai-feature-dot"></span>自主编排智能体，AI 专家团队协同开发</div>
+          <!-- 对齐 ChipCode：标题下「写代码 / 做产品」快捷 pill -->
+          <div class="ai-welcome-pills">
+            <button class="ai-welcome-pill" id="welcome-pill-code"><svg class="icon icon-xs"><use href="#icon-code"></use></svg>写代码</button>
+            <button class="ai-welcome-pill" id="welcome-pill-product"><svg class="icon icon-xs"><use href="#icon-chip"></use></svg>做产品</button>
           </div>
-          <div class="ai-quick-actions">
-            <button class="ai-quick-btn" data-action="web-game">
-              <span class="ai-quick-icon"><svg class="icon"><use href="#icon-rocket"></use></svg></span>
-              <span class="ai-quick-text">分析这段固件代码为什么编译失败</span>
-            </button>
-            <button class="ai-quick-btn" data-action="ide-intro">
-              <span class="ai-quick-icon"><svg class="icon"><use href="#icon-puzzle"></use></svg></span>
-              <span class="ai-quick-text">介绍一下这个 IDE 能帮我做什么</span>
-            </button>
-            <button class="ai-quick-btn" data-action="todo-tool">
-              <span class="ai-quick-icon"><svg class="icon"><use href="#icon-code"></use></svg></span>
-              <span class="ai-quick-text">帮我把这个项目改成 ESP32 版本</span>
-            </button>
-            <button class="ai-quick-btn" data-action="python-project">
-              <span class="ai-quick-icon"><svg class="icon"><use href="#icon-sparkles"></use></svg></span>
-              <span class="ai-quick-text">帮我创建一个 Python 项目，画个太阳系</span>
-            </button>
+          <!-- 对齐 ChipCode：欢迎页硬件模拟器预览卡片 -->
+          <div class="ai-welcome-sim" id="ai-welcome-sim" title="硬件模拟器预览">
+            <div class="ai-welcome-sim-screen">
+              <svg viewBox="0 0 220 56" preserveAspectRatio="none" class="sim-wave">
+                <polyline points="0,38 15,34 30,40 45,29 60,36 75,26 90,34 105,23 120,32 135,21 150,30 165,19 180,28 195,17 210,26 220,21" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linejoin="round"/>
+              </svg>
+              <span class="sim-tag">D4 · 3V</span><span class="sim-tag">2 Sec</span>
+            </div>
+            <div class="ai-welcome-sim-knobs"><span class="sim-knob"></span><span class="sim-knob"></span></div>
           </div>
+          <!-- AI 输入框（1:1 对齐 TrieCode：作为欢迎组件的一部分整体居中） -->
           <!-- AI 输入框（1:1 对齐 TrieCode：作为欢迎组件的一部分整体居中） -->
           <div class="ai-input-container" id="ai-input-container">
             <div class="ai-input-box">
@@ -1119,6 +1119,25 @@
               <span id="ai-project-path-text">未选择工作空间</span>
             </div>
             <button class="ai-project-btn" id="ai-select-workspace-btn">选择工作空间</button>
+          </div>
+          <!-- 对齐 ChipCode：快捷建议位于输入框下方 -->
+          <div class="ai-quick-actions">
+            <button class="ai-quick-btn" data-action="web-game">
+              <span class="ai-quick-icon"><svg class="icon"><use href="#icon-rocket"></use></svg></span>
+              <span class="ai-quick-text">分析这段固件代码为什么编译失败</span>
+            </button>
+            <button class="ai-quick-btn" data-action="ide-intro">
+              <span class="ai-quick-icon"><svg class="icon"><use href="#icon-puzzle"></use></svg></span>
+              <span class="ai-quick-text">介绍一下这个 IDE 能帮我做什么</span>
+            </button>
+            <button class="ai-quick-btn" data-action="todo-tool">
+              <span class="ai-quick-icon"><svg class="icon"><use href="#icon-code"></use></svg></span>
+              <span class="ai-quick-text">帮我把这个项目改成 ESP32 版本</span>
+            </button>
+            <button class="ai-quick-btn" data-action="python-project">
+              <span class="ai-quick-icon"><svg class="icon"><use href="#icon-sparkles"></use></svg></span>
+              <span class="ai-quick-text">帮我创建一个 Python 项目，画个太阳系</span>
+            </button>
           </div>
         </div>
         <!-- 消息动态生成 -->
