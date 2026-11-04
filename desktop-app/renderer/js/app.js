@@ -12521,8 +12521,8 @@ function bindEvents() {
   if (aiUndoRangeBtn) {
     aiUndoRangeBtn.addEventListener('click', () => {
       const histories = []
-        .concat(getTurnHistory('default'))
-        .concat(getTurnHistory('stream'))
+        .concat(fileChangeTracker.getTurnHistory('default'))
+        .concat(fileChangeTracker.getTurnHistory('stream'))
         .filter(h => !h.rolledBack)
         .sort((a, b) => b.turn - a.turn);
       let pop = document.getElementById('ai-undo-range-pop');
