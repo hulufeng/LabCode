@@ -10531,6 +10531,7 @@ function bindEvents() {
     { id: 'code-formatter', name: '代码格式化', description: '支持 C/C++/Python/JS 等多语言代码格式化，Clang-Format/Black', version: '1.0.0', author: 'LabCode', icon: '✨', category: 'tool', channels: ['cli'], capabilities: ['format'] },
     { id: 'git-integration', name: 'Git 集成', description: 'Git 版本控制集成，提交、差异对比、分支管理', version: '1.0.0', author: 'LabCode', icon: '🌿', category: 'tool', channels: ['cli'], capabilities: ['git'] },
     { id: 'themes', name: '主题扩展', description: '多款编辑器主题，浅色/深色/高对比度，一键切换', version: '1.0.0', author: 'LabCode', icon: '🎨', category: 'theme', channels: ['internal'], capabilities: ['theme'] },
+    { id: 'wokwi-simulator', name: 'Wokwi 模拟器', description: 'Wokwi 在线电路仿真：Wokwi 项目模板、diagram.json、wokwi-cli 检测与仿真运行', version: '1.0.4', author: 'LabCode', icon: '⚡', category: 'tool', channels: ['internal'], capabilities: ['simulate'] },
     // ============ 大模型插件（本地运行，内置 llama 引擎，模型走国内直链）============
     { id: 'llama-runtime', name: 'LabCode AI 引擎', description: '内置 llama.cpp 大模型引擎（GPU 加速），无需安装任何外部软件，安装模型后即可使用', version: '1.0.0', author: 'LabCode', icon: '🧠', category: 'ai-model', channels: ['bundled'], capabilities: ['llm-runtime', 'local-ai'], bundled: true, minRamGB: 4, minDiskGB: 0.5 },
     { id: 'qwen25-coder-1.5b', name: 'Qwen2.5-Coder 1.5B（轻量）', description: '通义千问代码模型 1.5B 量化版，8GB 内存即可流畅运行，适合代码补全和简单问答', version: '1.0.0', author: 'LabCode', icon: '⚡', category: 'ai-model', channels: ['http'], capabilities: ['llm-model', 'code'], requires: 'llama-runtime', modelName: 'qwen2.5-coder-1.5b-instruct-q4_k_m.gguf', ggufFile: 'qwen2.5-coder-1.5b-instruct-q4_k_m.gguf', downloadUrl: 'https://modelscope.cn/models/Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF/resolve/master/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf', minRamGB: 4, minDiskGB: 2, recommendedFor: 'low' },
@@ -10548,6 +10549,13 @@ function bindEvents() {
   // 与「假安装」说再见：装这些插件时会把 plugin.json 真写到 <userData>/plugins/<id>/，
   // 并通过 PluginSystem 注册工具（重启后由 loadPluginsFromDir 重新加载，依然生效）。
   const BUILTIN_PLUGIN_MANIFESTS = {
+    // Wokwi 模拟器：对齐 ChipCode——是「需要下载安装」的插件而非内置功能。
+    // 安装时真落盘到 <userData>/plugins/wokwi-simulator/，面板/模板/仿真由宿主提供。
+    'wokwi-simulator': {
+      id: 'wokwi-simulator', name: 'Wokwi 模拟器', version: '1.0.4', icon: '⚡', category: 'tool',
+      description: 'Wokwi 在线电路仿真（活动栏入口、项目模板、wokwi-cli 检测与仿真运行由宿主提供）',
+      tools: [], skills: []
+    },
     'git-integration': {
       id: 'git-integration', name: 'Git 集成', version: '1.0.0', icon: '🌿', category: 'tool',
       description: '真实 Git 操作：状态/差异/日志/暂存/提交/分支（复用 LabCode 内置 git 引擎）',
@@ -11966,6 +11974,9 @@ function bindEvents() {
       if (!btn) return;
       btn.style.display = (isPluginInstalled(tc) || isPluginInstalled(mid)) ? '' : 'none';
     });
+    // Wokwi 模拟器：对齐 ChipCode——可安装/卸载插件，未安装不显示活动栏入口
+    const wokwiBtn = document.querySelector('.activity-btn[data-panel="wokwi"]');
+    if (wokwiBtn) wokwiBtn.style.display = isPluginInstalled('wokwi-simulator') ? '' : 'none';
   }
 
   // ============ 暴露插件 API 给 AI 工具（agent 自主插件管理）============
