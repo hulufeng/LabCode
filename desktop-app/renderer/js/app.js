@@ -9996,6 +9996,8 @@ function bindEvents() {
       if (gcView) gcView.style.display = 'none';
       const wfView = document.getElementById('workflow-view');
       if (wfView) wfView.style.display = 'none';
+      const pfView = document.getElementById('product-factory-view');
+      if (pfView) pfView.style.display = 'none';
       const mcpPanel = document.getElementById('mcp-panel');
       stopDeviceRefresh();
       if (mcpPanel) mcpPanel.style.display = 'none';
@@ -10148,6 +10150,17 @@ function bindEvents() {
         sidebar.style.display = 'none';
         if (sidebarHeader) sidebarHeader.style.display = 'none';
         wfShowView();
+      } else if (panel === 'product-factory') {
+        sidebar.style.display = 'none';
+        if (sidebarHeader) sidebarHeader.style.display = 'none';
+        const pf = document.getElementById('product-factory-view');
+        if (pf) {
+          pf.style.display = 'flex';
+          const pfClose = document.getElementById('pf-close');
+          if (pfClose) pfClose.onclick = function(){ pf.style.display = 'none'; };
+          const pfGen = document.getElementById('pf-generate');
+          if (pfGen) pfGen.onclick = function(){ const idea = (document.getElementById('pf-idea')||{}).value || ''; if (idea.trim() && typeof openHwLab === 'function') openHwLab(); };
+        }
       } else {
         // settings 等其他按钮
         sidebar.style.display = 'none';

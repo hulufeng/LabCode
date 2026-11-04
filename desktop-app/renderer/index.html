@@ -333,6 +333,7 @@
       <!-- 已安装插件动态入口（TrieCode 式：装了就显示，卸载即消失），含立创EDA 等 -->
       <div id="plugin-activity-btns" style="display:contents;"></div>
       <button class="activity-btn" data-panel="wokwi" title="Wokwi 模拟器"><svg class="icon"><use href="#icon-bolt"></use></svg><span class="activity-label">Wokwi 模拟器</span></button>
+      <button class="activity-btn" data-panel="product-factory" title="产品工厂"><svg class="icon"><use href="#icon-puzzle"></use></svg><span class="activity-label">产品工厂</span></button>
     </div>
 
     <!-- 群聊 / 多 Agent 房间（全屏覆盖视图，对标 Ekko「群聊」） -->
@@ -443,6 +444,23 @@
         <div id="wf-nodes" class="wf-nodes"></div>
       </div>
       <div class="wf-props" id="wf-props"><span class="gc-hint">点选节点编辑属性</span></div>
+    </div>
+
+    <!-- 产品工厂（覆盖视图，对齐 ChipCode 活动栏入口） -->
+    <div id="product-factory-view" class="workflow-view" style="display:none;flex-direction:column;">
+      <div style="display:flex;align-items:center;gap:10px;padding:12px 16px;background:var(--surface-2);border-bottom:1px solid var(--border);">
+        <span style="font-weight:600;color:var(--text);">产品工厂</span>
+        <span style="font-size:11px;color:var(--text-secondary);">描述你想做的电子产品，AI 帮你选型 / 出原理图 / 写固件</span>
+        <button class="btn btn-sm" id="pf-close" style="margin-left:auto;">关闭</button>
+      </div>
+      <div style="flex:1;overflow:auto;padding:16px;display:flex;flex-direction:column;gap:14px;max-width:720px;margin:0 auto;width:100%;box-sizing:border-box;">
+        <div class="dev-card" style="padding:16px;background:var(--bg-elevated);border:1px solid var(--border-color);border-radius:10px;">
+          <div style="font-weight:600;margin-bottom:10px;color:var(--text);">产品构想</div>
+          <textarea id="pf-idea" rows="4" placeholder="例如：一个用 ESP32 做的桌面温湿度气象站，带 OLED 显示，USB 供电…" style="width:100%;box-sizing:border-box;background:var(--bg-secondary);border:1px solid var(--border-color);color:var(--text);padding:10px;border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;"></textarea>
+          <button id="pf-generate" class="btn btn-primary btn-sm" style="margin-top:12px;">让 AI 生成方案</button>
+        </div>
+        <div id="pf-output" style="font-size:13px;color:var(--text);white-space:pre-wrap;"></div>
+      </div>
     </div>
 
     <!-- 看板 / 项目统计（对齐 Ekko 看板） -->
