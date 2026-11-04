@@ -11197,6 +11197,16 @@ function bindEvents() {
       // 否则这些插件能用（工具已注册）却在「已安装」里不可见，用户无法卸载/禁用
       const extraInstalled = installedPlugins.filter(p => p.category !== 'ai-model' && !baseIds.has(p.id));
       plugins = plugins.concat(extraInstalled);
+      // 磁盘目录插件（plugin.json 加载进注册表）但不在市场清单/安装记录里：也补进「已安装」，
+      // 否则活动栏有入口却没有任何卸载途径（「卸载了左侧还有」的根源——立创EDA 等）
+      try {
+        const extraIds = new Set(plugins.map(p => p.id));
+        (window.PluginSystem.listPlugins ? window.PluginSystem.listPlugins() : []).forEach(p => {
+          if (!extraIds.has(p.id) && p.category !== 'ai-model') {
+            plugins.push({ id: p.id, name: p.name, version: p.version, description: p.description || '', category: p.category || 'tool', icon: p.icon || '', source: 'dir' });
+          }
+        });
+      } catch (e) { /* 注册表未就绪时跳过 */ }
       // 防串台：内置目录的 Arduino/ESP-IDF/STM32 已安装时，远程拉来的同名工具链视为被替代——
       // 从列表隐藏并自动停用，避免双 compile 能力路由冲突（内置 v1.0.0 为权威）
       const superseded = plugins.filter(isSupersededRemotePlugin);
