@@ -12398,6 +12398,30 @@ function bindEvents() {
       showToast('已载入历史会话：' + (s.title || '').slice(0, 20), 'info');
     } catch (e) { showToast('载入历史失败: ' + e.message, 'error'); }
   }
+  function renderHistoryList(listEl, list, q) {
+    q = (q || '').trim().toLowerCase();
+    const filtered = q
+      ? list.filter(function(s){
+          if ((s.title || '').toLowerCase().indexOf(q) >= 0) return true;
+          return (s.messages || []).some(function(m){ return (m.content || '').toLowerCase().indexOf(q) >= 0; });
+        })
+      : list;
+    if (!filtered.length) {
+      listEl.innerHTML = '<p style="opacity:.6;font-size:13px;">' + (q ? '没有匹配的历史会话。' : '暂无历史会话。开始对话后点击「新对话」会自动保存到此处；点击「历史会话」可随时回看。') + '</p>';
+      return;
+    }
+    listEl.innerHTML = filtered.map(function(s){
+      const d = new Date(s.ts);
+      const t = (d.getMonth()+1) + '/' + d.getDate() + ' ' + ('0'+d.getHours()).slice(-2) + ':' + ('0'+d.getMinutes()).slice(-2);
+      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 4px;border-bottom:1px solid var(--border-color);">' +
+        '<div style="flex:1;overflow:hidden;"><div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escapeHtml(s.title) + '</div>' +
+        '<div style="font-size:11px;opacity:.6;">' + t + ' · ' + (s.messages ? s.messages.length : 0) + ' 条</div></div>' +
+        '<button class="hist-load" data-sid="' + s.id + '" style="margin-left:8px;">打开</button>' +
+        '<button class="hist-del" data-sid="' + s.id + '" style="margin-left:6px;">删除</button></div>';
+    }).join('');
+    listEl.querySelectorAll('.hist-load').forEach(function(b){ b.onclick = function(){ loadSession(b.getAttribute('data-sid')); overlay.style.display = 'none'; }; });
+    listEl.querySelectorAll('.hist-del').forEach(function(b){ b.onclick = function(){ const id = b.getAttribute('data-sid'); let l = JSON.parse(localStorage.getItem('labcode.chatSessions') || '[]'); l = l.filter(function(x){ return x.id !== id; }); localStorage.setItem('labcode.chatSessions', JSON.stringify(l)); openHistoryPanel(); }; });
+  }
   function openHistoryPanel() {
     saveCurrentSessionToHistory();
     const list = JSON.parse(localStorage.getItem('labcode.chatSessions') || '[]');
@@ -12410,25 +12434,15 @@ function bindEvents() {
     }
     const box = document.createElement('div');
     box.style.cssText = 'width:560px;max-height:70vh;overflow:auto;background:var(--surface-1);border:1px solid var(--border-color);border-radius:12px;padding:16px;color:var(--text);box-shadow:0 8px 40px rgba(0,0,0,.4);';
-    let html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;"><h3 style="margin:0;">历史会话</h3><span id="history-close" style="cursor:pointer;font-size:20px;line-height:1;">×</span></div>';
-    if (!list.length) {
-      html += '<p style="opacity:.6;font-size:13px;">暂无历史会话。开始对话后点击「新对话」会自动保存到此处；点击「历史会话」可随时回看。</p>';
-    } else {
-      html += list.map(function(s){
-        const d = new Date(s.ts);
-        const t = (d.getMonth()+1) + '/' + d.getDate() + ' ' + ('0'+d.getHours()).slice(-2) + ':' + ('0'+d.getMinutes()).slice(-2);
-        return '<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 4px;border-bottom:1px solid var(--border-color);">' +
-          '<div style="flex:1;overflow:hidden;"><div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escapeHtml(s.title) + '</div>' +
-          '<div style="font-size:11px;opacity:.6;">' + t + ' · ' + (s.messages ? s.messages.length : 0) + ' 条</div></div>' +
-          '<button class="hist-load" data-sid="' + s.id + '" style="margin-left:8px;">打开</button>' +
-          '<button class="hist-del" data-sid="' + s.id + '" style="margin-left:6px;">删除</button></div>';
-      }).join('');
-    }
-    box.innerHTML = html;
+    box.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;"><h3 style="margin:0;">历史会话</h3><span id="history-close" style="cursor:pointer;font-size:20px;line-height:1;">×</span></div>' +
+      '<input id="history-search" placeholder="搜索历史会话内容…" style="width:100%;box-sizing:border-box;margin-bottom:12px;padding:8px 10px;background:var(--bg-secondary);border:1px solid var(--border-color);color:var(--text);border-radius:6px;font-size:13px;" />' +
+      '<div id="history-list"></div>';
     overlay.innerHTML = ''; overlay.appendChild(box); overlay.style.display = 'flex';
+    const listEl = box.querySelector('#history-list');
+    const searchEl = box.querySelector('#history-search');
+    renderHistoryList(listEl, list, '');
+    searchEl.addEventListener('input', function(){ renderHistoryList(listEl, list, searchEl.value); });
     overlay.onclick = function(e){ if (e.target === overlay || e.target.id === 'history-close') overlay.style.display = 'none'; };
-    box.querySelectorAll('.hist-load').forEach(function(b){ b.onclick = function(){ loadSession(b.getAttribute('data-sid')); overlay.style.display = 'none'; }; });
-    box.querySelectorAll('.hist-del').forEach(function(b){ b.onclick = function(){ const id = b.getAttribute('data-sid'); let l = JSON.parse(localStorage.getItem('labcode.chatSessions') || '[]'); l = l.filter(function(x){ return x.id !== id; }); localStorage.setItem('labcode.chatSessions', JSON.stringify(l)); openHistoryPanel(); }; });
   }
 
   // 新对话
