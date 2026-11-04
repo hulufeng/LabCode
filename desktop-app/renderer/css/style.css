@@ -5057,6 +5057,9 @@ body.no-open-file .editor-toolbar { display: none !important; }
 #plugins-panel #plugins-list a,
 #plugins-panel #plugins-list button { font-size: 12px !important; }
 #plugins-panel #plugins-list .plg-empty > div:first-child { font-size: 26px !important; }
+/* 面板标题与安装进度条文字也统一 12px */
+#plugins-panel #plugins-title,
+#plugins-panel #pip-text { font-size: 12px; }
 .plg-row-body { flex: 1 1 160px; min-width: 0; }
 .plg-row-top { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .plg-row-act { flex-shrink: 0; display: flex; align-items: center; gap: 3px; }
