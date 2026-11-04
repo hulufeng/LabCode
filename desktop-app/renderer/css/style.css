@@ -81,7 +81,7 @@
   /* ⑥ 结构尺寸（对齐 TrieCode --toolbar-height: 36px） */
   --titlebar-height: 36px;
   --toolbar-height: 36px;
-  --activity-bar-width: 48px;
+  --activity-bar-width: 32px;
   --sidebar-width: 380px;
   --statusbar-height: 24px;
   --bottom-panel-height: 200px;
@@ -5616,35 +5616,26 @@ select:focus,
   border-left: 2px solid transparent;
 }
 
-/* 活动栏常显文字标签（对齐 TrieCode：图标+标签两行，8 项全显） */
-.activity-bar { width: 64px !important; overflow-y: auto; overflow-x: hidden; scrollbar-width: none; }
+/* 活动栏 1:1 对齐 ChipCode：纯图标窄栏（≈32px），不常显文字标签（名称由 title hover 提示） */
+.activity-bar { width: 32px !important; overflow-y: auto; overflow-x: hidden; scrollbar-width: none; }
 .activity-bar::-webkit-scrollbar { display: none; }
 .activity-btn {
   flex-direction: column;
   flex-shrink: 0;
-  width: 56px;
-  height: 46px;
+  width: 100%;
+  height: 36px;
   font-size: 17px;
-  gap: 1px;
+  gap: 0;
   border-left: none;
+  justify-content: center;
+  align-items: center;
 }
 .activity-bottom { flex-shrink: 0; }
-/* 品牌图标(brand-ic 等)在窄栏内必须约束尺寸，否则撑爆按钮把文字标签压没（立创EDA 300x42 根因） */
-.activity-btn svg { width: 17px; height: 17px; flex-shrink: 0; }
+/* 品牌图标在窄栏内必须约束尺寸，避免撑爆按钮 */
+.activity-btn svg { width: 18px; height: 18px; flex-shrink: 0; }
 .activity-btn.active { border-left: none; }
-.activity-label {
-  font-size: 9px;
-  line-height: 1.15;
-  color: inherit;
-  max-width: 60px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  opacity: 0.82;
-  pointer-events: none;
-}
-.activity-btn.active .activity-label { opacity: 1; font-weight: 600; }
-.activity-btn.active::before { left: 0; top: 10px; bottom: 10px; height: auto; }
+.activity-label { display: none; }
+.activity-btn.active::before { left: 0; top: 8px; bottom: 8px; height: auto; }
 
 /* 标签页：hover 与激活态 */
 .editor-tab,
