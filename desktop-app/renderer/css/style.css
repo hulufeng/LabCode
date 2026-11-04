@@ -5460,6 +5460,31 @@ select:focus,
   border-left: 2px solid transparent;
 }
 
+/* 活动栏常显文字标签（对齐 TrieCode：图标+标签两行，8 项全显） */
+.activity-bar { width: 64px !important; }
+.activity-btn {
+  flex-direction: column;
+  width: 56px;
+  height: 50px;
+  font-size: 18px;
+  gap: 2px;
+  border-left: none;
+}
+.activity-btn.active { border-left: none; }
+.activity-label {
+  font-size: 9.5px;
+  line-height: 1.1;
+  color: inherit;
+  max-width: 60px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0.82;
+  pointer-events: none;
+}
+.activity-btn.active .activity-label { opacity: 1; font-weight: 600; }
+.activity-btn.active::before { left: 0; top: 10px; bottom: 10px; height: auto; }
+
 /* 标签页：hover 与激活态 */
 .editor-tab,
 .tab-item {

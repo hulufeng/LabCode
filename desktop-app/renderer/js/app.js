@@ -2345,6 +2345,9 @@ const ARDUINO_TOOL_IMPLS = {
     }
     if (!fqbn) return '未从搜索结果解析到 FQBN，请先安装对应平台（install_platform）后重试。\n原始输出:\n' + r.out.slice(0, 1200);
     state.arduinoFqbn = fqbn;
+    // 状态栏开发板段：对齐 TrieCode（选择开发板后显示 FQBN）
+    const boardEl = document.getElementById('status-board');
+    if (boardEl) boardEl.textContent = fqbn;
     return '已选择开发板: ' + fqbn + '（后续 compile 将使用该 FQBN）';
   },
   async install_platform(args) {
@@ -7281,6 +7284,9 @@ function addChatMessage(role, content) {
   msg.appendChild(avatar); msg.appendChild(bubble);
   area.appendChild(msg);
   area.scrollTop = area.scrollHeight;
+  // 会话历史：把每条消息写入日志（新对话/历史面板据此持久化）
+  if (!window._chatLog) window._chatLog = [];
+  window._chatLog.push({ role: role === 'ai' ? 'assistant' : 'user', content: content || '' });
   return bubble;
 }
 
@@ -9785,6 +9791,11 @@ function bindEvents() {
       item.classList.add('active');
       const panel = item.dataset.panel;
       const toolchain = item.dataset.toolchain;
+      // 状态栏工具链段：对齐 TrieCode（点击工具链活动栏项时同步显示当前工具链名称）
+      if (toolchain) {
+        const tcEl = document.getElementById('status-toolchain');
+        if (tcEl) tcEl.textContent = item.title || toolchain;
+      }
       const gcView = document.getElementById('groupchat-view');
       if (gcView) gcView.style.display = 'none';
       const wfView = document.getElementById('workflow-view');
@@ -11839,7 +11850,7 @@ function bindEvents() {
       // 图标：品牌 SVG（立创EDA=蓝云等，对齐 TrieCode 活动栏彩色品牌图标）；无品牌映射的插件用其 emoji
       let ic = brandIconHtml({ id: v.pluginId, name: title, icon: inst.icon });
       if (ic.indexOf('<svg') !== 0) ic = '<span style="font-size:19px;line-height:1;">' + ic + '</span>';
-      html += '<button class="activity-btn" data-plugin-view="' + encodeURIComponent(v.pluginId + '|' + v.id) + '" title="' + title + '">' + ic + '</button>';
+      html += '<button class="activity-btn" data-plugin-view="' + encodeURIComponent(v.pluginId + '|' + v.id) + '" title="' + title + '">' + ic + '<span class="activity-label">' + title + '</span></button>';
     });
     host.innerHTML = html;
     host.querySelectorAll('[data-plugin-view]').forEach(btn => {
@@ -12175,8 +12186,74 @@ function bindEvents() {
     });
   });
 
+  // ===== 会话历史持久化（对齐 TrieCode 历史会话）=====
+  function saveCurrentSessionToHistory() {
+    try {
+      const log = window._chatLog || [];
+      if (log.length < 2) return;
+      const list = JSON.parse(localStorage.getItem('labcode.chatSessions') || '[]');
+      const firstUser = log.find(function(m){ return m.role === 'user'; });
+      const title = (firstUser && firstUser.content ? firstUser.content : '对话').slice(0, 40);
+      list.unshift({ id: 's' + Date.now(), title: title, ts: Date.now(), messages: log.slice() });
+      localStorage.setItem('labcode.chatSessions', JSON.stringify(list.slice(0, 50)));
+    } catch (e) { /* 历史保存失败不影响主流程 */ }
+  }
+  function loadSession(id) {
+    try {
+      const list = JSON.parse(localStorage.getItem('labcode.chatSessions') || '[]');
+      const s = list.find(function(x){ return x.id === id; });
+      if (!s) return;
+      const area = document.getElementById('ai-chat-area');
+      Array.from(area.children).forEach(function(c){ if (c.id !== 'ai-welcome') c.remove(); });
+      const welcome = document.getElementById('ai-welcome');
+      if (welcome) welcome.style.display = 'none';
+      window._chatLog = [];
+      (s.messages || []).forEach(function(m){ addChatMessage(m.role === 'assistant' ? 'ai' : 'user', m.content); });
+      // 重建 agent 上下文，使「继续对话」可用
+      ensureAgent();
+      if (state.agent) {
+        state.agent.messages = (s.messages || []).map(function(m){ return { role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content || '' }; });
+      }
+      showToast('已载入历史会话：' + (s.title || '').slice(0, 20), 'info');
+    } catch (e) { showToast('载入历史失败: ' + e.message, 'error'); }
+  }
+  function openHistoryPanel() {
+    saveCurrentSessionToHistory();
+    const list = JSON.parse(localStorage.getItem('labcode.chatSessions') || '[]');
+    let overlay = document.getElementById('history-overlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'history-overlay';
+      overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:none;align-items:center;justify-content:center;';
+      document.body.appendChild(overlay);
+    }
+    const box = document.createElement('div');
+    box.style.cssText = 'width:560px;max-height:70vh;overflow:auto;background:var(--surface-1);border:1px solid var(--border-color);border-radius:12px;padding:16px;color:var(--text);box-shadow:0 8px 40px rgba(0,0,0,.4);';
+    let html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;"><h3 style="margin:0;">历史会话</h3><span id="history-close" style="cursor:pointer;font-size:20px;line-height:1;">×</span></div>';
+    if (!list.length) {
+      html += '<p style="opacity:.6;font-size:13px;">暂无历史会话。开始对话后点击「新对话」会自动保存到此处；点击「历史会话」可随时回看。</p>';
+    } else {
+      html += list.map(function(s){
+        const d = new Date(s.ts);
+        const t = (d.getMonth()+1) + '/' + d.getDate() + ' ' + ('0'+d.getHours()).slice(-2) + ':' + ('0'+d.getMinutes()).slice(-2);
+        return '<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 4px;border-bottom:1px solid var(--border-color);">' +
+          '<div style="flex:1;overflow:hidden;"><div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escapeHtml(s.title) + '</div>' +
+          '<div style="font-size:11px;opacity:.6;">' + t + ' · ' + (s.messages ? s.messages.length : 0) + ' 条</div></div>' +
+          '<button class="hist-load" data-sid="' + s.id + '" style="margin-left:8px;">打开</button>' +
+          '<button class="hist-del" data-sid="' + s.id + '" style="margin-left:6px;">删除</button></div>';
+      }).join('');
+    }
+    box.innerHTML = html;
+    overlay.innerHTML = ''; overlay.appendChild(box); overlay.style.display = 'flex';
+    overlay.onclick = function(e){ if (e.target === overlay || e.target.id === 'history-close') overlay.style.display = 'none'; };
+    box.querySelectorAll('.hist-load').forEach(function(b){ b.onclick = function(){ loadSession(b.getAttribute('data-sid')); overlay.style.display = 'none'; }; });
+    box.querySelectorAll('.hist-del').forEach(function(b){ b.onclick = function(){ const id = b.getAttribute('data-sid'); let l = JSON.parse(localStorage.getItem('labcode.chatSessions') || '[]'); l = l.filter(function(x){ return x.id !== id; }); localStorage.setItem('labcode.chatSessions', JSON.stringify(l)); openHistoryPanel(); }; });
+  }
+
   // 新对话
   function resetChat() {
+    // 先保存当前会话到历史（避免丢失），再清空
+    saveCurrentSessionToHistory();
     // 1:1 对齐 TrieCode：清空消息但保留欢迎页容器
     const area = document.getElementById('ai-chat-area');
     Array.from(area.children).forEach(function(child) {
@@ -12202,11 +12279,20 @@ function bindEvents() {
       }
     }
     state.agent = null;
+    window._chatLog = [];
     showToast('已开始新对话', 'info');
   }
   // 新对话按钮绑定（对齐 TrieCode：点击后回到欢迎页）
   const newChatBtn = document.getElementById('ai-new-chat-btn');
   if (newChatBtn) newChatBtn.addEventListener('click', resetChat);
+
+  // AI 头部：撤销上一轮（含文件回滚）/ 重做 / 历史会话 —— 对齐 TrieCode 会话管理
+  const aiUndoBtn = document.getElementById('ai-undo-btn');
+  if (aiUndoBtn) aiUndoBtn.addEventListener('click', () => undoLastAgentTurn());
+  const aiRedoBtn = document.getElementById('ai-redo-btn');
+  if (aiRedoBtn) aiRedoBtn.addEventListener('click', () => redoLastAgentTurn());
+  const aiHistoryBtn = document.getElementById('ai-history-btn');
+  if (aiHistoryBtn) aiHistoryBtn.addEventListener('click', openHistoryPanel);
 
   // 新建文件按钮绑定（浅色主题下元素为 quick-new-file；兼容旧 id）
   const newFileBtn = document.getElementById('new-file-btn') || document.getElementById('quick-new-file');
