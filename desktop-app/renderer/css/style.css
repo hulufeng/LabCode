@@ -5647,8 +5647,8 @@ select:focus,
   to { opacity: 1; }
 }
 
-/* 设置：左侧分类栏 + 右侧面板（对齐 TrieCode 设置布局） */
-.modal-body { flex: 1; display: flex; min-height: 0; }
+/* 设置：左侧分类栏 + 右侧面板（对齐 TrieCode 设置布局）——仅作用于设置弹窗，避免污染其他 modal-body（曾把命令面板输入框/列表挤成两列） */
+#settings-modal .modal-body { flex: 1; display: flex; min-height: 0; }
 .settings-layout { display: flex; flex: 1; min-height: 520px; }
 .settings-sidebar { width: 220px; flex: none; border-right: 1px solid var(--border-color); padding: 14px 10px; overflow-y: auto; background: rgba(128,128,128,0.04); }
 .settings-search { width: 100%; box-sizing: border-box; padding: 7px 10px; margin-bottom: 14px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--card-color); color: var(--text-color); font-size: 12.5px; }
