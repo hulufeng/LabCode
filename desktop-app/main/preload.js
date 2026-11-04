@@ -206,6 +206,12 @@ contextBridge.exposeInMainWorld('LabCode', {
     createBranch: (cwd, branch) => ipcRenderer.invoke('git:createBranch', cwd, branch),
     unstage: (cwd, paths) => ipcRenderer.invoke('git:unstage', cwd, paths),
     discard: (cwd, paths) => ipcRenderer.invoke('git:discard', cwd, paths),
+    checkpoint: {
+      create: (cwd, label) => ipcRenderer.invoke('git:checkpoint:create', cwd, label),
+      list: (cwd) => ipcRenderer.invoke('git:checkpoint:list', cwd),
+      preview: (cwd, id) => ipcRenderer.invoke('git:checkpoint:preview', cwd, id),
+      restore: (cwd, id) => ipcRenderer.invoke('git:checkpoint:restore', cwd, id)
+    },
     clone: (url, destDir) => ipcRenderer.invoke('git:clone', url, destDir),
     aiCommitMessage: (cwd) => ipcRenderer.invoke('git:aiCommitMessage', cwd),
     aiCommit: (cwd) => ipcRenderer.invoke('git:aiCommit', cwd),

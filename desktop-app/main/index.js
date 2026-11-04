@@ -860,6 +860,7 @@ function setupIPC() {
     return { success: false, stdout: r.stdout, error: r.stderr };
   });
   ipcMain.handle('git:pull', async (_, cwd) => {
+    await cpAuto(cwd, 'git pull 前自动快照');
     const r = await runGit(cwd, ['pull']);
     return { success: r.ok, stdout: r.stdout, error: r.stderr };
   });
@@ -891,9 +892,106 @@ function setupIPC() {
     return { success: true, branches, current };
   });
   ipcMain.handle('git:checkout', async (_, cwd, branchName) => {
+    await cpAuto(cwd, 'git checkout 前自动快照');
     const r = await runGit(cwd, ['checkout', branchName]);
     return { success: r.ok, error: r.stderr };
   });
+
+  // ===== Git 检查点（对齐 TrieCode 影子仓库：userData 下独立 GIT_DIR，add -A → write-tree → commit-tree）=====
+  const CP_PREVIEW_LIMIT = 200;
+  function cpBaseDir() { try { return path.join(app.getPath('userData'), 'checkpoints'); } catch (e) { return ''; } }
+  function cpProjectKey(p) { try { return require('crypto').createHash('sha1').update(String(p)).digest('hex').slice(0, 16); } catch (e) { return 'default'; } }
+  function cpRoot(cwd) { const root = path.join(cpBaseDir(), cpProjectKey(cwd)); fs.mkdirSync(root, { recursive: true }); return root; }
+  function cpIndexRead(root) { try { return JSON.parse(fs.readFileSync(path.join(root, 'index.json'), 'utf8')); } catch (e) { return { records: [] }; } }
+  function cpIndexWrite(root, idx) { try { fs.writeFileSync(path.join(root, 'index.json'), JSON.stringify(idx, null, 2)); } catch (e) {} }
+  function cpGi(root, cwd) { return ['--git-dir=' + path.join(root, 'shadow.git'), '--work-tree=' + cwd]; }
+  async function cpEnsureShadow(root, cwd) {
+    const shadow = path.join(root, 'shadow.git');
+    if (!fs.existsSync(path.join(shadow, 'HEAD'))) {
+      fs.mkdirSync(shadow, { recursive: true });
+      await runGit(cwd, ['init', '--bare', shadow]);
+      await runGit(cwd, ['--git-dir=' + shadow, 'config', 'core.bare', 'false']);
+    }
+    // 字节级精确还原：禁用 autocrlf（否则 checkout 会把 LF 转成 CRLF，恢复≠原字节）
+    await runGit(cwd, ['--git-dir=' + shadow, 'config', 'core.autocrlf', 'false']);
+    return shadow;
+  }
+  async function cpCreate(cwd, label) {
+    try {
+      if (!cwd) return { ok: false, error: '没有打开的项目' };
+      const root = cpRoot(cwd);
+      await cpEnsureShadow(root, cwd);
+      const gi = cpGi(root, cwd);
+      await runGit(cwd, [...gi, 'add', '-A']);
+      const w = await runGit(cwd, [...gi, 'write-tree']);
+      if (!w.ok) return { ok: false, error: ((w.stderr || '') || 'write-tree 失败').slice(0, 200) };
+      const tree = w.stdout.trim();
+      const idx = cpIndexRead(root);
+      const last = idx.records[0];
+      if (last && last.tree === tree) return { ok: true, id: last.id, unchanged: true, fileCount: last.fileCount };
+      const id = 'cp' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+      const c = await runGit(cwd, [...gi, 'commit-tree', tree, '-m', 'checkpoint ' + id + '\n' + (label || '')]);
+      const cnt = await runGit(cwd, [...gi, 'ls-tree', '-r', '--name-only', tree]);
+      const rec = { id, tree, commit: (c.ok ? c.stdout.trim() : ''), ts: Date.now(), label: label || '', fileCount: cnt.ok ? cnt.stdout.split('\n').filter(Boolean).length : 0 };
+      idx.records.unshift(rec);
+      idx.records = idx.records.slice(0, 50);
+      cpIndexWrite(root, idx);
+      return { ok: true, ...rec };
+    } catch (e) { return { ok: false, error: e.message }; }
+  }
+  async function cpAuto(cwd, label) { try { await cpCreate(cwd, label); } catch (e) { /* 自动快照失败不阻塞原操作 */ } }
+  async function cpList(cwd) {
+    try {
+      if (!cwd) return { ok: false, error: '没有打开的项目' };
+      const root = cpRoot(cwd);
+      return { ok: true, root, records: cpIndexRead(root).records };
+    } catch (e) { return { ok: false, error: e.message }; }
+  }
+  async function cpPreview(cwd, id) {
+    try {
+      if (!cwd) return { ok: false, error: '没有打开的项目' };
+      const root = cpRoot(cwd);
+      const rec = cpIndexRead(root).records.find(r => r.id === String(id || ''));
+      if (!rec) return { ok: false, error: '检查点不存在' };
+      const gi = cpGi(root, cwd);
+      await runGit(cwd, [...gi, 'add', '-A']);
+      const d = await runGit(cwd, [...gi, 'diff', '--name-status', rec.tree]);
+      const files = d.ok ? d.stdout.split('\n').map(s => s.trim()).filter(Boolean) : [];
+      return { ok: true, id, total: files.length, files: files.slice(0, CP_PREVIEW_LIMIT) };
+    } catch (e) { return { ok: false, error: e.message }; }
+  }
+  async function cpRestore(cwd, id) {
+    try {
+      if (!cwd) return { ok: false, error: '没有打开的项目' };
+      const root = cpRoot(cwd);
+      const rec = cpIndexRead(root).records.find(r => r.id === String(id || ''));
+      if (!rec) return { ok: false, error: '检查点不存在' };
+      const gi = cpGi(root, cwd);
+      const pre = await cpCreate(cwd, 'restore 前自动快照');
+      if (!pre.ok) return { ok: false, error: '快照当前状态失败: ' + pre.error };
+      await runGit(cwd, [...gi, 'add', '-A']);
+      const rt = await runGit(cwd, [...gi, 'read-tree', rec.tree]);
+      if (!rt.ok) return { ok: false, error: ((rt.stderr || '') || 'read-tree 失败').slice(0, 300) };
+      const co = await runGit(cwd, [...gi, 'checkout-index', '-a', '-f']);
+      if (!co.ok) return { ok: false, error: ((co.stderr || '') || '恢复文件失败').slice(0, 300) };
+      // 删除快照之后新增的文件（快照树没有、当前工作区有的），完整还原
+      const ls = await runGit(cwd, [...gi, 'ls-tree', '-r', '--name-only', rec.tree]);
+      const keep = new Set(ls.ok ? ls.stdout.split('\n').map(s => s.trim()).filter(Boolean) : []);
+      const cur = await runGit(cwd, ['ls-files', '-co', '--exclude-standard']);
+      let removed = 0;
+      for (const f of (cur.ok ? cur.stdout.split('\n').map(s => s.trim()).filter(Boolean) : [])) {
+        if (!keep.has(f)) {
+          const full = path.join(cwd, f);
+          try { if (fs.existsSync(full) && fs.statSync(full).isFile()) { fs.unlinkSync(full); removed++; } } catch (e) {}
+        }
+      }
+      return { ok: true, removed, preRestoreId: pre.id };
+    } catch (e) { return { ok: false, error: e.message }; }
+  }
+  ipcMain.handle('git:checkpoint:create', (_, cwd, label) => cpCreate(cwd, label));
+  ipcMain.handle('git:checkpoint:list', (_, cwd) => cpList(cwd));
+  ipcMain.handle('git:checkpoint:preview', (_, cwd, id) => cpPreview(cwd, id));
+  ipcMain.handle('git:checkpoint:restore', (_, cwd, id) => cpRestore(cwd, id));
   ipcMain.handle('git:createBranch', async (_, cwd, branchName) => {
     const r = await runGit(cwd, ['checkout', '-b', branchName]);
     return { success: r.ok, error: r.stderr };

@@ -6689,6 +6689,16 @@ class AgentRunner {
         this._pendingChange = null;
         // ===== 文件回滚：本轮工具执行前开 turn（同一轮多工具共享一个 turn）=====
         if (['write_file','edit_file','delete_file'].includes(tc.name)) {
+          // 影子仓库自动快照（对齐 TrieCode：AI 改文件前留全仓检查点；树未变主进程自动去重，2 分钟节流）
+          if (!window.__cpLastAuto || Date.now() - window.__cpLastAuto > 120000) {
+            window.__cpLastAuto = Date.now();
+            const cpCwd = state.projectPath || '';
+            if (cpCwd && window.LabCode && window.LabCode.git && window.LabCode.git.checkpoint) {
+              window.LabCode.git.checkpoint.create(cpCwd, 'AI 改文件前自动快照').then(r => {
+                if (r && r.ok && !r.unchanged) addOutputLog('已创建检查点 ' + r.id + '（' + (r.fileCount || 0) + ' 文件）', 'info');
+              }).catch(() => {});
+            }
+          }
           fileChangeTracker.beginTurn('default');
         }
         if ((tc.name === 'write_file' || tc.name === 'edit_file') && tc.arguments && tc.arguments.file_path) {
@@ -12537,6 +12547,63 @@ function bindEvents() {
   window.__sttTest = { sttResampleTo16k, sttEncodeWav16, sttToggle, sttStop, state: window.__sttState };
   const voiceBtn = document.getElementById('voice-btn');
   if (voiceBtn) voiceBtn.addEventListener('click', sttToggle);
+
+  // ===== Git 检查点弹窗（影子仓库快照：列表/预览/恢复/立即快照）=====
+  function cpFmtTime(ts) { const d = new Date(ts); return (d.getMonth() + 1) + '/' + d.getDate() + ' ' + ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2); }
+  async function openCheckpointModal() {
+    if (!(isElectron && window.LabCode && window.LabCode.git && window.LabCode.git.checkpoint)) { showToast('仅桌面版支持检查点', 'warn'); return; }
+    const cwd = state.projectPath || '';
+    if (!cwd) { showToast('请先打开项目', 'warn'); return; }
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;';
+    const box = document.createElement('div');
+    box.style.cssText = 'width:600px;max-height:74vh;overflow:auto;background:var(--surface-1);border:1px solid var(--border-color);border-radius:12px;padding:16px;color:var(--text);box-shadow:0 8px 40px rgba(0,0,0,.4);';
+    box.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;"><h3 style="margin:0;">Git 检查点</h3><span data-cp-close style="cursor:pointer;font-size:20px;line-height:1;">×</span></div>' +
+      '<div style="font-size:11px;opacity:.65;margin-bottom:10px;">影子仓库快照（userData 独立 GIT_DIR，不产生提交）。pull/checkout/AI 改文件前自动创建；恢复前会先拍当前态。</div>' +
+      '<div id="cp-list" style="min-height:60px;">加载中…</div>' +
+      '<div style="display:flex;gap:8px;margin-top:12px;"><button id="cp-create-btn" style="padding:6px 14px;border:none;border-radius:6px;background:#3a6ea5;color:#fff;font-size:12px;cursor:pointer;">立即快照</button><button data-cp-close style="padding:6px 14px;border:1px solid var(--border-color);border-radius:6px;background:transparent;color:var(--text);font-size:12px;cursor:pointer;">关闭</button></div>';
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay || e.target.hasAttribute('data-cp-close')) overlay.remove(); });
+    const listEl = box.querySelector('#cp-list');
+    async function renderCpList() {
+      const r = await window.LabCode.git.checkpoint.list(cwd);
+      if (!r || !r.ok) { listEl.innerHTML = '<div style="opacity:.6;font-size:12px;">加载失败：' + escapeHtml((r && r.error) || '') + '</div>'; return; }
+      if (!r.records.length) { listEl.innerHTML = '<div style="opacity:.6;font-size:12px;">暂无检查点。pull / checkout / AI 改文件前会自动创建，或点下方「立即快照」。</div>'; return; }
+      listEl.innerHTML = r.records.map(rec =>
+        '<div style="border-bottom:1px solid var(--border-color);padding:8px 4px;">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;">' +
+        '<div style="flex:1;overflow:hidden;"><div style="font-size:12.5px;font-weight:600;">' + escapeHtml(rec.label || '快照') + '</div>' +
+        '<div style="font-size:10.5px;opacity:.6;">' + cpFmtTime(rec.ts) + ' · ' + rec.id + ' · ' + (rec.fileCount || 0) + ' 文件</div></div>' +
+        '<button data-cp-prev="' + rec.id + '" style="margin-left:6px;">预览</button>' +
+        '<button data-cp-restore="' + rec.id + '" style="margin-left:6px;">恢复</button>' +
+        '</div><div data-cp-detail="' + rec.id + '" style="display:none;margin-top:6px;font-size:11px;max-height:180px;overflow:auto;"></div></div>'
+      ).join('');
+      listEl.querySelectorAll('[data-cp-prev]').forEach(b => b.addEventListener('click', async () => {
+        const id = b.getAttribute('data-cp-prev');
+        const det = listEl.querySelector('[data-cp-detail="' + id + '"]');
+        const p = await window.LabCode.git.checkpoint.preview(cwd, id);
+        if (!p || !p.ok) { det.textContent = '预览失败：' + ((p && p.error) || ''); det.style.display = 'block'; return; }
+        det.innerHTML = '<b>恢复将变更 ' + p.total + ' 个文件：</b><br>' + (p.files.length ? p.files.map(escapeHtml).join('<br>') : '（无差异）') + (p.total > p.files.length ? '<br>… 还有 ' + (p.total - p.files.length) + ' 个' : '');
+        det.style.display = 'block';
+      }));
+      listEl.querySelectorAll('[data-cp-restore]').forEach(b => b.addEventListener('click', async () => {
+        const id = b.getAttribute('data-cp-restore');
+        if (!confirm('恢复该检查点将覆盖/删除当前工作区对应文件（恢复前会自动拍当前态）。继续？')) return;
+        const r = await window.LabCode.git.checkpoint.restore(cwd, id);
+        if (r && r.ok) { showToast('已恢复 ' + id + (r.removed ? '，清理新增 ' + r.removed + ' 个文件' : ''), 'success'); if (typeof refreshGitStatus === 'function') refreshGitStatus(); }
+        else showToast('恢复失败：' + ((r && r.error) || ''), 'error');
+      }));
+    }
+    box.querySelector('#cp-create-btn').addEventListener('click', async () => {
+      const r = await window.LabCode.git.checkpoint.create(cwd, '手动快照');
+      if (r && r.ok) { showToast(r.unchanged ? '与上一快照相同（自动去重）' : '已创建快照 ' + r.id, 'success'); renderCpList(); }
+      else showToast('快照失败：' + ((r && r.error) || ''), 'error');
+    });
+    renderCpList();
+  }
+  const gitCpBtn = document.getElementById('git-checkpoint-btn');
+  if (gitCpBtn) gitCpBtn.addEventListener('click', openCheckpointModal);
 
   // 新建文件按钮绑定（浅色主题下元素为 quick-new-file；兼容旧 id）
   const newFileBtn = document.getElementById('new-file-btn') || document.getElementById('quick-new-file');
