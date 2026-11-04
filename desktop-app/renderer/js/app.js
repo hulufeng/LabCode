@@ -11931,7 +11931,8 @@ function bindEvents() {
     // 官网真实插件：直接下载 ChipCode/TrieCode 官方 zip（完整 plugin.json + ui/），不走 GitHub 试探
     if (plugin.source === 'chipcode' && plugin.downloadUrl && plugin.category !== 'ai-model') {
       try {
-        const cc = await installFromZipball(plugin.downloadUrl, null, plugin, 'ChipCode官网');
+        // label 会拼进临时 zip 文件名，必须用 ASCII（中文路径在终端编码下会下载失败）
+        const cc = await installFromZipball(plugin.downloadUrl, null, plugin, 'ChipCode');
         remoteInstall = cc.result;
         addOutputLog('✅ 已从官网安装「' + plugin.name + ' v' + plugin.version + '」（' + cc.sizeKB + ' KB，注册 ' + (cc.result.tools || 0) + ' 个工具、' + (cc.result.skills || 0) + ' 条技能）', 'success');
       } catch (ce) {
