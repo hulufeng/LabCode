@@ -10570,18 +10570,20 @@ function bindEvents() {
     { id: 'ai-hardware-lab', name: 'AI 硬件拆解工坊', description: '一句话描述想做的设备，AI 拆解为可落地手搓方案：方案概览/模块选型/接线示意/示例代码/组装步骤/避坑提示；安装后活动栏出现「AI 硬件拆解工坊」入口，可随时卸载', version: '1.0.0', author: 'LabCode', icon: '🤖', category: 'tool', channels: ['internal'], capabilities: ['hwlab', 'ai'] }
   ];
 
-  // ===== 官方市场 1:1 对齐 ChipCode：只保留这 9 个功能插件 + 用户的「AI 硬件拆解工坊」=====
-  // 其他内置条目 / 远程市场条目 / 本地缓存条目一律不显示（AI 模型仍走「模型」tab）。
+  // ===== 官方市场 = ChipCode/TrieCode 官网真实插件（https://www.chipcode.cn/api/plugins）=====
+  // 9 个功能插件 id / 版本 / 名称与官网清单一致，安装时从官网 /api/plugins/download/<id>.zip 真实下载。
+  // 第 10 个「AI 硬件拆解工坊」是本地真插件（有 manifest 工具 + 宿主服务 + 面板）。
+  const CHIPCODE_MARKET_ORIGIN = 'https://www.chipcode.cn';
   const MARKET_CATALOG = {
-    'plugin-dev-toolchain': { name: '插件开发工具链', version: '0.1.1', icon: '🧩', category: 'tool', description: '让 AI 帮你创建 ChipCode 插件：AI 完全主导插件脚手架、manifest 与工具实现' },
+    'plugin-dev-toolchain': { name: '插件开发工具链', version: '0.1.1', icon: '🧩', category: 'tool', description: '让 AI 帮你创建插件：AI 完全主导插件脚手架、manifest 与工具实现' },
     'arduino-cli-toolchain': { name: 'Arduino CLI 工具链', version: '0.3.11', icon: '♾️', category: 'tool', description: 'Arduino CLI 工具链插件：声明式工具后端（arduino-cli 编译 / 上传 / 板卡管理）' },
     'browser-toolchain': { name: '浏览器自动化', version: '0.1.5', icon: '🌐', category: 'tool', description: '给 AI 一个可控的真实浏览器：打开网页、点击、读取页面内容与截图' },
-    'esp-idf-toolchain': { name: 'ESP-IDF 工具链', version: '0.1.11', icon: '📡', category: 'tool', description: 'ESP-IDF 嵌入式工具链：图形化 Kconfig 配置、编译、烧录与串口监控' },
+    'espressif-idf-toolchain': { name: 'ESP-IDF 工具链', version: '0.1.11', icon: '📡', category: 'tool', description: 'ESP-IDF 嵌入式工具链：图形化 Kconfig 配置、编译、烧录与串口监控' },
     'stm32-cube-toolchain': { name: 'STM32Cube 工具链', version: '0.1.2', icon: '🔧', category: 'tool', description: 'STM32Cube 原生工具链：编译 / 烧录 STM32 HAL 工程' },
-    'wokwi-simulator': { name: 'Wokwi 模拟器', version: '1.0.4', icon: '⚡', category: 'tool', description: 'Wokwi 嵌入式电路模拟器：用 wokwi-cli 仿真 ESP32 / Arduino 电路与固件' },
-    'lceda-integration': { name: '立创EDA', version: '0.2.3', icon: '☁️', category: 'tool', description: '把立创EDA(EasyEDA)接入 AI：工程 / 原理图 / PCB 协同与扩展导入' },
+    'wokwi-simulator': { name: 'Wokwi 模拟器', version: '0.1.4', icon: '⚡', category: 'tool', description: 'Wokwi 嵌入式电路模拟器：用 wokwi-cli 仿真 ESP32 / Arduino 电路与固件' },
+    'easyeda-toolchain': { name: '立创EDA', version: '0.2.3', icon: '☁️', category: 'tool', description: '把立创EDA(EasyEDA)接入 AI：工程 / 原理图 / PCB 协同与扩展导入' },
     'openscad-toolchain': { name: 'OpenSCAD 工具链', version: '0.1.2', icon: '📦', category: 'tool', description: 'OpenSCAD 程序化建模：把机械外壳 / 结构件写成可参数化代码' },
-    'mcs51-toolchain': { name: '51 单片机工具链', version: '0.3.3', icon: '🔶', category: 'tool', description: '51 系列单片机（8051）通用开发工具链：SDCC 编译 / 烧录 / 仿真' },
+    'sdcc-51-toolchain': { name: '51 单片机工具链', version: '0.3.3', icon: '🔶', category: 'tool', description: '51 系列单片机（8051）通用开发工具链：SDCC 编译 / 烧录 / 仿真' },
     'ai-hardware-lab': { name: 'AI 硬件拆解工坊', version: '1.0.0', icon: '🤖', category: 'tool', description: '一句话描述想做的设备，AI 拆解为可落地手搓方案：方案概览 / 模块选型 / 接线示意 / 示例代码 / 组装步骤 / 避坑提示' }
   };
   // 磁盘插件（browser-automation / mcu8051-toolchain）通过 PLUGIN_ID_ALIASES 与市场条目视为同一插件，
@@ -10592,13 +10594,6 @@ function bindEvents() {
   // 与「假安装」说再见：装这些插件时会把 plugin.json 真写到 <userData>/plugins/<id>/，
   // 并通过 PluginSystem 注册工具（重启后由 loadPluginsFromDir 重新加载，依然生效）。
   const BUILTIN_PLUGIN_MANIFESTS = {
-    // Wokwi 模拟器：对齐 ChipCode——是「需要下载安装」的插件而非内置功能。
-    // 安装时真落盘到 <userData>/plugins/wokwi-simulator/，面板/模板/仿真由宿主提供。
-    'wokwi-simulator': {
-      id: 'wokwi-simulator', name: 'Wokwi 模拟器', version: '1.0.4', icon: '⚡', category: 'tool',
-      description: 'Wokwi 在线电路仿真（活动栏入口、项目模板、wokwi-cli 检测与仿真运行由宿主提供）',
-      tools: [], skills: []
-    },
     'git-integration': {
       id: 'git-integration', name: 'Git 集成', version: '1.0.0', icon: '🌿', category: 'tool',
       description: '真实 Git 操作：状态/差异/日志/暂存/提交/分支（复用 LabCode 内置 git 引擎）',
@@ -10684,16 +10679,8 @@ function bindEvents() {
       ]
     }
   };
-  // 对齐 ChipCode：白名单里的每个功能都是「真插件」——安装时写 plugin.json 落盘并可卸载。
-  // ai-hardware-lab / wokwi-simulator 已有完整 manifest（工具/技能/专有面板），不覆盖。
-  Object.keys(MARKET_CATALOG).forEach(function(id){
-    if (id === 'ai-hardware-lab' || id === 'wokwi-simulator') return;
-    const m = MARKET_CATALOG[id];
-    BUILTIN_PLUGIN_MANIFESTS[id] = {
-      id: id, name: m.name, version: m.version, icon: m.icon, category: m.category,
-      description: m.description, tools: [], skills: []
-    };
-  });
+  // 官网 9 个插件不再生成本地空 manifest：安装走官网真实 zip（见 fetchChipcodePlugins / installPlugin）。
+  // 仅 ai-hardware-lab 保留本地真 manifest（工具 + 宿主服务 + 专有面板）。
 
   // ============ 远程插件市场（真实化：从服务端拉取，内置目录作离线兜底）============
   let remotePlugins = [];
@@ -10746,43 +10733,60 @@ function bindEvents() {
     marketFailAt = Date.now();
   }
 
+  // ===== 官网真实插件市场（ChipCode/TrieCode）：9 个插件 + 真实 zip 下载地址 =====
+  async function fetchChipcodePlugins() {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 30000);
+      const res = await fetch(CHIPCODE_MARKET_ORIGIN + '/api/plugins', { signal: controller.signal, cache: 'no-store' });
+      clearTimeout(timer);
+      if (!res.ok) return [];
+      const data = await res.json();
+      const items = Array.isArray(data) ? data : (data.plugins || data.items || []);
+      return items.filter(p => p && p.id && MARKET_IDS.has(p.id)).map(p => ({
+        id: p.id, name: p.name, description: p.description || '', version: p.version || '1.0.0',
+        author: p.developer || p.author || 'TrieCode', icon: p.icon || '📦',
+        category: p.category || 'tool', channels: ['http'], capabilities: [],
+        // 官网 downloadUrl 是相对路径，拼成绝对地址供 installFromZipball 下载
+        downloadUrl: /^https?:/i.test(String(p.downloadUrl || '')) ? p.downloadUrl : CHIPCODE_MARKET_ORIGIN + String(p.downloadUrl || ''),
+        source: 'chipcode'
+      }));
+    } catch (e) { return []; }
+  }
+
   async function fetchRemotePlugins() {
     if (marketShouldSkip()) { remotePlugins = []; remoteMarketOnline = false; return; }
+    const chipcode = await fetchChipcodePlugins();
+    let gateway = [];
+    let hidden = [];
     try {
       const url = await getPluginMarketURL();
       const controller = new AbortController();
-      // 冷启动/TLS 首包在慢线路可达 ~15s，原 6s 会误杀首次拉取导致“市场未连接”；放宽到 30s（快网络仍秒回，仅在失败路径多等）
       const timer = setTimeout(() => controller.abort(), 30000);
       const res = await fetch(url + '/api/plugins', { signal: controller.signal, cache: 'no-store' });
       clearTimeout(timer);
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const data = await res.json();
       const list = (data && Array.isArray(data.plugins)) ? data.plugins : [];
-      // 规范化：与本地插件字段对齐，标记来源 remote
-      remotePlugins = list.map(p => ({
+      gateway = list.map(p => ({
         id: p.id, name: p.name, description: p.description || '', version: p.version || '1.0.0',
         author: p.developer || p.author || 'LabCode', icon: p.icon || '📦',
         category: p.category || 'tool', channels: p.channels || ['http'],
         capabilities: p.capabilities || [], requires: p.requires || '',
         modelName: p.modelName || '', minRamGB: p.minRamGB || 0, minDiskGB: p.minDiskGB || 0,
         recommendedFor: p.recommendedFor || '', downloadUrl: p.downloadUrl || '',
-        // 源码地址（TrieCode 卡片「查看源码 →」）：网关目前未返回，先接好字段，后端补上即自动生效
         sourceUrl: p.sourceUrl || p.repoUrl || p.repository || p.homepage || '',
-        // GitHub 分发源：插件包从 GitHub 仓库下载（而非服务器 zip）；后端可在此标注 githubRepo 覆盖默认源
         githubRepo: p.githubRepo || '',
         source: 'remote'
       }));
-      remoteMarketOnline = true;
-      // 服务端下架清单（listed:false）：在线时用它把客户端内置目录里的同名模型一并抹掉
-      remoteHiddenIds = Array.isArray(data.hidden) ? data.hidden : [];
-      // 同步到本地缓存：市场下次不可达时，仍能显示这份最新清单（免发版即可上架新模型）
-      try { localStorage.setItem(MARKET_CACHE_KEY, JSON.stringify({ plugins: remotePlugins, hidden: remoteHiddenIds })); } catch (e) { /* 忽略配额/隐私模式 */ }
-      console.log('[插件市场] 已从 ' + url + ' 拉取 ' + remotePlugins.length + ' 个远程插件');
-    } catch (e) {
-      remotePlugins = [];
-      remoteMarketOnline = false;
-      marketMarkFailed(e.message);
-    }
+      hidden = Array.isArray(data.hidden) ? data.hidden : [];
+    } catch (e) { marketMarkFailed(e.message); }
+    // 官网真实插件优先覆盖同名网关条目；AI 模型等其它条目保留
+    remotePlugins = gateway.filter(p => !chipcode.some(c => c.id === p.id)).concat(chipcode);
+    remoteMarketOnline = remotePlugins.length > 0;
+    remoteHiddenIds = hidden;
+    try { localStorage.setItem(MARKET_CACHE_KEY, JSON.stringify({ plugins: remotePlugins, hidden: hidden })); } catch (e) { /* 忽略配额 */ }
+    console.log('[插件市场] 官网 ' + chipcode.length + ' 个真实插件 + 网关 ' + gateway.length + ' 个条目');
   }
 
   // ============ 社区插件（GitHub `labcode-plugin` topic 去中心化发现）============
@@ -10824,10 +10828,14 @@ function bindEvents() {
     const list = Array.from(map.values())
       .filter(p => p.category === 'ai-model' || MARKET_IDS.has(p.id))
       .map(p => MARKET_CATALOG[p.id] ? { ...p, ...MARKET_CATALOG[p.id] } : p);
-    // 白名单里本地与远程都没有的条目（如立创EDA）补齐，保证 10 个功能齐全
+    // 官网清单不可达时补齐白名单：仍带官网真实 zip 地址，点「安装」会去官网下载真实包（失败明确报错，不假安装）
     Object.keys(MARKET_CATALOG).forEach(id => {
       if (!list.some(p => p.id === id)) {
-        list.push({ id: id, ...MARKET_CATALOG[id], author: 'LabCode', channels: ['internal'], capabilities: [], source: 'builtin' });
+        list.push({
+          id: id, ...MARKET_CATALOG[id], author: 'TrieCode', channels: ['http'], capabilities: [],
+          source: id === 'ai-hardware-lab' ? 'builtin' : 'chipcode',
+          downloadUrl: CHIPCODE_MARKET_ORIGIN + '/api/plugins/download/' + id + '.zip'
+        });
       }
     });
     // 保持 ChipCode 截图的展示顺序（AI 模型仍归「模型」tab，排在最后）
@@ -10929,9 +10937,11 @@ function bindEvents() {
     'esp-idf': ['esp-idf-toolchain', 'espressif-idf-toolchain'],
     'stm32': ['stm32-cube-toolchain', 'stm32-toolchain'],
     'plugin-dev': ['plugin-dev-toolchain'],
-    // ChipCode 市场条目 ↔ 本机磁盘插件目录 id（视为同一插件，卸载时一并清掉）
+    // 官网市场 id ↔ 本机磁盘插件 / 旧版 id（视为同一插件，卸载时一并清掉）
     'browser-toolchain': ['browser-automation'],
-    'mcs51-toolchain': ['mcu8051-toolchain']
+    'sdcc-51-toolchain': ['mcu8051-toolchain', 'mcs51-toolchain'],
+    'espressif-idf-toolchain': ['esp-idf-toolchain', 'espressif-idf'],
+    'easyeda-toolchain': ['lceda-integration']
   };
   function pluginIdCandidates(id) {
     const extra = PLUGIN_ID_ALIASES[id] || [];
@@ -11193,14 +11203,14 @@ function bindEvents() {
   // 品牌图标映射（参考 TrieCode 已安装卡片：工具链/知名插件用品牌 SVG，其余 emoji）
   const BRAND_ICONS = [
     { test: /arduino/i, sym: 'brand-arduino' },
-    { test: /esp-?idf/i, sym: 'brand-espidf' },
+    { test: /esp-?idf|espressif/i, sym: 'brand-espidf' },
     { test: /stm32/i, sym: 'brand-stm32' },
     { test: /wokwi/i, sym: 'brand-wokwi' },
     { test: /立创|easyeda|lceda/i, sym: 'brand-lceda' },
     { test: /浏览器|browser/i, sym: 'brand-browser' },
     { test: /插件开发|plugin-dev/i, sym: 'brand-plugdev' },
     { test: /openscad/i, sym: 'brand-openscad' },
-    { test: /mcs51|51\s*单片机|8051/i, sym: 'brand-mcs51' },
+    { test: /sdcc-51|mcs51|51\s*单片机|8051/i, sym: 'brand-mcs51' },
     { test: /ai-hardware-lab|AI\s*硬件拆解|硬件拆解/i, sym: 'brand-aihwlab' }
   ];
   function brandIconHtml(p) {
@@ -11918,8 +11928,19 @@ function bindEvents() {
     // 优先 GitHub 仓库（main/master 自动回退）；个别不在 GitHub 的插件（如 hello-market / llama-runtime）再回退网关 zip。
     // 复用共享 installFromZipball 链路（与社区插件同一套下载/校验/解压/进度逻辑）。
     let remoteInstall = null;
-    // 白名单条目都带本地真 manifest：优先本地落盘安装，不走远程下载（避免装不上 / 版本不一致）
-    if (plugin.source === 'remote' && plugin.downloadUrl && !BUILTIN_PLUGIN_MANIFESTS[plugin.id] && plugin.category !== 'ai-model') {
+    // 官网真实插件：直接下载 ChipCode/TrieCode 官方 zip（完整 plugin.json + ui/），不走 GitHub 试探
+    if (plugin.source === 'chipcode' && plugin.downloadUrl && plugin.category !== 'ai-model') {
+      try {
+        const cc = await installFromZipball(plugin.downloadUrl, null, plugin, 'ChipCode官网');
+        remoteInstall = cc.result;
+        addOutputLog('✅ 已从官网安装「' + plugin.name + ' v' + plugin.version + '」（' + cc.sizeKB + ' KB，注册 ' + (cc.result.tools || 0) + ' 个工具、' + (cc.result.skills || 0) + ' 条技能）', 'success');
+      } catch (ce) {
+        hideInstallModal();
+        addOutputLog('官网插件安装失败：' + ce.message, 'warning');
+        showToast(plugin.name + ' 安装失败：' + ce.message, 'error');
+        return { success: false, error: '官网安装失败: ' + ce.message };
+      }
+    } else if (plugin.source === 'remote' && plugin.downloadUrl && !BUILTIN_PLUGIN_MANIFESTS[plugin.id] && plugin.category !== 'ai-model') {
       // 官方插件 GitHub 源：默认 hulufeng/labcode-plugins（LabCode 自有仓库）；
       // 若网关插件数据里标注了 githubRepo 字段，则以标注值为准
       const ghRepo = plugin.githubRepo || OFFICIAL_PLUGIN_REPO;
@@ -12037,10 +12058,11 @@ function bindEvents() {
   // 之前 Arduino CLI / ESP-IDF 按钮在 index.html 硬编码常驻，与插件市场徽章脱节。
   // 现在：未安装（含别名判定）即隐藏，安装/卸载/启动时刷新。
   function syncToolchainActivityButtons() {
-    [['arduino-cli-toolchain', 'arduino'], ['esp-idf-toolchain', 'esp-idf']].forEach(([tc, mid]) => {
-      const btn = document.querySelector('.activity-btn[data-panel="device"][data-toolchain="' + tc + '"]');
+    // btnTc = 静态按钮上的旧 id；instId = 官网真实插件 id（安装状态判定以官网为准）
+    [['arduino-cli-toolchain', 'arduino-cli-toolchain'], ['esp-idf-toolchain', 'espressif-idf-toolchain']].forEach(([btnTc, instId]) => {
+      const btn = document.querySelector('.activity-btn[data-panel="device"][data-toolchain="' + btnTc + '"]');
       if (!btn) return;
-      btn.style.display = (isPluginInstalled(tc) || isPluginInstalled(mid)) ? '' : 'none';
+      btn.style.display = (isPluginInstalled(instId) || isPluginInstalled(btnTc)) ? '' : 'none';
     });
     // Wokwi 模拟器：对齐 ChipCode——可安装/卸载插件，未安装不显示活动栏入口
     const wokwiBtn = document.querySelector('.activity-btn[data-panel="wokwi"]');
