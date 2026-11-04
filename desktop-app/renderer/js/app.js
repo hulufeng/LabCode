@@ -10172,7 +10172,32 @@ function bindEvents() {
           const pfClose = document.getElementById('pf-close');
           if (pfClose) pfClose.onclick = function(){ pf.style.display = 'none'; };
           const pfGen = document.getElementById('pf-generate');
-          if (pfGen) pfGen.onclick = function(){ const idea = (document.getElementById('pf-idea')||{}).value || ''; if (idea.trim() && typeof openHwLab === 'function') openHwLab(); };
+          if (pfGen) pfGen.onclick = async function(){
+            const idea = ((document.getElementById('pf-idea')||{}).value || '').trim();
+            const out = document.getElementById('pf-output');
+            if (!idea) { if (out) out.textContent = '请先描述你想做的产品构想。'; return; }
+            // 真插件：功能由 ai-hardware-lab 插件提供，未安装不能用
+            if (!isPluginInstalled('ai-hardware-lab')) {
+              if (out) out.textContent = '尚未安装「AI 硬件拆解工坊」插件。请到插件市场安装后使用。';
+              showToast('请先安装「AI 硬件拆解工坊」插件', 'warning');
+              return;
+            }
+            if (out) out.textContent = 'AI 正在拆解方案，请稍候…';
+            pfGen.disabled = true;
+            try {
+              const PS = window.PluginSystem;
+              const r = await PS.dispatchTool(
+                { transport: 'internal', internal: { service: 'hwlab', method: 'dissect' } },
+                'plugin_ai-hardware-lab_dissect_hardware_idea',
+                'plugin_ai-hardware-lab_dissect_hardware_idea',
+                { idea: idea }
+              );
+              if (!(r && (r.success || typeof r === 'string'))) throw new Error((r && r.error) || '拆解失败');
+              if (out) out.textContent = typeof r === 'string' ? r : (r.markdown || r.content || JSON.stringify(r, null, 2));
+            } catch (e) {
+              if (out) out.textContent = '拆解失败：' + e.message;
+            } finally { pfGen.disabled = false; }
+          };
         }
       } else {
         // settings 等其他按钮
@@ -10542,7 +10567,7 @@ function bindEvents() {
     { id: 'serial-monitor', name: '串口监视器', description: '列出本机串口、打开/读取/发送数据、崩溃日志分析；装好后 AI 可直接查串口日志', version: '1.0.0', author: 'LabCode', icon: '📟', category: 'tool', channels: ['internal'], capabilities: ['serial', 'debug', 'tool'] },
     // 工程统计暂不上架：加载该插件会导致渲染进程崩溃，定位前不上线
     { id: 'demo-echo', name: '插件开发示例', description: '插件系统自带示例（回显参数），验证 manifest → 工具注册 → AI 调用整条链路', version: '1.0.0', author: 'LabCode', icon: '🧩', category: 'tool', channels: ['internal'], capabilities: ['demo', 'tool'] },
-    { id: 'ai-hardware-lab', name: 'AI 硬件拆解工坊', description: '一句话描述想做的设备，AI 拆解为可落地手搓方案：方案概览/模块选型/接线示意/示例代码/组装步骤/避坑提示', version: '1.0.0', author: 'LabCode', icon: '🤖', category: 'tool', channels: ['internal'], capabilities: ['hwlab', 'ai'] }
+    { id: 'ai-hardware-lab', name: 'AI 硬件拆解工坊', description: '一句话描述想做的设备，AI 拆解为可落地手搓方案：方案概览/模块选型/接线示意/示例代码/组装步骤/避坑提示；安装后活动栏出现「AI 硬件拆解工坊」入口，可随时卸载', version: '1.0.0', author: 'LabCode', icon: '🤖', category: 'tool', channels: ['internal'], capabilities: ['hwlab', 'ai'] }
   ];
 
   // ============ 内置可安装插件的真 manifest ============
@@ -10597,6 +10622,8 @@ function bindEvents() {
     'ai-hardware-lab': {
       id: 'ai-hardware-lab', name: 'AI 硬件拆解工坊', version: '1.0.0', icon: '🤖', category: 'tool',
       description: '一句话描述想做的设备，AI 拆解为可落地手搓方案：方案概览/模块选型/接线示意/示例代码/组装步骤/避坑提示',
+      // 插件提供的宿主专有面板：安装后活动栏出现入口，卸载即消失；面板能力走下面 dissect_hardware_idea 工具
+      activityPanel: 'product-factory',
       tools: [
         { name: 'dissect_hardware_idea', description: '把设备想法拆解为可落地的手搓方案（六段结构化输出）', parameters: { type: 'object', properties: { idea: { type: 'string', description: '一句话描述想做的设备，如：做一辆能沿黑线自动行驶的循迹小车，速度可调' } }, required: ['idea'] }, category: 'query', transport: 'internal', internal: { service: 'hwlab', method: 'dissect' } }
       ],
@@ -11977,6 +12004,9 @@ function bindEvents() {
     // Wokwi 模拟器：对齐 ChipCode——可安装/卸载插件，未安装不显示活动栏入口
     const wokwiBtn = document.querySelector('.activity-btn[data-panel="wokwi"]');
     if (wokwiBtn) wokwiBtn.style.display = isPluginInstalled('wokwi-simulator') ? '' : 'none';
+    // AI 硬件拆解工坊（原「产品工厂」）：由 ai-hardware-lab 真插件提供入口与能力
+    const hwlabBtn = document.querySelector('.activity-btn[data-panel="product-factory"]');
+    if (hwlabBtn) hwlabBtn.style.display = isPluginInstalled('ai-hardware-lab') ? '' : 'none';
   }
 
   // ============ 暴露插件 API 给 AI 工具（agent 自主插件管理）============
@@ -12698,8 +12728,13 @@ function bindEvents() {
   const welcomePillProduct = document.getElementById('welcome-pill-product');
   if (welcomePillProduct) welcomePillProduct.addEventListener('click', function(){
     const pfBtn = document.querySelector('.activity-btn[data-panel="product-factory"]');
-    if (pfBtn) pfBtn.click();
-    else showToast('产品工厂入口未找到', 'error');
+    if (!pfBtn || pfBtn.style.display === 'none' || !isPluginInstalled('ai-hardware-lab')) {
+      showToast('请先到插件市场安装「AI 硬件拆解工坊」插件', 'warning');
+      const pluginsBtn = document.querySelector('.activity-btn[data-panel="plugins"]');
+      if (pluginsBtn) pluginsBtn.click();
+      return;
+    }
+    pfBtn.click();
   });
 
   // 上下文占用环：初始渲染 + 模型切换跟随（占用环显示当前模型窗口用量）
@@ -18287,7 +18322,13 @@ function init() {
 // 启动即同步欢迎态布局（对齐 TrieCode：无项目时 AI 欢迎区占满中央）
 __onDCL(() => { try { syncWelcomePanel(); } catch (e) {} });
 // 插件加载完成后刷新活动栏动态入口（TrieCode 式：装了就显示）+ 静态工具链按钮同步
-__onDCL(() => { setTimeout(() => { try { refreshPluginActivityButtons(); } catch (e) {} try { syncToolchainActivityButtons(); } catch (e) {} }, 1500); });
+// 二次兜底：磁盘插件加载可能晚于 1.5s，3.5s 再同步一次，避免重启后已装插件的入口不出现
+__onDCL(() => {
+  [1500, 3500].forEach(ms => setTimeout(() => {
+    try { refreshPluginActivityButtons(); } catch (e) {}
+    try { syncToolchainActivityButtons(); } catch (e) {}
+  }, ms));
+});
 
 if (document.readyState === 'loading') {
   __onDCL( init);
