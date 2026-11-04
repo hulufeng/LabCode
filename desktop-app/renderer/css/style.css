@@ -987,6 +987,8 @@ input, textarea {
   margin: 0 0 24px;
   max-width: 280px;
 }
+/* 两行文案精确对齐 ChipCode：每行独立、不自动折行 */
+.welcome-panel-desc span { display: block; white-space: nowrap; }
 .welcome-panel-actions {
   display: flex;
   flex-direction: column;
