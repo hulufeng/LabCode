@@ -380,6 +380,98 @@ function setupIPC() {
 
   // 配置
   ipcMain.handle('config:get', () => config);
+
+  // 麦克风权限显式放行（语音输入 getUserMedia；保持其余默认放行不变）
+  try {
+    require('electron').session.defaultSession.setPermissionRequestHandler((_wc, _permission, cb) => cb(true));
+  } catch (e) { /* 会话未就绪时忽略 */ }
+
+  // ===== 语音识别 STT（对齐 TrieCode speech.js：16kHz WAV → OpenAI 兼容 /audio/transcriptions 或百炼 input_audio）=====
+  let sttAbort = null;
+  function sttErr(status, json) {
+    const errText = json && typeof json.error === 'string' && json.error.indexOf('<') !== 0 && /[\u4e00-\u9fff]/.test(json.error) ? json.error.slice(0, 200) : '';
+    if (errText) return { ok: false, code: 'STT_UPSTREAM_ERROR', message: errText };
+    if (status === 413) return { ok: false, code: 'AUDIO_TOO_LARGE', message: '录音过长或上传被拦截，请缩短后重试。' };
+    if (status === 429) return { ok: false, code: 'STT_RATE_LIMITED', message: '语音识别请求过于频繁，请稍后重试。' };
+    if (status === 401 || status === 403) return { ok: false, code: 'STT_UNAUTHORIZED', message: 'API Key 无效或已过期，请在 设置 → 模型供应商 → 语音识别 中检查。' };
+    if (status === 404) return { ok: false, code: 'STT_BAD_CONFIG', message: '语音识别接口地址不正确，请检查设置中的 Base URL。' };
+    if (status === 503) return { ok: false, code: 'STT_DISABLED', message: '语音识别服务暂不可用，请稍后重试。' };
+    if (status >= 500) return { ok: false, code: 'STT_UPSTREAM_ERROR', message: '语音识别服务暂时不可用，请稍后重试。' };
+    return { ok: false, code: 'STT_UPSTREAM_ERROR', message: '语音识别失败（HTTP ' + status + '）。' };
+  }
+  ipcMain.handle('stt:cancel', () => { if (sttAbort) { try { sttAbort.abort(); } catch (e) {} sttAbort = null; } return { ok: true }; });
+  ipcMain.handle('stt:transcribe', async (_e, req) => {
+    const raw = req && req.wav;
+    let wav = null;
+    if (raw instanceof Uint8Array) wav = Buffer.from(raw);
+    else if (raw && raw.buffer instanceof ArrayBuffer) wav = Buffer.from(new Uint8Array(raw.buffer, raw.byteOffset || 0, raw.byteLength));
+    if (!wav || !wav.length) return { ok: false, code: 'STT_BAD_AUDIO', message: '没有收到音频数据，请重新录音。' };
+    const stt = (config && config.ai && config.ai.stt) || {};
+    if (!stt.apiKey || !stt.baseURL || !stt.model) {
+      return { ok: false, code: 'STT_DISABLED', message: '尚未配置语音识别：请在 设置 → 模型供应商 → 语音识别 填写 API Key / Base URL / 模型。' };
+    }
+    if (sttAbort) { try { sttAbort.abort(); } catch (e) {} }
+    sttAbort = new AbortController();
+    const timer = setTimeout(() => { if (sttAbort) { try { sttAbort.abort(); } catch (e) {} } }, 60000);
+    const started = Date.now();
+    try {
+      const base = String(stt.baseURL).replace(/\/+$/, '');
+      const language = stt.language || 'zh';
+      let text = '';
+      if (String(stt.protocol) === 'dashscope') {
+        // 百炼：音频以 input_audio + base64 走 chat/completions（非标准 ASR 端点）
+        const payload = {
+          model: stt.model,
+          messages: [{ role: 'user', content: [{ type: 'input_audio', input_audio: { data: 'data:audio/wav;base64,' + wav.toString('base64') } }] }],
+          stream: false,
+        };
+        const resp = await fetch(base + '/chat/completions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + stt.apiKey },
+          body: JSON.stringify(payload),
+          signal: sttAbort.signal,
+        });
+        const rawBody = await resp.text().catch(() => '');
+        let json; try { json = rawBody ? JSON.parse(rawBody) : undefined; } catch (e) { json = undefined; }
+        if (!resp.ok) return sttErr(resp.status, json);
+        const content = json && json.choices && json.choices[0] && json.choices[0].message && json.choices[0].message.content;
+        text = typeof content === 'string' ? content : '';
+      } else {
+        // OpenAI 兼容：手工拼 multipart（TrieCode 教训：undici FormData 喂 electron net.fetch 会序列化成 "[object FormData]" 且不报错）
+        const boundary = '----LabCodeSTT' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+        const CRLF = '\r\n';
+        const headParts = [
+          '--' + boundary + CRLF + 'Content-Disposition: form-data; name="model"' + CRLF + CRLF + stt.model + CRLF,
+          '--' + boundary + CRLF + 'Content-Disposition: form-data; name="response_format"' + CRLF + CRLF + 'json' + CRLF,
+        ];
+        if (language) headParts.push('--' + boundary + CRLF + 'Content-Disposition: form-data; name="language"' + CRLF + CRLF + language + CRLF);
+        headParts.push('--' + boundary + CRLF + 'Content-Disposition: form-data; name="file"; filename="audio.wav"' + CRLF + 'Content-Type: audio/wav' + CRLF + CRLF);
+        const head = Buffer.from(headParts.join(''), 'utf8');
+        const tail = Buffer.from(CRLF + '--' + boundary + '--' + CRLF, 'utf8');
+        const body = Buffer.concat([head, wav, tail]);
+        const resp = await fetch(base + '/audio/transcriptions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'multipart/form-data; boundary=' + boundary, Authorization: 'Bearer ' + stt.apiKey },
+          body: body,
+          signal: sttAbort.signal,
+        });
+        const rawBody = await resp.text().catch(() => '');
+        let json; try { json = rawBody ? JSON.parse(rawBody) : undefined; } catch (e) { json = undefined; }
+        if (!resp.ok) return sttErr(resp.status, json);
+        text = json && typeof json.text === 'string' ? json.text : '';
+      }
+      // 隐私：只记录时长/字节数/状态，绝不记录音频内容与转写正文
+      console.log('[STT] bytes=' + wav.length + ' ms=' + (Date.now() - started) + ' ok=' + !!(text && text.trim()));
+      if (!text || !text.trim()) return { ok: false, code: 'STT_EMPTY_RESULT', message: '没有识别到内容，请靠近麦克风再说一次。' };
+      return { ok: true, text: text.trim() };
+    } catch (e) {
+      if (e && e.name === 'AbortError') return { ok: false, code: 'STT_CANCELLED', message: '已取消语音识别。' };
+      return { ok: false, code: 'STT_NETWORK', message: '网络连接失败，请检查网络后重试。' };
+    } finally {
+      clearTimeout(timer);
+      sttAbort = null;
+    }
+  });
   // Deep-merge helper: plain objects merged recursively, everything else replaced.
   function deepMergeConfig(target, patch) {
     const out = Array.isArray(target) ? target.slice() : Object.assign({}, target);

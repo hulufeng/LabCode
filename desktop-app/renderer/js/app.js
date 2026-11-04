@@ -12441,6 +12441,103 @@ function bindEvents() {
   // 上下文占用环：初始渲染 + 模型切换跟随（占用环显示当前模型窗口用量）
   if (typeof scheduleCtxRing === 'function') scheduleCtxRing();
 
+  // ===== 语音输入 STT（对齐 TrieCode ai:transcribe：录音→16kHz WAV→主进程转写→文字进输入框）=====
+  window.__sttState = { recording: false, stream: null, ctx: null, proc: null, chunks: [], startedAt: 0 };
+  function sttResampleTo16k(f32, fromRate) {
+    if (!f32 || !f32.length || fromRate === 16000) return f32 || new Float32Array(0);
+    const ratio = fromRate / 16000;
+    const outLen = Math.max(1, Math.floor(f32.length / ratio));
+    const out = new Float32Array(outLen);
+    for (let i = 0; i < outLen; i++) {
+      const pos = i * ratio;
+      const i0 = Math.floor(pos);
+      const i1 = Math.min(f32.length - 1, i0 + 1);
+      const fr = pos - i0;
+      out[i] = f32[i0] * (1 - fr) + f32[i1] * fr;
+    }
+    return out;
+  }
+  function sttEncodeWav16(f32, sampleRate) {
+    const len = f32.length;
+    const buf = new ArrayBuffer(44 + len * 2);
+    const v = new DataView(buf);
+    const ws = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+    ws(0, 'RIFF'); v.setUint32(4, 36 + len * 2, true); ws(8, 'WAVE'); ws(12, 'fmt ');
+    v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+    v.setUint32(24, sampleRate, true); v.setUint32(28, sampleRate * 2, true);
+    v.setUint16(32, 2, true); v.setUint16(34, 16, true); ws(36, 'data'); v.setUint32(40, len * 2, true);
+    let o = 44;
+    for (let i = 0; i < len; i++, o += 2) {
+      const s = Math.max(-1, Math.min(1, f32[i]));
+      v.setInt16(o, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+    }
+    return new Uint8Array(buf);
+  }
+  function sttSetBtn(rec) {
+    const b = document.getElementById('voice-btn');
+    if (!b) return;
+    b.style.color = rec ? '#ef4444' : '';
+    b.style.background = rec ? 'rgba(239,68,68,.18)' : '';
+    b.title = rec ? '停止录音并转写' : '语音输入（点击开始/停止录音）';
+  }
+  async function sttToggle() {
+    const S = window.__sttState;
+    if (S.recording) { sttStop(); return; }
+    if (!(isElectron && window.LabCode && window.LabCode.stt)) { showToast('语音输入仅桌面版支持', 'warn'); return; }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true } });
+      const AC = window.AudioContext || window.webkitAudioContext;
+      const ctx = new AC();
+      const src = ctx.createMediaStreamSource(stream);
+      const proc = ctx.createScriptProcessor(4096, 1, 1);
+      S.chunks = []; S.recording = true; S.stream = stream; S.ctx = ctx; S.proc = proc; S.startedAt = Date.now();
+      proc.onaudioprocess = (e) => { if (S.recording) S.chunks.push(new Float32Array(e.inputBuffer.getChannelData(0))); };
+      src.connect(proc); proc.connect(ctx.destination);
+      sttSetBtn(true);
+      addOutputLog('STT 录音开始', 'info');
+    } catch (e) { showToast('麦克风不可用：' + e.message, 'error'); }
+  }
+  function sttStop() {
+    const S = window.__sttState;
+    if (!S.recording) return;
+    S.recording = false;
+    sttSetBtn(false);
+    try { S.proc && S.proc.disconnect(); } catch (e) {}
+    try { S.stream && S.stream.getTracks().forEach(t => t.stop()); } catch (e) {}
+    const rate = (S.ctx && S.ctx.sampleRate) || 48000;
+    try { S.ctx && S.ctx.close(); } catch (e) {}
+    // 先合并再清空（顺序不能反）
+    let total = 0;
+    for (const c of S.chunks) total += c.length;
+    const chunks = S.chunks.slice();
+    S.chunks = [];
+    const durMs = Date.now() - S.startedAt;
+    if (!total || durMs < 400) { showToast('录音太短，请按住再说', 'warn'); return; }
+    const merged = new Float32Array(total);
+    let off = 0;
+    for (const c of chunks) { merged.set(c, off); off += c.length; }
+    const wav = sttEncodeWav16(sttResampleTo16k(merged, rate), 16000);
+    showToast('转写中…', 'info');
+    window.LabCode.stt.transcribe(wav).then(r => {
+      if (r && r.ok && r.text) {
+        const inp = document.getElementById('ai-input');
+        if (inp) {
+          const sep = inp.value && !/[\s\n]$/.test(inp.value) ? ' ' : '';
+          inp.value = inp.value + sep + r.text;
+          inp.dispatchEvent(new Event('input'));
+          inp.focus();
+        }
+        showToast('已转写 ' + r.text.length + ' 字', 'success');
+        addOutputLog('STT 转写成功（' + wav.length + ' 字节）', 'info');
+      } else {
+        showToast((r && r.message) || '语音识别失败', 'error');
+      }
+    }).catch(e => showToast('语音识别失败: ' + e.message, 'error'));
+  }
+  window.__sttTest = { sttResampleTo16k, sttEncodeWav16, sttToggle, sttStop, state: window.__sttState };
+  const voiceBtn = document.getElementById('voice-btn');
+  if (voiceBtn) voiceBtn.addEventListener('click', sttToggle);
+
   // 新建文件按钮绑定（浅色主题下元素为 quick-new-file；兼容旧 id）
   const newFileBtn = document.getElementById('new-file-btn') || document.getElementById('quick-new-file');
   if (newFileBtn) newFileBtn.addEventListener('click', () => {
@@ -18084,6 +18181,20 @@ async function renderProviderManager() {
     if (isCustom) html += '<div style="margin-top:6px;display:flex;gap:6px;"><input class="device-input pm-url" data-pid="' + pmEsc(p.id) + '" placeholder="Base URL" value="' + pmEsc(baseUrls[p.id] || p.baseURL || '') + '" style="flex:1;background:#111;border:1px solid #3c3c3c;color:#e0e0e0;border-radius:4px;padding:5px 8px;font-size: 10.5px;"><input class="device-input pm-model" data-pid="' + pmEsc(p.id) + '" placeholder="默认模型" value="' + pmEsc(p.defaultModel || '') + '" style="flex:1;background:#111;border:1px solid #3c3c3c;color:#e0e0e0;border-radius:4px;padding:5px 8px;font-size: 10.5px;"></div>';
     html += '</div>';
   }
+  // 语音识别（STT）配置卡（对齐 TrieCode 语音输入：自带 Key 的 OpenAI 兼容 /audio/transcriptions 或百炼协议）
+  const sttCfg0 = ai.stt || {};
+  html += '<div style="background:#181818;border:1px solid #3c3c3c;border-radius:6px;padding:10px;margin-bottom:8px;">';
+  html += '<div style="font-size: 11.5px;color:#e0e0e0;margin-bottom:6px;">语音识别（STT）· AI 输入框麦克风按钮使用</div>';
+  html += '<div style="display:flex;gap:6px;flex-wrap:wrap;">';
+  html += '<input id="stt-url" placeholder="Base URL（如 https://api.siliconflow.cn/v1）" value="' + pmEsc(sttCfg0.baseURL || '') + '" style="flex:2;min-width:160px;background:#111;border:1px solid #3c3c3c;color:#e0e0e0;border-radius:4px;padding:5px 8px;font-size: 10.5px;">';
+  html += '<input id="stt-key" type="password" placeholder="API Key" value="' + pmEsc(sttCfg0.apiKey || '') + '" style="flex:1;min-width:120px;background:#111;border:1px solid #3c3c3c;color:#e0e0e0;border-radius:4px;padding:5px 8px;font-size: 10.5px;">';
+  html += '</div>';
+  html += '<div style="display:flex;gap:6px;margin-top:6px;">';
+  html += '<input id="stt-model" placeholder="模型（如 FunAudioLLM/SenseVoiceSmall / whisper-1）" value="' + pmEsc(sttCfg0.model || '') + '" style="flex:2;background:#111;border:1px solid #3c3c3c;color:#e0e0e0;border-radius:4px;padding:5px 8px;font-size: 10.5px;">';
+  html += '<select id="stt-protocol" style="flex:1;background:#111;border:1px solid #3c3c3c;color:#e0e0e0;border-radius:4px;padding:5px 8px;font-size: 10.5px;"><option value="openai"' + (sttCfg0.protocol !== 'dashscope' ? ' selected' : '') + '>openai 协议</option><option value="dashscope"' + (sttCfg0.protocol === 'dashscope' ? ' selected' : '') + '>百炼协议</option></select>';
+  html += '</div>';
+  html += '<div style="display:flex;gap:8px;margin-top:6px;align-items:center;"><button id="stt-save-btn" style="background:#3a6ea5;color:#fff;border:none;border-radius:4px;padding:5px 12px;font-size: 10.5px;cursor:pointer;">保存语音识别配置</button><span style="font-size:10px;color:#888;">录音 16kHz WAV 仅上传至你填写的端点，本机不落盘、不记录内容。</span></div>';
+  html += '</div>';
   html += '<div style="background:#181818;border:1px dashed #3c3c3c;border-radius:6px;padding:10px;margin-bottom:8px;">';
   html += '<div style="font-size: 11.5px;color:#e0e0e0;margin-bottom:6px;">添加自定义供应商</div>';
   html += '<div style="display:flex;gap:6px;flex-wrap:wrap;"><input id="pm-add-id" placeholder="id (如 groq)" style="flex:1;min-width:90px;background:#111;border:1px solid #3c3c3c;color:#e0e0e0;border-radius:4px;padding:5px 8px;font-size: 10.5px;"><input id="pm-add-name" placeholder="名称" style="flex:1;min-width:90px;background:#111;border:1px solid #3c3c3c;color:#e0e0e0;border-radius:4px;padding:5px 8px;font-size: 10.5px;"><select id="pm-add-type" style="background:#111;border:1px solid #3c3c3c;color:#e0e0e0;border-radius:4px;padding:5px 8px;font-size: 10.5px;"><option value="openai">openai</option><option value="local">local</option><option value="ollama">ollama</option><option value="gateway">gateway</option></select></div>';
@@ -18093,6 +18204,20 @@ async function renderProviderManager() {
   html += '<button id="pm-save-btn" style="margin-top:10px;background:#3a6ea5;color:#fff;border:none;border-radius:4px;padding:6px 14px;font-size: 11.5px;cursor:pointer;">保存供应商配置</button>';
   html += '<span id="pm-save-hint" style="font-size: 10.5px;margin-left:8px;"></span>';
   el.innerHTML = html;
+  const sttSaveBtn = document.getElementById('stt-save-btn');
+  if (sttSaveBtn) sttSaveBtn.addEventListener('click', async () => {
+    const g = (id) => { const n = document.getElementById(id); return n ? String(n.value || '').trim() : ''; };
+    const sttCfg = { baseURL: g('stt-url'), apiKey: g('stt-key'), model: g('stt-model'), protocol: g('stt-protocol') || 'openai' };
+    if (sttCfg.baseURL && !sttCfg.apiKey) { showToast('STT 需要填写 API Key', 'warn'); return; }
+    if (sttCfg.apiKey && (!sttCfg.baseURL || !sttCfg.model)) { showToast('STT 需要同时填写 Base URL 与模型', 'warn'); return; }
+    try {
+      const cur = await window.LabCode.config.get();
+      const next = Object.assign({}, cur || {});
+      next.ai = Object.assign({}, (cur && cur.ai) || {}, { stt: sttCfg });
+      await window.LabCode.config.set(next);
+      showToast(sttCfg.apiKey ? '语音识别配置已保存' : '语音识别已清空（未填 Key）', 'success');
+    } catch (e) { showToast('保存失败: ' + e.message, 'error'); }
+  });
   const saveBtn = document.getElementById('pm-save-btn');
   if (saveBtn) saveBtn.addEventListener('click', saveProviderManager);
   const addBtn = document.getElementById('pm-add-btn');

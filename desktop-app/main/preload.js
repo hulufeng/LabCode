@@ -36,6 +36,12 @@ contextBridge.exposeInMainWorld('LabCode', {
     saveFile: (defaultPath) => ipcRenderer.invoke('dialog:saveFile', defaultPath)
   },
 
+  // 语音识别 STT（16kHz WAV → 主进程转写）
+  stt: {
+    transcribe: (wavU8) => ipcRenderer.invoke('stt:transcribe', { wav: wavU8 }),
+    cancel: () => ipcRenderer.invoke('stt:cancel')
+  },
+
   // 文件系统
   // Plugin transports that need OS access (child process / sockets)
   plugin: {
