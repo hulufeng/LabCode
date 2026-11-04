@@ -5060,6 +5060,8 @@ body.no-open-file .editor-toolbar { display: none !important; }
 /* 面板标题与安装进度条文字也统一 12px */
 #plugins-panel #plugins-title,
 #plugins-panel #pip-text { font-size: 12px; }
+/* 对齐 ChipCode 卡片：无「查看源码 →」链接，描述占满剩余宽度（窄面板下更易读） */
+#plugins-panel #plugins-list .plg-src { display: none; }
 /* ChipCode 层次：名称 12px，版本/描述/源码等辅助信息小一号灰字 */
 #plugins-panel #plugins-list .plg-ver { font-size: 10px !important; }
 #plugins-panel #plugins-list .plg-desc,
