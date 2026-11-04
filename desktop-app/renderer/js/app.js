@@ -12436,7 +12436,16 @@ function bindEvents() {
       const list = JSON.parse(localStorage.getItem('labcode.chatSessions') || '[]');
       const firstUser = log.find(function(m){ return m.role === 'user'; });
       const title = (firstUser && firstUser.content ? firstUser.content : '对话').slice(0, 40);
-      list.unshift({ id: 's' + Date.now(), title: title, ts: Date.now(), messages: log.slice() });
+      const sid = window._currentSessionId;
+      const idx = sid ? list.findIndex(function(x){ return x.id === sid; }) : -1;
+      if (idx >= 0) {
+        // 已有会话：更新该条，而不是每次生成新 id（否则删除后又被当作新会话写回）
+        list[idx] = { id: sid, title: title, ts: Date.now(), messages: log.slice() };
+      } else {
+        if (sid) { window._currentSessionId = null; } // 指向已删除的会话：尊重删除，不写回
+        list.unshift({ id: 's' + Date.now(), title: title, ts: Date.now(), messages: log.slice() });
+        window._currentSessionId = list[0].id;
+      }
       localStorage.setItem('labcode.chatSessions', JSON.stringify(list.slice(0, 50)));
     } catch (e) { /* 历史保存失败不影响主流程 */ }
   }
@@ -12460,6 +12469,7 @@ function bindEvents() {
         welcome.style.display = 'none';
       }
       window._chatLog = [];
+      window._currentSessionId = id; // 跟踪会话身份：后续保存更新该条而非新增
       (s.messages || []).forEach(function(m){ addChatMessage(m.role === 'assistant' ? 'ai' : 'user', m.content); });
       // 重建 agent 上下文，使「继续对话」可用
       ensureAgent();
@@ -12491,7 +12501,16 @@ function bindEvents() {
         '<button class="hist-del" data-sid="' + s.id + '" style="margin-left:6px;">删除</button></div>';
     }).join('');
     listEl.querySelectorAll('.hist-load').forEach(function(b){ b.onclick = function(){ loadSession(b.getAttribute('data-sid')); overlay.style.display = 'none'; }; });
-    listEl.querySelectorAll('.hist-del').forEach(function(b){ b.onclick = function(){ const id = b.getAttribute('data-sid'); let l = JSON.parse(localStorage.getItem('labcode.chatSessions') || '[]'); l = l.filter(function(x){ return x.id !== id; }); localStorage.setItem('labcode.chatSessions', JSON.stringify(l)); openHistoryPanel(); }; });
+    listEl.querySelectorAll('.hist-del').forEach(function(b){ b.onclick = function(){
+      const id = b.getAttribute('data-sid');
+      let l = JSON.parse(localStorage.getItem('labcode.chatSessions') || '[]');
+      l = l.filter(function(x){ return x.id !== id; });
+      localStorage.setItem('labcode.chatSessions', JSON.stringify(l));
+      // 删除的是当前会话：丢弃其日志，避免下次保存以新 id 写回（「删了又出现」）
+      if (id === window._currentSessionId) { window._chatLog = []; window._currentSessionId = null; }
+      if (typeof window.renderWelcomeHistory === 'function') window.renderWelcomeHistory('');
+      openHistoryPanel();
+    }; });
   }
   function openHistoryPanel() {
     saveCurrentSessionToHistory();
@@ -12552,6 +12571,7 @@ function bindEvents() {
     }
     state.agent = null;
     window._chatLog = [];
+    window._currentSessionId = null; // 新对话 = 新会话身份
     if (typeof scheduleCtxRing === 'function') scheduleCtxRing();
     showToast('已开始新对话', 'info');
   }
@@ -12637,6 +12657,8 @@ function bindEvents() {
           let l = JSON.parse(localStorage.getItem('labcode.chatSessions') || '[]');
           l = l.filter(function(x){ return x.id !== id; });
           localStorage.setItem('labcode.chatSessions', JSON.stringify(l));
+          // 删除的是当前会话：丢弃其日志，避免下次保存以新 id 写回（「删了又出现」）
+          if (id === window._currentSessionId) { window._chatLog = []; window._currentSessionId = null; }
           renderWelcomeHistory(document.getElementById('welcome-history-search').value);
         });
       });
