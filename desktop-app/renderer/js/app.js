@@ -1979,6 +1979,34 @@ const TOOL_DEFS = [
 ,
   // ===== 对齐 TrieCode pdf.js：读取 PDF =====
   {
+    name: 'mcp_list', category: 'query', description: '列出已配置的 MCP 服务器及其工具（设置→模型供应商→MCP 服务器里可增删/测试连接）',
+    execute: async () => {
+      try {
+        const servers = await window.LabCode.mcp.listServers();
+        if (!Array.isArray(servers)) return 'Error: MCP 服务不可用';
+        const out = [];
+        for (const s of servers) {
+          let tools = null;
+          try { const t = await window.LabCode.mcp.listTools(s.name); if (t && t.ok) tools = (t.tools || []).map(x => x.name); } catch (e) {}
+          out.push({ name: s.name, type: s.type, endpoint: s.command || s.url || '', status: s.status, tools });
+        }
+        return JSON.stringify(out, null, 2);
+      } catch (e) { return 'Error: ' + e.message; }
+    }
+  },
+  {
+    name: 'mcp_call', category: 'execute', description: '调用 MCP 服务器的工具。参数：server(必填 name)、tool(必填)、arguments(对象，可选)。先用 mcp_list 查可用工具',
+    execute: async (args) => {
+      try {
+        const a = args || {};
+        if (!a.server || !a.tool) return 'Error: 需要 server 与 tool（用 mcp_list 查询）';
+        const r = await window.LabCode.mcp.callTool(a.server, a.tool, a.arguments || {});
+        if (!r || !r.ok) return 'Error: ' + ((r && r.error) || '');
+        return r.text || '(空结果)';
+      } catch (e) { return 'Error: ' + e.message; }
+    }
+  },
+  {
     name: 'read_pdf', category: 'query',
     description: '读取 PDF 文件并提取文本内容。支持工作区内相对路径。大文件自动分页截断。',
     parameters: { type: 'object', properties: {
@@ -18339,6 +18367,25 @@ async function renderProviderManager() {
   html += '<button id="interp-set-btn" style="background:#3a6ea5;color:#fff;border:none;border-radius:4px;padding:5px 10px;font-size: 10.5px;cursor:pointer;">设为默认</button>';
   html += '<button id="interp-test-btn" style="background:#333;color:#ccc;border:1px solid #555;border-radius:4px;padding:5px 10px;font-size: 10.5px;cursor:pointer;">测试运行</button>';
   html += '</div></div>';
+  // MCP 服务器卡（复用既有 mcpService：stdio/http/sse，配置存 config.extra.mcpServers）
+  let mcpServers = [];
+  try { const ms = await window.LabCode.mcp.listServers(); if (Array.isArray(ms)) mcpServers = ms; } catch (e) {}
+  html += '<div style="background:#181818;border:1px solid #3c3c3c;border-radius:6px;padding:10px;margin-bottom:8px;">';
+  html += '<div style="font-size: 11.5px;color:#e0e0e0;margin-bottom:6px;">MCP 服务器（stdio/http/sse · agent 工具 mcp_list/mcp_call 调用）</div>';
+  html += '<div id="mcp-list">' + (mcpServers.length ? mcpServers.map(s => '<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:11px;color:#ccc;"><span>' + pmEsc(s.name) + ' [' + pmEsc(s.type || 'stdio') + '] ' + pmEsc(s.command || s.url || '') + ' <span style="color:#888;">' + pmEsc(s.status || '') + ' · ' + (s.tools || 0) + ' 工具</span></span><span><button data-mcp-test="' + pmEsc(s.name) + '" style="background:#2d5a27;color:#fff;border:1px solid #3f7a36;border-radius:4px;padding:2px 8px;font-size:10px;cursor:pointer;">测试连接</button> <button data-mcp-del="' + pmEsc(s.name) + '" style="background:#3a3a3a;color:#ef4444;border:1px solid #555;border-radius:4px;padding:2px 8px;font-size:10px;cursor:pointer;">删除</button></span></div>').join('') : '<div style="font-size:10.5px;color:#888;">暂无服务器</div>') + '</div>';
+  html += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">';
+  html += '<input id="mcp-id" placeholder="id（如 filesystem）" style="flex:1;min-width:100px;background:#111;border:1px solid #3c3c3c;color:#e0e0e0;border-radius:4px;padding:5px 8px;font-size: 10.5px;">';
+  html += '<input id="mcp-cmd" placeholder="command（如 npx）" style="flex:1;min-width:100px;background:#111;border:1px solid #3c3c3c;color:#e0e0e0;border-radius:4px;padding:5px 8px;font-size: 10.5px;">';
+  html += '<input id="mcp-args" placeholder="args（空格分隔）" style="flex:2;min-width:140px;background:#111;border:1px solid #3c3c3c;color:#e0e0e0;border-radius:4px;padding:5px 8px;font-size: 10.5px;">';
+  html += '<button id="mcp-add-btn" style="background:#3a6ea5;color:#fff;border:none;border-radius:4px;padding:5px 12px;font-size: 10.5px;cursor:pointer;">添加</button>';
+  html += '</div></div>';
+  // 更新检查卡（走既有 electron-updater；更新源由打包配置 app-update.yml 决定）
+  html += '<div style="background:#181818;border:1px solid #3c3c3c;border-radius:6px;padding:10px;margin-bottom:8px;">';
+  html += '<div style="font-size: 11.5px;color:#e0e0e0;margin-bottom:6px;">更新检查（electron-updater；源由安装目录 app-update.yml 配置）</div>';
+  html += '<div style="display:flex;gap:6px;align-items:center;">';
+  html += '<button id="upd-check-btn" style="background:#2d5a27;color:#fff;border:1px solid #3f7a36;border-radius:4px;padding:5px 10px;font-size: 10.5px;cursor:pointer;">检查更新</button>';
+  html += '<span style="font-size:10px;color:#888;">有新版时给出下载/安装入口</span>';
+  html += '</div><div id="upd-result" style="font-size:10.5px;color:#ccc;margin-top:6px;"></div></div>';
   html += '<div style="background:#181818;border:1px dashed #3c3c3c;border-radius:6px;padding:10px;margin-bottom:8px;">';
   html += '<div style="font-size: 11.5px;color:#e0e0e0;margin-bottom:6px;">添加自定义供应商</div>';
   html += '<div style="display:flex;gap:6px;flex-wrap:wrap;"><input id="pm-add-id" placeholder="id (如 groq)" style="flex:1;min-width:90px;background:#111;border:1px solid #3c3c3c;color:#e0e0e0;border-radius:4px;padding:5px 8px;font-size: 10.5px;"><input id="pm-add-name" placeholder="名称" style="flex:1;min-width:90px;background:#111;border:1px solid #3c3c3c;color:#e0e0e0;border-radius:4px;padding:5px 8px;font-size: 10.5px;"><select id="pm-add-type" style="background:#111;border:1px solid #3c3c3c;color:#e0e0e0;border-radius:4px;padding:5px 8px;font-size: 10.5px;"><option value="openai">openai</option><option value="local">local</option><option value="ollama">ollama</option><option value="gateway">gateway</option></select></div>';
@@ -18406,6 +18453,49 @@ async function renderProviderManager() {
     const r = await window.LabCode.interpreters.runPython({ python: custom || (picked ? picked.value : undefined), args: ['-c', 'import sys;print(sys.executable, sys.version.split()[0])'] });
     if (r && r.success) showToast('Python 运行正常: ' + (r.output || '').trim().slice(0, 90), 'success');
     else showToast('运行失败: ' + ((r && r.error) || ''), 'error');
+  });
+  // MCP 绑定（复用既有 mcpService）
+  const mcpAddBtn = document.getElementById('mcp-add-btn');
+  if (mcpAddBtn) mcpAddBtn.addEventListener('click', async () => {
+    const name = document.getElementById('mcp-id').value.trim();
+    const command = document.getElementById('mcp-cmd').value.trim();
+    const args = document.getElementById('mcp-args').value.trim();
+    if (!name || !command) { showToast('name 与 command 必填', 'warn'); return; }
+    const r = await window.LabCode.mcp.addServer({ name, type: 'stdio', command, args });
+    if (r && r.ok) { showToast('MCP 服务器已保存: ' + name, 'success'); renderProviderManager(); }
+    else showToast('保存失败: ' + ((r && r.error) || ''), 'error');
+  });
+  el.querySelectorAll('[data-mcp-test]').forEach(b => b.addEventListener('click', async () => {
+    const name = b.getAttribute('data-mcp-test');
+    b.textContent = '测试中…';
+    try {
+      await window.LabCode.mcp.startServer(name);
+      const t = await window.LabCode.mcp.testConnection(name);
+      if (t && t.success) showToast('连接成功：' + (t.message || t.tools + ' 个工具'), 'success');
+      else showToast('连接失败: ' + ((t && t.error) || ''), 'error');
+    } catch (e) { showToast('连接失败: ' + e.message, 'error'); }
+    b.textContent = '测试连接';
+  }));
+  el.querySelectorAll('[data-mcp-del]').forEach(b => b.addEventListener('click', async () => {
+    await window.LabCode.mcp.removeServer(b.getAttribute('data-mcp-del'));
+    showToast('已删除', 'success');
+    renderProviderManager();
+  }));
+  // 更新绑定（electron-updater）
+  const updCheckBtn = document.getElementById('upd-check-btn');
+  if (updCheckBtn) updCheckBtn.addEventListener('click', async () => {
+    const resEl = document.getElementById('upd-result');
+    resEl.textContent = '检查中…';
+    const r = await window.LabCode.updater.check();
+    if (r && r.disabled) { resEl.textContent = '本构建已停用自动更新'; return; }
+    if (r && r.version) {
+      const dl = r.files && r.files[0] && r.files[0].url;
+      resEl.innerHTML = '更新源版本：<b>' + pmEsc(r.version) + '</b>' + (r.releaseDate ? ' · ' + pmEsc(r.releaseDate) : '') + (dl ? ' <a href="#" id="upd-open" style="color:#7ab8ff;">打开下载</a>' : '');
+      const open = document.getElementById('upd-open');
+      if (open) open.addEventListener('click', (e) => { e.preventDefault(); window.LabCode.shell.openExternal(dl); });
+    } else {
+      resEl.textContent = '检查失败: ' + ((r && r.error) || '未知');
+    }
   });
   const saveBtn = document.getElementById('pm-save-btn');
   if (saveBtn) saveBtn.addEventListener('click', saveProviderManager);

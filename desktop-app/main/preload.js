@@ -441,6 +441,15 @@ contextBridge.exposeInMainWorld('LabCode', {
     setActive: (opts) => ipcRenderer.invoke('interpreters:setActive', opts),
     runPython: (opts) => ipcRenderer.invoke('interpreters:runPython', opts)
   },
+
+  // 更新检查（走既有 electron-updater IPC）
+  updater: {
+    check: () => ipcRenderer.invoke('update:check')
+  },
+
+  shell: {
+    openExternal: (url) => ipcRenderer.invoke('shell:openExternal', url)
+  },
   // Coding-Agent CLI 安装/检测（对齐 Ekko Agent Manager）
   codingAgents: {
     list: () => ipcRenderer.invoke('codingAgents:list'),
