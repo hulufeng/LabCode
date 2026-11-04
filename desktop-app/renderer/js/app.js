@@ -11198,7 +11198,10 @@ function bindEvents() {
     { test: /wokwi/i, sym: 'brand-wokwi' },
     { test: /立创|easyeda|lceda/i, sym: 'brand-lceda' },
     { test: /浏览器|browser/i, sym: 'brand-browser' },
-    { test: /插件开发|plugin-dev/i, sym: 'brand-plugdev' }
+    { test: /插件开发|plugin-dev/i, sym: 'brand-plugdev' },
+    { test: /openscad/i, sym: 'brand-openscad' },
+    { test: /mcs51|51\s*单片机|8051/i, sym: 'brand-mcs51' },
+    { test: /ai-hardware-lab|AI\s*硬件拆解|硬件拆解/i, sym: 'brand-aihwlab' }
   ];
   function brandIconHtml(p) {
     const hay = (p.id || '') + ' ' + (p.name || '');
